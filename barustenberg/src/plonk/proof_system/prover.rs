@@ -1,11 +1,22 @@
 use std::sync::Arc;
 
-use super::proving_key::ProvingKey;
+use super::{
+    proving_key::ProvingKey,
+    types::{prover_settings::ProverSettings, Proof},
+};
 use crate::ecc::Field;
 
-trait ProverSettings {}
+struct Prover<Fr: Field, Settings: ProverSettings> {
+    circuit_size: usize,
+    transcript: Transcript,
+    key: Arc<ProvingKey<Fr>>,
+    queue: WorkQueue,
+    random_widgets: Vec<ProverRandomWidget>,
+    transition_widgets: Vec<Widget::TransitionWidgetBase<Fr>>,
+    commitment_scheme: CommitmentScheme,
+}
 
-trait Prover<Fr: Field, S: ProverSettings> {
+impl<Fr: Field, S: ProverSettings> Prover<Fr, S> {
     fn new(
         input_key: Option<Arc<ProvingKey<Fr>>>,
         input_manifest: Option<&Transcript::Manifest>,
@@ -24,6 +35,9 @@ trait Prover<Fr: Field, S: ProverSettings> {
             transcript,
             key: input_key.unwrap_or_else(|| Arc::new(ProvingKey::default())),
             queue,
+            random_widgets: Vec::new(),
+            transition_widgets: Vec::new(),
+            commitment_scheme: CommitmentScheme::default(),
         }
     }
 
@@ -444,8 +458,12 @@ trait Prover<Fr: Field, S: ProverSettings> {
         todo!("implement me")
     }
 
-    fn add_polynomial_evaluations_to_transcript(&self);
-    fn compute_batch_opening_polynomials(&self);
+    fn add_polynomial_evaluations_to_transcript(&self) {
+        todo!("i don't know what this is")
+    }
+    fn compute_batch_opening_polynomials(&self) {
+        todo!("i don't know what this is")
+    }
     /// - Compute wire commitments and add them to the transcript.
     /// - Add public_inputs from w_2_fft to transcript.
     /// Parameters:
@@ -640,19 +658,19 @@ trait Prover<Fr: Field, S: ProverSettings> {
         todo!("implement me, see comment");
     }
 
-    fn export_proof(&self) -> &plonk::Proof {
+    fn export_proof(&self) -> &Proof {
         proof.proof_data = self.transcript.export_transcript();
         return proof;
     }
 
-    fn construct_proof(&self) -> &plonk::Proof {
+    fn construct_proof(&self) -> &Proof {
         // Execute init round. Randomize witness polynomials.
         self.execute_preamble_round();
-        queue.process_queue();
+        self.queue.process_queue();
 
         // Compute wire precommitments and sometimes random widget round commitments
         self.execute_first_round();
-        queue.process_queue();
+        self.queue.process_queue();
 
         // Fiat-Shamir eta + execute random widgets.
         self.execute_second_round();
@@ -720,25 +738,7 @@ trait Prover<Fr: Field, S: ProverSettings> {
             Settings::num_challenge_bytes,
         ));
     }
-
-    fn get_random_widgets(&self) -> &Vec<ProverRandomWidget>;
-    fn get_transition_widgets(&self) -> &Vec<&Widget::TransitionWidgetBase<Fr>>;
-    fn get_transcript(&self) -> &Transcript::StandardTranscript;
-    fn get_key(&self) -> &Arc<ProvingKey>;
-    fn get_commitment_scheme(&self) -> &CommitmentScheme;
-    fn get_queue(&self) -> &WorkQueue::WorkQueue;
-    fn set_transcript(&self, transcript: Transcript::StandardTranscript);
 }
-
-impl Prover<StandardSettings> {}
-
-impl Prover<TurboSettings> {}
-
-impl Prover<UltraSettings> {}
-
-impl Prover<UltraToStandardSettings> {}
-
-impl Prover<UltraWithKeccakSettings> {}
 
 #[cfg(test)]
 mod tests {

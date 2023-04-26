@@ -8,6 +8,7 @@ pub mod ecc;
 pub mod numeric;
 pub mod plonk;
 pub mod polynomials;
+pub mod transcript;
 
 /// Test utilities.
 #[cfg(any(test, feature = "test_utils"))]
