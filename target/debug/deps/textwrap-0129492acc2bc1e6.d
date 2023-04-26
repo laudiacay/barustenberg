@@ -1,0 +1,11 @@
+/Users/laudiacay/GolandProjects/rs-wnfs/target/debug/deps/textwrap-0129492acc2bc1e6.rmeta: /Users/laudiacay/.cargo/registry/src/github.com-1ecc6299db9ec823/textwrap-0.16.0/src/lib.rs /Users/laudiacay/.cargo/registry/src/github.com-1ecc6299db9ec823/textwrap-0.16.0/src/indentation.rs /Users/laudiacay/.cargo/registry/src/github.com-1ecc6299db9ec823/textwrap-0.16.0/src/word_separators.rs /Users/laudiacay/.cargo/registry/src/github.com-1ecc6299db9ec823/textwrap-0.16.0/src/word_splitters.rs /Users/laudiacay/.cargo/registry/src/github.com-1ecc6299db9ec823/textwrap-0.16.0/src/wrap_algorithms.rs /Users/laudiacay/.cargo/registry/src/github.com-1ecc6299db9ec823/textwrap-0.16.0/src/line_ending.rs /Users/laudiacay/.cargo/registry/src/github.com-1ecc6299db9ec823/textwrap-0.16.0/src/core.rs
+
+/Users/laudiacay/GolandProjects/rs-wnfs/target/debug/deps/textwrap-0129492acc2bc1e6.d: /Users/laudiacay/.cargo/registry/src/github.com-1ecc6299db9ec823/textwrap-0.16.0/src/lib.rs /Users/laudiacay/.cargo/registry/src/github.com-1ecc6299db9ec823/textwrap-0.16.0/src/indentation.rs /Users/laudiacay/.cargo/registry/src/github.com-1ecc6299db9ec823/textwrap-0.16.0/src/word_separators.rs /Users/laudiacay/.cargo/registry/src/github.com-1ecc6299db9ec823/textwrap-0.16.0/src/word_splitters.rs /Users/laudiacay/.cargo/registry/src/github.com-1ecc6299db9ec823/textwrap-0.16.0/src/wrap_algorithms.rs /Users/laudiacay/.cargo/registry/src/github.com-1ecc6299db9ec823/textwrap-0.16.0/src/line_ending.rs /Users/laudiacay/.cargo/registry/src/github.com-1ecc6299db9ec823/textwrap-0.16.0/src/core.rs
+
+/Users/laudiacay/.cargo/registry/src/github.com-1ecc6299db9ec823/textwrap-0.16.0/src/lib.rs:
+/Users/laudiacay/.cargo/registry/src/github.com-1ecc6299db9ec823/textwrap-0.16.0/src/indentation.rs:
+/Users/laudiacay/.cargo/registry/src/github.com-1ecc6299db9ec823/textwrap-0.16.0/src/word_separators.rs:
+/Users/laudiacay/.cargo/registry/src/github.com-1ecc6299db9ec823/textwrap-0.16.0/src/word_splitters.rs:
+/Users/laudiacay/.cargo/registry/src/github.com-1ecc6299db9ec823/textwrap-0.16.0/src/wrap_algorithms.rs:
+/Users/laudiacay/.cargo/registry/src/github.com-1ecc6299db9ec823/textwrap-0.16.0/src/line_ending.rs:
+/Users/laudiacay/.cargo/registry/src/github.com-1ecc6299db9ec823/textwrap-0.16.0/src/core.rs:

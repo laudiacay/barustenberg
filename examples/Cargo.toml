@@ -1,0 +1,13 @@
+[package]
+name = "examples"
+version = "0.1.0"
+publish = false
+edition = "2021"
+authors = ["Claudia Richoux <c@laudiacay.cool>"]
+
+[dev-dependencies]
+barustenberg = { path = "../barustenberg", version = "0.1" }
+
+[[example]]
+name = "counterparts"
+path = "counterparts.rs"

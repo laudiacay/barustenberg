@@ -1,0 +1,35 @@
+[package]
+name = "barustenberg"
+version = "0.1.0"
+description = "barretenberg in rust"
+keywords = []
+categories = []
+include = ["/src", "README.md", "LICENSE-APACHE", "LICENSE-MIT"]
+license = "Apache-2.0 or MIT"
+readme = "README.md"
+edition = "2021"
+rust-version = "1.64"
+documentation = "https://docs.rs/barustenberg"
+repository = "https://github.com/laudiacay/barustenberg/tree/main/barustenberg"
+authors = ["Claudia Richoux <c@laudiacay.cool>"]
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+proptest = { version = "1.1", optional = true }
+thiserror = "1.0"
+tracing = "0.1"
+lazy_static = "1.4"
+[dev-dependencies]
+proptest = "1.1"
+
+[features]
+default = []
+test_utils = ["proptest"]
+multithreading = []
+
+[package.metadata.docs.rs]
+all-features = true
+# defines the configuration attribute `docsrs`
+rustdoc-args = ["--cfg", "docsrs"]
