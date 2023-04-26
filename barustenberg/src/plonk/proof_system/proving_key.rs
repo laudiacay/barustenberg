@@ -61,8 +61,8 @@ impl<Fr: Field> ProvingKey<Fr> {
         } = data;
 
         let log_circuit_size = (circuit_size as f64).log2().ceil() as usize;
-        let small_domain = evaluation_domain::new(circuit_size).unwrap();
-        let large_domain = evaluation_domain::new(1usize << log_circuit_size).unwrap();
+        let small_domain = EvaluationDomain::new(circuit_size).unwrap();
+        let large_domain = EvaluationDomain::new(1usize << log_circuit_size).unwrap();
 
         let mut ret = Self {
             composer_type,
@@ -78,7 +78,7 @@ impl<Fr: Field> ProvingKey<Fr> {
             large_domain,
             reference_string: crs,
             quotient_polynomial_parts: Default::default(),
-            pippenger_runtime_state: pippenger_runtime_state::default(),
+            pippenger_runtime_state: PippengerRuntimeState::default(),
             polynomial_manifest: PolynomialManifest::default(),
         };
         ret.init();

@@ -1,27 +1,28 @@
 use std::sync::Arc;
 
 use super::proving_key::ProvingKey;
+use crate::ecc::Field;
 
 trait ProverSettings {}
 
 trait Prover<Fr: Field, S: ProverSettings> {
     fn new(
         input_key: Option<Arc<ProvingKey<Fr>>>,
-        input_manifest: Option<&transcript::Manifest>,
+        input_manifest: Option<&Transcript::Manifest>,
         input_settings: Option<S>,
     ) -> Self {
         let circuit_size = input_key.as_ref().map_or(0, |key| key.circuit_size);
-        let transcript = transcript::StandardTranscript::new(
+        let transcript = Transcript::StandardTranscript::new(
             input_manifest,
             Settings::HASH_TYPE,
             Settings::NUM_CHALLENGE_BYTES,
         );
-        let queue = work_queue::new(input_key.as_ref(), &transcript);
+        let queue = WorkQueue::new(input_key.as_ref(), &transcript);
 
         Self {
             circuit_size,
             transcript,
-            key: input_key.unwrap_or_else(|| Arc::new(proving_key::default())),
+            key: input_key.unwrap_or_else(|| Arc::new(ProvingKey::default())),
             queue,
         }
     }
@@ -646,41 +647,41 @@ trait Prover<Fr: Field, S: ProverSettings> {
 
     fn construct_proof(&self) -> &plonk::Proof {
         // Execute init round. Randomize witness polynomials.
-        execute_preamble_round();
+        self.execute_preamble_round();
         queue.process_queue();
 
         // Compute wire precommitments and sometimes random widget round commitments
-        execute_first_round();
+        self.execute_first_round();
         queue.process_queue();
 
         // Fiat-Shamir eta + execute random widgets.
-        execute_second_round();
+        self.execute_second_round();
         queue.process_queue();
 
         // Fiat-Shamir beta & gamma, execute random widgets (Permutation widget is executed here)
         // and fft the witnesses
-        execute_third_round();
+        self.execute_third_round();
         queue.process_queue();
 
         // Fiat-Shamir alpha, compute & commit to quotient polynomial.
-        execute_fourth_round();
+        self.execute_fourth_round();
         queue.process_queue();
 
-        execute_fifth_round();
+        self.execute_fifth_round();
 
-        execute_sixth_round();
+        self.execute_sixth_round();
         queue.process_queue();
 
         queue.flush_queue();
 
-        return export_proof();
+        return self.export_proof();
     }
 
     fn get_circuit_size(&self) -> usize;
     fn flush_queued_work_items(&self) {
         self.get_queue().flush_queue();
     }
-    fn get_queued_work_item_info(&self) -> work_queue::WorkItemInfo {
+    fn get_queued_work_item_info(&self) -> WorkQueue::WorkItemInfo {
         self.get_queue().get_queued_work_item_info();
     }
     fn get_scalar_multiplication_data(&self, work_item_number: usize) -> &barretenberg::fr {
@@ -694,7 +695,7 @@ trait Prover<Fr: Field, S: ProverSettings> {
     fn get_ifft_data(&self, work_item_number: usize) -> &barretenberg::fr {
         self.get_queue().get_ifft_data(work_item_number);
     }
-    fn get_fft_data(&self, work_item_number: usize) -> &work_queue::QueuedFftInputs {
+    fn get_fft_data(&self, work_item_number: usize) -> &WorkQueue::QueuedFftInputs {
         self.get_queue().get_fft_data(work_item_number);
     }
     fn put_scalar_multiplication_data(
@@ -705,28 +706,28 @@ trait Prover<Fr: Field, S: ProverSettings> {
         self.get_queue()
             .put_scalar_multiplication_data(result, work_item_number);
     }
-    fn put_fft_data(&self, result: barretenberg::fr, work_item_number: usize) {
+    fn put_fft_data(&self, result: Fr, work_item_number: usize) {
         self.get_queue().put_fft_data(result, work_item_number);
     }
-    fn put_ifft_data(&self, result: barretenberg::fr, work_item_number: usize) {
+    fn put_ifft_data(&self, result: Fr, work_item_number: usize) {
         self.get_queue().put_ifft_data(result, work_item_number);
     }
     fn reset(&self) {
-        let manifest = transcript.get_manifest();
-        self.set_transcript(transcript::StandardTranscript(
+        let manifest = self.transcript.get_manifest();
+        self.set_transcript(Transcript::StandardTranscript(
             manifest,
-            settings::hash_type,
-            settings::num_challenge_bytes,
+            Settings::hash_type,
+            Settings::num_challenge_bytes,
         ));
     }
 
     fn get_random_widgets(&self) -> &Vec<ProverRandomWidget>;
-    fn get_transition_widgets(&self) -> &Vec<&widget::TransitionWidgetBase<barretenberg::fr>>;
-    fn get_transcript(&self) -> &transcript::StandardTranscript;
+    fn get_transition_widgets(&self) -> &Vec<&Widget::TransitionWidgetBase<Fr>>;
+    fn get_transcript(&self) -> &Transcript::StandardTranscript;
     fn get_key(&self) -> &Arc<ProvingKey>;
     fn get_commitment_scheme(&self) -> &CommitmentScheme;
-    fn get_queue(&self) -> &work_queue::WorkQueue;
-    fn set_transcript(&self, transcript: transcript::StandardTranscript);
+    fn get_queue(&self) -> &WorkQueue::WorkQueue;
+    fn set_transcript(&self, transcript: Transcript::StandardTranscript);
 }
 
 impl Prover<StandardSettings> {}
