@@ -51,31 +51,31 @@ fn compute_lookup_table_single<F: Field>(
     round_roots: &mut Vec<&mut [F]>,
 ) {
     todo!("unimplemented, see comment below");
-    // ORIGINAL CODE:     
+    // ORIGINAL CODE:
     /*
-void compute_lookup_table_single(const Fr& input_root,
-                                 const size_t size,
-                                 Fr* const roots,
-                                 std::vector<Fr*>& round_roots)
-{
-    const size_t num_rounds = static_cast<size_t>(numeric::get_msb(size));
+    void compute_lookup_table_single(const Fr& input_root,
+                                     const size_t size,
+                                     Fr* const roots,
+                                     std::vector<Fr*>& round_roots)
+    {
+        const size_t num_rounds = static_cast<size_t>(numeric::get_msb(size));
 
-    round_roots.emplace_back(&roots[0]);
-    for (size_t i = 1; i < num_rounds - 1; ++i) {
-        round_roots.emplace_back(round_roots.back() + (1UL << i));
-    }
+        round_roots.emplace_back(&roots[0]);
+        for (size_t i = 1; i < num_rounds - 1; ++i) {
+            round_roots.emplace_back(round_roots.back() + (1UL << i));
+        }
 
-    for (size_t i = 0; i < num_rounds - 1; ++i) {
-        const size_t m = 1UL << (i + 1);
-        const Fr round_root = input_root.pow(static_cast<uint64_t>(size / (2 * m)));
-        Fr* const current_round_roots = round_roots[i];
-        current_round_roots[0] = Fr::one();
-        for (size_t j = 1; j < m; ++j) {
-            current_round_roots[j] = current_round_roots[j - 1] * round_root;
+        for (size_t i = 0; i < num_rounds - 1; ++i) {
+            const size_t m = 1UL << (i + 1);
+            const Fr round_root = input_root.pow(static_cast<uint64_t>(size / (2 * m)));
+            Fr* const current_round_roots = round_roots[i];
+            current_round_roots[0] = Fr::one();
+            for (size_t j = 1; j < m; ++j) {
+                current_round_roots[j] = current_round_roots[j - 1] * round_root;
+            }
         }
     }
-}
- */
+     */
 
     // MAYBE a solution- from chatgpt
     // let num_rounds = size.get_msb();
@@ -103,7 +103,6 @@ void compute_lookup_table_single(const Fr& input_root,
 impl<F: Field> EvaluationDomain<F> {
     pub fn new(domain_size: usize, target_generator_size: usize) -> Self {
         // TODO: implement constructor logic
-
 
         let size = domain_size;
         let num_threads = compute_num_threads(size);
