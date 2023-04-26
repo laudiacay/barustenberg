@@ -31,6 +31,7 @@ version = "0.1.0"
 dependencies = [
  "lazy_static",
  "proptest",
+ "serde",
  "thiserror",
  "tracing",
 ]

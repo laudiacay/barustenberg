@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 trait ProverSettings {}
 
-trait Prover<S: ProverSettings>: Copy {
+trait Prover<S: ProverSettings> {
     fn new(
         input_key: Option<Arc<ProvingKey>>,
         input_manifest: Option<&transcript::Manifest>,
@@ -22,6 +22,10 @@ trait Prover<S: ProverSettings>: Copy {
             key: input_key.unwrap_or_else(|| Arc::new(proving_key::default())),
             queue,
         }
+    }
+
+    fn copy_placeholder(&self) {
+        todo!("LOOK AT THE COMMENTS IN PROVERBASE");
     }
 
     // TODO: there is some copying bullshit you need to look at from prover.cpp...
