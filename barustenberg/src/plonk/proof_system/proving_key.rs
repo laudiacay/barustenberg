@@ -4,13 +4,14 @@ use std::sync::Arc;
 use std::vec::Vec;
 
 use crate::ecc::Field;
-use crate::plonk::barretenberg::evaluation_domain;
-use crate::plonk::barretenberg::polynomial;
-use crate::plonk::barretenberg::scalar_multiplication::pippenger_runtime_state;
-use crate::plonk::composer::ComposerType;
-use crate::plonk::PolynomialManifest;
-use crate::plonk::PolynomialStore;
-use crate::plonk::ProverReferenceString;
+// use crate::plonk::barretenberg::scalar_multiplication::pippenger_runtime_state;
+//use crate::plonk::composer::ComposerType;
+use crate::polynomials::Polynomial;
+//use crate::plonk::PolynomialStore;
+//use crate::plonk::ProverReferenceString;
+use crate::polynomials::evaluation_domain::EvaluationDomain;
+
+use super::types::PolynomialManifest;
 
 const MIN_THREAD_BLOCK: usize = 4;
 
@@ -31,15 +32,17 @@ pub struct ProvingKey<Fr: Field> {
     pub num_public_inputs: usize,
     pub contains_recursive_proof: bool,
     pub recursive_proof_public_input_indices: Vec<u32>,
-    pub memory_read_records: Vec<u32>, // Used by UltraComposer only; for ROM, RAM reads.
-    pub memory_write_records: Vec<u32>, // Used by UltraComposer only, for RAM writes.
+    /// Used by UltraComposer only; for ROM, RAM reads.
+    pub memory_read_records: Vec<u32>,
+    /// Used by UltraComposer only, for RAM writes.
+    pub memory_write_records: Vec<u32>,
     pub polynomial_store: PolynomialStore<Fr>,
-    pub small_domain: EvaluationDomain,
-    pub large_domain: EvaluationDomain,
+    pub small_domain: EvaluationDomain<Fr>,
+    pub large_domain: EvaluationDomain<Fr>,
     /// The reference_string object contains the monomial SRS. We can access it using:
     /// Monomial SRS: reference_string->get_monomial_points()
     pub reference_string: Arc<ProverReferenceString>,
-    pub quotient_polynomial_parts: [Polynomial<fr>; NUM_QUOTIENT_PARTS],
+    pub quotient_polynomial_parts: [Polynomial<Fr>; NUM_QUOTIENT_PARTS],
     pub pippenger_runtime_state: PippengerRuntimeState,
     pub polynomial_manifest: PolynomialManifest,
 }

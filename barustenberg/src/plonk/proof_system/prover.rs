@@ -1,10 +1,12 @@
 use std::sync::Arc;
 
+use super::proving_key::ProvingKey;
+
 trait ProverSettings {}
 
-trait Prover<S: ProverSettings> {
+trait Prover<Fr: Field, S: ProverSettings> {
     fn new(
-        input_key: Option<Arc<ProvingKey>>,
+        input_key: Option<Arc<ProvingKey<Fr>>>,
         input_manifest: Option<&transcript::Manifest>,
         input_settings: Option<S>,
     ) -> Self {
