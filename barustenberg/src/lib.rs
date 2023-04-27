@@ -9,6 +9,13 @@ pub mod numeric;
 pub mod plonk;
 pub mod polynomials;
 pub mod transcript;
+pub mod proof_system;
+
+// TODOs for claudia and waylon
+// big error handling energy
+// logging!
+// tests!
+// docstrings!
 
 /// Test utilities.
 #[cfg(any(test, feature = "test_utils"))]

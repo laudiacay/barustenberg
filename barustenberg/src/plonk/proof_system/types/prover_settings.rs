@@ -1,3 +1,5 @@
+use crate::transcript::HasherType;
+
 pub trait ProverSettings {}
 
 pub trait SettingsBase: ProverSettings {
@@ -9,7 +11,7 @@ pub trait SettingsBase: ProverSettings {
 pub trait StandardSettings: SettingsBase {
     type Arithmetization: arithmetization::Standard;
     const NUM_CHALLENGE_BYTES: usize = 16;
-    const HASH_TYPE: transcript::HashType = transcript::HashType::PedersenBlake3s;
+    const HASH_TYPE: HasherType = HasherType::PedersenBlake3s;
     const PROGRAM_WIDTH: usize = 3;
     const NUM_SHIFTED_WIRE_EVALUATIONS: usize = 1;
     const WIRE_SHIFT_SETTINGS: u64 = 0b0100;
@@ -21,7 +23,7 @@ pub trait StandardSettings: SettingsBase {
 
 pub trait TurboSettings: SettingsBase {
     const NUM_CHALLENGE_BYTES: usize = 16;
-    const HASH_TYPE: transcript::HashType = transcript::HashType::PedersenBlake3s;
+    const HASH_TYPE: HasherType = HasherType::PedersenBlake3s;
     const PROGRAM_WIDTH: usize = 4;
     const NUM_SHIFTED_WIRE_EVALUATIONS: usize = 4;
     const WIRE_SHIFT_SETTINGS: u64 = 0b1111;
@@ -33,7 +35,7 @@ pub trait TurboSettings: SettingsBase {
 
 pub trait UltraSettings: SettingsBase {
     const NUM_CHALLENGE_BYTES: usize = 16;
-    const HASH_TYPE: transcript::HashType = transcript::HashType::PlookupPedersenBlake3s;
+    const HASH_TYPE: HasherType = HasherType::PlookupPedersenBlake3s;
     const PROGRAM_WIDTH: usize = 4;
     const NUM_SHIFTED_WIRE_EVALUATIONS: usize = 4;
     const WIRE_SHIFT_SETTINGS: u64 = 0b1111;
@@ -44,12 +46,12 @@ pub trait UltraSettings: SettingsBase {
 }
 
 pub trait UltraToStandardSettings: UltraSettings {
-    const HASH_TYPE: transcript::HashType = transcript::HashType::PedersenBlake3s;
+    const HASH_TYPE: HasherType = HasherType::PedersenBlake3s;
 }
 
 pub trait UltraWithKeccakSettings: UltraSettings {
     const NUM_CHALLENGE_BYTES: usize = 32;
-    const HASH_TYPE: transcript::HashType = transcript::HashType::Keccak256;
+    const HASH_TYPE: HasherType = HasherType::Keccak256;
 }
 
 pub struct Standard;

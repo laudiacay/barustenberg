@@ -18,10 +18,6 @@ impl HasherType for Keccak256Hasher {
     type SecurityParameterSize = U32;
     type PrngOutputSize = U32;
 
-    /// the length is the PRNG output size
-    /// TODO do we want to add type ints into this?
-    /// ahhhhh im dependently typoooming
-    /// TODO THIS NEEDS TO BE TESTED!!!
     fn hash(buffer: &[u8]) -> GenericArray<u8, Self::PrngOutputSize> {
         // TODO from gpt
         // let hash_result = keccak256::hash(&buffer);
@@ -49,7 +45,6 @@ impl HasherType for Blake3sHasher {
     type SecurityParameterSize = U16;
     type PrngOutputSize = U32;
 
-    /// the length is the PRNG output size
     fn hash(input: &[u8]) -> GenericArray<u8, Self::PrngOutputSize> {
         // TODO from original codebase
         /*

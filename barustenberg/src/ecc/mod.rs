@@ -1,6 +1,8 @@
 // TODO todo - stubs to get the compiler to cooperate.
 
-pub trait Field {}
+pub trait Field {
+    type SizeInBytes : typenum; // do a typenum here
+}
 
 pub mod curves {
     pub mod bn254 {

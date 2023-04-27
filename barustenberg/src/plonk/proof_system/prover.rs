@@ -6,6 +6,8 @@ use super::{
 };
 use crate::ecc::Field;
 
+compiler angry todo https://doc.rust-lang.org/reference/const_eval.html
+
 struct Prover<Fr: Field, Settings: ProverSettings> {
     circuit_size: usize,
     transcript: Transcript,
