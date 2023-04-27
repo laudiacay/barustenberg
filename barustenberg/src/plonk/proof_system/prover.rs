@@ -4,13 +4,16 @@ use super::{
     proving_key::ProvingKey,
     types::{prover_settings::ProverSettings, Proof},
 };
-use crate::ecc::Field;
+use crate::{
+    ecc::Field,
+    transcript::{Manifest, Transcript},
+};
 
-compiler angry todo https://doc.rust-lang.org/reference/const_eval.html
+// todo https://doc.rust-lang.org/reference/const_eval.html
 
 struct Prover<Fr: Field, Settings: ProverSettings> {
     circuit_size: usize,
-    transcript: Transcript,
+    transcript: Transcript<Settings::HASH_TYPE>,
     key: Arc<ProvingKey<Fr>>,
     queue: WorkQueue,
     random_widgets: Vec<ProverRandomWidget>,
@@ -21,14 +24,14 @@ struct Prover<Fr: Field, Settings: ProverSettings> {
 impl<Fr: Field, S: ProverSettings> Prover<Fr, S> {
     fn new(
         input_key: Option<Arc<ProvingKey<Fr>>>,
-        input_manifest: Option<&Transcript::Manifest>,
+        input_manifest: Option<&Manifest>,
         input_settings: Option<S>,
     ) -> Self {
         let circuit_size = input_key.as_ref().map_or(0, |key| key.circuit_size);
         let transcript = Transcript::StandardTranscript::new(
             input_manifest,
-            Settings::HASH_TYPE,
-            Settings::NUM_CHALLENGE_BYTES,
+            ProverSettings::HASH_TYPE,
+            ProverSettings::NUM_CHALLENGE_BYTES,
         );
         let queue = WorkQueue::new(input_key.as_ref(), &transcript);
 

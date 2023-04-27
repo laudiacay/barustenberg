@@ -143,57 +143,7 @@ struct Challenge<T: HasherType> {
     data: GenericArray<u8, T::PrngOutputSize>,
 }
 
-trait Transcript<T: HasherType> {
-    type Key;
-
-    fn new(manifest: Manifest, hash_type: dyn HasherType, challenge_bytes: usize) -> Self;
-
-    fn parse(
-        input_transcript: Vec<u8>,
-        manifest: Manifest,
-        hash_type: dyn HasherType,
-        challenge_bytes: usize,
-    ) -> Self;
-
-    fn get_manifest(&self) -> Manifest;
-
-    /// Apply the Fiat-Shamir transform to create challenges for the current round.
-    /// The challenges are saved to transcript. Round number is increased.
-    ///
-    /// # Arguments
-    ///
-    /// * `challenge_name` - Challenge name (needed to check if the challenge fits the current round).
-    ///
-    fn apply_fiat_shamir(&mut self, challenge_name: &str);
-
-    fn has_challenge(&self, challenge_name: &str) -> bool;
-
-    fn get_challenge(&self, challenge_name: &str, idx: usize) -> Challenge<T>;
-
-    fn get_challenge_index_from_map(&self, challenge_map_name: &str) -> i32;
-
-    fn get_challenge_from_map(
-        &self,
-        challenge_name: &str,
-        challenge_map_name: &str,
-    ) -> Challenge<T>;
-
-    fn get_num_challenges(&self, challenge_name: &str) -> usize;
-
-    fn get_element(&self, element_name: &str) -> Vec<u8>;
-
-    fn get_element_size(&self, element_name: &str) -> usize;
-
-    fn export_transcript(&self) -> Vec<u8>;
-
-    fn compute_challenge_map(&mut self);
-
-    fn mock_inputs_prior_to_challenge(&mut self, challenge_name: &str, circuit_size: usize);
-
-    fn print(&self);
-}
-
-struct TranscriptImpl<T: HasherType> {
+pub struct Transcript<T: HasherType> {
     current_round: usize,
     num_challenge_bytes: usize,
     hasher: T,
@@ -204,16 +154,13 @@ struct TranscriptImpl<T: HasherType> {
     challenge_map: HashMap<String, i32>,
 }
 
-impl TranscriptImpl {
+impl<T: HasherType> Transcript<T> {
+    type Key = VerificationKey;
     fn add_element(&mut self, element_name: &str, buffer: Vec<u8>) {
         info!("Adding element {} to transcript", element_name);
         // from elements.insert({ element_name, buffer });
         self.elements.insert(element_name.to_string(), buffer);
     }
-}
-
-impl<T: HasherType> Transcript for TranscriptImpl<T> {
-    type Key = VerificationKey;
 
     /// Constructs a new `Transcript` from a serialized transcript, a `Manifest`, a `HashType` and a challenge byte size.
     ///

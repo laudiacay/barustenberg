@@ -1,6 +1,9 @@
 use crate::transcript::HasherType;
 
-pub trait ProverSettings {}
+pub trait ProverSettings {
+    // TODO this sucks fix it
+    fn get_hasher_type(&self) -> HasherType;
+}
 
 pub trait SettingsBase: ProverSettings {
     fn requires_shifted_wire(wire_shift_settings: u64, wire_index: u64) -> bool {

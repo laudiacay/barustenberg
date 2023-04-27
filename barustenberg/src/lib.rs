@@ -8,8 +8,8 @@ pub mod ecc;
 pub mod numeric;
 pub mod plonk;
 pub mod polynomials;
-pub mod transcript;
 pub mod proof_system;
+pub mod transcript;
 
 // TODOs for claudia and waylon
 // big error handling energy
