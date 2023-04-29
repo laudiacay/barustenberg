@@ -6,8 +6,11 @@ use super::{
 };
 use crate::{
     ecc::Field,
+    proof_system::work_queue,
     transcript::{Manifest, Transcript},
 };
+
+use crate::proof_system::work_queue::WorkQueue;
 
 // todo https://doc.rust-lang.org/reference/const_eval.html
 
@@ -15,7 +18,7 @@ struct Prover<Fr: Field, Settings: ProverSettings> {
     circuit_size: usize,
     transcript: Transcript<Settings::HASH_TYPE>,
     key: Arc<ProvingKey<Fr>>,
-    queue: WorkQueue,
+    queue: WorkQueue<Fr>,
     random_widgets: Vec<ProverRandomWidget>,
     transition_widgets: Vec<Widget::TransitionWidgetBase<Fr>>,
     commitment_scheme: CommitmentScheme,
@@ -550,8 +553,12 @@ impl<Fr: Field, S: ProverSettings> Prover<Fr, S> {
              */
         todo!("implement me, see comment");
     }
-    fn init_quotient_polynomials(&self);
-    fn compute_opening_elements(&self);
+    fn init_quotient_polynomials(&self) {
+        todo!("yeehaw")
+    }
+    fn compute_opening_elements(&self) {
+        todo!("yeehaw")
+    }
     fn add_plookup_memory_records_to_w_4(&self) {
         // TODO
         /*
@@ -679,35 +686,37 @@ impl<Fr: Field, S: ProverSettings> Prover<Fr, S> {
 
         // Fiat-Shamir eta + execute random widgets.
         self.execute_second_round();
-        queue.process_queue();
+        self.queue.process_queue();
 
         // Fiat-Shamir beta & gamma, execute random widgets (Permutation widget is executed here)
         // and fft the witnesses
         self.execute_third_round();
-        queue.process_queue();
+        self.queue.process_queue();
 
         // Fiat-Shamir alpha, compute & commit to quotient polynomial.
         self.execute_fourth_round();
-        queue.process_queue();
+        self.queue.process_queue();
 
         self.execute_fifth_round();
 
         self.execute_sixth_round();
-        queue.process_queue();
+        self.queue.process_queue();
 
-        queue.flush_queue();
+        self.queue.flush_queue();
 
         return self.export_proof();
     }
 
-    fn get_circuit_size(&self) -> usize;
+    fn get_circuit_size(&self) -> usize {
+        todo!("implement me")
+    }
     fn flush_queued_work_items(&self) {
         self.get_queue().flush_queue();
     }
-    fn get_queued_work_item_info(&self) -> WorkQueue::WorkItemInfo {
+    fn get_queued_work_item_info(&self) -> work_queue::WorkItemInfo {
         self.get_queue().get_queued_work_item_info();
     }
-    fn get_scalar_multiplication_data(&self, work_item_number: usize) -> &barretenberg::fr {
+    fn get_scalar_multiplication_data(&self, work_item_number: usize) -> Fr {
         self.get_queue()
             .get_scalar_multiplication_data(work_item_number);
     }
@@ -715,10 +724,10 @@ impl<Fr: Field, S: ProverSettings> Prover<Fr, S> {
         self.get_queue()
             .get_scalar_multiplication_size(work_item_number);
     }
-    fn get_ifft_data(&self, work_item_number: usize) -> &barretenberg::fr {
+    fn get_ifft_data(&self, work_item_number: usize) -> &Fr {
         self.get_queue().get_ifft_data(work_item_number);
     }
-    fn get_fft_data(&self, work_item_number: usize) -> &WorkQueue::QueuedFftInputs {
+    fn get_fft_data(&self, work_item_number: usize) -> &work_queue::QueuedFftInputs<Fr> {
         self.get_queue().get_fft_data(work_item_number);
     }
     fn put_scalar_multiplication_data(
@@ -739,8 +748,8 @@ impl<Fr: Field, S: ProverSettings> Prover<Fr, S> {
         let manifest = self.transcript.get_manifest();
         self.set_transcript(Transcript::StandardTranscript(
             manifest,
-            Settings::hash_type,
-            Settings::num_challenge_bytes,
+            Settings::HASH_TYPE,
+            Settings::NUM_CHALLENGE_BYTES,
         ));
     }
 }

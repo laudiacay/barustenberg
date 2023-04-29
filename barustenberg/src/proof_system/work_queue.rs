@@ -11,7 +11,7 @@ enum WorkType {
     ScalarMultiplication,
 }
 
-struct WorkItemInfo {
+pub(crate) struct WorkItemInfo {
     num_scalar_multiplications: usize,
     num_ffts: usize,
     num_iffts: usize,
@@ -25,12 +25,12 @@ struct WorkItem<Fr: Field> {
     index: usize,
 }
 
-struct QueuedFftInputs<Fr: Field> {
+pub(crate) struct QueuedFftInputs<Fr: Field> {
     data: Vec<Fr>,
     shift_factor: Fr,
 }
 
-struct WorkQueue<Fr: Field> {
+pub(crate) struct WorkQueue<Fr: Field> {
     key: Option<Rc<ProvingKey<Fr>>>,
     transcript: Option<Rc<Transcript<Fr>>>,
     work_items: Vec<WorkItem<Fr>>,

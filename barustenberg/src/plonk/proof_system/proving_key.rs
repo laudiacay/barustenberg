@@ -3,6 +3,8 @@ use std::io::Read;
 use std::sync::Arc;
 use std::vec::Vec;
 
+use crate::plonk::proof_system::constants::NUM_QUOTIENT_PARTS;
+
 use crate::ecc::Field;
 // use crate::plonk::barretenberg::scalar_multiplication::pippenger_runtime_state;
 //use crate::plonk::composer::ComposerType;
@@ -43,9 +45,9 @@ pub struct ProvingKey<Fr: Field> {
     pub large_domain: EvaluationDomain<Fr>,
     /// The reference_string object contains the monomial SRS. We can access it using:
     /// Monomial SRS: reference_string->get_monomial_points()
-    pub reference_string: Arc<ProverReferenceString>,
+    pub reference_string: Arc<dyn ProverReferenceString>,
     pub quotient_polynomial_parts: [Polynomial<Fr>; NUM_QUOTIENT_PARTS],
-    pub pippenger_runtime_state: PippengerRuntimeState,
+    pub pippenger_runtime_state: dyn PippengerRuntimeState,
     pub polynomial_manifest: PolynomialManifest,
 }
 
