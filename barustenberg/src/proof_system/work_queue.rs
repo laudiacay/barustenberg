@@ -63,7 +63,10 @@ impl<Fr: Field> WorkQueue<Fr> {
     std::vector<work_item> get_queue() const;
      */
 
-    fn new(prover_key: Option<Rc<ProvingKey<Fr>>>, prover_transcript: Option<Rc<Transcript<Fr>>>) {
+    pub fn new(
+        prover_key: Option<Rc<ProvingKey<Fr>>>,
+        prover_transcript: Option<Rc<Transcript<Fr>>>,
+    ) {
         WorkQueue {
             key: prover_key,
             transcript: prover_transcript,
@@ -149,16 +152,16 @@ impl<Fr: Field> WorkQueue<Fr> {
         todo!("do it")
     }
 
-    fn flush_queue(&mut self) {
+    pub fn flush_queue(&mut self) {
         self.work_items = vec![];
     }
     fn add_to_queue(&mut self) {
         todo!("whole fucking wasm thing")
     }
-    fn process_queue(&self) {
+    pub fn process_queue(&self) {
         todo!("aaaaagh")
     }
     fn get_queue(&self) {
-        self.work_items
+        todo!("aagh")
     }
 }

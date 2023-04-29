@@ -3,7 +3,7 @@ use std::fmt;
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) struct Proof {
-    proof_data: Vec<u8>,
+    pub(crate) proof_data: Vec<u8>,
 }
 
 impl fmt::Display for Proof {

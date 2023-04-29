@@ -26,7 +26,7 @@ trait Arithmetization {
 // These are not magic numbers and they should not be written with global constants. These paraters are not accessible
 // through clearly named static class members.
 
-trait Standard: Arithmetization<NumWires = U3, NumSelectors = U5> {}
+pub(crate) trait Standard: Arithmetization<NumWires = U3, NumSelectors = U5> {}
 trait Turbo: Arithmetization<NumWires = U4, NumSelectors = U11> {}
 trait Ultra: Arithmetization<NumWires = U4, NumSelectors = U11> {}
 

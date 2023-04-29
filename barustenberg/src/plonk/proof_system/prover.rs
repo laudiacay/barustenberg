@@ -2,21 +2,21 @@ use std::sync::Arc;
 
 use super::{
     proving_key::ProvingKey,
-    types::{prover_settings::ProverSettings, Proof},
+    types::{prover_settings::SettingsBase, Proof},
 };
 use crate::{
     ecc::Field,
     proof_system::work_queue,
-    transcript::{Manifest, Transcript},
+    transcript::{HasherType, Manifest, Transcript},
 };
 
 use crate::proof_system::work_queue::WorkQueue;
 
 // todo https://doc.rust-lang.org/reference/const_eval.html
 
-struct Prover<Fr: Field, Settings: ProverSettings> {
+struct Prover<Fr: Field, H: HasherType, S: SettingsBase<H>> {
     circuit_size: usize,
-    transcript: Transcript<Settings::HASH_TYPE>,
+    transcript: Transcript<H>,
     key: Arc<ProvingKey<Fr>>,
     queue: WorkQueue<Fr>,
     random_widgets: Vec<ProverRandomWidget>,
@@ -24,7 +24,7 @@ struct Prover<Fr: Field, Settings: ProverSettings> {
     commitment_scheme: CommitmentScheme,
 }
 
-impl<Fr: Field, S: ProverSettings> Prover<Fr, S> {
+impl<Fr: Field, S: SettingsBase> Prover<Fr, S> {
     fn new(
         input_key: Option<Arc<ProvingKey<Fr>>>,
         input_manifest: Option<&Manifest>,
@@ -33,8 +33,8 @@ impl<Fr: Field, S: ProverSettings> Prover<Fr, S> {
         let circuit_size = input_key.as_ref().map_or(0, |key| key.circuit_size);
         let transcript = Transcript::StandardTranscript::new(
             input_manifest,
-            ProverSettings::HASH_TYPE,
-            ProverSettings::NUM_CHALLENGE_BYTES,
+            S::HASH_TYPE,
+            S::NUM_CHALLENGE_BYTES,
         );
         let queue = WorkQueue::new(input_key.as_ref(), &transcript);
 
@@ -99,7 +99,7 @@ impl<Fr: Field, S: ProverSettings> Prover<Fr, S> {
     /// and after they are in monomial form. This is an inconsistency that can mislead developers.
     /// Parameters:
     /// - `settings` Program settings.
-    fn execute_preamble_round(&self, settings: &S) {
+    fn execute_preamble_round(&self) {
         /*
                queue.flush_queue();
 
@@ -179,12 +179,7 @@ impl<Fr: Field, S: ProverSettings> Prover<Fr, S> {
     ///
     /// N.B. Random widget precommitments aren't actually being computed, since we are using permutation widget
     /// which only does computation in compute_random_commitments function if the round is 3.
-    ///
-    /// # Arguments
-    ///
-    /// * `settings` - Program settings.
-    ///
-    fn execute_first_round(&self, settings: &S) {
+    fn execute_first_round(&self) {
         // TODO
         /*
                     queue.flush_queue();
@@ -226,12 +221,7 @@ impl<Fr: Field, S: ProverSettings> Prover<Fr, S> {
     /// - Compute the random_widgets' round commitments that need to be computed at round 2.
     /// - If using plookup, we compute some w_4 values here (for gates which access "memory"), and apply blinding factors,
     ///   before finally committing to w_4.
-    ///
-    /// # Arguments
-    ///
-    /// * `settings` - Program settings.
-    ///
-    fn execute_second_round(&self, settings: &S) {
+    fn execute_second_round(&self) {
         // TODO
         /*
             queue.flush_queue();
@@ -282,13 +272,7 @@ impl<Fr: Field, S: ProverSettings> Prover<Fr, S> {
     /// - FFT the wires.
     ///
     /// *For example, standard composer executes permutation widget for z polynomial construction at this round.
-    ///
-    /// # Arguments
-    ///
-    /// * `settings` - Program settings.
-    ///
-
-    fn execute_third_round(&self, settings: &S) {
+    fn execute_third_round(&self) {
         // TODO
         /*
                 queue.flush_queue();
@@ -330,7 +314,7 @@ impl<Fr: Field, S: ProverSettings> Prover<Fr, S> {
     }
 
     /// Computes the quotient polynomial, then commits to its degree-n split parts.
-    fn execute_fourth_round(&self, settings: &S) {
+    fn execute_fourth_round(&self) {
         // TODO
         /*
                 queue.flush_queue();
@@ -474,9 +458,7 @@ impl<Fr: Field, S: ProverSettings> Prover<Fr, S> {
     }
     /// - Compute wire commitments and add them to the transcript.
     /// - Add public_inputs from w_2_fft to transcript.
-    /// Parameters:
-    /// - `settings` Program settings.
-    fn compute_wire_commitments(&self, settings: &S) {
+    fn compute_wire_commitments(&self) {
         /* TODO implement me
                 // Compute wire commitments
         const size_t end = settings::is_plookup ? (settings::program_width - 1) : settings::program_width;
@@ -670,12 +652,13 @@ impl<Fr: Field, S: ProverSettings> Prover<Fr, S> {
         todo!("implement me, see comment");
     }
 
-    fn export_proof(&self) -> &Proof {
-        proof.proof_data = self.transcript.export_transcript();
-        return proof;
+    fn export_proof(&self) -> Proof {
+        Proof {
+            proof_data: self.transcript.export_transcript(),
+        }
     }
 
-    fn construct_proof(&self) -> &Proof {
+    fn construct_proof(&self) -> Proof {
         // Execute init round. Randomize witness polynomials.
         self.execute_preamble_round();
         self.queue.process_queue();
@@ -748,8 +731,8 @@ impl<Fr: Field, S: ProverSettings> Prover<Fr, S> {
         let manifest = self.transcript.get_manifest();
         self.set_transcript(Transcript::StandardTranscript(
             manifest,
-            Settings::HASH_TYPE,
-            Settings::NUM_CHALLENGE_BYTES,
+            S::HASH_TYPE,
+            S::NUM_CHALLENGE_BYTES,
         ));
     }
 }

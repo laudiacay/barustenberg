@@ -234,7 +234,7 @@ impl<T: HasherType> Transcript<T> {
         // implementation
     }
 
-    fn get_manifest(&self) -> Manifest {
+    pub fn get_manifest(&self) -> Manifest {
         self.manifest.clone()
     }
 
@@ -509,7 +509,7 @@ impl<T: HasherType> Transcript<T> {
     /// # Returns
     ///
     /// The serialized transcript.
-    fn export_transcript(&self) -> Vec<u8> {
+    pub fn export_transcript(&self) -> Vec<u8> {
         let buf: Vec<u8> = vec![];
         for manifest in self.manifest.get_round_manifests() {
             for element in manifest.elements {

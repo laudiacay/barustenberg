@@ -1,20 +1,14 @@
-use crate::transcript::HasherType;
+use crate::{proof_system::arithmetization, transcript::HasherType};
 
-pub trait ProverSettings {
-    // TODO this sucks fix it
-    fn get_hasher_type(&self) -> HasherType;
-}
-
-pub trait SettingsBase: ProverSettings {
+pub trait SettingsBase<Hash: HasherType> {
     fn requires_shifted_wire(wire_shift_settings: u64, wire_index: u64) -> bool {
         ((wire_shift_settings >> wire_index) & 1u64) == 1u64
     }
 }
 
-pub trait StandardSettings: SettingsBase {
+pub trait StandardSettings<Hash: HasherType>: SettingsBase<Hash> {
     type Arithmetization: arithmetization::Standard;
     const NUM_CHALLENGE_BYTES: usize = 16;
-    const HASH_TYPE: HasherType = HasherType::PedersenBlake3s;
     const PROGRAM_WIDTH: usize = 3;
     const NUM_SHIFTED_WIRE_EVALUATIONS: usize = 1;
     const WIRE_SHIFT_SETTINGS: u64 = 0b0100;
@@ -24,9 +18,8 @@ pub trait StandardSettings: SettingsBase {
     const IS_PLOOKUP: bool = false;
 }
 
-pub trait TurboSettings: SettingsBase {
+pub trait TurboSettings: SettingsBase<HasherType::PedersenBlake3s> {
     const NUM_CHALLENGE_BYTES: usize = 16;
-    const HASH_TYPE: HasherType = HasherType::PedersenBlake3s;
     const PROGRAM_WIDTH: usize = 4;
     const NUM_SHIFTED_WIRE_EVALUATIONS: usize = 4;
     const WIRE_SHIFT_SETTINGS: u64 = 0b1111;
@@ -36,9 +29,7 @@ pub trait TurboSettings: SettingsBase {
     const IS_PLOOKUP: bool = false;
 }
 
-pub trait UltraSettings: SettingsBase {
-    const NUM_CHALLENGE_BYTES: usize = 16;
-    const HASH_TYPE: HasherType = HasherType::PlookupPedersenBlake3s;
+pub trait UltraSettingsBase<Hash: HasherType>: SettingsBase<Hash> {
     const PROGRAM_WIDTH: usize = 4;
     const NUM_SHIFTED_WIRE_EVALUATIONS: usize = 4;
     const WIRE_SHIFT_SETTINGS: u64 = 0b1111;
@@ -48,22 +39,14 @@ pub trait UltraSettings: SettingsBase {
     const IS_PLOOKUP: bool = true;
 }
 
-pub trait UltraToStandardSettings: UltraSettings {
-    const HASH_TYPE: HasherType = HasherType::PedersenBlake3s;
+pub trait UltraSettings: UltraSettingsBase<HasherType::PlookupPedersenBlake3s> {
+    const NUM_CHALLENGE_BYTES: usize = 16;
 }
 
-pub trait UltraWithKeccakSettings: UltraSettings {
+pub trait UltraToStandardSettings: UltraSettings<HasherType::PedersenBlake3s> {
+    const NUM_CHALLENGE_BYTES: usize = 16;
+}
+
+pub trait UltraWithKeccakSettings: UltraSettings<HasherType::Keccak256> {
     const NUM_CHALLENGE_BYTES: usize = 32;
-    const HASH_TYPE: HasherType = HasherType::Keccak256;
 }
-
-pub struct Standard;
-impl StandardSettings for Standard {}
-pub struct Turbo;
-impl TurboSettings for Turbo {}
-pub struct Ultra;
-impl UltraSettings for Ultra {}
-pub struct UltraToStandard;
-impl UltraToStandardSettings for UltraToStandard {}
-pub struct UltraWithKeccak;
-impl UltraWithKeccakSettings for UltraWithKeccak {}
