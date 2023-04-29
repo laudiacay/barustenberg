@@ -470,3 +470,55 @@ pub mod verifier_helpers {
 
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn verify_arithmetic_proof_small() {
+        let n = 8;
+
+        let state = generate_test_data(n);
+        let verifier = generate_verifier(&state.key);
+
+        // Construct proof
+        let proof = state.construct_proof();
+
+        // Verify proof
+        let result = verifier.verify_proof(&proof);
+
+        assert_eq!(result, true);
+    }
+
+    #[test]
+    fn verify_arithmetic_proof() {
+        let n = 1 << 14;
+
+        let state = generate_test_data(n);
+        let verifier = generate_verifier(&state.key);
+
+        // Construct proof
+        let proof = state.construct_proof();
+
+        // Verify proof
+        let result = verifier.verify_proof(&proof);
+
+        assert_eq!(result, true);
+    }
+
+    #[test]
+    #[should_panic]
+    fn verify_damaged_proof() {
+        let n = 8;
+
+        let state = generate_test_data(n);
+        let verifier = generate_verifier(&state.key);
+
+        // Create empty proof
+        let proof = Proof::default();
+
+        // Verify proof
+        verifier.verify_proof(&proof);
+    }
+}
