@@ -10,6 +10,7 @@ use crate::polynomials::Polynomial;
 //use crate::plonk::PolynomialStore;
 //use crate::plonk::ProverReferenceString;
 use crate::polynomials::evaluation_domain::EvaluationDomain;
+use crate::proof_system::polynomial_store::PolynomialStore;
 
 use super::types::PolynomialManifest;
 
@@ -99,7 +100,7 @@ impl<Fr: Field> ProvingKey<Fr> {
             recursive_proof_public_input_indices: vec![],
             memory_read_records: vec![],
             memory_write_records: vec![],
-            polynomial_store: PolynomialStore::new(num_gates, num_inputs),
+            polynomial_store: PolynomialStore::new(),
         };
         let mut ret = Self::new_with_data(data, crs);
         ret.init();

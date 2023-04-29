@@ -6,11 +6,11 @@ use std::{
 };
 
 #[derive(Debug, Clone)]
-struct PolynomialStore<Fr: Field> {
+pub(crate) struct PolynomialStore<Fr: Field> {
     polynomial_map: HashMap<String, Polynomial<Fr>>,
 }
 impl<Fr: Field> PolynomialStore<Fr> {
-    const fn new() -> Self {
+    pub(crate) const fn new() -> Self {
         Self {
             polynomial_map: HashMap::new(),
         }

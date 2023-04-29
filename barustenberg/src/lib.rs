@@ -9,13 +9,16 @@ pub mod numeric;
 pub mod plonk;
 pub mod polynomials;
 pub mod proof_system;
+pub mod srs;
 pub mod transcript;
 
 // TODOs for claudia and waylon
-// big error handling energy
+// big error handling energy, type cleanup
 // logging!
 // tests!
 // docstrings!
+// fields: arkworks?
+// perf
 
 /// Test utilities.
 #[cfg(any(test, feature = "test_utils"))]
