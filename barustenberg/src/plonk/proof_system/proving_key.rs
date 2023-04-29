@@ -1,4 +1,4 @@
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::io::Read;
 use std::sync::Arc;
 use std::vec::Vec;
@@ -11,6 +11,7 @@ use crate::polynomials::Polynomial;
 //use crate::plonk::ProverReferenceString;
 use crate::polynomials::evaluation_domain::EvaluationDomain;
 use crate::proof_system::polynomial_store::PolynomialStore;
+use crate::srs::reference_string::ProverReferenceString;
 
 use super::types::PolynomialManifest;
 
@@ -126,7 +127,7 @@ impl<Fr: Field> ProvingKey<Fr> {
         self.quotient_polynomial_parts[3] = Polynomial::new(self.circuit_size);
 
         // Initialize quotient_polynomial_parts to zeroes
-        let zero_fr = fr::zero();
+        let zero_fr = Fr::zero();
         let size_t_fr_len = self.circuit_size + 1;
         let fr_len = self.circuit_size;
         self.quotient_polynomial_parts[0]
@@ -212,8 +213,12 @@ impl<Fr: Field> Serialize for ProvingKey<Fr> {
         todo!("ProvingKey::serialize")
     }
 }
-impl<Fr: Field> Deserialize for ProvingKey<Fr> {
-    fn deserialize<D: Deserializer>(deserializer: D) -> Result<Self, D::Error> {
+
+impl<'de, Fr: Field> Deserialize<'de> for ProvingKey<Fr> {
+    fn deserialize<D>(deserializer: D) -> Result<ProvingKey<Fr>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
         // TODO
 
         /*
