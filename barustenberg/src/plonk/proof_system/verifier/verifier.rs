@@ -202,8 +202,8 @@ pub fn verify_proof(self, proof: &PlonkProof) -> Result<bool, &'static str> {
     let result = reduced_ate_pairing_batch_precomputed(&p_affine, &key.reference_string.get_precomputed_g2_lines());
 
     // Check if result equals Fq12::one()
-    OK((result == Fq12::one()));
-    Err("opening proof group element PI_Z not a valid point".into());
+    OK((result == Fq12::one()))
+    // Err("opening proof group element PI_Z not a valid point".into());
 
 }
 
@@ -249,3 +249,101 @@ pub type TurboVerifier = VerifierBaseImpl<TurboVerifierSettings>;
 pub type UltraVerifier = VerifierBaseImpl<UltraVerifierSettings>;
 pub type UltraToStandardVerifier = VerifierBaseImpl<UltraToStandardVerifierSettings>;
 pub type UltraWithKeccakVerifier = VerifierBaseImpl<UltraWithKeccakVerifierSettings>;
+
+pub mod verifier_helpers {
+    use super::*;
+
+    pub fn generate_verifier(circuit_proving_key: Arc<ProvingKey>) -> Verifier {
+        let mut poly_coefficients = [None; 8];
+        poly_coefficients[0] = circuit_proving_key.polynomial_store.get("q_1").map(|p| p.coefficients());
+        poly_coefficients[1] = circuit_proving_key.polynomial_store.get("q_2").map(|p| p.coefficients());
+        poly_coefficients[2] = circuit_proving_key.polynomial_store.get("q_3").map(|p| p.coefficients());
+        poly_coefficients[3] = circuit_proving_key.polynomial_store.get("q_m").map(|p| p.coefficients());
+        poly_coefficients[4] = circuit_proving_key.polynomial_store.get("q_c").map(|p| p.coefficients());
+        poly_coefficients[5] = circuit_proving_key.polynomial_store.get("sigma_1").map(|p| p.coefficients());
+        poly_coefficients[6] = circuit_proving_key.polynomial_store.get("sigma_2").map(|p| p.coefficients());
+        poly_coefficients[7] = circuit_proving_key.polynomial_store.get("sigma_3").map(|p| p.coefficients());
+
+        let mut commitments = vec![G1AffineElement::default(); 8];
+        let mut state = ScalarMultiplication::pippenger_runtime_state(circuit_proving_key.circuit_size);
+
+        for i in 0..8 {
+            if let Some(poly_coeffs) = &poly_coefficients[i] {
+                commitments[i] = G1AffineElement::from_projective(ScalarMultiplication::pippenger(
+                    poly_coeffs,
+                    circuit_proving_key.reference_string.monomial_points(),
+                    circuit_proving_key.circuit_size,
+                    &mut state,
+                ));
+            }
+        }
+
+        let crs = Arc::new(FileReferenceString::new("../srs_db/ignition"));
+        let circuit_verification_key = Arc::new(VerificationKey::new(
+            circuit_proving_key.circuit_size,
+            circuit_proving_key.num_public_inputs,
+            crs,
+            circuit_proving_key.composer_type,
+        ));
+
+        circuit_verification_key.commitments.insert("Q_1", commitments[0]);
+        circuit_verification_key.commitments.insert("Q_2", commitments[1]);
+        circuit_verification_key.commitments.insert("Q_3", commitments[2]);
+        circuit_verification_key.commitments.insert("Q_M", commitments[3]);
+        circuit_verification_key.commitments.insert("Q_C", commitments[4]);
+
+        circuit_verification_key.commitments.insert("SIGMA_1", commitments[5]);
+        circuit_verification_key.commitments.insert("SIGMA_2", commitments[6]);
+        circuit_verification_key.commitments.insert("SIGMA_3", commitments[7]);
+
+        let verifier = Verifier::new(circuit_verification_key, StandardComposer::create_manifest(0));
+
+        let kate_commitment_scheme = Box::new(KateCommitmentScheme::<standard_settings>::new());
+        verifier.commitment_scheme = kate_commitment_scheme;
+        verifier
+    }
+
+    fn generate_test_data(n: usize) -> Prover {
+
+        // create some constraints that satisfy our arithmetic circuit relation    
+        let crs = Rc::new(FileReferenceString::new(n + 1, "../srs_db/ignition"));
+        let key = Rc::new(ProvingKey::new(n, 0, crs, ComposerType::Standard));
+    
+        let mut w_l = polynomial::Polynomial::new(n);
+        let mut w_r = polynomial::Polynomial::new(n);
+        let mut w_o = polynomial::Polynomial::new(n);
+        let mut q_l = polynomial::Polynomial::new(n);
+        let mut q_r = polynomial::Polynomial::new(n);
+        let mut q_o = polynomial::Polynomial::new(n);
+        let mut q_c = polynomial::Polynomial::new(n);
+        let mut q_m = polynomial::Polynomial::new(n);
+    
+        let mut t0;
+        for i in 0..n / 4 {
+            w_l[2 * i] = Fr::random_element();
+            w_r[2 * i] = Fr::random_element();
+            w_o[2 * i] = w_l[2 * i] * w_r[2 * i];
+            w_o[2 * i] += w_l[2 * i];
+            w_o[2 * i] += w_r[2 * i];
+            w_o[2 * i] += Fr::one();
+            q_l[2 * i] = Fr::one();
+            q_r[2 * i] = Fr::one();
+            q_o[2 * i] = Fr::neg_one();
+            q_c[2 * i] = Fr::one();
+            q_m[2 * i] = Fr::one();
+    
+            w_l[2 * i + 1] = Fr::random_element();
+            w_r[2 * i + 1] = Fr::random_element();
+            w_o[2 * i + 1] = Fr::random_element();
+    
+            t0 = w_l[2 * i + 1] + w_r[2 * i + 1];
+            q_c[2 * i + 1] = t0 + w_o[2 * i + 1];
+            q_c[2 * i + 1].self_neg();
+            q_l[2 * i + 1] = Fr::one();
+            q_r[2 * i + 1] = Fr::one();
+            q_o[2 * i + 1] = Fr::one();
+            q_m[2 * i + 1] = Fr::zero();
+        }
+
+    }
+}
