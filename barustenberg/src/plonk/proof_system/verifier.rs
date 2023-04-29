@@ -251,6 +251,8 @@ pub type UltraToStandardVerifier = VerifierBaseImpl<UltraToStandardVerifierSetti
 pub type UltraWithKeccakVerifier = VerifierBaseImpl<UltraWithKeccakVerifierSettings>;
 
 pub mod verifier_helpers {
+    use crate::plonk::proof_system::proving_key::ProvingKey;
+
     use super::*;
 
     pub fn generate_verifier(circuit_proving_key: Arc<ProvingKey>) -> Verifier {
@@ -302,6 +304,10 @@ pub mod verifier_helpers {
         verifier.commitment_scheme = kate_commitment_scheme;
         verifier
     }
+}
+
+#[cfg(test)]
+mod tests {
 
     fn generate_test_data(n: usize) -> Prover {
 
@@ -309,14 +315,14 @@ pub mod verifier_helpers {
         let crs = Rc::new(FileReferenceString::new(n + 1, "../srs_db/ignition"));
         let key = Rc::new(ProvingKey::new(n, 0, crs, ComposerType::Standard));
     
-        let mut w_l = polynomial::Polynomial::new(n);
-        let mut w_r = polynomial::Polynomial::new(n);
-        let mut w_o = polynomial::Polynomial::new(n);
-        let mut q_l = polynomial::Polynomial::new(n);
-        let mut q_r = polynomial::Polynomial::new(n);
-        let mut q_o = polynomial::Polynomial::new(n);
-        let mut q_c = polynomial::Polynomial::new(n);
-        let mut q_m = polynomial::Polynomial::new(n);
+        let mut w_l = Polynomial::new(n);
+        let mut w_r = Polynomial::new(n);
+        let mut w_o = Polynomial::new(n);
+        let mut q_l = Polynomial::new(n);
+        let mut q_r = Polynomial::new(n);
+        let mut q_o = Polynomial::new(n);
+        let mut q_c = Polynomial::new(n);
+        let mut q_m = Polynomial::new(n);
     
         let mut t0;
         for i in 0..n / 4 {
@@ -469,10 +475,9 @@ pub mod verifier_helpers {
         state
 
     }
-}
 
-#[cfg(test)]
-mod tests {
+    use crate::plonk::proof_system::{prover::Prover, proving_key::ProvingKey};
+
     use super::*;
 
     #[test]

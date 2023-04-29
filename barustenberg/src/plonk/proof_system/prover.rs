@@ -15,7 +15,7 @@ use crate::proof_system::work_queue::WorkQueue;
 
 // todo https://doc.rust-lang.org/reference/const_eval.html
 
-struct Prover<Fr: Field, H: HasherType, S: SettingsBase<H>> {
+pub struct Prover<Fr: Field, H: HasherType, S: SettingsBase<H>> {
     circuit_size: usize,
     transcript: Transcript<H>,
     key: Arc<ProvingKey<Fr>>,
