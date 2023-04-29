@@ -345,5 +345,128 @@ pub mod verifier_helpers {
             q_m[2 * i + 1] = Fr::zero();
         }
 
+        let shift = n / 2;
+        polynomial_arithmetic::copy_polynomial(&w_l[0..shift], &mut w_l[shift..]);
+        polynomial_arithmetic::copy_polynomial(&w_r[0..shift], &mut w_r[shift..]);
+        polynomial_arithmetic::copy_polynomial(&w_o[0..shift], &mut w_o[shift..]);
+        polynomial_arithmetic::copy_polynomial(&q_m[0..shift], &mut q_m[shift..]);
+        polynomial_arithmetic::copy_polynomial(&q_l[0..shift], &mut q_l[shift..]);
+        polynomial_arithmetic::copy_polynomial(&q_r[0..shift], &mut q_r[shift..]);
+        polynomial_arithmetic::copy_polynomial(&q_o[0..shift], &mut q_o[shift..]);
+        polynomial_arithmetic::copy_polynomial(&q_c[0..shift], &mut q_c[shift..]);
+
+        let mut sigma_1_mapping: Vec<u32> = vec![0; n];
+        let mut sigma_2_mapping: Vec<u32> = vec![0; n];
+        let mut sigma_3_mapping: Vec<u32> = vec![0; n];
+
+        // create basic permutation - second half of witness vector is a copy of the first half
+        for i in 0..(n / 2) {
+            sigma_1_mapping[shift + i] = i as u32;
+            sigma_2_mapping[shift + i] = (i as u32) + (1 << 30);
+            sigma_3_mapping[shift + i] = (i as u32) + (1 << 31);
+            sigma_1_mapping[i] = (i + shift) as u32;
+            sigma_2_mapping[i] = ((i + shift) as u32) + (1 << 30);
+            sigma_3_mapping[i] = ((i + shift) as u32) + (1 << 31);
+        }
+
+        // make last permutation the same as identity permutation
+        // we are setting the permutation in the last 4 gates as identity permutation since
+        // we are cutting out 4 roots as of now.
+
+        let num_roots_cut_out_of_the_vanishing_polynomial = 4;
+        for j in 0..num_roots_cut_out_of_the_vanishing_polynomial {
+            let index = (shift - 1 - j) as u32;
+            sigma_1_mapping[shift - 1 - j] = index;
+            sigma_2_mapping[shift - 1 - j] = index + (1 << 30);
+            sigma_3_mapping[shift - 1 - j] = index + (1 << 31);
+            sigma_1_mapping[n - 1 - j] = (n - 1 - j) as u32;
+            sigma_2_mapping[n - 1 - j] = ((n - 1 - j) as u32) + (1 << 30);
+            sigma_3_mapping[n - 1 - j] = ((n - 1 - j) as u32) + (1 << 31);
+        }
+
+        let mut sigma_1 = Polynomial::new(key.circuit_size);
+        let mut sigma_2 = Polynomial::new(key.circuit_size);
+        let mut sigma_3 = Polynomial::new(key.circuit_size);
+
+        plonk::compute_permutation_lagrange_base_single(&mut sigma_1, &sigma_1_mapping, &key.small_domain);
+        plonk::compute_permutation_lagrange_base_single(&mut sigma_2, &sigma_2_mapping, &key.small_domain);
+        plonk::compute_permutation_lagrange_base_single(&mut sigma_3, &sigma_3_mapping, &key.small_domain);
+
+        let sigma_1_lagrange_base = Polynomial::new_from(sigma_1, key.circuit_size);
+        let sigma_2_lagrange_base = Polynomial::new_from(sigma_2, key.circuit_size);
+        let sigma_3_lagrange_base = Polynomial::new_from(sigma_3, key.circuit_size);
+
+        key.polynomial_store.insert("sigma_1_lagrange", sigma_1_lagrange_base);
+        key.polynomial_store.insert("sigma_2_lagrange", sigma_2_lagrange_base);
+        key.polynomial_store.insert("sigma_3_lagrange", sigma_3_lagrange_base);
+
+        sigma_1.ifft(&key.small_domain);
+        sigma_2.ifft(&key.small_domain);
+        sigma_3.ifft(&key.small_domain);
+
+
+        const WIDTH: usize = 4;
+        let sigma_1_fft = Polynomial::new_from(sigma_1, key.circuit_size * WIDTH);
+        let sigma_2_fft = Polynomial::new_from(sigma_2, key.circuit_size * WIDTH);
+        let sigma_3_fft = Polynomial::new_from(sigma_3, key.circuit_size * WIDTH);
+
+        sigma_1_fft.coset_fft(&key.large_domain);
+        sigma_2_fft.coset_fft(&key.large_domain);
+        sigma_3_fft.coset_fft(&key.large_domain);
+
+        key.polynomial_store.insert("sigma_1", sigma_1);
+        key.polynomial_store.insert("sigma_2", sigma_2);
+        key.polynomial_store.insert("sigma_3", sigma_3);
+
+        key.polynomial_store.insert("sigma_1_fft", sigma_1_fft);
+        key.polynomial_store.insert("sigma_2_fft", sigma_2_fft);
+        key.polynomial_store.insert("sigma_3_fft", sigma_3_fft);
+
+        key.polynomial_store.insert("w_1_lagrange", w_l);
+        key.polynomial_store.insert("w_2_lagrange", w_r);
+        key.polynomial_store.insert("w_3_lagrange", w_o);
+
+        q_l.ifft(&key.small_domain);
+        q_r.ifft(&key.small_domain);
+        q_o.ifft(&key.small_domain);
+        q_m.ifft(&key.small_domain);
+        q_c.ifft(&key.small_domain);
+
+        let q_1_fft = Polynomial::new_from(q_l, n_times_4);
+        let q_2_fft = Polynomial::new_from(q_r, n_times_4);
+        let q_3_fft = Polynomial::new_from(q_o, n_times_4);
+        let q_m_fft = Polynomial::new_from(q_m, n_times_4);
+        let q_c_fft = Polynomial::new_from(q_c, n_times_4);
+
+        q_1_fft.coset_fft(&key.large_domain);
+        q_2_fft.coset_fft(&key.large_domain);
+        q_3_fft.coset_fft(&key.large_domain);
+        q_m_fft.coset_fft(&key.large_domain);
+        q_c_fft.coset_fft(&key.large_domain);
+
+        key.polynomial_store.insert("q_1", q_l);
+        key.polynomial_store.insert("q_2", q_r);
+        key.polynomial_store.insert("q_3", q_o);
+        key.polynomial_store.insert("q_m", q_m);
+        key.polynomial_store.insert("q_c", q_c);
+
+        key.polynomial_store.insert("q_1_fft", q_1_fft);
+        key.polynomial_store.insert("q_2_fft", q_2_fft);
+        key.polynomial_store.insert("q_3_fft", q_3_fft);
+        key.polynomial_store.insert("q_m_fft", q_m_fft);
+        key.polynomial_store.insert("q_c_fft", q_c_fft);
+
+        let permutation_widget: Box<dyn ProverPermutationWidget> = Box::new(ProverPermutationWidget::<3>::new(key.clone()));
+
+        let widget: Box<dyn ProverArithmeticWidget> = Box::new(ProverArithmeticWidget::<StandardSettings>::new(key.clone()));
+
+        let kate_commitment_scheme = Box::new(KateCommitmentScheme::<StandardSettings>::new());
+
+        let state = PlonkProver::new(key, StandardComposer::create_manifest(0));
+        state.random_widgets.push(permutation_widget);
+        state.transition_widgets.push(widget);
+        state.commitment_scheme = kate_commitment_scheme;
+        state
+
     }
 }
