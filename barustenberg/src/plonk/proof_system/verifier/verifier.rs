@@ -10,6 +10,14 @@ use crate::barretenberg::plonk::proof_system::PlonkProof;
 use crate::barretenberg::plonk::public_inputs::PublicInputs;
 use crate::barretenberg::polynomials::polynomial_arithmetic;
 use crate::barretenberg::scalar_multiplication;
+use crate::types::proof::Proof;
+use crate::types::program_settings::{ProgramSettings, StandardVerifierSettings, TurboVerifierSettings, UltraVerifierSettings, UltraToStandardVerifierSettings, UltraWithKeccakVerifierSettings};
+use crate::widgets::random_widgets::random_widget::RandomWidget;
+
+use barretenberg::transcript::manifest::Manifest;
+use barretenberg::plonk::proof_system::commitment_scheme::CommitmentScheme;
+use barretenberg::g1::affine_element::AffineElement;
+use barretenberg::fr::Fr;
 
 use ark_ff::{Field, PrimeField, Zero};
 use std::collections::HashMap;
@@ -198,3 +206,46 @@ pub fn verify_proof(self, proof: &PlonkProof) -> Result<bool, &'static str> {
     Err("opening proof group element PI_Z not a valid point".into());
 
 }
+
+pub mod proof_system {
+    pub mod plonk {
+        pub trait VerifierBase<Settings: ProgramSettings> {
+            fn new(verifier_key: Option<Arc<VerificationKey>>, manifest: Manifest) -> Self;
+            fn validate_commitments(&self) -> bool;
+            fn validate_scalars(&self) -> bool;
+            fn verify_proof(&self, proof: &Proof) -> bool;
+        }
+    }
+}
+
+pub struct VerifierBaseImpl<Settings: ProgramSettings> {
+    key: Option<Arc<VerificationKey>>,
+    manifest: Manifest,
+    kate_g1_elements: HashMap<String, AffineElement>,
+    kate_fr_elements: HashMap<String, Fr>,
+    commitment_scheme: Box<dyn CommitmentScheme>,
+}
+
+impl<Settings: ProgramSettings> proof_system::plonk::VerifierBase<Settings> for VerifierBaseImpl<Settings> {
+    fn new(verifier_key: Option<Arc<VerificationKey>>, manifest: Manifest) -> Self {
+        // Implement constructor logic here.
+    }
+
+    fn validate_commitments(&self) -> bool {
+        // Implement validate_commitments logic here.
+    }
+
+    fn validate_scalars(&self) -> bool {
+        // Implement validate_scalars logic here.
+    }
+
+    fn verify_proof(&self, proof: &Proof) -> bool {
+        // Implement verify_proof logic here.
+    }
+}
+
+pub type Verifier = VerifierBaseImpl<StandardVerifierSettings>;
+pub type TurboVerifier = VerifierBaseImpl<TurboVerifierSettings>;
+pub type UltraVerifier = VerifierBaseImpl<UltraVerifierSettings>;
+pub type UltraToStandardVerifier = VerifierBaseImpl<UltraToStandardVerifierSettings>;
+pub type UltraWithKeccakVerifier = VerifierBaseImpl<UltraWithKeccakVerifierSettings>;
