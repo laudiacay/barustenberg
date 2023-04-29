@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use super::{
+    commitment_scheme::CommitmentScheme,
     proving_key::ProvingKey,
     types::{prover_settings::SettingsBase, Proof},
 };
@@ -21,7 +22,7 @@ struct Prover<Fr: Field, H: HasherType, S: SettingsBase<H>> {
     queue: WorkQueue<Fr>,
     random_widgets: Vec<ProverRandomWidget>,
     transition_widgets: Vec<Widget::TransitionWidgetBase<Fr>>,
-    commitment_scheme: CommitmentScheme,
+    commitment_scheme: dyn CommitmentScheme<Fr, H>,
 }
 
 impl<Fr: Field, S: SettingsBase> Prover<Fr, S> {
