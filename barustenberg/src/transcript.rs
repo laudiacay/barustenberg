@@ -156,7 +156,7 @@ pub struct Transcript<T: HasherType> {
 
 impl<T: HasherType> Transcript<T> {
     type Key = VerificationKey;
-    fn add_element(&mut self, element_name: &str, buffer: Vec<u8>) {
+    pub fn add_element(&mut self, element_name: &str, buffer: Vec<u8>) {
         info!("Adding element {} to transcript", element_name);
         // from elements.insert({ element_name, buffer });
         self.elements.insert(element_name.to_string(), buffer);
@@ -245,7 +245,7 @@ impl<T: HasherType> Transcript<T> {
     ///
     /// * `challenge_name` - Challenge name (needed to check if the challenge fits the current round).
     ///
-    fn apply_fiat_shamir(&mut self, challenge_name: &str) {
+    pub fn apply_fiat_shamir(&mut self, challenge_name: &str) {
         // implementation
 
         // TODO
@@ -394,7 +394,7 @@ impl<T: HasherType> Transcript<T> {
     /// # Returns
     ///
     /// The challenge value.
-    fn get_challenge(
+    pub fn get_challenge(
         &self,
         challenge_name: &str,
         idx: usize,
@@ -413,7 +413,7 @@ impl<T: HasherType> Transcript<T> {
     /// # Returns
     ///
     /// The index of the subchallenge in the vector corresponding to the challenge.
-    fn get_challenge_index_from_map(&self, challenge_map_name: &str) -> isize {
+    pub fn get_challenge_index_from_map(&self, challenge_map_name: &str) -> isize {
         self.challenge_map[challenge_map_name];
     }
 
@@ -426,7 +426,7 @@ impl<T: HasherType> Transcript<T> {
     /// # Returns
     ///
     /// true if exists, false if not.
-    fn has_challenge(&self, challenge_name: &str) -> bool {
+    pub fn has_challenge(&self, challenge_name: &str) -> bool {
         self.challenges.contains_key(challenge_name)
     }
 
@@ -441,7 +441,7 @@ impl<T: HasherType> Transcript<T> {
     /// # Returns
     ///
     /// The value of the subchallenge.
-    fn get_challenge_from_map(
+    pub fn get_challenge_from_map(
         &self,
         challenge_name: &str,
         challenge_map_name: &str,
@@ -466,7 +466,7 @@ impl<T: HasherType> Transcript<T> {
     /// # Returns
     ///
     /// The number of challenges.
-    fn get_num_challenges(&self, challenge_name: &str) -> usize {
+    pub fn get_num_challenges(&self, challenge_name: &str) -> usize {
         assert!(self.challenges.contains_key(challenge_name));
         self.challenges.get(challenge_name).unwrap().len()
     }
@@ -480,7 +480,7 @@ impl<T: HasherType> Transcript<T> {
     /// # Returns
     ///
     /// The value of the element.
-    fn get_element(&self, element_name: &str) -> Vec<u8> {
+    pub fn get_element(&self, element_name: &str) -> Vec<u8> {
         assert!(self.elements.contains_key(element_name));
         self.elements.get(element_name).unwrap().clone()
     }
@@ -493,7 +493,7 @@ impl<T: HasherType> Transcript<T> {
     /// # Returns
     ///
     /// The size of the element. otherwise -1
-    fn get_element_size(&self, element_name: &str) -> usize {
+    pub fn get_element_size(&self, element_name: &str) -> usize {
         for manifest in self.manifest.get_round_manifests() {
             for element in manifest.elements {
                 if element.name == element_name {
@@ -536,7 +536,7 @@ impl<T: HasherType> Transcript<T> {
 
     /// Insert element names from all rounds of the manifest
     /// into the challenge_map.
-    fn compute_challenge_map(&mut self) {
+    pub fn compute_challenge_map(&mut self) {
         self.challenge_map.clear();
         for manifest in self.manifest.get_round_manifests() {
             if manifest.map_challenges {
@@ -558,7 +558,7 @@ impl<T: HasherType> Transcript<T> {
     /// # Arguments
     ///
     /// * `challenge_in` - The challenge name up to which to mock the transcript interactions.
-    fn mock_inputs_prior_to_challenge(&mut self, challenge_in: &str, circuit_size: usize) {
+    pub fn mock_inputs_prior_to_challenge(&mut self, challenge_in: &str, circuit_size: usize) {
         // Perform operations only up to fiat-shamir of challenge_in
         for manifest in self.manifest.get_round_manifests() {
             // loop over RoundManifests
@@ -587,7 +587,7 @@ impl<T: HasherType> Transcript<T> {
         }
     }
 
-    fn print(&self) {
+    pub fn print(&self) {
         // implementation
     }
 }

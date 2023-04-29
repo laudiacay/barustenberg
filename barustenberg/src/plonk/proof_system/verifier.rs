@@ -1,8 +1,10 @@
 use crate::barretenberg::common::throw_or_abort;
-use crate::barretenberg::ecc::curves::bn254::{fq12::Fq12, g1::AffineElement as G1AffineElement, pairing};
+use crate::barretenberg::ecc::curves::bn254::{
+    fq12::Fq12, g1::AffineElement as G1AffineElement, pairing,
+};
 use crate::barretenberg::plonk::proof_system::constants::{
-    standard_verifier_settings, turbo_verifier_settings, ultra_to_standard_verifier_settings, ultra_verifier_settings,
-    ultra_with_keccak_verifier_settings, ProgramSettings,
+    standard_verifier_settings, turbo_verifier_settings, ultra_to_standard_verifier_settings,
+    ultra_verifier_settings, ultra_with_keccak_verifier_settings, ProgramSettings,
 };
 use crate::barretenberg::plonk::proof_system::transcript::Manifest;
 use crate::barretenberg::plonk::proof_system::verifier::{KateVerificationScheme, Verifier};
@@ -10,19 +12,26 @@ use crate::barretenberg::plonk::proof_system::PlonkProof;
 use crate::barretenberg::plonk::public_inputs::PublicInputs;
 use crate::barretenberg::polynomials::polynomial_arithmetic;
 use crate::barretenberg::scalar_multiplication;
-use crate::types::proof::Proof;
-use crate::types::program_settings::{ProgramSettings, StandardVerifierSettings, TurboVerifierSettings, UltraVerifierSettings, UltraToStandardVerifierSettings, UltraWithKeccakVerifierSettings};
-use crate::widgets::random_widgets::random_widget::RandomWidget;
+use crate::plonk::proof_system::types::program_settings::{
+    ProgramSettings, StandardVerifierSettings, TurboVerifierSettings,
+    UltraToStandardVerifierSettings, UltraVerifierSettings, UltraWithKeccakVerifierSettings,
+};
+use crate::plonk::proof_system::types::proof::Proof;
+use crate::plonk::proof_system::widgets::random_widgets::random_widget::RandomWidget;
+use crate::transcript::Transcript;
 
-use barretenberg::transcript::manifest::Manifest;
-use barretenberg::plonk::proof_system::commitment_scheme::CommitmentScheme;
-use barretenberg::g1::affine_element::AffineElement;
 use barretenberg::fr::Fr;
+use barretenberg::g1::affine_element::AffineElement;
+use barretenberg::plonk::proof_system::commitment_scheme::CommitmentScheme;
+use barretenberg::transcript::manifest::Manifest;
 
+use crate::plonk::proof_system::types::Proof;
+use crate::transcript::Manifest;
 use ark_ff::{Field, PrimeField, Zero};
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use super::verification_key::VerificationKey;
 
 pub struct VerifierBase<PS: ProgramSettings> {
     manifest: Manifest,
@@ -35,7 +44,6 @@ impl Verifier for VerifierBase<ultra_verifier_settings> {}
 impl Verifier for VerifierBase<ultra_to_standard_verifier_settings> {}
 impl Verifier for VerifierBase<ultra_with_keccak_verifier_settings> {}
 
-
 impl<PS: ProgramSettings> VerifierBase<PS> {
     pub fn from_other(other: &Self) -> Self {
         Self {
@@ -45,9 +53,6 @@ impl<PS: ProgramSettings> VerifierBase<PS> {
         }
     }
 }
-
-
-
 
 pub fn verify_proof(self, proof: &PlonkProof) -> Result<bool, &'static str> {
     // This function verifies a PLONK proof for given program settings.
@@ -61,7 +66,7 @@ pub fn verify_proof(self, proof: &PlonkProof) -> Result<bool, &'static str> {
     self.key.program_width = PS::PROGRAM_WIDTH;
 
     // Initialize the transcript.
-    let mut transcript = transcript::StandardTranscript::new(
+    let mut transcript = Transcript::new(
         proof.proof_data.clone(),
         self.manifest.clone(),
         PS::HASH_TYPE,
@@ -84,7 +89,8 @@ pub fn verify_proof(self, proof: &PlonkProof) -> Result<bool, &'static str> {
     let zeta = fr::deserialize_from_buffer(transcript.get_challenge("z"));
 
     // Compute the evaluations of the Lagrange polynomials and the vanishing polynomial.
-    let lagrange_evals = barretenberg::polynomial_arithmetic::get_lagrange_evaluations(zeta, &key.domain);
+    let lagrange_evals =
+        barretenberg::polynomial_arithmetic::get_lagrange_evaluations(zeta, &key.domain);
 
     // Compute quotient polynomial evaluation at zeta.
     let mut t_numerator_eval = fr::default();
@@ -95,17 +101,23 @@ pub fn verify_proof(self, proof: &PlonkProof) -> Result<bool, &'static str> {
     // Compute nu and separator challenges.
     transcript.apply_fiat_shamir("nu");
     transcript.apply_fiat_shamir("separator");
-    let separator_challenge = fr::deserialize_from_buffer(transcript.get_challenge("separator"));
+    let separator_challenge = Fr::deserialize_from_buffer(transcript.get_challenge("separator"));
 
     // Verify the commitments using Kate commitment scheme.
-    self.commitment_scheme.batch_verify(&transcript, &mut kate_g1_elements, &mut kate_fr_elements, &key)?;
+    self.commitment_scheme.batch_verify(
+        &transcript,
+        &mut kate_g1_elements,
+        &mut kate_fr_elements,
+        &key,
+    )?;
 
     // Append scalar multiplication inputs.
     PS::append_scalar_multiplication_inputs(&key, alpha, &transcript, &mut kate_fr_elements);
 
     // Get PI_Z and PI_Z_OMEGA from the transcript.
     let pi_z = g1::AffineElement::deserialize_from_buffer(transcript.get_element("PI_Z"));
-    let pi_z_omega = g1::AffineElement::deserialize_from_buffer(transcript.get_element("PI_Z_OMEGA"));
+    let pi_z_omega =
+        g1::AffineElement::deserialize_from_buffer(transcript.get_element("PI_Z_OMEGA"));
 
     // Check if PI_Z and PI_Z_OMEGA are valid points.
     if !pi_z.on_curve() || pi_z.is_point_at_infinity() {
@@ -146,7 +158,6 @@ pub fn verify_proof(self, proof: &PlonkProof) -> Result<bool, &'static str> {
     // Perform Pippenger multi-scalar multiplication
     let p0 = pippenger(&scalars, &elements, &mut state);
 
-
     // Calculate P[1]
     let p1 = -((G1Projective::from(PI_Z_OMEGA) * separator_challenge) + G1Projective::from(PI_Z));
 
@@ -163,32 +174,42 @@ pub fn verify_proof(self, proof: &PlonkProof) -> Result<bool, &'static str> {
             let l2 = inputs[idx2];
             let l3 = inputs[idx3];
 
-            let limb = l0 + (l1 << NUM_LIMB_BITS_IN_FIELD_SIMULATION) +
-                    (l2 << (NUM_LIMB_BITS_IN_FIELD_SIMULATION * 2)) +
-                    (l3 << (NUM_LIMB_BITS_IN_FIELD_SIMULATION * 3));
+            let limb = l0
+                + (l1 << NUM_LIMB_BITS_IN_FIELD_SIMULATION)
+                + (l2 << (NUM_LIMB_BITS_IN_FIELD_SIMULATION * 2))
+                + (l3 << (NUM_LIMB_BITS_IN_FIELD_SIMULATION * 3));
             Fq::from(limb)
         };
 
         // Get recursion_separator_challenge
-        let recursion_separator_challenge = transcript.get_challenge_field_element("separator").square();
+        let recursion_separator_challenge =
+            transcript.get_challenge_field_element("separator").square();
 
         // Recover x0, y0, x1, and y1
-        let x0 = recover_fq_from_public_inputs(recursive_proof_indices[0],
-                                            recursive_proof_indices[1],
-                                            recursive_proof_indices[2],
-                                            recursive_proof_indices[3]);
-        let y0 = recover_fq_from_public_inputs(recursive_proof_indices[4],
-                                            recursive_proof_indices[5],
-                                            recursive_proof_indices[6],
-                                            recursive_proof_indices[7]);
-        let x1 = recover_fq_from_public_inputs(recursive_proof_indices[8],
-                                            recursive_proof_indices[9],
-                                            recursive_proof_indices[10],
-                                            recursive_proof_indices[11]);
-        let y1 = recover_fq_from_public_inputs(recursive_proof_indices[12],
-                                            recursive_proof_indices[13],
-                                            recursive_proof_indices[14],
-                                            recursive_proof_indices[15]);
+        let x0 = recover_fq_from_public_inputs(
+            recursive_proof_indices[0],
+            recursive_proof_indices[1],
+            recursive_proof_indices[2],
+            recursive_proof_indices[3],
+        );
+        let y0 = recover_fq_from_public_inputs(
+            recursive_proof_indices[4],
+            recursive_proof_indices[5],
+            recursive_proof_indices[6],
+            recursive_proof_indices[7],
+        );
+        let x1 = recover_fq_from_public_inputs(
+            recursive_proof_indices[8],
+            recursive_proof_indices[9],
+            recursive_proof_indices[10],
+            recursive_proof_indices[11],
+        );
+        let y1 = recover_fq_from_public_inputs(
+            recursive_proof_indices[12],
+            recursive_proof_indices[13],
+            recursive_proof_indices[14],
+            recursive_proof_indices[15],
+        );
 
         // Update P[0] and P[1] with recursive proof values
         let p0 = p0 + (G1Projective::new(x0, y0, Fq::one()) * recursion_separator_challenge);
@@ -199,16 +220,25 @@ pub fn verify_proof(self, proof: &PlonkProof) -> Result<bool, &'static str> {
     let p_affine = [G1Affine::from(p0), G1Affine::from(p1)];
 
     // Perform final pairing check
-    let result = reduced_ate_pairing_batch_precomputed(&p_affine, &key.reference_string.get_precomputed_g2_lines());
+    let result = reduced_ate_pairing_batch_precomputed(
+        &p_affine,
+        &key.reference_string.get_precomputed_g2_lines(),
+    );
 
     // Check if result equals Fq12::one()
-    OK((result == Fq12::one()))
+    Ok(result == Fq12::one())
     // Err("opening proof group element PI_Z not a valid point".into());
-
 }
 
 pub mod proof_system {
     pub mod plonk {
+        use std::sync::Arc;
+
+        use crate::{
+            plonk::proof_system::{types::Proof, verification_key::VerificationKey},
+            transcript::Manifest,
+        };
+
         pub trait VerifierBase<Settings: ProgramSettings> {
             fn new(verifier_key: Option<Arc<VerificationKey>>, manifest: Manifest) -> Self;
             fn validate_commitments(&self) -> bool;
@@ -226,7 +256,9 @@ pub struct VerifierBaseImpl<Settings: ProgramSettings> {
     commitment_scheme: Box<dyn CommitmentScheme>,
 }
 
-impl<Settings: ProgramSettings> proof_system::plonk::VerifierBase<Settings> for VerifierBaseImpl<Settings> {
+impl<Settings: ProgramSettings> proof_system::plonk::VerifierBase<Settings>
+    for VerifierBaseImpl<Settings>
+{
     fn new(verifier_key: Option<Arc<VerificationKey>>, manifest: Manifest) -> Self {
         // Implement constructor logic here.
     }
@@ -257,17 +289,42 @@ pub mod verifier_helpers {
 
     pub fn generate_verifier(circuit_proving_key: Arc<ProvingKey>) -> Verifier {
         let mut poly_coefficients = [None; 8];
-        poly_coefficients[0] = circuit_proving_key.polynomial_store.get("q_1").map(|p| p.coefficients());
-        poly_coefficients[1] = circuit_proving_key.polynomial_store.get("q_2").map(|p| p.coefficients());
-        poly_coefficients[2] = circuit_proving_key.polynomial_store.get("q_3").map(|p| p.coefficients());
-        poly_coefficients[3] = circuit_proving_key.polynomial_store.get("q_m").map(|p| p.coefficients());
-        poly_coefficients[4] = circuit_proving_key.polynomial_store.get("q_c").map(|p| p.coefficients());
-        poly_coefficients[5] = circuit_proving_key.polynomial_store.get("sigma_1").map(|p| p.coefficients());
-        poly_coefficients[6] = circuit_proving_key.polynomial_store.get("sigma_2").map(|p| p.coefficients());
-        poly_coefficients[7] = circuit_proving_key.polynomial_store.get("sigma_3").map(|p| p.coefficients());
+        poly_coefficients[0] = circuit_proving_key
+            .polynomial_store
+            .get("q_1")
+            .map(|p| p.coefficients());
+        poly_coefficients[1] = circuit_proving_key
+            .polynomial_store
+            .get("q_2")
+            .map(|p| p.coefficients());
+        poly_coefficients[2] = circuit_proving_key
+            .polynomial_store
+            .get("q_3")
+            .map(|p| p.coefficients());
+        poly_coefficients[3] = circuit_proving_key
+            .polynomial_store
+            .get("q_m")
+            .map(|p| p.coefficients());
+        poly_coefficients[4] = circuit_proving_key
+            .polynomial_store
+            .get("q_c")
+            .map(|p| p.coefficients());
+        poly_coefficients[5] = circuit_proving_key
+            .polynomial_store
+            .get("sigma_1")
+            .map(|p| p.coefficients());
+        poly_coefficients[6] = circuit_proving_key
+            .polynomial_store
+            .get("sigma_2")
+            .map(|p| p.coefficients());
+        poly_coefficients[7] = circuit_proving_key
+            .polynomial_store
+            .get("sigma_3")
+            .map(|p| p.coefficients());
 
         let mut commitments = vec![G1AffineElement::default(); 8];
-        let mut state = ScalarMultiplication::pippenger_runtime_state(circuit_proving_key.circuit_size);
+        let mut state =
+            ScalarMultiplication::pippenger_runtime_state(circuit_proving_key.circuit_size);
 
         for i in 0..8 {
             if let Some(poly_coeffs) = &poly_coefficients[i] {
@@ -288,17 +345,36 @@ pub mod verifier_helpers {
             circuit_proving_key.composer_type,
         ));
 
-        circuit_verification_key.commitments.insert("Q_1", commitments[0]);
-        circuit_verification_key.commitments.insert("Q_2", commitments[1]);
-        circuit_verification_key.commitments.insert("Q_3", commitments[2]);
-        circuit_verification_key.commitments.insert("Q_M", commitments[3]);
-        circuit_verification_key.commitments.insert("Q_C", commitments[4]);
+        circuit_verification_key
+            .commitments
+            .insert("Q_1", commitments[0]);
+        circuit_verification_key
+            .commitments
+            .insert("Q_2", commitments[1]);
+        circuit_verification_key
+            .commitments
+            .insert("Q_3", commitments[2]);
+        circuit_verification_key
+            .commitments
+            .insert("Q_M", commitments[3]);
+        circuit_verification_key
+            .commitments
+            .insert("Q_C", commitments[4]);
 
-        circuit_verification_key.commitments.insert("SIGMA_1", commitments[5]);
-        circuit_verification_key.commitments.insert("SIGMA_2", commitments[6]);
-        circuit_verification_key.commitments.insert("SIGMA_3", commitments[7]);
+        circuit_verification_key
+            .commitments
+            .insert("SIGMA_1", commitments[5]);
+        circuit_verification_key
+            .commitments
+            .insert("SIGMA_2", commitments[6]);
+        circuit_verification_key
+            .commitments
+            .insert("SIGMA_3", commitments[7]);
 
-        let verifier = Verifier::new(circuit_verification_key, StandardComposer::create_manifest(0));
+        let verifier = Verifier::new(
+            circuit_verification_key,
+            StandardComposer::create_manifest(0),
+        );
 
         let kate_commitment_scheme = Box::new(KateCommitmentScheme::<standard_settings>::new());
         verifier.commitment_scheme = kate_commitment_scheme;
@@ -310,11 +386,10 @@ pub mod verifier_helpers {
 mod tests {
 
     fn generate_test_data(n: usize) -> Prover {
-
-        // create some constraints that satisfy our arithmetic circuit relation    
+        // create some constraints that satisfy our arithmetic circuit relation
         let crs = Rc::new(FileReferenceString::new(n + 1, "../srs_db/ignition"));
         let key = Rc::new(ProvingKey::new(n, 0, crs, ComposerType::Standard));
-    
+
         let mut w_l = Polynomial::new(n);
         let mut w_r = Polynomial::new(n);
         let mut w_o = Polynomial::new(n);
@@ -323,7 +398,7 @@ mod tests {
         let mut q_o = Polynomial::new(n);
         let mut q_c = Polynomial::new(n);
         let mut q_m = Polynomial::new(n);
-    
+
         let mut t0;
         for i in 0..n / 4 {
             w_l[2 * i] = Fr::random_element();
@@ -337,11 +412,11 @@ mod tests {
             q_o[2 * i] = Fr::neg_one();
             q_c[2 * i] = Fr::one();
             q_m[2 * i] = Fr::one();
-    
+
             w_l[2 * i + 1] = Fr::random_element();
             w_r[2 * i + 1] = Fr::random_element();
             w_o[2 * i + 1] = Fr::random_element();
-    
+
             t0 = w_l[2 * i + 1] + w_r[2 * i + 1];
             q_c[2 * i + 1] = t0 + w_o[2 * i + 1];
             q_c[2 * i + 1].self_neg();
@@ -394,22 +469,36 @@ mod tests {
         let mut sigma_2 = Polynomial::new(key.circuit_size);
         let mut sigma_3 = Polynomial::new(key.circuit_size);
 
-        plonk::compute_permutation_lagrange_base_single(&mut sigma_1, &sigma_1_mapping, &key.small_domain);
-        plonk::compute_permutation_lagrange_base_single(&mut sigma_2, &sigma_2_mapping, &key.small_domain);
-        plonk::compute_permutation_lagrange_base_single(&mut sigma_3, &sigma_3_mapping, &key.small_domain);
+        plonk::compute_permutation_lagrange_base_single(
+            &mut sigma_1,
+            &sigma_1_mapping,
+            &key.small_domain,
+        );
+        plonk::compute_permutation_lagrange_base_single(
+            &mut sigma_2,
+            &sigma_2_mapping,
+            &key.small_domain,
+        );
+        plonk::compute_permutation_lagrange_base_single(
+            &mut sigma_3,
+            &sigma_3_mapping,
+            &key.small_domain,
+        );
 
         let sigma_1_lagrange_base = Polynomial::new_from(sigma_1, key.circuit_size);
         let sigma_2_lagrange_base = Polynomial::new_from(sigma_2, key.circuit_size);
         let sigma_3_lagrange_base = Polynomial::new_from(sigma_3, key.circuit_size);
 
-        key.polynomial_store.insert("sigma_1_lagrange", sigma_1_lagrange_base);
-        key.polynomial_store.insert("sigma_2_lagrange", sigma_2_lagrange_base);
-        key.polynomial_store.insert("sigma_3_lagrange", sigma_3_lagrange_base);
+        key.polynomial_store
+            .insert("sigma_1_lagrange", sigma_1_lagrange_base);
+        key.polynomial_store
+            .insert("sigma_2_lagrange", sigma_2_lagrange_base);
+        key.polynomial_store
+            .insert("sigma_3_lagrange", sigma_3_lagrange_base);
 
         sigma_1.ifft(&key.small_domain);
         sigma_2.ifft(&key.small_domain);
         sigma_3.ifft(&key.small_domain);
-
 
         const WIDTH: usize = 4;
         let sigma_1_fft = Polynomial::new_from(sigma_1, key.circuit_size * WIDTH);
@@ -462,21 +551,27 @@ mod tests {
         key.polynomial_store.insert("q_m_fft", q_m_fft);
         key.polynomial_store.insert("q_c_fft", q_c_fft);
 
-        let permutation_widget: Box<dyn ProverPermutationWidget> = Box::new(ProverPermutationWidget::<3>::new(key.clone()));
+        let permutation_widget: Box<dyn ProverPermutationWidget> =
+            Box::new(ProverPermutationWidget::<3>::new(key.clone()));
 
-        let widget: Box<dyn ProverArithmeticWidget> = Box::new(ProverArithmeticWidget::<StandardSettings>::new(key.clone()));
+        let widget: Box<dyn ProverArithmeticWidget> =
+            Box::new(ProverArithmeticWidget::<StandardSettings>::new(key.clone()));
 
         let kate_commitment_scheme = Box::new(KateCommitmentScheme::<StandardSettings>::new());
 
-        let state = PlonkProver::new(key, StandardComposer::create_manifest(0));
+        let state = Prover::new(key, StandardComposer::create_manifest(0));
         state.random_widgets.push(permutation_widget);
         state.transition_widgets.push(widget);
         state.commitment_scheme = kate_commitment_scheme;
         state
-
     }
 
-    use crate::plonk::proof_system::{prover::Prover, proving_key::ProvingKey};
+    use std::rc::Rc;
+
+    use crate::{
+        plonk::proof_system::{prover::Prover, proving_key::ProvingKey},
+        polynomials::Polynomial,
+    };
 
     use super::*;
 

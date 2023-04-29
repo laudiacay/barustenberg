@@ -26,7 +26,7 @@ pub struct Prover<Fr: Field, H: HasherType, S: SettingsBase<H>> {
 }
 
 impl<Fr: Field, S: SettingsBase> Prover<Fr, S> {
-    fn new(
+    pub fn new(
         input_key: Option<Arc<ProvingKey<Fr>>>,
         input_manifest: Option<&Manifest>,
         input_settings: Option<S>,
