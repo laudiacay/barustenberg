@@ -148,15 +148,13 @@ pub mod polynomial_arithmetic {
             });
     }
 
-    ///
     /// Compute multiplicative subgroup (g.X)^n.
-    ///
-    ///Compute the subgroup for X in roots of unity of (2^log2_subgroup_size)*n.
+    /// Compute the subgroup for X in roots of unity of (2^log2_subgroup_size)*n.
     /// X^n will loop through roots of unity (2^log2_subgroup_size).
     /// @param log2_subgroup_size Log_2 of the subgroup size.
-    ///  @param src_domain The domain of size n.
-    ///  @param subgroup_roots Pointer to the array for saving subgroup members.
-    /// 
+    /// @param src_domain The domain of size n.
+    /// @param subgroup_roots Pointer to the array for saving subgroup members.
+
     pub trait FieldElement: Sized + Copy + Mul<Output = Self> {
         fn get_root_of_unity(log2_subgroup_size: usize) -> Self;
         fn self_sqr(&mut self);
@@ -229,8 +227,91 @@ pub mod polynomial_arithmetic {
         // reduce + copy
         if domain.size <= 2 {
             coeffs[0][0] = scratch_space[0];
-            coeffs[0][1] = scratch_space
+            coeffs[0][1] = scratch_space[1];
 
         }   
+        // Outer FFT loop - iterates over the FFT rounds
+        for m in (2..=domain.size).step_by(2) {
+            for j in 0..domain.num_threads {
+                let mut temp: Fr;
+
+                // Ok! So, what's going on here? This is the inner loop of the FFT algorithm, and we want to break it
+                // out into multiple independent threads. For `num_threads`, each thread will evaluation `domain.size /
+                // num_threads` of the polynomial. The actual iteration length will be half of this, because we leverage
+                // the fact that \omega^{n/2} = -\omega (where \omega is a root of unity)
+        
+
+                // Here, `start` and `end` are used as our iterator limits, so that we can use our iterator `i` to
+                // directly access the roots of unity lookup table
+                let start = j * (domain.thread_size >> 1);
+                let end = (j + 1) * (domain.thread_size >> 1);
+
+                // For all but the last round of our FFT, the roots of unity that we need, will be a subset of our
+                // lookup table. e.g. for a size 2^n FFT, the 2^n'th roots create a multiplicative subgroup of order 2^n
+                //      the 1st round will use the roots from the multiplicative subgroup of order 2 : the 2'th roots of
+                //      unity the 2nd round will use the roots from the multiplicative subgroup of order 4 : the 4'th
+                //      roots of unity
+                // i.e. each successive FFT round will double the set of roots that we need to index.
+                // We have already laid out the `root_table` container so that each FFT round's roots are linearly
+                // ordered in memory. For all FFT rounds, the number of elements we're iterating over is greater than
+                // the size of our lookup table. We need to access this table in a cyclical fasion - i.e. for a subgroup
+                // of size x, the first x iterations will index the subgroup elements in order, then for the next x
+                // iterations, we loop back to the start.
+
+                // We could implement the algorithm by having 2 nested loops (where the inner loop iterates over the
+                // root table), but we want to flatten this out - as for the first few rounds, the inner loop will be
+                // tiny and we'll have quite a bit of unneccesary branch checks For each iteration of our flattened
+                // loop, indexed by `i`, the element of the root table we need to access will be `i % (current round
+                // subgroup size)` Given that each round subgroup size is `m`, which is a power of 2, we can index the
+                // root table with a very cheap `i & (m - 1)` Which is why we have this odd `block_mask` variable
+        
+                let block_mask = m - 1;
+
+                // The next problem to tackle, is we now need to efficiently index the polynomial element in
+                // `scratch_space` in our flattened loop If we used nested loops, the outer loop (e.g. `y`) iterates
+                // from 0 to 'domain size', in steps of 2 * m, with the inner loop (e.g. `z`) iterating from 0 to m. We
+                // have our inner loop indexer with `i & (m - 1)`. We need to add to this our outer loop indexer, which
+                // is equivalent to taking our indexer `i`, masking out the bits used in the 'inner loop', and doubling
+                // the result. i.e. polynomial indexer = (i & (m - 1)) + ((i & ~(m - 1)) >> 1) To simplify this, we
+                // cache index_mask = ~block_mask, meaning that our indexer is just `((i & index_mask) << 1 + (i &
+                // block_mask)`
+
+                let index_mask = !block_mask;
+
+                // `round_roots` fetches the pointer to this round's lookup table. We use `numeric::get_msb(m) - 1` as
+                // our indexer, because we don't store the precomputed root values for the 1st round (because they're
+                // all 1).
+
+                let round_roots = &root_table[((m.trailing_zeros() - 1) as usize)];
+
+                // Finally, we want to treat the final round differently from the others,
+                // so that we can reduce out of our 'coarse' reduction and store the output in `coeffs` instead of
+                // `scratch_space`
+        
+                if m != (domain.size >> 1) {
+                    for i in start..end {
+                        let k1 = (i & index_mask) << 1;
+                        let j1 = i & block_mask;
+                        temp = round_roots[j1] * scratch_space[k1 + j1 + m];
+                        scratch_space[k1 + j1 + m] = scratch_space[k1 + j1] - temp;
+                        scratch_space[k1 + j1] += temp;
+                    }
+                } else {
+                    for i in start..end {
+                        let k1 = (i & index_mask) << 1;
+                        let j1 = i & block_mask;
+        
+                        let poly_idx_1 = (k1 + j1) >> log2_poly_size;
+                        let elem_idx_1 = (k1 + j1) & poly_mask;
+                        let poly_idx_2 = (k1 + j1 + m) >> log2_poly_size;
+                        let elem_idx_2 = (k1 + j1 + m) & poly_mask;
+        
+                        temp = round_roots[j1] * scratch_space[k1 + j1 + m];
+                        coeffs[poly_idx_2][elem_idx_2] = scratch_space[k1 + j1] - temp;
+                        coeffs[poly_idx_1][elem_idx_1] = scratch_space[k1 + j1] + temp;
+                    }
+                }
+            }
+        }
     }
 }
