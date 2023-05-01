@@ -161,6 +161,7 @@ pub mod polynomial_arithmetic {
         fn get_root_of_unity(log2_subgroup_size: usize) -> Self;
         fn self_sqr(&mut self);
     }
+
     
     fn compute_multiplicative_subgroup<Fr: FieldElement>(
         log2_subgroup_size: usize,
@@ -184,10 +185,52 @@ pub mod polynomial_arithmetic {
             subgroup_roots[i] = subgroup_roots[i - 1] * subgroup_root;
         }
     }
-    
 
-    
+    fn fft_inner_parallel<Fr: FieldElement>(
+        coeffs: &mut Vec<&mut [Fr]>,
+        domain: &EvaluationDomain<Fr>,
+        _: &Fr,
+        root_table: &Vec<&[Fr]>,
+    ) {
+        let scratch_space = get_scratch_space(domain.size); // Implement the get_scratch_space function
+
+        let num_polys = coeffs.len();
+        assert!(num_polys.is_power_of_two());
+        let poly_size = domain.size / num_polys;
+        assert!(poly_size.is_power_of_two());
+        let poly_mask = poly_size - 1;
+        let log2_poly_size = poly_size.trailing_zeros() as usize;
+
+        // First FFT round is a special case - no need to multiply by root table, because all entries are 1.
+        // We also combine the bit reversal step into the first round, to avoid a redundant round of copying data
+        for j in 0..domain.num_threads {
+            let mut temp_1 = Fr::__copy(coeffs[0][0]); // Just initializing with an element, any element will do
+            let mut temp_2 = temp_1;
+            for i in (j * domain.thread_size..(j + 1) * domain.thread_size).step_by(2) {
+                let next_index_1 = reverse_bits((i + 2) as u32, domain.log2_size as u32) as usize;
+                let next_index_2 = reverse_bits((i + 3) as u32, domain.log2_size as u32) as usize;
+
+                let swap_index_1 = reverse_bits(i as u32, domain.log2_size as u32) as usize;
+                let swap_index_2 = reverse_bits((i + 1) as u32, domain.log2_size as u32) as usize;
+
+                let poly_idx_1 = swap_index_1 >> log2_poly_size;
+                let elem_idx_1 = swap_index_1 & poly_mask;
+                let poly_idx_2 = swap_index_2 >> log2_poly_size;
+                let elem_idx_2 = swap_index_2 & poly_mask;
+
+                temp_1 = Fr::__copy(coeffs[poly_idx_1][elem_idx_1]);
+                temp_2 = Fr::__copy(coeffs[poly_idx_2][elem_idx_2]);
+                scratch_space[i + 1] = temp_1 - temp_2;
+                scratch_space[i] = temp_1 + temp_2;
+            }
+        }
+
+        // hard code exception for when the domain size is tiny - we won't execute the next loop, so need to manually
+        // reduce + copy
+        if domain.size <= 2 {
+            coeffs[0][0] = scratch_space[0];
+            coeffs[0][1] = scratch_space
+
+        }   
+    }
 }
-
-
-
