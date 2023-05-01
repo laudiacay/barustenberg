@@ -4,3 +4,4 @@ pub(crate) mod prover_settings;
 
 pub(crate) use polynomial_manifest::PolynomialManifest;
 pub(crate) use proof::Proof;
+pub(crate) use KateVerificationScheme;
