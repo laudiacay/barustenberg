@@ -21,7 +21,7 @@ use crate::{
 use super::{
     commitment_scheme::CommitmentScheme,
     proving_key::ProvingKey,
-    types::{prover_settings::SettingsBase, Proof}, ark_ff::{PrimeField, Zero},
+    types::{prover_settings::SettingsBase, Proof}, ark_ff
 };
 // use crate::plonk::proof_system::types::ProgramSettings::{SettingsBase, Proof, StandardVerifierSettings, TurboVerifierSettings,
 //     UltraToStandardVerifierSettings, UltraVerifierSettings, UltraWithKeccakVerifierSettings,};
@@ -38,10 +38,10 @@ use std::sync::Arc;
 
 use super::verification_key::VerificationKey;
 
-pub struct VerifierBase<PS: SettingsBase> {
+pub struct VerifierBase<S: SettingsBase> {
     manifest: Manifest,
-    key: Arc<PS::VerificationKey>,
-    commitment_scheme: Option<KateVerificationScheme<PS>>,
+    key: Arc<S::VerificationKey>,
+    commitment_scheme: Option<CommitmentScheme<S>>,
 }
 
 
