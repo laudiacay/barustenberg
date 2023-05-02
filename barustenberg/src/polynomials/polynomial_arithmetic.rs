@@ -183,12 +183,10 @@ pub mod polynomial_arithmetic {
             subgroup_roots[i] = subgroup_roots[i - 1] * subgroup_root;
         }
     }
-
-    fn fft_inner_parallel<Fr: FieldElement>(
-        coeffs: &mut Vec<&mut [Fr]>,
-        domain: &EvaluationDomain<Fr>,
-        _: &Fr,
-        root_table: &Vec<&[Fr]>,
+    pub fn fft_inner_parallel_vec<T>(
+        coeffs: &mut [Box<T>],
+        domain: &EvaluationDomain<T>,
+        root_table: &[Vec<T>],
     ) {
         let scratch_space = get_scratch_space(domain.size); // Implement the get_scratch_space function
 
@@ -314,4 +312,81 @@ pub mod polynomial_arithmetic {
             }
         }
     }
+    pub fn fft_inner_parallel<T>(
+        coeffs: &mut [T],
+        target: &mut [T],
+        domain: &EvaluationDomain<T>,
+        root_table: &[Vec<T>],
+    ){
+        // First FFT round is a special case - no need to multiply by root table, because all entries are 1.
+        // We also combine the bit reversal step into the first round, to avoid a redundant round of copying data
+        (0..domain.num_threads).into_par_iter().for_each(|j| {
+            let mut temp_1 = T::zero();
+            let mut temp_2 = T::zero();
+            let thread_start = j * domain.thread_size;
+            let thread_end = (j + 1) * domain.thread_size;
+            for i in (thread_start..thread_end).step_by(2) {
+                let next_index_1 = reverse_bits((i + 2) as u32, domain.log2_size as u32) as usize;
+                let next_index_2 = reverse_bits((i + 3) as u32, domain.log2_size as u32) as usize;
+
+                let swap_index_1 = reverse_bits(i as u32, domain.log2_size as u32) as usize;
+                let swap_index_2 = reverse_bits((i + 1) as u32, domain.log2_size as u32) as usize;
+
+                temp_1 = coeffs[swap_index_1];
+                temp_2 = coeffs[swap_index_2];
+                target[i + 1] = temp_1 - temp_2;
+                target[i] = temp_1 + temp_2;
+            }
+        });
+
+        // hard code exception for when the domain size is tiny - we won't execute the next loop, so need to manually
+        // reduce + copy
+        if domain.size <= 2 {
+            coeffs[0] = target[0];
+            coeffs[1] = target[1];
+            }
+
+        // outer FFT loop
+        for m in (2..domain.size).step_by(2) {
+            (0..domain.num_threads).into_par_iter().for_each(|j| {
+                let mut temp = T::zero();
+
+                let start = j * (domain.thread_size >> 1);
+                let end = (j + 1) * (domain.thread_size >> 1);
+
+                let block_mask = m - 1;
+                let index_mask = !block_mask;
+
+                let round_roots = &root_table[get_msb(m as u32) as usize - 1];
+
+                for i in start..end {
+                    let k1 = (i & index_mask) << 1;
+                    let j1 = i & block_mask;
+                    temp = round_roots[j1] * target[k1 + j1 + m];
+                    target[k1 + j1 + m] = target[k1 + j1] - temp;
+                    target[k1 + j1] += temp;
+                }
+            });
+        }
+
+    }
+    // Note for claudia 
+    // Should we implement these two as traits like this? or should we just have two different functions?
+
+    // pub trait FFT<T> {
+    //     fn fft_inner_parallel(coeffs: &mut [T], domain: &EvaluationDomain<T>, _: &T, root_table: &[&[T]]);
+    //     fn fft_inner_parallel_with_target(coeffs: &mut [T], target: &mut [T], domain: &EvaluationDomain<T>, _: &T, root_table: &[&[T]]);
+    // }
+
+    // impl<T: FieldElement> FFT<T> for T {
+    //     fn fft_inner_parallel(coeffs: &mut [T], domain: &EvaluationDomain<T>, _: &T, root_table: &[&[T]]) {
+    //         // First implementation here
+    //     }
+
+    //     fn fft_inner_parallel_with_target(coeffs: &mut [T], target: &mut [T], domain: &EvaluationDomain<T>, _: &T, root_table: &[&[T]]) {
+    //         // Second implementation here
+    //     }
+    // }
+
+
 }

@@ -8,4 +8,3 @@ pub(crate) mod utils;
 pub(crate) mod verification_key;
 pub(crate) mod verifier;
 pub(crate) mod widgets;
-pub(crate) mod ark_ff;
