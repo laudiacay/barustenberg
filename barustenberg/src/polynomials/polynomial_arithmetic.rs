@@ -388,5 +388,33 @@ pub mod polynomial_arithmetic {
     //     }
     // }
 
+    fn partial_fft_serial_inner<T: FieldElement>(
+        coeffs: &mut [T],
+        target: &mut [T],
+        domain: &EvaluationDomain<T>,
+        root_table: &[&[T]],
+    ) {
+        let n = domain.size >> 2;
+        let full_mask = domain.size - 1;
+        let m = domain.size >> 1;
+        let half_mask = m - 1;
+        let round_roots = &root_table[((m as f64).log2() as usize) - 1];
+        let mut root_index;
+
+        for i in 0..n {
+            for s in 0..4 {
+                target[(3 - s) * n + i] = T::zero();
+                for j in 0..4 {
+                    let index = i + j * n;
+                    root_index = (index * (s + 1)) & full_mask;
+                    target[(3 - s) * n + i] += (if root_index < m { T::one() } else { -T::one() })
+                        * coeffs[index]
+                        * round_roots[root_index & half_mask];
+                }
+            }
+        }
+    }
+
+
 
 }
