@@ -415,6 +415,56 @@ pub mod polynomial_arithmetic {
         }
     }
 
+fn partial_fft_parallel_inner<T: FieldElement>(
+    coeffs: &mut [T],
+    domain: &EvaluationDomain<T>,
+    root_table: &[&[T]],
+    constant: T,
+    is_coset: bool,
+    ) {
+        let n = domain.size >> 2;
+        let full_mask = domain.size - 1;
+        let m = domain.size >> 1;
+        let half_mask = m - 1;
+        let round_roots = &root_table[((m as f64).log2() as usize) - 1];
+
+        let small_domain = EvaluationDomain::new(n).unwrap();
+
+        for i in 0..small_domain.size {
+            let mut temp = [coeffs[i], coeffs[i + n], coeffs[i + 2 * n], coeffs[i + 3 * n]];
+            coeffs[i] = T::zero();
+            coeffs[i + n] = T::zero();
+            coeffs[i + 2 * n] = T::zero();
+            coeffs[i + 3 * n] = T::zero();
+
+            let mut index;
+            let mut root_index;
+            let mut root_multiplier;
+            let mut temp_constant = constant;
+
+            for s in 0..4 {
+                for j in 0..4 {
+                    index = i + j * n;
+                    root_index = (index * (s + 1));
+                    if is_coset {
+                        root_index -= 4 * i;
+                    }
+                    root_index &= full_mask;
+                    root_multiplier = round_roots[root_index & half_mask];
+                    if root_index >= m {
+                        root_multiplier = -round_roots[root_index & half_mask];
+                    }
+                    coeffs[(3 - s) * n + i] += root_multiplier * temp[j];
+                }
+                if is_coset {
+                    temp_constant *= domain.generator;
+                    coeffs[(3 - s) * n + i] *= temp_constant;
+                }
+            }
+        }
+    }
+
+
 
 
 }
