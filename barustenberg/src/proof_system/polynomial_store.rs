@@ -21,7 +21,7 @@ impl<Fr: Field> PolynomialStore<Fr> {
     /// # Arguments
     /// - `name` - string ID of the polynomial
     /// - `polynomial` - the polynomial to be stored
-    const fn put(&mut self, name: String, polynomial: Polynomial<Fr>) {
+    pub(crate) const fn put(&mut self, name: String, polynomial: Polynomial<Fr>) {
         self.polynomial_map.insert(name, polynomial);
     }
 
@@ -33,7 +33,7 @@ impl<Fr: Field> PolynomialStore<Fr> {
     ///
     /// # Returns
     /// - `Result<Polynomial>` - a reference to the polynomial associated with the given key
-    const fn get(&self, key: String) -> Result<Polynomial<Fr>> {
+    pub(crate) const fn get(&self, key: String) -> Result<Polynomial<Fr>> {
         self.polynomial_map
             .get(&key)
             .ok_or(anyhow!("didn't find polynomial..."))
@@ -47,7 +47,7 @@ impl<Fr: Field> PolynomialStore<Fr> {
     ///
     /// # Returns
     /// - `Result<Polynomial>` - the polynomial associated with the given key
-    const fn remove(&mut self, key: String) -> Result<Polynomial<Fr>> {
+    pub(crate) const fn remove(&mut self, key: String) -> Result<Polynomial<Fr>> {
         self.polynomial_map
             .remove(&key)
             .ok_or(anyhow!("didn't find polynomial..."))

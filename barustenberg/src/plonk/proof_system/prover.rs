@@ -1,5 +1,7 @@
 use std::sync::Arc;
 
+use ark_bn254::G1Affine;
+
 use super::{
     commitment_scheme::CommitmentScheme,
     proving_key::ProvingKey,
@@ -16,13 +18,13 @@ use crate::proof_system::work_queue::WorkQueue;
 // todo https://doc.rust-lang.org/reference/const_eval.html
 
 pub struct Prover<Fr: Field, H: HasherType, S: SettingsBase<H>> {
-    circuit_size: usize,
-    transcript: Transcript<H>,
-    key: Arc<ProvingKey<Fr>>,
-    queue: WorkQueue<Fr>,
-    random_widgets: Vec<ProverRandomWidget>,
-    transition_widgets: Vec<Widget::TransitionWidgetBase<Fr>>,
-    commitment_scheme: dyn CommitmentScheme<Fr, H>,
+    pub circuit_size: usize,
+    pub transcript: Transcript<H>,
+    pub key: Arc<ProvingKey<Fr>>,
+    pub queue: WorkQueue<Fr>,
+    pub random_widgets: Vec<ProverRandomWidget>,
+    pub transition_widgets: Vec<Widget::TransitionWidgetBase<Fr>>,
+    pub commitment_scheme: dyn CommitmentScheme<Fr, H>,
 }
 
 impl<Fr: Field, S: SettingsBase> Prover<Fr, S> {
@@ -659,7 +661,7 @@ impl<Fr: Field, S: SettingsBase> Prover<Fr, S> {
         }
     }
 
-    fn construct_proof(&self) -> Proof {
+    pub fn construct_proof(&self) -> Proof {
         // Execute init round. Randomize witness polynomials.
         self.execute_preamble_round();
         self.queue.process_queue();
@@ -695,30 +697,26 @@ impl<Fr: Field, S: SettingsBase> Prover<Fr, S> {
         todo!("implement me")
     }
     fn flush_queued_work_items(&self) {
-        self.get_queue().flush_queue();
+        self.get_queue().flush_queue()
     }
     fn get_queued_work_item_info(&self) -> work_queue::WorkItemInfo {
-        self.get_queue().get_queued_work_item_info();
+        self.get_queue().get_queued_work_item_info()
     }
     fn get_scalar_multiplication_data(&self, work_item_number: usize) -> Fr {
         self.get_queue()
-            .get_scalar_multiplication_data(work_item_number);
+            .get_scalar_multiplication_data(work_item_number)
     }
     fn get_scalar_multiplication_size(&self, work_item_number: usize) -> usize {
         self.get_queue()
-            .get_scalar_multiplication_size(work_item_number);
+            .get_scalar_multiplication_size(work_item_number)
     }
     fn get_ifft_data(&self, work_item_number: usize) -> &Fr {
-        self.get_queue().get_ifft_data(work_item_number);
+        self.get_queue().get_ifft_data(work_item_number)
     }
     fn get_fft_data(&self, work_item_number: usize) -> &work_queue::QueuedFftInputs<Fr> {
-        self.get_queue().get_fft_data(work_item_number);
+        self.get_queue().get_fft_data(work_item_number)
     }
-    fn put_scalar_multiplication_data(
-        &self,
-        result: barretenberg::g1::Affine,
-        work_item_number: usize,
-    ) {
+    fn put_scalar_multiplication_data(&self, result: G1Affine, work_item_number: usize) {
         self.get_queue()
             .put_scalar_multiplication_data(result, work_item_number);
     }

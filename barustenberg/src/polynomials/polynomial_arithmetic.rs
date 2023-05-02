@@ -1,13 +1,11 @@
-use std::f64::consts;
-use std::mem;
-use rayon::prelude::*;
-    
-
 pub mod polynomial_arithmetic {
-    use std::sync::Mutex;
     use lazy_static::lazy_static;
+    use std::sync::Mutex;
 
-    use crate::{ecc::curves::bn254::Fr, numeric}; // NOTE: This might not be the right Fr, need to check vs gumpkin
+    use crate::{
+        ecc::curves::bn254::Fr,
+        numeric::{self, bitop::Msb},
+    }; // NOTE: This might not be the right Fr, need to check vs gumpkin
     struct ScratchSpace<T> {
         working_memory: Mutex<Option<Vec<T>>>,
     }
@@ -41,17 +39,22 @@ pub mod polynomial_arithmetic {
         let x = ((x & 0xcccccccc) >> 2) | ((x & 0x33333333) << 2);
         let x = ((x & 0xf0f0f0f0) >> 4) | ((x & 0x0f0f0f0f) << 4);
         let x = ((x & 0xff00ff00) >> 8) | ((x & 0x00ff00ff) << 8);
-        (((x >> 16) | (x << 16))) >> (32 - bit_length)
+        ((x >> 16) | (x << 16)) >> (32 - bit_length)
     }
     #[inline]
     fn is_power_of_two(x: u64) -> bool {
         x != 0 && (x & (x - 1)) == 0
     }
 
-    fn copy_polynomial<Fr: Copy + Default>(src: &[Fr], dest: &mut [Fr], num_src_coefficients: usize, num_target_coefficients: usize) {
+    fn copy_polynomial<Fr: Copy + Default>(
+        src: &[Fr],
+        dest: &mut [Fr],
+        num_src_coefficients: usize,
+        num_target_coefficients: usize,
+    ) {
         // TODO: fiddle around with avx asm to see if we can speed up
         dest[..num_src_coefficients].copy_from_slice(&src[..num_src_coefficients]);
-    
+
         if num_target_coefficients > num_src_coefficients {
             // fill out the polynomial coefficients with zeroes
             for i in num_src_coefficients..num_target_coefficients {
@@ -62,7 +65,9 @@ pub mod polynomial_arithmetic {
 
     use std::ops::{Add, Mul, Sub};
 
-    fn fft_inner_serial<Fr: Copy + Default + Add<Output = Fr> + Sub<Output = Fr> + Mul<Output = Fr>>(
+    fn fft_inner_serial<
+        Fr: Copy + Default + Add<Output = Fr> + Sub<Output = Fr> + Mul<Output = Fr>,
+    >(
         coeffs: &mut [Vec<Fr>],
         domain_size: usize,
         root_table: &[Vec<Fr>],
@@ -73,10 +78,9 @@ pub mod polynomial_arithmetic {
         let poly_domain_size = domain_size / num_polys;
         assert!(is_power_of_two(poly_domain_size));
 
-
         // TODO Implement the msb from numeric/bitop/get_msb.cpp
-        let log2_size = numeric::get_msb(domain_size) as usize;
-        let log2_poly_size = numeric::get_msb(poly_domain_size) as usize;
+        let log2_size = domain_size.get_msb();
+        let log2_poly_size = poly_domain_size.get_msb();
 
         for i in 0..=domain_size {
             let swap_index = reverse_bits(i as u32, log2_size as u32) as usize;
@@ -99,7 +103,7 @@ pub mod polynomial_arithmetic {
         }
 
         for m in (2..domain_size).step_by(2) {
-            let i = numeric::get_msb(m) as usize;
+            let i = m.get_msb();
             for k in (0..domain_size).step_by(2 * m) {
                 for j in 0..m {
                     let even_poly_idx = (k + j) >> log2_poly_size;
@@ -108,8 +112,10 @@ pub mod polynomial_arithmetic {
                     let odd_elem_idx = (k + j + m) & (poly_domain_size - 1);
 
                     let temp = root_table[i - 1][j] * coeffs[odd_poly_idx][odd_elem_idx];
-                    coeffs[odd_poly_idx][odd_elem_idx] = coeffs[even_poly_idx][even_elem_idx] - temp;
-                    coeffs[even_poly_idx][even_elem_idx] = coeffs[even_poly_idx][even_elem_idx] + temp;
+                    coeffs[odd_poly_idx][odd_elem_idx] =
+                        coeffs[even_poly_idx][even_elem_idx] - temp;
+                    coeffs[even_poly_idx][even_elem_idx] =
+                        coeffs[even_poly_idx][even_elem_idx] + temp;
                 }
             }
         }
@@ -122,7 +128,7 @@ pub mod polynomial_arithmetic {
         pub roots: Vec<Fr>,
         pub inverse_roots: Vec<Fr>,
     }
-    
+
     fn scale_by_generator<Fr: Copy + Mul<Output = Fr>>(
         coeffs: &[Fr],
         target: &mut [Fr],
@@ -160,23 +166,22 @@ pub mod polynomial_arithmetic {
         fn self_sqr(&mut self);
     }
 
-    
     fn compute_multiplicative_subgroup<Fr: FieldElement>(
         log2_subgroup_size: usize,
         src_domain: &EvaluationDomain<Fr>,
         subgroup_roots: &mut [Fr],
     ) {
         let subgroup_size = 1 << log2_subgroup_size;
-    
+
         // Step 1: get primitive 4th root of unity
         let subgroup_root = Fr::get_root_of_unity(log2_subgroup_size);
-    
+
         // Step 2: compute the cofactor term g^n
         let mut accumulator = src_domain.generator;
         for _ in 0..src_domain.log2_size {
             accumulator.self_sqr();
         }
-    
+
         // Step 3: fill array with subgroup_size values of (g.X)^n, scaled by the cofactor
         subgroup_roots[0] = accumulator;
         for i in 1..subgroup_size {
@@ -228,8 +233,7 @@ pub mod polynomial_arithmetic {
         if domain.size <= 2 {
             coeffs[0][0] = scratch_space[0];
             coeffs[0][1] = scratch_space[1];
-
-        }   
+        }
         // Outer FFT loop - iterates over the FFT rounds
         for m in (2..=domain.size).step_by(2) {
             for j in 0..domain.num_threads {
@@ -239,7 +243,6 @@ pub mod polynomial_arithmetic {
                 // out into multiple independent threads. For `num_threads`, each thread will evaluation `domain.size /
                 // num_threads` of the polynomial. The actual iteration length will be half of this, because we leverage
                 // the fact that \omega^{n/2} = -\omega (where \omega is a root of unity)
-        
 
                 // Here, `start` and `end` are used as our iterator limits, so that we can use our iterator `i` to
                 // directly access the roots of unity lookup table
@@ -264,7 +267,7 @@ pub mod polynomial_arithmetic {
                 // loop, indexed by `i`, the element of the root table we need to access will be `i % (current round
                 // subgroup size)` Given that each round subgroup size is `m`, which is a power of 2, we can index the
                 // root table with a very cheap `i & (m - 1)` Which is why we have this odd `block_mask` variable
-        
+
                 let block_mask = m - 1;
 
                 // The next problem to tackle, is we now need to efficiently index the polynomial element in
@@ -287,7 +290,7 @@ pub mod polynomial_arithmetic {
                 // Finally, we want to treat the final round differently from the others,
                 // so that we can reduce out of our 'coarse' reduction and store the output in `coeffs` instead of
                 // `scratch_space`
-        
+
                 if m != (domain.size >> 1) {
                     for i in start..end {
                         let k1 = (i & index_mask) << 1;
@@ -300,12 +303,12 @@ pub mod polynomial_arithmetic {
                     for i in start..end {
                         let k1 = (i & index_mask) << 1;
                         let j1 = i & block_mask;
-        
+
                         let poly_idx_1 = (k1 + j1) >> log2_poly_size;
                         let elem_idx_1 = (k1 + j1) & poly_mask;
                         let poly_idx_2 = (k1 + j1 + m) >> log2_poly_size;
                         let elem_idx_2 = (k1 + j1 + m) & poly_mask;
-        
+
                         temp = round_roots[j1] * scratch_space[k1 + j1 + m];
                         coeffs[poly_idx_2][elem_idx_2] = scratch_space[k1 + j1] - temp;
                         coeffs[poly_idx_1][elem_idx_1] = scratch_space[k1 + j1] + temp;
