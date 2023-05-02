@@ -38,6 +38,7 @@ dependencies = [
  "anyhow",
  "generic-array",
  "lazy_static",
+ "num_cpus",
  "proptest",
  "rayon",
  "serde",

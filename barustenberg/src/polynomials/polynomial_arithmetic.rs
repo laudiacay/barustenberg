@@ -1,6 +1,8 @@
 use std::f64::consts;
 use std::mem;
 use rayon::prelude::*;
+extern crate num_cpus;
+
     
 
 pub mod polynomial_arithmetic {
@@ -587,5 +589,91 @@ fn partial_fft_parallel_inner<T: FieldElement>(
             }
         }
     }    
+
+    fn add<T: FieldElement>(
+        a_coeffs: &[T],
+        b_coeffs: &[T],
+        r_coeffs: &mut [T],
+        domain: &EvaluationDomain<T>,
+    ) {
+        for i in 0..domain.size {
+            r_coeffs[i] = a_coeffs[i] + b_coeffs[i];
+        }
+    }
+    
+    fn sub<T: FieldElement>(
+        a_coeffs: &[T],
+        b_coeffs: &[T],
+        r_coeffs: &mut [T],
+        domain: &EvaluationDomain<T>,
+    ) {
+        for i in 0..domain.size {
+            r_coeffs[i] = a_coeffs[i] - b_coeffs[i];
+        }
+    }
+    
+    fn mul<T: FieldElement>(
+        a_coeffs: &[T],
+        b_coeffs: &[T],
+        r_coeffs: &mut [T],
+        domain: &EvaluationDomain<T>,
+    ) {
+        for i in 0..domain.size {
+            r_coeffs[i] = a_coeffs[i] * b_coeffs[i];
+        }
+    }
+    
+    fn evaluate<T: FieldElement>(coeffs: &[T], z: T, n: usize) -> T {
+        let num_threads = num_cpus::get();
+        let range_per_thread = n / num_threads;
+        let leftovers = n - (range_per_thread * num_threads);
+        let mut evaluations = vec![T::zero(); num_threads];
+    
+        evaluations.par_iter_mut().enumerate().for_each(|(j, ev)| {
+            let z_acc = z.pow((j * range_per_thread) as u64);
+            let offset = j * range_per_thread;
+            let end = if j == num_threads - 1 {
+                offset + range_per_thread + leftovers
+            } else {
+                offset + range_per_thread
+            };
+    
+            for i in offset..end {
+                let work_var = z_acc * coeffs[i];
+                *ev += work_var;
+            }
+        });
+    
+        evaluations.into_iter().sum()
+    }
+    
+    fn evaluate_vec<T: FieldElement>(coeffs: &[Vec<T>], z: T, large_n: usize) -> T {
+        let num_polys = coeffs.len();
+        let poly_size = large_n / num_polys;
+        assert!(is_power_of_two(poly_size));
+        let log2_poly_size = (poly_size as f64).log2() as usize;
+        let num_threads = num_cpus::get();
+        let range_per_thread = large_n / num_threads;
+        let leftovers = large_n - (range_per_thread * num_threads);
+        let mut evaluations = vec![T::zero(); num_threads];
+    
+        evaluations.par_iter_mut().enumerate().for_each(|(j, ev)| {
+            let z_acc = z.pow((j * range_per_thread) as u64);
+            let offset = j * range_per_thread;
+            let end = if j == num_threads - 1 {
+                offset + range_per_thread + leftovers
+            } else {
+                offset + range_per_thread
+            };
+    
+            for i in offset..end {
+                let work_var = z_acc * coeffs[i >> log2_poly_size][i & (poly_size - 1)];
+                *ev += work_var;
+            }
+        });
+    
+        evaluations.into_iter().sum()
+    }
+    
 
 }
