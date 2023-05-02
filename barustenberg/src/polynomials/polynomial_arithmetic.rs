@@ -464,7 +464,128 @@ fn partial_fft_parallel_inner<T: FieldElement>(
         }
     }
 
-
-
+    fn partial_fft_serial<T: FieldElement>(
+        coeffs: &mut [T],
+        target: &mut [T],
+        domain: &EvaluationDomain<T>,
+    ) {
+        partial_fft_serial_inner(coeffs, target, domain, domain.get_round_roots());
+    }
+    
+    fn partial_fft<T: FieldElement>(
+        coeffs: &mut [T],
+        domain: &EvaluationDomain<T>,
+        constant: T,
+        is_coset: bool,
+    ) {
+        partial_fft_parallel_inner(coeffs, domain, domain.get_round_roots(), constant, is_coset);
+    }
+    
+    fn fft<T: FieldElement>(coeffs: &mut [T], domain: &EvaluationDomain<T>) {
+        fft_inner_parallel(coeffs, domain, domain.root, domain.get_round_roots());
+    }
+    
+    fn fft_with_target<T: FieldElement>(
+        coeffs: &mut [T],
+        target: &mut [T],
+        domain: &EvaluationDomain<T>,
+    ) {
+        fft_inner_parallel(coeffs, target, domain, domain.get_round_roots());
+    }
+    
+    // The remaining functions require you to create a version of `fft_inner_parallel` that accepts a Vec<&[T]> as the first parameter.
+    
+    fn ifft<T: FieldElement>(coeffs: &mut [T], domain: &EvaluationDomain<T>) {
+        fft_inner_parallel(coeffs, domain, domain.root_inverse, domain.get_inverse_round_roots());
+        for i in 0..domain.size {
+            coeffs[i] *= domain.domain_inverse;
+        }
+    }
+    
+    fn ifft_with_target<T: FieldElement>(
+        coeffs: &mut [T],
+        target: &mut [T],
+        domain: &EvaluationDomain<T>,
+    ) {
+        fft_inner_parallel(coeffs, target, domain, domain.get_round_roots());
+        for i in 0..domain.size {
+            target[i] *= domain.domain_inverse;
+        }
+    }
+    
+    fn fft_with_constant<T: FieldElement>(
+        coeffs: &mut [T],
+        domain: &EvaluationDomain<T>,
+        value: T,
+    ) {
+        fft_inner_parallel(coeffs, domain, domain.root, domain.get_round_roots());
+        for i in 0..domain.size {
+            coeffs[i] *= value;
+        }
+    }
+    
+    // The remaining `coset_fft` functions require you to create a version of `scale_by_generator` that accepts a Vec<&[T]> as the first parameter.    
+    fn coset_fft<T: FieldElement>(
+        coeffs: &mut [T],
+        domain: &EvaluationDomain<T>,
+        _: &EvaluationDomain<T>,
+        domain_extension: usize,
+    ) {
+        let log2_domain_extension = numeric::get_msb(domain_extension) as usize;
+        let primitive_root = T::get_root_of_unity(domain.log2_size + log2_domain_extension);
+    
+        let scratch_space_len = domain.size * domain_extension;
+        let mut scratch_space = vec![T::zero(); scratch_space_len];
+    
+        let mut coset_generators = vec![T::zero(); domain_extension];
+        coset_generators[0] = domain.generator;
+        for i in 1..domain_extension {
+            coset_generators[i] = coset_generators[i - 1] * primitive_root;
+        }
+    
+        for i in (0..domain_extension).rev() {
+            scale_by_generator(
+                &mut coeffs[i * domain.size..],
+                &mut coeffs[(i * domain.size)..],
+                domain,
+                T::one(),
+                coset_generators[i],
+                domain.size,
+            );
+        }
+    
+        for i in 0..domain_extension {
+            fft_inner_parallel(
+                &mut coeffs[(i * domain.size)..],
+                &mut scratch_space[(i * domain.size)..],
+                domain,
+                domain.get_round_roots(),
+            );
+        }
+    
+        if domain_extension == 4 {
+            for j in 0..domain.num_threads {
+                let start = j * domain.thread_size;
+                let end = (j + 1) * domain.thread_size;
+                for i in start..end {
+                    scratch_space[i] = coeffs[i << 2];
+                    scratch_space[i + (1 << domain.log2_size)] = coeffs[(i << 2) + 1];
+                    scratch_space[i + (2 << domain.log2_size)] = coeffs[(i << 2) + 2];
+                    scratch_space[i + (3 << domain.log2_size)] = coeffs[(i << 2) + 3];
+                }
+            }
+            for i in 0..domain.size {
+                for j in 0..domain_extension {
+                    scratch_space[i + (j << domain.log2_size)] = coeffs[(i << log2_domain_extension) + j];
+                }
+            }
+        } else {
+            for i in 0..domain.size {
+                for j in 0..domain_extension {
+                    scratch_space[i + (j << domain.log2_size)] = coeffs[(i << log2_domain_extension) + j];
+                }
+            }
+        }
+    }    
 
 }
