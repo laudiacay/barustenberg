@@ -11,7 +11,10 @@
 // use crate::barretenberg::plonk::public_inputs::PublicInputs;
 // use crate::barretenberg::polynomials::polynomial_arithmetic;
 // use crate::barretenberg::scalar_multiplication;
-use crate::plonk::proof_system::constants::NUM_LIMB_BITS_IN_FIELD_SIMULATION;
+use crate::{
+    ecc::curves::bn254::PippengerRuntimeState,
+    plonk::proof_system::constants::NUM_LIMB_BITS_IN_FIELD_SIMULATION,
+};
 
 use ark_bn254::{Fq, Fq12, G1Affine, G1Projective};
 use ark_poly::EvaluationDomain;
@@ -32,8 +35,8 @@ use std::sync::Arc;
 
 use super::verification_key::VerificationKey;
 
-impl<Fr: Field, H: HasherType, S: SettingsBase<H>> Verifier<Fr, S> {
-    pub fn generate_verifier(circuit_proving_key: Arc<ProvingKey>) -> Self {
+impl<Fr: Field, H: HasherType, S: SettingsBase<H>> Verifier<Fr, H, S> {
+    pub fn generate_verifier(circuit_proving_key: Arc<ProvingKey<Fr>>) -> Self {
         let mut poly_coefficients = [None; 8];
         poly_coefficients[0] = circuit_proving_key
             .polynomial_store
@@ -118,7 +121,7 @@ impl<Fr: Field, H: HasherType, S: SettingsBase<H>> Verifier<Fr, S> {
             .insert("SIGMA_3", commitments[7]);
 
         let verifier = Verifier::new(
-            circuit_verification_key,
+            Some(circuit_verification_key),
             StandardComposer::create_manifest(0),
         );
 
@@ -239,7 +242,7 @@ impl<Fr: Field, H: HasherType, S: SettingsBase<H>> Verifier<Fr, S> {
         generate_pippenger_point_table(&mut elements[..]);
 
         // Create Pippenger runtime state
-        let mut state = pippenger_runtime_state::new(n);
+        let mut state = PippengerRuntimeState::new(n);
 
         // Perform Pippenger multi-scalar multiplication
         let p0 = pippenger(&scalars, &elements, &mut state);
@@ -319,14 +322,14 @@ impl<Fr: Field, H: HasherType, S: SettingsBase<H>> Verifier<Fr, S> {
     }
 }
 
-pub trait VerifierBase<PS: SettingsBase> {
+pub trait VerifierBase<H: HasherType, PS: SettingsBase<H>> {
     fn new(verifier_key: Option<Arc<VerificationKey>>, manifest: Manifest) -> Self;
     fn validate_commitments(&self) -> bool;
     fn validate_scalars(&self) -> bool;
     fn verify_proof(&self, proof: &Proof) -> bool;
 }
 
-impl<PS: SettingsBase> VerifierBase<PS> {
+impl<H: HasherType, PS: SettingsBase<H>> dyn VerifierBase<H, PS> {
     pub fn from_other(other: &Self) -> Self {
         Self {
             manifest: other.manifest.clone(),
@@ -342,10 +345,10 @@ pub struct Verifier<Fr: Field, H: HasherType, PS: SettingsBase<H>> {
     manifest: Manifest,
     kate_g1_elements: HashMap<String, G1Affine>,
     kate_fr_elements: HashMap<String, Fr>,
-    commitment_scheme: Box<dyn CommitmentScheme>,
+    commitment_scheme: Box<dyn CommitmentScheme<Fr, G1Affine, H>>,
 }
 
-impl<Fr: Field, H: HasherType, PS: SettingsBase<H>> VerifierBase<PS<H>> for Verifier<Fr, H, PS<H>> {
+impl<Fr: Field, H: HasherType, PS: SettingsBase<H>> VerifierBase<H, PS> for Verifier<Fr, H, PS> {
     fn new(verifier_key: Option<Arc<VerificationKey>>, manifest: Manifest) -> Self {
         // Implement constructor logic here.
     }
@@ -366,7 +369,7 @@ impl<Fr: Field, H: HasherType, PS: SettingsBase<H>> VerifierBase<PS<H>> for Veri
 #[cfg(test)]
 mod tests {
 
-    fn generate_test_data(n: usize) -> Prover {
+    fn generate_test_data(n: usize) -> Prover<Fr, StandardSettings> {
         // create some constraints that satisfy our arithmetic circuit relation
         let crs = Rc::new(FileReferenceString::new(n + 1, "../srs_db/ignition"));
         let key = Rc::new(ProvingKey::new(n, 0, crs, ComposerType::Standard));
@@ -552,7 +555,9 @@ mod tests {
     use ark_bn254::Fr;
 
     use crate::{
-        plonk::proof_system::{prover::Prover, proving_key::ProvingKey},
+        plonk::proof_system::{
+            prover::Prover, proving_key::ProvingKey, types::prover_settings::StandardSettings,
+        },
         polynomials::Polynomial,
     };
 

@@ -3,6 +3,7 @@ use std::io::Read;
 use std::sync::Arc;
 use std::vec::Vec;
 
+use crate::ecc::curves::bn254::PippengerRuntimeState;
 use crate::plonk::proof_system::constants::NUM_QUOTIENT_PARTS;
 
 use crate::ecc::Field;
@@ -47,12 +48,12 @@ pub struct ProvingKey<Fr: Field> {
     /// Monomial SRS: reference_string->get_monomial_points()
     pub reference_string: Arc<dyn ProverReferenceString>,
     pub quotient_polynomial_parts: [Polynomial<Fr>; NUM_QUOTIENT_PARTS],
-    pub pippenger_runtime_state: dyn PippengerRuntimeState,
+    pub pippenger_runtime_state: PippengerRuntimeState,
     pub polynomial_manifest: PolynomialManifest,
 }
 
 impl<Fr: Field> ProvingKey<Fr> {
-    pub fn new_with_data(data: ProvingKeyData<Fr>, crs: Arc<ProverReferenceString>) -> Self {
+    pub fn new_with_data(data: ProvingKeyData<Fr>, crs: Arc<dyn ProverReferenceString>) -> Self {
         let ProvingKeyData {
             composer_type,
             circuit_size,
@@ -65,8 +66,8 @@ impl<Fr: Field> ProvingKey<Fr> {
         } = data;
 
         let log_circuit_size = (circuit_size as f64).log2().ceil() as usize;
-        let small_domain = EvaluationDomain::new(circuit_size).unwrap();
-        let large_domain = EvaluationDomain::new(1usize << log_circuit_size).unwrap();
+        let small_domain = EvaluationDomain::new(circuit_size, None).unwrap();
+        let large_domain = EvaluationDomain::new(1usize << log_circuit_size, None).unwrap();
 
         let mut ret = Self {
             composer_type,
@@ -92,7 +93,7 @@ impl<Fr: Field> ProvingKey<Fr> {
     pub fn new(
         num_gates: usize,
         num_inputs: usize,
-        crs: Arc<ProverReferenceString>,
+        crs: Arc<dyn ProverReferenceString>,
         type_: ComposerType,
     ) -> Self {
         let data = ProvingKeyData {

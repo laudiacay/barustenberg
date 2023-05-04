@@ -18,7 +18,7 @@ pub trait StandardSettings<Hash: HasherType>: SettingsBase<Hash> {
     const IS_PLOOKUP: bool = false;
 }
 
-pub trait TurboSettings: SettingsBase<HasherType::PedersenBlake3s> {
+pub trait TurboSettings: SettingsBase<PedersenBlake3s> {
     const NUM_CHALLENGE_BYTES: usize = 16;
     const PROGRAM_WIDTH: usize = 4;
     const NUM_SHIFTED_WIRE_EVALUATIONS: usize = 4;
