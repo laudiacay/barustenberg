@@ -39,7 +39,7 @@ pub trait UltraSettingsBase<Hash: HasherType>: SettingsBase<Hash> {
     const IS_PLOOKUP: bool = true;
 }
 
-pub trait UltraSettings: UltraSettingsBase<HasherType::PlookupPedersenBlake3s> {
+pub trait UltraSettings: UltraSettingsBase< dyn HasherType::PlookupPedersenBlake3s> {
     const NUM_CHALLENGE_BYTES: usize = 16;
 }
 

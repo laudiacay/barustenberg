@@ -1,7 +1,7 @@
 use crate::plonk::proof_system::proving_key::ProvingKey;
 use crate::transcript::Transcript;
 use crate::proof_system::work_queue::WorkQueue;
-use crate::ecc::curves::bn254::fr::Fr;
+use crate::ecc::curves::grumpkin::Fr;
 
 pub trait ProverRandomWidgetTrait<T> {
     fn compute_round_commitments(

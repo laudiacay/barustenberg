@@ -5,7 +5,7 @@ use ark_bn254::G1Affine;
 use super::{
     commitment_scheme::CommitmentScheme,
     proving_key::ProvingKey,
-    types::{prover_settings::SettingsBase, Proof},
+    types::{prover_settings::SettingsBase, Proof}, widgets::random_widget::ProverRandomWidget,
 };
 use crate::{
     ecc::Field,
@@ -17,12 +17,12 @@ use crate::proof_system::work_queue::WorkQueue;
 
 // todo https://doc.rust-lang.org/reference/const_eval.html
 
-pub struct Prover<Fr: Field, H: HasherType, S: SettingsBase<H>> {
+pub struct Prover<'a, Fr: Field, H: HasherType, S: SettingsBase<H>, T> {
     pub circuit_size: usize,
     pub transcript: Transcript<H>,
     pub key: Arc<ProvingKey<Fr>>,
     pub queue: WorkQueue<Fr>,
-    pub random_widgets: Vec<ProverRandomWidget>,
+    pub random_widgets: Vec<ProverRandomWidget<'a, T>>,
     pub transition_widgets: Vec<Widget::TransitionWidgetBase<Fr>>,
     pub commitment_scheme: dyn CommitmentScheme<Fr, H>,
 }
