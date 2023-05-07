@@ -3,13 +3,14 @@ use std::mem;
 use rayon::prelude::*;
 extern crate num_cpus;
 
+use crate::numeric::bitop::get_msb;
     
 
 pub mod polynomial_arithmetic {
     use std::sync::Mutex;
     use lazy_static::lazy_static;
 
-    use crate::{ecc::curves::bn254::Fr, numeric}; // NOTE: This might not be the right Fr, need to check vs gumpkin
+    use crate::{ecc::curves::bn254::Fr, numeric::bitop::get_msb::Msb}; // NOTE: This might not be the right Fr, need to check vs gumpkin
     struct ScratchSpace<T> {
         working_memory: Mutex<Option<Vec<T>>>,
     }
@@ -77,8 +78,8 @@ pub mod polynomial_arithmetic {
 
 
         // TODO Implement the msb from numeric/bitop/get_msb.cpp
-        let log2_size = numeric::get_msb(domain_size) as usize;
-        let log2_poly_size = numeric::get_msb(poly_domain_size) as usize;
+        let log2_size = Msb::get_msb(domain_size) as usize;
+        let log2_poly_size = Msb::get_msb(poly_domain_size) as usize;
 
         for i in 0..=domain_size {
             let swap_index = reverse_bits(i as u32, log2_size as u32) as usize;
@@ -101,7 +102,7 @@ pub mod polynomial_arithmetic {
         }
 
         for m in (2..domain_size).step_by(2) {
-            let i = numeric::get_msb(m) as usize;
+            let i = Msb::get_msb(m) as usize;
             for k in (0..domain_size).step_by(2 * m) {
                 for j in 0..m {
                     let even_poly_idx = (k + j) >> log2_poly_size;
@@ -359,7 +360,7 @@ pub mod polynomial_arithmetic {
                 let block_mask = m - 1;
                 let index_mask = !block_mask;
 
-                let round_roots = &root_table[get_msb(m as u32) as usize - 1];
+                let round_roots = &root_table[Msb::get_msb(m as u32) as usize - 1];
 
                 for i in start..end {
                     let k1 = (i & index_mask) << 1;
@@ -533,7 +534,7 @@ fn partial_fft_parallel_inner<T: FieldElement>(
         _: &EvaluationDomain<T>,
         domain_extension: usize,
     ) {
-        let log2_domain_extension = numeric::get_msb(domain_extension) as usize;
+        let log2_domain_extension = Msb::get_msb(domain_extension) as usize;
         let primitive_root = T::get_root_of_unity(domain.log2_size + log2_domain_extension);
     
         let scratch_space_len = domain.size * domain_extension;
