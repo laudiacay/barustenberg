@@ -101,7 +101,7 @@ fn compute_lookup_table_single<F: Field>(
 }
 
 impl<F: Field> EvaluationDomain<F> {
-    pub fn new(domain_size: usize, target_generator_size: usize) -> Self {
+    pub fn new(domain_size: usize, target_generator_size: Option<usize>) -> Self {
         // TODO: implement constructor logic
 
         let size = domain_size;

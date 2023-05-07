@@ -19,6 +19,7 @@ pub mod transcript;
 // docstrings!
 // fields: arkworks?
 // perf
+// why are things pub/not pub/pub(crate)? do things sensibly.
 
 /// Test utilities.
 #[cfg(any(test, feature = "test_utils"))]

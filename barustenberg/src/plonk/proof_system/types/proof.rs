@@ -6,6 +6,10 @@ pub(crate) struct Proof {
     pub(crate) proof_data: Vec<u8>,
 }
 
+pub(crate) struct CommitmentOpenProof {
+    pub(crate) proof_data: Vec<u8>,
+}
+
 impl fmt::Display for Proof {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // // REFACTOR: This is copied from barretenberg/common/streams.hpp,
