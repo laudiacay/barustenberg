@@ -8,7 +8,7 @@ use crate::plonk::proof_system::constants::NUM_QUOTIENT_PARTS;
 
 use crate::ecc::Field;
 // use crate::plonk::barretenberg::scalar_multiplication::pippenger_runtime_state;
-//use crate::plonk::composer::ComposerType;
+use crate::plonk::composer::composer_base::ComposerType;
 use crate::polynomials::Polynomial;
 //use crate::plonk::PolynomialStore;
 //use crate::plonk::ProverReferenceString;

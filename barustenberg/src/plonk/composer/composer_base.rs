@@ -18,6 +18,13 @@ pub enum WireType {
     Output = 1 << 31,
     Fourth = 0xc0000000,
 }
+pub enum ComposerType {
+    Standard,
+    Turbo,
+    Plookup,
+    StandardHonk,
+}
+
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct CycleNode {

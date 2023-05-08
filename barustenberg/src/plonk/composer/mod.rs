@@ -1,2 +1,2 @@
 
-mod composer_base;
+pub mod composer_base;
