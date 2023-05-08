@@ -91,7 +91,8 @@ impl ComposerBase {
             selectors,
             selector_properties,
             rand_engine: None,
-            crs_factory: todo!(),
+            crs_factory: Arc::new(ReferenceStringFactory::new("../srs_db/ignition")), // Replace with the appropriate default implementation
+            ,
         }
     }
     pub fn get_first_variable_in_class(&self, index: usize) -> usize {
