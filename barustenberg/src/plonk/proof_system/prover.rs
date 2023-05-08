@@ -1,11 +1,15 @@
-use std::{sync::Arc, hash::Hash};
+use std::{hash::Hash, sync::Arc};
 
 use ark_bn254::G1Affine;
 
 use super::{
     commitment_scheme::CommitmentScheme,
     proving_key::ProvingKey,
-    types::{prover_settings::SettingsBase, Proof}, widgets::random_widget::ProverRandomWidget,
+    types::{prover_settings::SettingsBase, Proof},
+    widgets::{
+        random_widgets::random_widget::ProverRandomWidget,
+        transition_widgets::transition_widget::TransitionWidgetBase,
+    },
 };
 use crate::{
     ecc::Field,
@@ -22,9 +26,9 @@ pub struct Prover<'a, Fr: Field, H: HasherType, S: SettingsBase<H>, T> {
     pub transcript: Transcript<H>,
     pub key: Arc<ProvingKey<Fr>>,
     pub queue: WorkQueue<Fr>,
-    pub random_widgets: Vec<ProverRandomWidget<'a, T>>,
-    pub transition_widgets: Vec<Widget::TransitionWidgetBase<Fr>>,
-    pub commitment_scheme: dyn CommitmentScheme<Fr, H>,
+    pub random_widgets: Vec<dyn ProverRandomWidget<H, Fr>>,
+    pub transition_widgets: Vec<TransitionWidgetBase<Fr>>,
+    pub commitment_scheme: dyn CommitmentScheme<Fr, G1Affine, H>,
 }
 
 impl<Fr: Field, S: SettingsBase<dyn Hash>> Prover<Fr, S, S> {
