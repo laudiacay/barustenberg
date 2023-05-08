@@ -1,7 +1,7 @@
 // TODO todo - stubs to get the compiler to cooperate.
 pub(crate) mod curves;
-
-use ark_bn254::{Fq12, G1Affine};
+pub(crate) mod fields;
+pub(crate) mod groups;
 
 pub trait FieldElement {
     type SizeInBytes: typenum::Unsigned; // do a typenum here

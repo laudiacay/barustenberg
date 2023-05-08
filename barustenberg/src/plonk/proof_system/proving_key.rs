@@ -3,7 +3,7 @@ use std::io::Read;
 use std::sync::Arc;
 use std::vec::Vec;
 
-use crate::ecc::curves::bn254::PippengerRuntimeState;
+use crate::ecc::curves::bn254::scalar_multiplication::runtime_states::PippengerRuntimeState;
 use crate::plonk::proof_system::constants::NUM_QUOTIENT_PARTS;
 
 use crate::ecc::Field;
