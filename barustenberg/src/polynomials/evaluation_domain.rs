@@ -1,3 +1,5 @@
+use ark_bn254::Fr;
+
 use crate::{ecc::Field, numeric::bitop::Msb};
 use std::vec::Vec;
 
@@ -5,7 +7,7 @@ pub const MIN_GROUP_PER_THREAD: usize = 4;
 
 pub struct EvaluationDomain<F: Field> {
     /// n, always a power of 2
-    size: usize,
+    pub size: usize,
     /// num_threads * thread_size = size
     num_threads: usize,
     thread_size: usize,
@@ -161,5 +163,5 @@ impl<F: Field> EvaluationDomain<F> {
     }
 }
 
-pub type BarretenbergEvaluationDomain = EvaluationDomain<crate::ecc::curves::bn254::Fr>;
+pub type BarretenbergEvaluationDomain = EvaluationDomain<Fr>;
 pub type GrumpkinEvaluationDomain = EvaluationDomain<crate::ecc::curves::grumpkin::Fr>;

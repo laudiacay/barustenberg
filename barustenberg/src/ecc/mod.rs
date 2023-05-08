@@ -1,5 +1,7 @@
 // TODO todo - stubs to get the compiler to cooperate.
 
+use ark_bn254::{Fq12, G1Affine};
+
 pub trait FieldElement {
     type SizeInBytes: typenum::Unsigned; // do a typenum here
 }
@@ -110,4 +112,25 @@ pub mod curves {
             type Element = Fr;
         }
     }
+}
+
+struct EllCoeffs<QuadraticField: Field> {
+    o: QuadraticField,
+    vw: QuadraticField,
+    vv: QuadraticField,
+}
+
+const PRECOMPUTED_COEFFICIENTS_LENGTH: usize = 87;
+
+struct MillerLines {
+    lines: [EllCoeffs<Fq12>; PRECOMPUTED_COEFFICIENTS_LENGTH],
+}
+
+pub fn reduced_ate_pairing_batch_precomputed(
+    p_affines: &[G1Affine],
+    miller_lines: &MillerLines,
+    num_points: usize,
+) -> Fq12 {
+    // TODO compilation placeholder come back here bb
+    todo!("see comment")
 }

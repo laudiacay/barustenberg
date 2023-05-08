@@ -12,7 +12,7 @@
 // use crate::barretenberg::polynomials::polynomial_arithmetic;
 // use crate::barretenberg::scalar_multiplication;
 use crate::{
-    ecc::curves::bn254::PippengerRuntimeState,
+    ecc::{curves::bn254::PippengerRuntimeState, reduced_ate_pairing_batch_precomputed},
     plonk::proof_system::constants::NUM_LIMB_BITS_IN_FIELD_SIMULATION,
 };
 
@@ -314,6 +314,8 @@ impl<Fr: Field, H: HasherType, S: SettingsBase<H>> Verifier<Fr, H, S> {
         let result = reduced_ate_pairing_batch_precomputed(
             &p_affine,
             &self.key.reference_string.get_precomputed_g2_lines(),
+            // TODO this num_points was NOT provided in the original code.
+            p_affine.len(),
         );
 
         // Check if result equals Fq12::one()

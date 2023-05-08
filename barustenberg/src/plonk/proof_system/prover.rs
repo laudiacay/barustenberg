@@ -6,6 +6,10 @@ use super::{
     commitment_scheme::CommitmentScheme,
     proving_key::ProvingKey,
     types::{prover_settings::SettingsBase, Proof},
+    widgets::{
+        random_widgets::random_widget::ProverRandomWidget,
+        transition_widgets::transition_widget::TransitionWidgetBase,
+    },
 };
 use crate::{
     ecc::Field,
@@ -22,12 +26,12 @@ pub struct Prover<Fr: Field, H: HasherType, S: SettingsBase<H>> {
     pub transcript: Transcript<H>,
     pub key: Arc<ProvingKey<Fr>>,
     pub queue: WorkQueue<Fr>,
-    pub random_widgets: Vec<ProverRandomWidget>,
-    pub transition_widgets: Vec<Widget::TransitionWidgetBase<Fr>>,
-    pub commitment_scheme: dyn CommitmentScheme<Fr, H>,
+    pub random_widgets: Vec<dyn ProverRandomWidget<H, Fr>>,
+    pub transition_widgets: Vec<TransitionWidgetBase<Fr>>,
+    pub commitment_scheme: dyn CommitmentScheme<Fr, G1Affine, H>,
 }
 
-impl<Fr: Field, S: SettingsBase> Prover<Fr, S> {
+impl<Fr: Field, H: HasherType, S: SettingsBase<H>> Prover<Fr, H, S> {
     pub fn new(
         input_key: Option<Arc<ProvingKey<Fr>>>,
         input_manifest: Option<&Manifest>,
