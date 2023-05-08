@@ -76,7 +76,7 @@ impl ComposerBase {
         }
     }
     pub fn with_keys(
-        p_key: Arc<ProvingKey>,
+        p_key: Arc<ProvingKey<Fr>>,
         v_key: Arc<VerificationKey>,
         num_selectors: usize,
         size_hint: usize,
@@ -91,8 +91,7 @@ impl ComposerBase {
             selectors,
             selector_properties,
             rand_engine: None,
-            crs_factory: Arc::new(ReferenceStringFactory::new("../srs_db/ignition")), // Replace with the appropriate default implementation
-            ,
+            crs_factory: Arc::new(ReferenceStringFactory::new("../srs_db/ignition")),
         }
     }
     pub fn get_first_variable_in_class(&self, index: usize) -> usize {
@@ -124,7 +123,7 @@ impl ComposerBase {
     ///
     /// * The value of the variable.
     #[inline]
-    fn get_variable(&self, index: u32) -> barretenberg::fr {
+    fn get_variable(&self, index: u32) -> Fr {
         assert!(self.variables.len() > index as usize);
         self.variables[self.real_variable_index[index as usize] as usize]
     }
@@ -140,16 +139,16 @@ impl ComposerBase {
     ///
     /// * The value of the variable.
     #[inline]
-    fn get_variable_reference(&self, index: u32) -> &barretenberg::fr {
+    fn get_variable_reference(&self, index: u32) -> &Fr {
         assert!(self.variables.len() > index as usize);
         &self.variables[self.real_variable_index[index as usize] as usize]
     }
 
-    fn get_public_input(&self, index: u32) -> barretenberg::fr {
+    fn get_public_input(&self, index: u32) -> Fr {
         self.get_variable(self.public_inputs[index as usize])
     }
 
-    fn get_public_inputs(&self) -> Vec<barretenberg::fr> {
+    fn get_public_inputs(&self) -> Vec<Fr> {
         let mut result = Vec::new();
         for i in 0..self.get_num_public_inputs() {
             result.push(self.get_public_input(i));
@@ -165,7 +164,7 @@ impl ComposerBase {
     /// # Returns
     ///
     /// * The index of the new variable in the variables vector
-    fn add_variable(&mut self, in_value: barretenberg::fr) -> u32 {
+    fn add_variable(&mut self, in_value: Fr) -> u32 {
         self.variables.push(in_value);
 
         // By default, we assume each new variable belongs in its own copy-cycle. These defaults can be modified later
@@ -196,7 +195,7 @@ impl ComposerBase {
     /// # Returns
     ///
     /// * The index of the new variable in the variables vector
-    fn add_public_variable(&mut self, in_value: barretenberg::fr) -> u32 {
+    fn add_public_variable(&mut self, in_value: Fr) -> u32 {
         let index = self.add_variable(in_value);
         self.public_inputs.push(index);
         index
