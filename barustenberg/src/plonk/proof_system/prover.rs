@@ -1,4 +1,4 @@
-use std::{sync::Arc, hash::Hash};
+use std::{hash::Hash, sync::Arc};
 
 use ark_bn254::G1Affine;
 

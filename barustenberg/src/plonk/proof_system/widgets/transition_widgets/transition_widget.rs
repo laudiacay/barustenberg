@@ -43,7 +43,7 @@ pub mod containers {
         pub alpha_powers: [Field; NUM_WIDGET_RELATIONS],
     }
 
-    pub type PolyArray<Field> = [(Field, Field); PolynomialIndex::MAX_NUM_POLYNOMIALS as usize];
+    pub type PolyArray<Field> = [(Field, Field); PolynomialIndex::MaxNumPolynomials as usize];
 
     pub struct PolyPtrMap<Field> {
         pub coefficients: HashMap<PolynomialIndex, &[Field]>,
@@ -51,7 +51,7 @@ pub mod containers {
         pub index_shift: usize,
     }
 
-    pub type CoefficientArray<Field> = [Field; PolynomialIndex::MAX_NUM_POLYNOMIALS as usize];
+    pub type CoefficientArray<Field> = [Field; PolynomialIndex::MaxNumPolynomials as usize];
 }
 
 // Getters are various structs that are used to retrieve/query various objects needed during the proof.
@@ -350,7 +350,7 @@ impl<Field, Transcript, Settings, KernelBase>
     GenericVerifierWidget<Field, Transcript, Settings, KernelBase>
 where
     Field: FieldElement,
-    Transcript: TranscriptFunctions<Field>,
+    Transcript: Transcript<Field>,
     KernelBase: KernelBaseFunctions<Field>,
 {
     pub fn compute_quotient_evaluation_contribution(
