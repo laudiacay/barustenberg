@@ -2,11 +2,11 @@ use ark_ff::Field;
 
 use crate::plonk::proof_system::proving_key::ProvingKey;
 use crate::proof_system::work_queue::WorkQueue;
-use crate::random_widget::ProverRandomWidget;
+use crate::plonk::proof_system::widgets::random_widgets::random_widget::ProverRandomWidget;
 use crate::transcript::{HasherType, Transcript};
 use std::marker::PhantomData;
 use std::sync::Arc;
-
+use crate::plonk::proof_system::types::hasher::Hasher;
 pub struct VerifierPermutationWidget<
     Field,
     Group,
@@ -75,7 +75,7 @@ impl<
 {
     pub fn new(proving_key: Arc<ProvingKey<Fr>>) -> Self {
         Self {
-            prover_random_widget: ProverRandomWidget::new(proving_key),
+            prover_random_widget: ProverRandomWidget::new(&proving_key),
         }
     }
 

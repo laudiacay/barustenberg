@@ -11,6 +11,7 @@ use super::{
         transition_widgets::transition_widget::TransitionWidgetBase,
     },
 };
+
 use crate::{
     ecc::Field,
     proof_system::work_queue,
@@ -31,7 +32,7 @@ pub struct Prover<'a, Fr: Field, H: HasherType, S: SettingsBase<H>, T> {
     pub commitment_scheme: dyn CommitmentScheme<Fr, G1Affine, H>,
 }
 
-impl<Fr: Field, S: SettingsBase<dyn Hash>> Prover<Fr, S, S> {
+impl<Fr: Field, S: SettingsBase<dyn Hash>> Prover<'_, Fr, S, S> {
     pub fn new(
         input_key: Option<Arc<ProvingKey<Fr>>>,
         input_manifest: Option<&Manifest>,
