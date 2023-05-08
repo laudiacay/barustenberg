@@ -169,6 +169,7 @@ dependencies = [
  "ark-poly",
  "generic-array",
  "lazy_static",
+ "num_cpus",
  "proptest",
  "rayon",
  "serde",

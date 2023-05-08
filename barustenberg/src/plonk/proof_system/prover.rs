@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{sync::Arc, hash::Hash};
 
 use ark_bn254::G1Affine;
 
@@ -31,7 +31,7 @@ pub struct Prover<Fr: Field, H: HasherType, S: SettingsBase<H>> {
     pub commitment_scheme: dyn CommitmentScheme<Fr, G1Affine, H>,
 }
 
-impl<Fr: Field, H: HasherType, S: SettingsBase<H>> Prover<Fr, H, S> {
+impl<Fr: Field, S: SettingsBase<dyn Hash>> Prover<Fr, S, S> {
     pub fn new(
         input_key: Option<Arc<ProvingKey<Fr>>>,
         input_manifest: Option<&Manifest>,
