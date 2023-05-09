@@ -1,8 +1,10 @@
-use super::runtime_states::{AffineProductRuntimeState, PippengerRuntimeState};
+use super::runtime_states::{
+    get_optimal_bucket_width, AffineProductRuntimeState, PippengerRuntimeState,
+};
 
 pub fn get_num_buckets(num_points: usize) -> usize {
     let bits_per_bucket = get_optimal_bucket_width(num_points / 2);
-    return 1UL << bits_per_bucket;
+    return 1 << bits_per_bucket;
 }
 
 /**

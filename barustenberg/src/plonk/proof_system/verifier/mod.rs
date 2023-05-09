@@ -16,12 +16,12 @@ use ark_bn254::G1Affine;
 
 use crate::{
     ecc::Field,
-    transcript::{HasherType, Manifest},
+    transcript::{BarretenHasher, Manifest},
 };
 
 use super::{
     commitment_scheme::CommitmentScheme,
-    types::{prover_settings::SettingsBase, Proof},
+    types::{prover_settings::Settings, Proof},
 };
 
 use std::collections::HashMap;
@@ -32,14 +32,14 @@ use super::verification_key::VerificationKey;
 #[cfg(test)]
 mod test;
 
-pub trait VerifierBase<H: HasherType, PS: SettingsBase<H>> {
+pub trait VerifierBase<H: BarretenHasher, PS: Settings<H>> {
     fn new(verifier_key: Option<Arc<VerificationKey>>, manifest: Manifest) -> Self;
     fn validate_commitments(&self) -> bool;
     fn validate_scalars(&self) -> bool;
     fn verify_proof(&self, proof: &Proof) -> bool;
 }
 
-impl<H: HasherType, PS: SettingsBase<H>> dyn VerifierBase<H, PS> {
+impl<H: BarretenHasher, PS: Settings<H>> dyn VerifierBase<H, PS> {
     pub fn from_other(other: &Self) -> Self {
         Self {
             manifest: other.manifest.clone(),
@@ -49,7 +49,7 @@ impl<H: HasherType, PS: SettingsBase<H>> dyn VerifierBase<H, PS> {
     }
 }
 
-pub struct Verifier<Fr: Field, H: HasherType, PS: SettingsBase<H>> {
+pub struct Verifier<Fr: Field, H: BarretenHasher, PS: Settings<H>> {
     settings: PS,
     key: Option<Arc<VerificationKey>>,
     manifest: Manifest,
@@ -58,7 +58,7 @@ pub struct Verifier<Fr: Field, H: HasherType, PS: SettingsBase<H>> {
     commitment_scheme: Box<dyn CommitmentScheme<Fr, G1Affine, H>>,
 }
 
-impl<Fr: Field, H: HasherType, PS: SettingsBase<H>> VerifierBase<H, PS> for Verifier<Fr, H, PS> {
+impl<Fr: Field, H: BarretenHasher, PS: Settings<H>> VerifierBase<H, PS> for Verifier<Fr, H, PS> {
     fn new(verifier_key: Option<Arc<VerificationKey>>, manifest: Manifest) -> Self {
         // Implement constructor logic here.
     }

@@ -1,6 +1,6 @@
 const SCALAR_BITS: usize = 127;
 
-const fn WNAF_SIZE(x: usize) -> usize {
+pub const fn WNAF_SIZE(x: usize) -> usize {
     (SCALAR_BITS + x - 1) / (x)
 }
 

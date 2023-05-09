@@ -13,6 +13,7 @@ use crate::{
             PolynomialManifest,
         },
     },
+    transcript::Transcript,
 };
 
 use self::containers::{ChallengeArray, CoefficientArray, PolyArray, PolyPtrMap};
@@ -46,7 +47,7 @@ pub mod containers {
     pub type PolyArray<Field> = [(Field, Field); PolynomialIndex::MaxNumPolynomials as usize];
 
     pub struct PolyPtrMap<Field> {
-        pub coefficients: HashMap<PolynomialIndex, &[Field]>,
+        pub coefficients: HashMap<PolynomialIndex, Vec<Field>>,
         pub block_mask: usize,
         pub index_shift: usize,
     }
@@ -274,7 +275,7 @@ where
     phantom: std::marker::PhantomData<Settings>,
 }
 
-impl<Field, Settings, KernelBase> TransitionWidget<Field, Settings, KernelBase>
+impl<Hash, Field, Settings, KernelBase> TransitionWidget<Field, Settings<Hash>, KernelBase>
 where
     Field: FieldElement,
     KernelBase: KernelBaseFunctions<Field>,
@@ -290,7 +291,7 @@ where
     pub fn compute_quotient_contribution(
         &self,
         alpha_base: Field,
-        transcript: &StandardTranscript,
+        transcript: &Transcript<Hash>,
     ) -> Field {
         let key = self.base.key.as_ref().expect("Proving key is missing");
 
@@ -338,25 +339,23 @@ where
     // Other methods and trait implementations
 }
 
-pub struct GenericVerifierWidget<Field, Transcript, Settings, KernelBase>
+pub struct GenericVerifierWidget<Field, Hash, Settings, KernelBase>
 where
     Field: FieldElement,
     KernelBase: KernelBaseFunctions<Field>,
 {
-    phantom: PhantomData<(Field, Transcript, Settings)>,
+    phantom: PhantomData<(Field, Hash, Settings)>,
 }
 
-impl<Field, Transcript, Settings, KernelBase>
-    GenericVerifierWidget<Field, Transcript, Settings, KernelBase>
+impl<Hash, Field, Settings, KernelBase> GenericVerifierWidget<Field, Hash, Settings, KernelBase>
 where
     Field: FieldElement,
-    Transcript: Transcript<Field>,
     KernelBase: KernelBaseFunctions<Field>,
 {
     pub fn compute_quotient_evaluation_contribution(
         key: &Arc<Transcript::Key>,
         alpha_base: Field,
-        transcript: &Transcript,
+        transcript: &Transcript<Hash>,
         quotient_numerator_eval: &mut Field,
     ) -> Field {
         let polynomial_evaluations = EvaluationGetter::<

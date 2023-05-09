@@ -461,7 +461,7 @@ fn generate_test_data(n: usize) -> Prover<Fr, StandardSettings> {
 
     let kate_commitment_scheme = Box::new(KateCommitmentScheme::<StandardSettings>::new());
 
-    let state = Prover::new(key, StandardComposer::create_manifest(0));
+    let state = Prover::new(key, Some(StandardComposer::create_manifest(0)), None);
     state.random_widgets.push(permutation_widget);
     state.transition_widgets.push(widget);
     state.commitment_scheme = kate_commitment_scheme;

@@ -15,14 +15,14 @@ use super::{
 use crate::{
     ecc::Field,
     proof_system::work_queue,
-    transcript::{HasherType, Manifest, Transcript},
+    transcript::{BarretenHasher, Manifest, Transcript},
 };
 
 use crate::proof_system::work_queue::WorkQueue;
 
 // todo https://doc.rust-lang.org/reference/const_eval.html
 
-pub struct Prover<'a, Fr: Field, H: HasherType, S: SettingsBase<H>, T> {
+pub struct Prover<'a, Fr: Field, H: BarretenHasher, S: SettingsBase<H>> {
     pub circuit_size: usize,
     pub transcript: Transcript<H>,
     pub key: Arc<ProvingKey<Fr>>,
@@ -32,7 +32,7 @@ pub struct Prover<'a, Fr: Field, H: HasherType, S: SettingsBase<H>, T> {
     pub commitment_scheme: dyn CommitmentScheme<Fr, G1Affine, H>,
 }
 
-impl<Fr: Field, S: SettingsBase<dyn Hash>> Prover<'_, Fr, S, S> {
+impl<Fr: Field, H: BarretenHasher, S: SettingsBase<Hash = H>> Prover<'_, Fr, H, S> {
     pub fn new(
         input_key: Option<Arc<ProvingKey<Fr>>>,
         input_manifest: Option<&Manifest>,

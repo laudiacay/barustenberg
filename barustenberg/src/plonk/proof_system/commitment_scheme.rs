@@ -5,14 +5,14 @@ use ark_bn254::{Fr, G1Affine};
 
 use crate::ecc::Field;
 use crate::proof_system::work_queue::WorkQueue;
-use crate::transcript::{HasherType, Transcript};
+use crate::transcript::{BarretenHasher, Transcript};
 
 use super::proving_key::ProvingKey;
 use super::types::proof::CommitmentOpenProof;
-use super::types::prover_settings::SettingsBase;
+use super::types::prover_settings::Settings;
 use super::verification_key::VerificationKey;
 
-pub trait CommitmentScheme<Fr: Field, G1Affine: Field, H: HasherType> {
+pub trait CommitmentScheme<Fr: Field, G1Affine: Field, H: BarretenHasher> {
     fn commit(
         &mut self,
         coefficients: &mut [Fr],
@@ -60,11 +60,11 @@ pub trait CommitmentScheme<Fr: Field, G1Affine: Field, H: HasherType> {
     );
 }
 
-pub(crate) struct KateCommitmentScheme<H: HasherType, S: SettingsBase<H>> {
+pub(crate) struct KateCommitmentScheme<H: BarretenHasher, S: Settings<H>> {
     kate_open_proof: CommitmentOpenProof,
 }
 
-impl<H: HasherType, S: SettingsBase<H>> CommitmentScheme<Fr, G1Affine, H>
+impl<H: BarretenHasher, S: Settings<H>> CommitmentScheme<Fr, G1Affine, H>
     for KateCommitmentScheme<H, S>
 {
     fn commit(

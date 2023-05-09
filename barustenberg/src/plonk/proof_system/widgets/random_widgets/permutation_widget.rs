@@ -1,38 +1,39 @@
-use ark_ff::Field;
+use crate::ecc::Field;
 
 use crate::plonk::proof_system::proving_key::ProvingKey;
-use crate::proof_system::work_queue::WorkQueue;
 use crate::plonk::proof_system::widgets::random_widgets::random_widget::ProverRandomWidget;
-use crate::transcript::{HasherType, Transcript};
-use std::marker::PhantomData;
+use crate::proof_system::work_queue::WorkQueue;
+use crate::transcript::{BarretenHasher, Transcript};
 use std::sync::Arc;
-use crate::plonk::proof_system::types::hasher::Hasher;
 pub struct VerifierPermutationWidget<
-    Field,
+    H: BarretenHasher,
+    F,
     Group,
     const NUM_ROOTS_CUT_OUT_OF_VANISHING_POLYNOMIAL: usize,
 > where
-    Field: ark_ff::Field,
+    F: Field,
 {
-    transcript: Transcript<Hash>,
-    phantom: PhantomData<(Field, Group)>,
+    transcript: Transcript<H>,
+    // phantom: PhantomData<(Field, Group)>,
 }
 
-impl<Field, Group, const NUM_ROOTS_CUT_OUT_OF_VANISHING_POLYNOMIAL: usize>
-    VerifierPermutationWidget<Field, Group, NUM_ROOTS_CUT_OUT_OF_VANISHING_POLYNOMIAL>
+impl<H, F, Group, const NUM_ROOTS_CUT_OUT_OF_VANISHING_POLYNOMIAL: usize>
+    VerifierPermutationWidget<H, F, Group, NUM_ROOTS_CUT_OUT_OF_VANISHING_POLYNOMIAL>
 where
-    Field: Field,
+    H: BarretenHasher,
+    F: Field,
 {
     pub fn new() -> Self {
         Self {
-            phantom: PhantomData,
+            transcript: Transcript::default(),
+            //phantom: PhantomData,
         }
     }
 
     pub fn compute_quotient_evaluation_contribution(
-        key: &Arc<TS::Key>,
+        key: &Arc<Transcript::Key>,
         alpha_base: Field,
-        transcript: &TS,
+        transcript: &Transcript<H>,
         quotient_numerator_eval: &mut Field,
         idpolys: bool,
     ) -> Field {
@@ -40,9 +41,9 @@ where
     }
 
     pub fn append_scalar_multiplication_inputs(
-        key: &Arc<TS::Key>,
+        key: &Arc<Transcript::Key>,
         alpha_base: Field,
-        transcript: &TS,
+        transcript: &Transcript<H>,
     ) -> Field {
         // ...
     }
@@ -50,24 +51,24 @@ where
 
 pub struct ProverPermutationWidget<
     Fr: Field,
-    Hash: HasherType,
+    Hash: BarretenHasher,
     const PROGRAM_WIDTH: usize,
     const IDPOLYS: bool,
     const NUM_ROOTS_CUT_OUT_OF_VANISHING_POLYNOMIAL: usize,
 > {
-    prover_random_widget: ProverRandomWidget,
+    prover_random_widget: dyn ProverRandomWidget,
 }
 
 impl<
         Fr: Field,
-        Hash: HasherType,
+        Hash: BarretenHasher,
         const PROGRAM_WIDTH: usize,
         const IDPOLYS: bool,
         const NUM_ROOTS_CUT_OUT_OF_VANISHING_POLYNOMIAL: usize,
     >
     ProverPermutationWidget<
-        Fr: Field,
-        Hash: HasherType,
+        Fr,
+        Hash,
         PROGRAM_WIDTH,
         IDPOLYS,
         NUM_ROOTS_CUT_OUT_OF_VANISHING_POLYNOMIAL,

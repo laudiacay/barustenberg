@@ -1,11 +1,11 @@
 use crate::{
     plonk::proof_system::{
-        types::{polynomial_manifest::PolynomialIndex, prover_settings::SettingsBase},
+        types::{polynomial_manifest::PolynomialIndex, prover_settings::Settings},
         widgets::transition_widgets::transition_widget::containers::{
             ChallengeArray, CoefficientArray,
         },
     },
-    transcript::Transcript,
+    transcript::{BarretenHasher, Transcript},
 };
 use std::{
     collections::{HashMap, HashSet},
@@ -20,22 +20,23 @@ pub trait Getters<Field, PolyContainer> {
     // ... Implement the required getter methods
 }
 
-pub struct ArithmeticKernel<Field, Getters, PolyContainer, const NUM_WIDGET_RELATIONS: usize> {
-    base_getter: dyn BaseGetter<
-        Field,
-        Transcript<dyn SettingsBase::Hash>,
-        SettingsBase,
-        NUM_WIDGET_RELATIONS,
-    >,
+pub struct ArithmeticKernel<
+    H: BarretenHasher,
+    Field,
+    Getters,
+    PolyContainer,
+    const NUM_WIDGET_RELATIONS: usize,
+> {
+    base_getter: dyn BaseGetter<Field, Transcript<H>, dyn Settings<Hash = H>, NUM_WIDGET_RELATIONS>,
     phantom: PhantomData<(Field, Getters, PolyContainer)>,
 }
 
-impl<Field, Getters, PolyContainer> ArithmeticKernel<Field, Getters, PolyContainer>
+impl<H: BarretenHasher, Field, Getters, PolyContainer>
+    ArithmeticKernel<H, Field, Getters, PolyContainer, 1>
 where
     Field: ark_ff::Field,
     Getters: BaseGetter<Field, PolyContainer>,
 {
-    pub const NUM_INDEPENDENT_RELATIONS: usize = 1;
     pub const QUOTIENT_REQUIRED_CHALLENGES: u8 = CHALLENGE_BIT_ALPHA;
     pub const UPDATE_REQUIRED_CHALLENGES: u8 = CHALLENGE_BIT_ALPHA;
 

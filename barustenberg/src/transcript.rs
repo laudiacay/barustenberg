@@ -5,16 +5,16 @@ use typenum::{U16, U32};
 
 use crate::plonk::proof_system::verification_key::VerificationKey;
 
-pub trait HasherType {
+pub trait BarretenHasher {
     type SecurityParameterSize: ArrayLength<u8>;
     type PrngOutputSize: ArrayLength<u8>;
 
     fn hash(buffer: &[u8]) -> GenericArray<u8, Self::PrngOutputSize>;
 }
 
-pub struct Keccak256Hasher {}
+pub struct Keccak256 {}
 
-impl HasherType for Keccak256Hasher {
+impl BarretenHasher for Keccak256 {
     type SecurityParameterSize = U32;
     type PrngOutputSize = U32;
 
@@ -39,9 +39,9 @@ impl HasherType for Keccak256Hasher {
     }
 }
 
-pub struct Blake3sHasher {}
+pub struct PedersenBlake3s {}
 
-impl HasherType for Blake3sHasher {
+impl BarretenHasher for PedersenBlake3s {
     type SecurityParameterSize = U16;
     type PrngOutputSize = U32;
 
@@ -59,9 +59,9 @@ impl HasherType for Blake3sHasher {
     }
 }
 
-pub struct Blake3sPlookupHasher {}
+pub struct PlookupPedersenBlake3s {}
 
-impl HasherType for Blake3sPlookupHasher {
+impl BarretenHasher for PlookupPedersenBlake3s {
     type SecurityParameterSize = U16;
     type PrngOutputSize = U32;
     fn hash(buffer: &[u8]) -> GenericArray<u8, Self::PrngOutputSize> {
@@ -88,6 +88,7 @@ pub struct ManifestEntry {
 
 /// The RoundManifest struct describes the data used in one round of the protocol
 /// and the challenge(s) created from that data.
+#[derive(Clone, Default)]
 pub struct RoundManifest {
     /// Data used in the round.
     pub elements: Vec<ManifestEntry>,
@@ -115,6 +116,7 @@ impl RoundManifest {
 /// Manifest is used by composers to define the structure of the protocol. It specifies:
 /// 1. What data is used in each round of the protocols.
 /// 2. Which information is used to create challenges.
+#[derive(Clone, Default)]
 pub struct Manifest {
     pub round_manifests: Vec<RoundManifest>,
     pub num_rounds: usize,
@@ -139,11 +141,13 @@ impl Manifest {
     }
 }
 
-struct Challenge<T: HasherType> {
+#[derive(Clone, Default)]
+struct Challenge<T: BarretenHasher> {
     data: GenericArray<u8, T::PrngOutputSize>,
 }
 
-pub struct Transcript<T: HasherType> {
+#[derive(Clone, Default)]
+pub struct Transcript<T: BarretenHasher> {
     current_round: usize,
     num_challenge_bytes: usize,
     hasher: T,
@@ -154,7 +158,7 @@ pub struct Transcript<T: HasherType> {
     challenge_map: HashMap<String, i32>,
 }
 
-impl<T: HasherType> Transcript<T> {
+impl<T: BarretenHasher> Transcript<T> {
     type Key = VerificationKey;
     pub fn add_element(&mut self, element_name: &str, buffer: Vec<u8>) {
         info!("Adding element {} to transcript", element_name);
@@ -175,7 +179,7 @@ impl<T: HasherType> Transcript<T> {
     ///
     /// If the serialized transcript does not contain the required number of bytes, a panic occurs.
     ///
-    fn new(
+    pub fn new(
         input_transcript: &[u8],
         input_manifest: Manifest,
         hash_type: T,

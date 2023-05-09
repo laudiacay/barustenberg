@@ -1,10 +1,13 @@
-
 use std::sync::Arc;
 
 use proptest::sample::Selector;
 use rand::RngCore;
 
-use crate::{srs::reference_string::ReferenceStringFactory, plonk::proof_system::{proving_key::ProvingKey, verification_key::VerificationKey}, ecc::curves::grumpkin::Fr};
+use crate::{
+    ecc::curves::grumpkin::Fr,
+    plonk::proof_system::{proving_key::ProvingKey, verification_key::VerificationKey},
+    srs::reference_string::ReferenceStringFactory,
+};
 
 pub const DUMMY_TAG: u32 = 0;
 pub const REAL_VARIABLE: u32 = u32::MAX - 1;
@@ -24,7 +27,6 @@ pub enum ComposerType {
     Plookup,
     StandardHonk,
 }
-
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct CycleNode {
@@ -46,7 +48,6 @@ impl CycleNode {
     }
 }
 
-
 pub struct ComposerBase {
     pub num_gates: usize,
     crs_factory: Arc<dyn ReferenceStringFactory>,
@@ -59,7 +60,11 @@ pub struct ComposerBase {
 }
 
 impl ComposerBase {
-    pub fn new(num_selectors: usize, size_hint: usize, selector_properties: Vec<SelectorProperties>) -> Self {
+    pub fn new(
+        num_selectors: usize,
+        size_hint: usize,
+        selector_properties: Vec<SelectorProperties>,
+    ) -> Self {
         let crs_factory = Arc::new(ReferenceStringFactory::new("../srs_db/ignition"));
         Self::with_crs_factory(crs_factory, num_selectors, size_hint, selector_properties)
     }
@@ -118,7 +123,7 @@ impl ComposerBase {
             }
         }
     }
-    
+
     /// Get the value of the variable v_{index}.
     /// N.B. We should probably inline this.
     ///
@@ -214,11 +219,17 @@ impl ComposerBase {
     ///
     /// * `witness_index` - The index of the witness.
     fn set_public_input(&mut self, witness_index: u32) {
-        let does_not_exist = self.public_inputs.iter().all(|&input| input != witness_index);
+        let does_not_exist = self
+            .public_inputs
+            .iter()
+            .all(|&input| input != witness_index);
         if does_not_exist {
             self.public_inputs.push(witness_index);
         }
-        assert!(does_not_exist, "Attempted to set a public input that is already public!");
+        assert!(
+            does_not_exist,
+            "Attempted to set a public input that is already public!"
+        );
     }
 
     // fn assert_equal(&mut self, a_idx: u32, b_idx: u32, msg: Option<&str>);
@@ -243,7 +254,6 @@ impl ComposerBase {
     fn is_valid_variable(&self, variable_index: u32) -> bool {
         (self.variables.len() as u32) > variable_index
     }
-    
 }
 // /**
 //  * Composer Example: Pythagorean triples.
