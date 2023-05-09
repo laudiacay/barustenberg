@@ -3,8 +3,6 @@ use std::collections::HashMap;
 use tracing::info;
 use typenum::{U16, U32};
 
-use crate::plonk::proof_system::verification_key::VerificationKey;
-
 pub trait BarretenHasher {
     type SecurityParameterSize: ArrayLength<u8>;
     type PrngOutputSize: ArrayLength<u8>;
@@ -159,7 +157,6 @@ pub struct Transcript<T: BarretenHasher> {
 }
 
 impl<T: BarretenHasher> Transcript<T> {
-    type Key = VerificationKey;
     pub fn add_element(&mut self, element_name: &str, buffer: Vec<u8>) {
         info!("Adding element {} to transcript", element_name);
         // from elements.insert({ element_name, buffer });

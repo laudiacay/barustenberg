@@ -1,11 +1,11 @@
-use std::{hash::Hash, sync::Arc};
+use std::sync::Arc;
 
 use ark_bn254::G1Affine;
 
 use super::{
     commitment_scheme::CommitmentScheme,
     proving_key::ProvingKey,
-    types::{prover_settings::SettingsBase, Proof},
+    types::{prover_settings::Settings, Proof},
     widgets::{
         random_widgets::random_widget::ProverRandomWidget,
         transition_widgets::transition_widget::TransitionWidgetBase,
@@ -22,7 +22,7 @@ use crate::proof_system::work_queue::WorkQueue;
 
 // todo https://doc.rust-lang.org/reference/const_eval.html
 
-pub struct Prover<'a, Fr: Field, H: BarretenHasher, S: SettingsBase<H>> {
+pub struct Prover<'a, Fr: Field, H: BarretenHasher, S: Settings<H>> {
     pub circuit_size: usize,
     pub transcript: Transcript<H>,
     pub key: Arc<ProvingKey<Fr>>,
@@ -32,7 +32,7 @@ pub struct Prover<'a, Fr: Field, H: BarretenHasher, S: SettingsBase<H>> {
     pub commitment_scheme: dyn CommitmentScheme<Fr, G1Affine, H>,
 }
 
-impl<Fr: Field, H: BarretenHasher, S: SettingsBase<Hash = H>> Prover<'_, Fr, H, S> {
+impl<Fr: Field, H: BarretenHasher, S: Settings<H>> Prover<'_, Fr, H, S> {
     pub fn new(
         input_key: Option<Arc<ProvingKey<Fr>>>,
         input_manifest: Option<&Manifest>,

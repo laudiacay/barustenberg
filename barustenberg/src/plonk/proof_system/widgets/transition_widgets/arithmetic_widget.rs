@@ -27,7 +27,7 @@ pub struct ArithmeticKernel<
     PolyContainer,
     const NUM_WIDGET_RELATIONS: usize,
 > {
-    base_getter: dyn BaseGetter<Field, Transcript<H>, dyn Settings<Hash = H>, NUM_WIDGET_RELATIONS>,
+    base_getter: dyn BaseGetter<Field, Transcript<H>, dyn Settings<H>, NUM_WIDGET_RELATIONS>,
     phantom: PhantomData<(Field, Getters, PolyContainer)>,
 }
 

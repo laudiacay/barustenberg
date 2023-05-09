@@ -1,3 +1,5 @@
+use crate::ecc::groups::wnaf::WNAF_SIZE;
+
 /// simple helper functions to retrieve pointers to pre-allocated memory for the scalar multiplication algorithm.
 /// This is to eliminate page faults when allocating (and writing) to large tranches of memory.
 pub fn get_optimal_bucket_width(num_points: usize) -> usize {
