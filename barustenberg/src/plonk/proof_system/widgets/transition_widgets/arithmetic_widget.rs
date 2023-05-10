@@ -1,11 +1,12 @@
 use crate::{
+    ecc::{curves::bn254::fr::Fr, fields::field::Field},
     plonk::proof_system::{
         types::{polynomial_manifest::PolynomialIndex, prover_settings::Settings},
         widgets::transition_widgets::transition_widget::containers::{
             ChallengeArray, CoefficientArray,
         },
     },
-    transcript::{BarretenHasher, Transcript}, ecc::{curves::bn254::fr::Fr, fields::field::Field},
+    transcript::{BarretenHasher, Transcript},
 };
 use std::{
     collections::{HashMap, HashSet},
@@ -31,8 +32,7 @@ pub struct ArithmeticKernel<
     phantom: PhantomData<(Field, Getters, PolyContainer)>,
 }
 
-impl<H: BarretenHasher, F, Getters, PolyContainer>
-    ArithmeticKernel<H, F, Getters, PolyContainer, 1>
+impl<H: BarretenHasher, F, Getters, PolyContainer> ArithmeticKernel<H, F, Getters, PolyContainer, 1>
 where
     F: Field,
     Getters: BaseGetter<F, PolyContainer>,
@@ -80,8 +80,7 @@ where
     }
 }
 
-pub type ProverArithmeticWidget<Settings> =
-    TransitionWidget<Fr, Settings, ArithmeticKernel>;
+pub type ProverArithmeticWidget<Settings> = TransitionWidget<Fr, Settings, ArithmeticKernel>;
 
 pub type VerifierArithmeticWidget<F, Group, Transcript, Settings> =
     GenericVerifierWidget<F, Transcript, Settings, ArithmeticKernel>;

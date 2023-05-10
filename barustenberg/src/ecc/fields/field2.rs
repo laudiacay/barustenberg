@@ -7,8 +7,19 @@ use crate::ecc::fields::field::Field;
 use primitive_types::U256;
 use serde::{Deserialize, Serialize};
 
+pub trait Field2Params<F: Field> {
+    const twist_coeff_b_0: F;
+    const twist_coeff_b_1: F;
+    const twist_mul_by_q_x_0: F;
+    const twist_mul_by_q_x_1: F;
+    const twist_mul_by_q_y_0: F;
+    const twist_mul_by_q_y_1: F;
+    const twist_cube_root_0: F;
+    const twist_cube_root_1: F;
+}
+
 // TODO a shitton of this stuff should be done with macros at compiletime for speed.
-pub trait Field2<BaseParams, BaseField: Field<BaseParams>, Params> {
+pub trait Field2<BaseField: Field, Params: Field2Params<BaseField>> {
     const MODULUS: U256 = BaseField::MODULUS;
 
     fn zero() -> Self;
@@ -53,30 +64,20 @@ pub trait Field2<BaseParams, BaseField: Field<BaseParams>, Params> {
     fn random_element(engine: Option<&mut dyn rand::Rng>) -> Self;
 }
 
-impl<BaseParams, BaseField: Field<BaseParams>, Params> PartialEq
-    for dyn Field2<BaseParams, BaseField, Params>
-{
+impl<BaseField: Field, Params> PartialEq for dyn Field2<BaseField, Params> {
     // todo
 }
-impl<BaseParams, BaseField: Field<BaseParams>, Params> Eq
-    for dyn Field2<BaseParams, BaseField, Params>
-{
+impl<BaseField: Field, Params> Eq for dyn Field2<BaseField, Params> {
     // todo
 }
 
-impl<BaseParams, BaseField: Field<BaseParams>, Params> Add
-    for dyn Field2<BaseParams, BaseField, Params>
-{
+impl<BaseField: Field, Params> Add for dyn Field2<BaseField, Params> {
     //    return { c0 + other.c0, c1 + other.c1 };
 }
-impl<BaseParams, BaseField: Field<BaseParams>, Params> Sub
-    for dyn Field2<BaseParams, BaseField, Params>
-{
+impl<BaseField: Field, Params> Sub for dyn Field2<BaseField, Params> {
     //    return { c0 - other.c0, c1 - other.c1 };
 }
-impl<BaseParams, BaseField: Field<BaseParams>, Params> Mul
-    for dyn Field2<BaseParams, BaseField, Params>
-{
+impl<BaseField: Field, Params> Mul for dyn Field2<BaseField, Params> {
     /*
         // no funny primes please! we assume -1 is not a quadratic residue
     static_assert((base::modulus.data[0] & 0x3UL) == 0x3UL);
@@ -88,57 +89,40 @@ impl<BaseParams, BaseField: Field<BaseParams>, Params> Mul
     return { t1 - t2, t3 * t4 - (t1 + t2) };
      */
 }
-impl<BaseParams, BaseField: Field<BaseParams>, Params> Neg
-    for dyn Field2<BaseParams, BaseField, Params>
-{
+impl<BaseField: Field, Params> Neg for dyn Field2<BaseField, Params> {
     //    return { -c0, -c1 };
 }
-impl<BaseParams, BaseField: Field<BaseParams>, Params> Div
-    for dyn Field2<BaseParams, BaseField, Params>
-{
+impl<BaseField: Field, Params> Div for dyn Field2<BaseField, Params> {
     //    return operator*(other.invert());
 }
 
-impl<BaseParams, BaseField: Field<BaseParams>, Params> AddAssign
-    for dyn Field2<BaseParams, BaseField, Params>
-{
+impl<BaseField: Field, Params> AddAssign for dyn Field2<BaseField, Params> {
     fn add_assign(&mut self, rhs: Self) {
         self = self + rhs
     }
 }
 
-impl<BaseParams, BaseField: Field<BaseParams>, Params> SubAssign
-    for dyn Field2<BaseParams, BaseField, Params>
-{
+impl<BaseField: Field, Params> SubAssign for dyn Field2<BaseField, Params> {
     fn sub_assign(&mut self, rhs: Self) {
         self = self - rhs
     }
 }
 
-impl<BaseParams, BaseField: Field<BaseParams>, Params> MulAssign
-    for dyn Field2<BaseParams, BaseField, Params>
-{
+impl<BaseField: Field, Params> MulAssign for dyn Field2<BaseField, Params> {
     fn mul_assign(&mut self, rhs: Self) {
         self = self * rhs
     }
 }
 
-impl<BaseParams, BaseField: Field<BaseParams>, Params> DivAssign
-    for dyn Field2<BaseParams, BaseField, Params>
-{
+impl<BaseField: Field, Params> DivAssign for dyn Field2<BaseField, Params> {
     fn div_assign(&mut self, rhs: Self) {
         self = self / rhs
     }
 }
 
-impl<BaseParams, BaseField: Field<BaseParams>, Params> Serialize
-    for dyn Field2<BaseParams, BaseField, Params>
-{
-}
+impl<BaseField: Field, Params> Serialize for dyn Field2<BaseField, Params> {}
 
-impl<'de, BaseParams, BaseField: Field<BaseParams>, Params> Deserialize<'de>
-    for dyn Field2<BaseParams, BaseField, Params>
-{
+impl<'de, BaseField: Field, Params> Deserialize<'de> for dyn Field2<BaseField, Params> {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
@@ -147,15 +131,13 @@ impl<'de, BaseParams, BaseField: Field<BaseParams>, Params> Deserialize<'de>
     }
 }
 
-struct Field2Impl<BaseField, Params> {
+pub struct Field2Impl<BaseField, Params> {
     c0: BaseField,
     c1: BaseField,
     phantom: PhantomData<Params>,
 }
 
-impl<BaseParams, BaseField: Field<BaseParams>, Params> Field2<BaseParams, BaseField, Params>
-    for Field2Impl<BaseField, Params>
-{
+impl<BaseField: Field, Params> Field2<BaseField, Params> for Field2Impl<BaseField, Params> {
     fn zero() -> Self {
         Field2Impl {
             c0: BaseField::zero(),
@@ -227,7 +209,7 @@ impl<BaseParams, BaseField: Field<BaseParams>, Params> Field2<BaseParams, BaseFi
             phantom: PhantomData,
         }
     }
-    fn mul_by_fq(&self, a: &dyn Field<Params>) -> Self {
+    fn mul_by_fq(&self, a: BaseField) -> Self {
         Field2Impl {
             c0: a * &self.c0,
             c1: a * &self.c1,

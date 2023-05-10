@@ -2,7 +2,7 @@ use crate::ecc::groups::{Group, GroupImpl, GroupParams};
 
 use super::{fq::Fq, fr::Fr};
 
-trait Bn254G1Params: GroupParams {
+trait Bn254G1Params: GroupParams<Fq> {
     const USE_ENDOMORPHISM: bool = true;
     const can_hash_to_curve: bool = true;
     const small_elements: bool = true;

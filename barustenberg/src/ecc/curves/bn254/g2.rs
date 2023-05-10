@@ -1,8 +1,8 @@
 use crate::ecc::groups::{GroupImpl, GroupParams};
 
-use super::fr::Fr;
+use super::{fq2::Fq2, fr::Fr};
 
-trait Bn254G2Params: GroupParams {
+trait Bn254G2Params: GroupParams<Fq2> {
     const USE_ENDOMORPHISM: bool = false;
     const can_hash_to_curve: bool = false;
     const small_elements: bool = false;

@@ -4,12 +4,12 @@ use std::sync::Arc;
 pub struct MillerLines {}
 
 pub trait VerifierReferenceString {
-    fn get_g2x(&self) -> G2Affine;
+    fn get_g2x(&self) -> G2::Affine;
     fn get_precomputed_g2_lines(&self) -> &MillerLines;
 }
 
 pub trait ProverReferenceString {
-    fn get_monomial_points(&mut self) -> &mut G1Affine;
+    fn get_monomial_points(&mut self) -> &mut G1::Affine;
     fn get_monomial_size(&self) -> usize;
 }
 pub trait ReferenceStringFactory {

@@ -5,15 +5,16 @@ use std::{
 };
 
 use crate::{
-    ecc::FieldElement,
+    ecc::fields::field::Field,
     plonk::proof_system::{
         proving_key::ProvingKey,
         types::{
             polynomial_manifest::{EvaluationType, PolynomialIndex},
+            prover_settings::Settings,
             PolynomialManifest,
         },
     },
-    transcript::Transcript,
+    transcript::{BarretenHasher, Transcript},
 };
 
 use self::containers::{ChallengeArray, CoefficientArray, PolyArray, PolyPtrMap};
@@ -149,10 +150,10 @@ pub trait BaseGetter<Field, Transcript, Settings, const NUM_WIDGET_RELATIONS: us
 
 /// Implements loading polynomial openings from transcript in addition to BaseGetter's
 /// loading challenges from the transcript and computing powers of α
-pub trait EvaluationGetter<Field, Transcript, Settings, const NUM_WIDGET_RELATIONS: usize>:
-    BaseGetter<Field, Transcript, Settings, NUM_WIDGET_RELATIONS>
+pub trait EvaluationGetter<F, Transcript, Settings, const NUM_WIDGET_RELATIONS: usize>:
+    BaseGetter<F, Transcript, Settings, NUM_WIDGET_RELATIONS>
 where
-    Field: FieldElement,
+    F: Field,
 {
     /// Get a polynomial at offset `id`
     ///
@@ -210,15 +211,15 @@ where
 
 /// Provides access to polynomials (monomial or coset FFT) for use in widgets
 /// Coset FFT access is needed in quotient construction.
-pub trait FFTGetter<Field, Transcript, Settings, const NUM_WIDGET_RELATIONS: usize>:
-    BaseGetter<Field, Transcript, Settings, NUM_WIDGET_RELATIONS>
+pub trait FFTGetter<F, Transcript, Settings, const NUM_WIDGET_RELATIONS: usize>:
+    BaseGetter<F, Transcript, Settings, NUM_WIDGET_RELATIONS>
 where
-    Field: FieldElement,
+    F: Field,
 {
     fn get_polynomials(
-        key: &ProvingKey<Field>,
+        key: &ProvingKey<F>,
         required_polynomial_ids: &HashSet<PolynomialIndex>,
-    ) -> PolyPtrMap<Field> {
+    ) -> PolyPtrMap<F> {
         let mut result = PolyPtrMap::new();
         let label_suffix = "_fft";
 
@@ -237,9 +238,9 @@ where
     }
 
     fn get_value<const EVALUATION_TYPE: EvaluationType, const ID: usize>(
-        polynomials: &PolyPtrMap<Field>,
+        polynomials: &PolyPtrMap<F>,
         index: usize,
-    ) -> &Field {
+    ) -> &F {
         if EVALUATION_TYPE == EvaluationType::Shifted {
             let shifted_index = (index + polynomials.index_shift) & polynomials.block_mask;
             &polynomials.coefficients[&ID][shifted_index]
@@ -249,36 +250,24 @@ where
     }
 }
 
-pub struct TransitionWidgetBase<Field>
-where
-    Field: FieldElement,
-{
-    pub key: Option<Arc<ProvingKey<Field>>>,
+pub struct TransitionWidgetBase<F: Field> {
+    pub key: Option<Arc<ProvingKey<F>>>,
 }
 
-impl<Field> TransitionWidgetBase<Field>
-where
-    Field: FieldElement,
-{
-    pub fn new(key: Option<Arc<ProvingKey<Field>>>) -> Self {
+impl<F: Field> TransitionWidgetBase<F> {
+    pub fn new(key: Option<Arc<ProvingKey<F>>>) -> Self {
         Self { key }
     }
 
     // other methods and trait implementations
 }
-pub struct TransitionWidget<Field, Settings, KernelBase>
-where
-    Field: FieldElement,
-    KernelBase: KernelBaseFunctions<Field>,
-{
-    base: TransitionWidgetBase<Field>,
+pub struct TransitionWidget<F: Field, Settings, KernelBase: KernelBaseFunctions<F>> {
+    base: TransitionWidgetBase<F>,
     phantom: std::marker::PhantomData<Settings>,
 }
 
-impl<Hash, Field, Settings, KernelBase> TransitionWidget<Field, Settings<Hash>, KernelBase>
-where
-    Field: FieldElement,
-    KernelBase: KernelBaseFunctions<Field>,
+impl<H: BarretenHasher, F: Field, S: Settings<H>, KernelBase: KernelBaseFunctions<Field>>
+    TransitionWidget<F, S, KernelBase>
 {
     pub fn new(key: Option<Arc<ProvingKey<Field>>>) -> Self {
         Self {
@@ -288,22 +277,18 @@ where
     }
 
     // other methods and trait implementations
-    pub fn compute_quotient_contribution(
-        &self,
-        alpha_base: Field,
-        transcript: &Transcript<Hash>,
-    ) -> Field {
+    pub fn compute_quotient_contribution(&self, alpha_base: F, transcript: &Transcript<H>) -> F {
         let key = self.base.key.as_ref().expect("Proving key is missing");
 
         let required_polynomial_ids = KernelBase::get_required_polynomial_ids();
         let polynomials =
-            FFTGetter::<Field, _, _, KernelBase::NUM_INDEPENDENT_RELATIONS>::get_polynomials(
+            FFTGetter::<F, _, _, KernelBase::NUM_INDEPENDENT_RELATIONS>::get_polynomials(
                 key,
                 &required_polynomial_ids,
             );
 
         let challenges =
-            FFTGetter::<Field, _, _, KernelBase::NUM_INDEPENDENT_RELATIONS>::get_challenges(
+            FFTGetter::<F, _, _, KernelBase::NUM_INDEPENDENT_RELATIONS>::get_challenges(
                 transcript,
                 &alpha_base,
                 KernelBase::quotient_required_challenges(),
@@ -330,36 +315,36 @@ where
 }
 
 // Implementations for the derived classes
-impl<Field, Settings, KernelBase> From<TransitionWidget<Field, Settings, KernelBase>>
-    for TransitionWidgetBase<Field>
+impl<F, Settings, KernelBase> From<TransitionWidget<F, Settings, KernelBase>>
+    for TransitionWidgetBase<F>
 where
-    Field: FieldElement,
-    KernelBase: KernelBaseFunctions<Field>,
+    F: Field,
+    KernelBase: KernelBaseFunctions<F>,
 {
     // Other methods and trait implementations
 }
 
-pub struct GenericVerifierWidget<Field, Hash, Settings, KernelBase>
+pub struct GenericVerifierWidget<F, Hash, Settings, KernelBase>
 where
-    Field: FieldElement,
-    KernelBase: KernelBaseFunctions<Field>,
+    F: Field,
+    KernelBase: KernelBaseFunctions<F>,
 {
-    phantom: PhantomData<(Field, Hash, Settings)>,
+    phantom: PhantomData<(F, Hash, Settings)>,
 }
 
-impl<Hash, Field, Settings, KernelBase> GenericVerifierWidget<Field, Hash, Settings, KernelBase>
+impl<Hash, F, Settings, KernelBase> GenericVerifierWidget<F, Hash, Settings, KernelBase>
 where
-    Field: FieldElement,
-    KernelBase: KernelBaseFunctions<Field>,
+    F: Field,
+    KernelBase: KernelBaseFunctions<F>,
 {
     pub fn compute_quotient_evaluation_contribution(
         key: &Arc<Transcript::Key>,
-        alpha_base: Field,
+        alpha_base: F,
         transcript: &Transcript<Hash>,
-        quotient_numerator_eval: &mut Field,
-    ) -> Field {
+        quotient_numerator_eval: &mut F,
+    ) -> F {
         let polynomial_evaluations = EvaluationGetter::<
-            Field,
+            F,
             _,
             _,
             KernelBase::NUM_INDEPENDENT_RELATIONS,
@@ -391,19 +376,19 @@ where
 
     pub fn append_scalar_multiplication_inputs(
         key: &Arc<Transcript::Key>,
-        alpha_base: Field,
+        alpha_base: F,
         transcript: &Transcript,
-        scalar_mult_inputs: &mut HashMap<String, Field>,
-    ) -> Field {
+        scalar_mult_inputs: &mut HashMap<String, F>,
+    ) -> F {
         let challenges =
-            EvaluationGetter::<Field, _, _, KernelBase::NUM_INDEPENDENT_RELATIONS>::get_challenges(
+            EvaluationGetter::<F, _, _, KernelBase::NUM_INDEPENDENT_RELATIONS>::get_challenges(
                 transcript,
                 &alpha_base,
                 KernelBase::quotient_required_challenges()
                     | KernelBase::update_required_challenges(),
             );
 
-        EvaluationGetter::<Field, _, _, KernelBase::NUM_INDEPENDENT_RELATIONS>::update_alpha(
+        EvaluationGetter::<F, _, _, KernelBase::NUM_INDEPENDENT_RELATIONS>::update_alpha(
             &challenges,
             KernelBase::NUM_INDEPENDENT_RELATIONS,
         )
