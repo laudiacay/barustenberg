@@ -1,4 +1,4 @@
-use crate::ecc::groups::{GroupImpl, GroupParams};
+use crate::ecc::groups::{Group, GroupImpl, GroupParams};
 
 use super::{fq2::Fq2, fr::Fr};
 
@@ -35,3 +35,4 @@ trait Bn254G2Params: GroupParams<Fq2> {
 struct Bn254G2ParamsImpl {}
 impl Bn254G2Params for Bn254G2ParamsImpl {}
 pub type G2 = GroupImpl<Fq2, Fr, Bn254G2ParamsImpl>;
+pub type G2Affine = <G2 as Group<Fq2, Fr, Bn254G2ParamsImpl>>::Affine;

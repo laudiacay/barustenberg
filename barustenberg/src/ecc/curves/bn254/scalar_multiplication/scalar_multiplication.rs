@@ -1,4 +1,8 @@
-use crate::ecc::curves::bn254::{fq::Fq, fr::Fr, g1::{G1, G1Affine}};
+use crate::ecc::curves::bn254::{
+    fq::Fq,
+    fr::Fr,
+    g1::{G1Affine, G1},
+};
 
 use super::runtime_states::{
     get_optimal_bucket_width, AffineProductRuntimeState, PippengerRuntimeState,

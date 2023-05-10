@@ -1,4 +1,4 @@
-use self::{curves::bn254::g1::{G1, G1Affine}, fields::field::Field};
+use self::{curves::bn254::g1::G1Affine, fields::field::Field};
 
 // TODO todo - stubs to get the compiler to cooperate.
 pub(crate) mod curves;

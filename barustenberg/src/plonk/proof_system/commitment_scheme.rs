@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::ecc::curves::bn254::fr::Fr;
-use crate::ecc::curves::bn254::g1::{G1, G1Affine};
+use crate::ecc::curves::bn254::g1::{G1Affine, G1};
 use crate::ecc::fields::field::Field;
 use crate::proof_system::work_queue::WorkQueue;
 use crate::transcript::{BarretenHasher, Transcript};

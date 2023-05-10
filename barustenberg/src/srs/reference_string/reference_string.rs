@@ -1,12 +1,12 @@
 use std::sync::Arc;
 
-use crate::ecc::curves::bn254::{g1::G1, g2::G2};
+use crate::ecc::curves::bn254::{g1::G1Affine, g2::G2Affine};
 
 // TODO do this later properly
 pub struct MillerLines {}
 
 pub trait VerifierReferenceString {
-    fn get_g2x(&self) -> G2::Affine;
+    fn get_g2x(&self) -> G2Affine;
     fn get_precomputed_g2_lines(&self) -> &MillerLines;
 }
 

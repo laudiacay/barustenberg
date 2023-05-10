@@ -1,9 +1,9 @@
-use crate::ecc::curves::bn254::g2::G2;
+use crate::ecc::curves::bn254::g2::G2Affine;
 
 use super::{MillerLines, VerifierReferenceString};
 
 pub struct VerifierMemReferenceString {
-    g2_x: G2::Affine,
+    g2_x: G2Affine,
     precomputed_g2_lines: Box<MillerLines>,
 }
 
@@ -22,7 +22,7 @@ impl Drop for VerifierMemReferenceString {
 }
 
 impl VerifierReferenceString for VerifierMemReferenceString {
-    fn get_g2x(&self) -> G2::Affine {
+    fn get_g2x(&self) -> G2Affine {
         self.g2_x
     }
 
