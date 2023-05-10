@@ -7,7 +7,7 @@ use primitive_types::U256;
 use super::element::Element;
 use super::GroupParams;
 
-pub trait AffineElement<Fq, Fr, Params: GroupParams> {
+pub trait AffineElement<Fq, Fr, Params: GroupParams<Fq>> {
     fn new(a: Fq, b: Fq) -> Self;
 
     fn one() -> Self;
@@ -138,7 +138,7 @@ where
     }
 }
 
-impl<Fq, Fr, Params: GroupParams> PartialEq for AffineElement<Fq, Fr, Params>
+impl<Fq, Fr, Params: GroupParams<Fq>> PartialEq for dyn AffineElement<Fq, Fr, Params>
 where
     Fq: Default + Clone + PartialEq,
     Fr: Default + Clone,
@@ -149,7 +149,7 @@ where
     }
 }
 
-impl<Fq, Fr, Params: GroupParams> PartialOrd for AffineElement<Fq, Fr, Params>
+impl<Fq, Fr, Params: GroupParams<Fq>> PartialOrd for dyn AffineElement<Fq, Fr, Params>
 where
     Fq: Default + Clone + PartialEq + PartialOrd,
     Fr: Default + Clone,
@@ -170,8 +170,8 @@ where
     }
 }
 
-impl<Fq, Fr, Params> From<Element<Fq, Fr, Params>> for AffineElement<Fq, Fr, Params> {
-    fn from(element: Element<Fq, Fr, Params>) -> Self {
+impl<Fq, Fr, Params> From<dyn Element<Fq, Fr, Params>> for dyn AffineElement<Fq, Fr, Params> {
+    fn from(element: dyn Element<Fq, Fr, Params>) -> Self {
         // Implement From trait
     }
 }

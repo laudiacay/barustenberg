@@ -8,7 +8,7 @@ pub struct ElementImpl<Fq, Fr, Params> {
     pub z: Fq,
 }
 
-pub trait Element<Fq, Fr, Params: GroupParams> {
+pub trait Element<Fq, Fr, Params: GroupParams<Fq>> {
     fn one() -> Self;
 
     fn zero() -> Self;
@@ -19,7 +19,7 @@ pub trait Element<Fq, Fr, Params: GroupParams> {
 
     fn self_dbl(&mut self);
 
-    fn self_mixed_add_or_sub(&mut self, other: &AffineElement<Fq, Fr, Params>, predicate: u64);
+    fn self_mixed_add_or_sub(&mut self, other: &dyn AffineElement<Fq, Fr, Params>, predicate: u64);
     fn normalize(&self) -> Self;
 
     fn infinity() -> Self;
@@ -35,16 +35,16 @@ pub trait Element<Fq, Fr, Params: GroupParams> {
     fn batch_normalize(elements: &mut [Self]);
 
     fn batch_mul_with_endomorphism(
-        points: &[AffineElement<Fq, Fr, Params>],
+        points: &[dyn AffineElement<Fq, Fr, Params>],
         exponent: &Fr,
-    ) -> Vec<AffineElement<Fq, Fr, Params>>;
+    ) -> Vec<dyn AffineElement<Fq, Fr, Params>>;
 
-    fn mul_without_endomorphism(&self, exponent: &Fr) -> AffineElement<Fq, Fr, Params>;
+    fn mul_without_endomorphism(&self, exponent: &Fr) -> dyn AffineElement<Fq, Fr, Params>;
 
-    fn mul_with_endomorphism(&self, exponent: &Fr) -> AffineElement<Fq, Fr, Params>;
+    fn mul_with_endomorphism(&self, exponent: &Fr) -> dyn AffineElement<Fq, Fr, Params>;
 }
 
-impl<Fq, Fr, Params> Element for ElementImpl<Fq, Fr, Params> {
+impl<Fq, Fr, Params> Element<Fq, Fr, Params> for ElementImpl<Fq, Fr, Params> {
     fn one() -> Self {
         ElementImpl {
             x: Params::one_x,
@@ -75,7 +75,7 @@ impl<Fq, Fr, Params> Element for ElementImpl<Fq, Fr, Params> {
         // Implement self_dbl logic
     }
 
-    fn self_mixed_add_or_sub(&mut self, other: &AffineElement<Fq, Fr, Params>, predicate: u64) {
+    fn self_mixed_add_or_sub(&mut self, other: &dyn AffineElement<Fq, Fr, Params>, predicate: u64) {
         // Implement self_mixed_add_or_sub logic
     }
 
@@ -121,17 +121,17 @@ impl<Fq, Fr, Params> Element for ElementImpl<Fq, Fr, Params> {
     }
 
     fn batch_mul_with_endomorphism(
-        points: &[AffineElement<Fq, Fr, Params>],
+        points: &[dyn AffineElement<Fq, Fr, Params>],
         exponent: &Fr,
-    ) -> Vec<AffineElement<Fq, Fr, Params>> {
+    ) -> Vec<dyn AffineElement<Fq, Fr, Params>> {
         // Implement batch_mul_with_endomorphism logic
     }
 
-    fn mul_without_endomorphism(&self, exponent: &Fr) -> AffineElement<Fq, Fr, Params> {
+    fn mul_without_endomorphism(&self, exponent: &Fr) -> dyn AffineElement<Fq, Fr, Params> {
         // Implement mul_without_endomorphism logic
     }
 
-    fn mul_with_endomorphism(&self, exponent: &Fr) -> AffineElement<Fq, Fr, Params> {
+    fn mul_with_endomorphism(&self, exponent: &Fr) -> dyn AffineElement<Fq, Fr, Params> {
         // Implement mul_with_endomorphism logic
     }
 }
@@ -146,7 +146,7 @@ impl<Fq, Fr, Params> Add for dyn Element<Fq, Fr, Params> {
 }
 
 // Implement other operator traits for Element
-impl<Fq, Fr, Params> Mul<Fr> for Element<Fq, Fr, Params> {
+impl<Fq, Fr, Params> Mul<Fr> for dyn Element<Fq, Fr, Params> {
     type Output = Self;
 
     fn mul(self, other: Fr) -> Self {

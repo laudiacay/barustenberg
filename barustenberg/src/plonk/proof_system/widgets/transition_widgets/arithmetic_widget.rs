@@ -46,7 +46,7 @@ where
 
     pub fn compute_linear_terms(
         polynomials: &PolyContainer,
-        challenges: &ChallengeArray<F, Self::NUM_INDEPENDENT_RELATIONS>,
+        challenges: &ChallengeArray<F, { Self::NUM_INDEPENDENT_RELATIONS }>,
         linear_terms: &mut CoefficientArray<F>,
         i: usize,
     ) {
@@ -55,7 +55,7 @@ where
 
     pub fn compute_non_linear_terms(
         polynomials: &PolyContainer,
-        challenges: &ChallengeArray<F, Self::NUM_INDEPENDENT_RELATIONS>,
+        challenges: &ChallengeArray<F, { Self::NUM_INDEPENDENT_RELATIONS }>,
         field: &mut F,
         i: usize,
     ) {
@@ -64,7 +64,7 @@ where
 
     pub fn sum_linear_terms(
         polynomials: &PolyContainer,
-        challenges: &ChallengeArray<F, Self::NUM_INDEPENDENT_RELATIONS>,
+        challenges: &ChallengeArray<F, { Self::NUM_INDEPENDENT_RELATIONS }>,
         linear_terms: &mut CoefficientArray<F>,
         i: usize,
     ) -> F {
@@ -74,7 +74,7 @@ where
     pub fn update_kate_opening_scalars(
         linear_terms: &CoefficientArray<F>,
         scalars: &mut HashMap<String, F>,
-        challenges: &ChallengeArray<F, Self::NUM_INDEPENDENT_RELATIONS>,
+        challenges: &ChallengeArray<F, { Self::NUM_INDEPENDENT_RELATIONS }>,
     ) {
         // ...
     }
