@@ -1,6 +1,6 @@
 use super::*;
 
-impl<Fr: Field, H: HasherType, S: SettingsBase<H>> Verifier<Fr, H, S> {
+impl<Fr: Field, H: BarretenHasher, S: Settings<H>> Verifier<Fr, H, S> {
     pub fn generate_verifier(circuit_proving_key: Arc<ProvingKey<Fr>>) -> Self {
         let mut poly_coefficients = [None; 8];
         poly_coefficients[0] = circuit_proving_key
@@ -371,21 +371,9 @@ fn generate_test_data(n: usize) -> Prover<Fr, StandardSettings> {
     let mut sigma_2 = Polynomial::new(key.circuit_size);
     let mut sigma_3 = Polynomial::new(key.circuit_size);
 
-    plonk::compute_permutation_lagrange_base_single(
-        &mut sigma_1,
-        &sigma_1_mapping,
-        &key.small_domain,
-    );
-    plonk::compute_permutation_lagrange_base_single(
-        &mut sigma_2,
-        &sigma_2_mapping,
-        &key.small_domain,
-    );
-    plonk::compute_permutation_lagrange_base_single(
-        &mut sigma_3,
-        &sigma_3_mapping,
-        &key.small_domain,
-    );
+    compute_permutation_lagrange_base_single(&mut sigma_1, &sigma_1_mapping, &key.small_domain);
+    compute_permutation_lagrange_base_single(&mut sigma_2, &sigma_2_mapping, &key.small_domain);
+    compute_permutation_lagrange_base_single(&mut sigma_3, &sigma_3_mapping, &key.small_domain);
 
     let sigma_1_lagrange_base = Polynomial::new_from(sigma_1, key.circuit_size);
     let sigma_2_lagrange_base = Polynomial::new_from(sigma_2, key.circuit_size);
@@ -494,8 +482,6 @@ use crate::{
     polynomials::Polynomial,
     transcript::Transcript,
 };
-
-use super::*;
 
 #[test]
 fn verify_arithmetic_proof_small() {

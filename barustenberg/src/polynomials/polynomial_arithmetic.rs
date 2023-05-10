@@ -450,7 +450,7 @@ pub mod polynomial_arithmetic {
             for s in 0..4 {
                 for j in 0..4 {
                     index = i + j * n;
-                    root_index = (index * (s + 1));
+                    root_index = index * (s + 1);
                     if is_coset {
                         root_index -= 4 * i;
                     }
