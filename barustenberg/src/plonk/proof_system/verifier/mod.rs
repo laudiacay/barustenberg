@@ -13,10 +13,7 @@
 // use crate::barretenberg::scalar_multiplication;
 
 use crate::{
-    ecc::{
-        curves::bn254::g1::{G1Affine, G1},
-        fields::field::Field,
-    },
+    ecc::{curves::bn254::g1::G1Affine, fields::field::Field},
     transcript::{BarretenHasher, Manifest},
 };
 

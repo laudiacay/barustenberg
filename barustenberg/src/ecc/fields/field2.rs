@@ -28,6 +28,7 @@ pub trait Field2<BaseField: Field, Params: Field2Params<BaseField>> {
     fn new() -> Self {
         Self::zero()
     }
+    fn new_from_elems(c0: BaseField, c1: BaseField) -> Self;
 
     fn twist_coeff_b() -> Self;
     fn twist_mul_by_q_x() -> Self;
