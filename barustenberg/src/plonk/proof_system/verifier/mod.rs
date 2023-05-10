@@ -12,10 +12,8 @@
 // use crate::barretenberg::polynomials::polynomial_arithmetic;
 // use crate::barretenberg::scalar_multiplication;
 
-use ark_bn254::G1Affine;
-
 use crate::{
-    ecc::Field,
+    ecc::{curves::bn254::g1::G1, fields::field::Field},
     transcript::{BarretenHasher, Manifest},
 };
 
@@ -53,9 +51,9 @@ pub struct Verifier<Fr: Field, H: BarretenHasher, PS: Settings<H>> {
     settings: PS,
     key: Option<Arc<VerificationKey>>,
     manifest: Manifest,
-    kate_g1_elements: HashMap<String, G1Affine>,
+    kate_g1_elements: HashMap<String, G1::Affine>,
     kate_fr_elements: HashMap<String, Fr>,
-    commitment_scheme: Box<dyn CommitmentScheme<Fr, G1Affine, H>>,
+    commitment_scheme: Box<dyn CommitmentScheme<Fr, G1::Affine, H>>,
 }
 
 impl<Fr: Field, H: BarretenHasher, PS: Settings<H>> VerifierBase<H, PS> for Verifier<Fr, H, PS> {

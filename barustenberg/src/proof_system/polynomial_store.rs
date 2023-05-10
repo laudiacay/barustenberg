@@ -1,4 +1,4 @@
-use crate::{ecc::Field, polynomials::Polynomial};
+use crate::{ecc::fields::field::Field, polynomials::Polynomial};
 use anyhow::{anyhow, Result};
 use std::{
     collections::HashMap,

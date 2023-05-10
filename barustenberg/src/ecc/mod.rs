@@ -1,27 +1,29 @@
+use self::{curves::bn254::g1::G1, fields::field::Field};
+
 // TODO todo - stubs to get the compiler to cooperate.
 pub(crate) mod curves;
 pub(crate) mod fields;
 pub(crate) mod groups;
 
-pub trait FieldElement {
-    type SizeInBytes: typenum::Unsigned; // do a typenum here
-}
+// pub trait FieldElement {
+//     type SizeInBytes: typenum::Unsigned; // do a typenum here
+// }
 
-pub trait Field {
-    type Element: FieldElement;
-}
+// pub trait Field {
+//     type Element: FieldElement;
+// }
 
-trait GroupElement {
-    type SizeInBytes: typenum::Unsigned; // do a typenum here
-}
+// trait GroupElement {
+//     type SizeInBytes: typenum::Unsigned; // do a typenum here
+// }
 
-pub trait Group {
-    type Element: GroupElement;
-}
+// pub trait Group {
+//     type Element: GroupElement;
+// }
 
-pub trait Pairing<G1: Group, G2: Group> {
-    type Output: Group;
-}
+// pub trait Pairing<G1: Group, G2: Group> {
+//     type Output: Group;
+// }
 
 pub struct Pippenger {}
 
@@ -38,7 +40,7 @@ struct MillerLines {
 }
 
 pub fn reduced_ate_pairing_batch_precomputed(
-    p_affines: &[G1Affine],
+    p_affines: &[G1::Affine],
     miller_lines: &MillerLines,
     num_points: usize,
 ) -> Fq12 {

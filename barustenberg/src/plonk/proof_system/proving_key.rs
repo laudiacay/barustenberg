@@ -4,15 +4,12 @@ use std::sync::Arc;
 use std::vec::Vec;
 
 use crate::ecc::curves::bn254::scalar_multiplication::runtime_states::PippengerRuntimeState;
+use crate::ecc::fields::field::Field;
 use crate::plonk::proof_system::constants::NUM_QUOTIENT_PARTS;
 
-use crate::ecc::Field;
-// use crate::plonk::barretenberg::scalar_multiplication::pippenger_runtime_state;
 use crate::plonk::composer::composer_base::ComposerType;
-use crate::polynomials::Polynomial;
-//use crate::plonk::PolynomialStore;
-//use crate::plonk::ProverReferenceString;
 use crate::polynomials::evaluation_domain::EvaluationDomain;
+use crate::polynomials::Polynomial;
 use crate::proof_system::polynomial_store::PolynomialStore;
 use crate::srs::reference_string::ProverReferenceString;
 

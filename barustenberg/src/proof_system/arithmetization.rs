@@ -33,7 +33,7 @@ trait Ultra: Arithmetization<NumWires = U4, NumSelectors = U11> {}
 pub mod gate_data {
     use serde::{Deserialize, Serialize};
 
-    use crate::ecc::Field;
+    use crate::ecc::fields::field::Field;
 
     struct AddTriple<Fr: Field> {
         a: u32,

@@ -36,12 +36,12 @@ impl<Fr: Field, H: BarretenHasher, S: Settings<H>> Verifier<Fr, H, S> {
             .get("sigma_3".to_owned())?
             .map(|p| p.coefficients());
 
-        let mut commitments = vec![G1Affine::default(); 8];
+        let mut commitments = vec![G1::Affine::default(); 8];
         let mut state = PippengerRuntimeState::new(circuit_proving_key.circuit_size);
 
         for i in 0..8 {
             if let Some(poly_coeffs) = &poly_coefficients[i] {
-                commitments[i] = G1Affine::from_projective(state.pippenger(
+                commitments[i] = G1::Affine::from_projective(state.pippenger(
                     poly_coeffs,
                     circuit_proving_key.reference_string.monomial_points(),
                     circuit_proving_key.circuit_size,
@@ -168,8 +168,8 @@ impl<Fr: Field, H: BarretenHasher, S: Settings<H>> Verifier<Fr, H, S> {
         );
 
         // Get PI_Z and PI_Z_OMEGA from the transcript.
-        let pi_z = G1Affine::deserialize_from_buffer(transcript.get_element("PI_Z"));
-        let pi_z_omega = G1Affine::deserialize_from_buffer(transcript.get_element("PI_Z_OMEGA"));
+        let pi_z = G1::Affine::deserialize_from_buffer(transcript.get_element("PI_Z"));
+        let pi_z_omega = G1::Affine::deserialize_from_buffer(transcript.get_element("PI_Z_OMEGA"));
 
         // Check if PI_Z and PI_Z_OMEGA are valid points.
         if !pi_z.on_curve() || pi_z.is_point_at_infinity() {
@@ -180,12 +180,12 @@ impl<Fr: Field, H: BarretenHasher, S: Settings<H>> Verifier<Fr, H, S> {
         }
 
         // get kate_g1_elements: HashMap<u64, G1Affine> and kate_fr_elements: HashMap<u64, Fr>
-        let mut kate_g1_elements: HashMap<String, G1Affine> = HashMap::new();
+        let mut kate_g1_elements: HashMap<String, G1::Affine> = HashMap::new();
         let mut kate_fr_elements: HashMap<String, Fr> = HashMap::new();
 
         // Initialize vectors for scalars and elements
         let mut scalars: Vec<Fr> = Vec::new();
-        let mut elements: Vec<G1Affine> = Vec::new();
+        let mut elements: Vec<G1::Affine> = Vec::new();
 
         // Iterate through the kate_g1_elements and accumulate scalars and elements
         for (key, element) in &kate_g1_elements {
@@ -199,7 +199,7 @@ impl<Fr: Field, H: BarretenHasher, S: Settings<H>> Verifier<Fr, H, S> {
 
         // Resize elements vector to make room for Pippenger point table
         let n = elements.len();
-        elements.resize(2 * n, G1Affine::zero());
+        elements.resize(2 * n, G1::Affine::zero());
 
         // Generate Pippenger point table
         generate_pippenger_point_table(&mut elements[..]);
@@ -271,7 +271,7 @@ impl<Fr: Field, H: BarretenHasher, S: Settings<H>> Verifier<Fr, H, S> {
         }
 
         // Normalize P[0] and P[1]
-        let p_affine = [G1Affine::from(p0), G1Affine::from(p1)];
+        let p_affine = [G1::Affine::from(p0), G1::Affine::from(p1)];
 
         // Perform final pairing check
         let result = reduced_ate_pairing_batch_precomputed(
@@ -287,7 +287,7 @@ impl<Fr: Field, H: BarretenHasher, S: Settings<H>> Verifier<Fr, H, S> {
     }
 }
 
-fn generate_test_data(n: usize) -> Prover<Fr, StandardSettings> {
+fn generate_test_data<'a>(n: usize) -> Prover<'a, Fr, StandardSettings> {
     // create some constraints that satisfy our arithmetic circuit relation
     let crs = Rc::new(FileReferenceString::new(n + 1, "../srs_db/ignition"));
     let key = Rc::new(ProvingKey::new(n, 0, crs, ComposerType::Standard));
@@ -458,13 +458,16 @@ fn generate_test_data(n: usize) -> Prover<Fr, StandardSettings> {
 
 use std::rc::Rc;
 
-use ark_bn254::{Fq12, Fr, G1Projective};
-
 use crate::{
     ecc::{
-        curves::bn254::scalar_multiplication::{
-            runtime_states::PippengerRuntimeState,
-            scalar_multiplication::generate_pippenger_point_table,
+        curves::bn254::{
+            fq::Fq,
+            fr::Fr,
+            g1::G1,
+            scalar_multiplication::{
+                runtime_states::PippengerRuntimeState,
+                scalar_multiplication::generate_pippenger_point_table,
+            },
         },
         reduced_ate_pairing_batch_precomputed,
     },

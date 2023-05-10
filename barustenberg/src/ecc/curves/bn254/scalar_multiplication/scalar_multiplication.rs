@@ -1,3 +1,5 @@
+use crate::ecc::curves::bn254::{fq::Fq, fr::Fr, g1::G1};
+
 use super::runtime_states::{
     get_optimal_bucket_width, AffineProductRuntimeState, PippengerRuntimeState,
 };
@@ -88,8 +90,8 @@ fn compute_wnaf_states(
 }
 
 pub fn generate_pippenger_point_table(
-    points: &[G1Affine],
-    table: &mut [G1Affine],
+    points: &[G1::Affine],
+    table: &mut [G1::Affine],
     num_points: usize,
 ) {
     todo!("generate_pippenger_point_table")
@@ -115,7 +117,7 @@ fn count_bits(bucket_counts: &[u32], bit_offsets: &mut [u32], num_buckets: usize
      */
 }
 
-fn add_affine_points(points: &mut [G1Affine], num_points: usize, scratch_space: &mut [Fq]) {
+fn add_affine_points(points: &mut [G1::Affine], num_points: usize, scratch_space: &mut [Fq]) {
     todo!("add_affine_points")
 }
 
@@ -132,7 +134,7 @@ impl AffineProductRuntimeState {
         &mut self,
         first_round: Option<bool>,
         handle_edge_cases: Option<bool>,
-    ) -> Vec<G1Affine> {
+    ) -> Vec<G1::Affine> {
         let first_round = first_round.unwrap_or(true);
         let handle_edge_cases = handle_edge_cases.unwrap_or(false);
         todo!("reduce_buckets")
@@ -151,7 +153,7 @@ impl AffineProductRuntimeState {
 impl PippengerRuntimeState {
     fn pippenger_internal(
         &mut self,
-        points: &mut [G1Affine],
+        points: &mut [G1::Affine],
         scalars: &[Fr],
         num_initial_points: usize,
         handle_edge_cases: bool,
@@ -161,7 +163,7 @@ impl PippengerRuntimeState {
 
     fn evaluate_pippenger_rounds(
         &mut self,
-        points: &mut [G1Affine],
+        points: &mut [G1::Affine],
         num_points: usize,
         handle_edge_cases: Option<bool>,
     ) -> G1 {
@@ -171,7 +173,7 @@ impl PippengerRuntimeState {
     pub fn pippenger(
         &mut self,
         scalars: &[Fr],
-        points: &mut [G1Affine],
+        points: &mut [G1::Affine],
         num_points: usize,
         handle_edge_cases: Option<bool>,
     ) -> G1 {
@@ -182,7 +184,7 @@ impl PippengerRuntimeState {
     fn pippenger_unsafe(
         &mut self,
         scalars: &[Fr],
-        points: &mut [G1Affine],
+        points: &mut [G1::Affine],
         num_initial_points: usize,
     ) -> G1 {
         todo!("pippenger_unsafe")
@@ -191,7 +193,7 @@ impl PippengerRuntimeState {
     fn pippenger_without_endomorphism_basis_points(
         &mut self,
         scalars: &[Fr],
-        points: &mut [G1Affine],
+        points: &mut [G1::Affine],
         num_initial_points: usize,
     ) -> G1 {
         todo!("pippenger_without_endomorphism_basis_points")

@@ -1,9 +1,8 @@
 pub mod polynomial_arithmetic {
-    use ark_bn254::Fr;
     use lazy_static::lazy_static;
     use std::sync::Mutex;
 
-    use crate::numeric::bitop::Msb; // NOTE: This might not be the right Fr, need to check vs gumpkin
+    use crate::{ecc::curves::bn254::fr::Fr, numeric::bitop::Msb}; // NOTE: This might not be the right Fr, need to check vs gumpkin
     struct ScratchSpace<T> {
         working_memory: Mutex<Option<Vec<T>>>,
     }

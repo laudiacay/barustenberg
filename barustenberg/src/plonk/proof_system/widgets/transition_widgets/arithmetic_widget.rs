@@ -5,7 +5,7 @@ use crate::{
             ChallengeArray, CoefficientArray,
         },
     },
-    transcript::{BarretenHasher, Transcript},
+    transcript::{BarretenHasher, Transcript}, ecc::{curves::bn254::fr::Fr, fields::field::Field},
 };
 use std::{
     collections::{HashMap, HashSet},
@@ -31,11 +31,11 @@ pub struct ArithmeticKernel<
     phantom: PhantomData<(Field, Getters, PolyContainer)>,
 }
 
-impl<H: BarretenHasher, Field, Getters, PolyContainer>
-    ArithmeticKernel<H, Field, Getters, PolyContainer, 1>
+impl<H: BarretenHasher, F, Getters, PolyContainer>
+    ArithmeticKernel<H, F, Getters, PolyContainer, 1>
 where
-    Field: ark_ff::Field,
-    Getters: BaseGetter<Field, PolyContainer>,
+    F: Field,
+    Getters: BaseGetter<F, PolyContainer>,
 {
     pub const QUOTIENT_REQUIRED_CHALLENGES: u8 = CHALLENGE_BIT_ALPHA;
     pub const UPDATE_REQUIRED_CHALLENGES: u8 = CHALLENGE_BIT_ALPHA;
@@ -46,8 +46,8 @@ where
 
     pub fn compute_linear_terms(
         polynomials: &PolyContainer,
-        challenges: &ChallengeArray<Field, Self::NUM_INDEPENDENT_RELATIONS>,
-        linear_terms: &mut CoefficientArray<Field>,
+        challenges: &ChallengeArray<F, Self::NUM_INDEPENDENT_RELATIONS>,
+        linear_terms: &mut CoefficientArray<F>,
         i: usize,
     ) {
         // ...
@@ -55,8 +55,8 @@ where
 
     pub fn compute_non_linear_terms(
         polynomials: &PolyContainer,
-        challenges: &ChallengeArray<Field, Self::NUM_INDEPENDENT_RELATIONS>,
-        field: &mut Field,
+        challenges: &ChallengeArray<F, Self::NUM_INDEPENDENT_RELATIONS>,
+        field: &mut F,
         i: usize,
     ) {
         // ...
@@ -64,24 +64,24 @@ where
 
     pub fn sum_linear_terms(
         polynomials: &PolyContainer,
-        challenges: &ChallengeArray<Field, Self::NUM_INDEPENDENT_RELATIONS>,
-        linear_terms: &mut CoefficientArray<Field>,
+        challenges: &ChallengeArray<F, Self::NUM_INDEPENDENT_RELATIONS>,
+        linear_terms: &mut CoefficientArray<F>,
         i: usize,
-    ) -> Field {
+    ) -> F {
         // ...
     }
 
     pub fn update_kate_opening_scalars(
-        linear_terms: &CoefficientArray<Field>,
-        scalars: &mut HashMap<String, Field>,
-        challenges: &ChallengeArray<Field, Self::NUM_INDEPENDENT_RELATIONS>,
+        linear_terms: &CoefficientArray<F>,
+        scalars: &mut HashMap<String, F>,
+        challenges: &ChallengeArray<F, Self::NUM_INDEPENDENT_RELATIONS>,
     ) {
         // ...
     }
 }
 
 pub type ProverArithmeticWidget<Settings> =
-    TransitionWidget<ark_bn254::Fr, Settings, ArithmeticKernel>;
+    TransitionWidget<Fr, Settings, ArithmeticKernel>;
 
-pub type VerifierArithmeticWidget<Field, Group, Transcript, Settings> =
-    GenericVerifierWidget<Field, Transcript, Settings, ArithmeticKernel>;
+pub type VerifierArithmeticWidget<F, Group, Transcript, Settings> =
+    GenericVerifierWidget<F, Transcript, Settings, ArithmeticKernel>;

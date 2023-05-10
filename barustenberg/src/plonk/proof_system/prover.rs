@@ -1,7 +1,5 @@
 use std::sync::Arc;
 
-use ark_bn254::G1Affine;
-
 use super::{
     commitment_scheme::CommitmentScheme,
     proving_key::ProvingKey,
@@ -13,7 +11,7 @@ use super::{
 };
 
 use crate::{
-    ecc::Field,
+    ecc::{curves::bn254::g1::G1, fields::field::Field},
     proof_system::work_queue,
     transcript::{BarretenHasher, Manifest, Transcript},
 };
@@ -29,7 +27,7 @@ pub struct Prover<'a, Fr: Field, H: BarretenHasher, S: Settings<H>> {
     pub queue: WorkQueue<Fr>,
     pub random_widgets: Vec<dyn ProverRandomWidget<H, Fr>>,
     pub transition_widgets: Vec<TransitionWidgetBase<Fr>>,
-    pub commitment_scheme: dyn CommitmentScheme<Fr, G1Affine, H>,
+    pub commitment_scheme: dyn CommitmentScheme<Fr, G1::Affine, H>,
 }
 
 impl<Fr: Field, H: BarretenHasher, S: Settings<H>> Prover<'_, Fr, H, S> {
@@ -721,7 +719,7 @@ impl<Fr: Field, H: BarretenHasher, S: Settings<H>> Prover<'_, Fr, H, S> {
     fn get_fft_data(&self, work_item_number: usize) -> &work_queue::QueuedFftInputs<Fr> {
         self.get_queue().get_fft_data(work_item_number)
     }
-    fn put_scalar_multiplication_data(&self, result: G1Affine, work_item_number: usize) {
+    fn put_scalar_multiplication_data(&self, result: G1::Affine, work_item_number: usize) {
         self.get_queue()
             .put_scalar_multiplication_data(result, work_item_number);
     }

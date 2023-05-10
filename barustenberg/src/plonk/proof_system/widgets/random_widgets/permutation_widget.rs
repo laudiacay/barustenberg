@@ -1,5 +1,4 @@
-use crate::ecc::Field;
-
+use crate::ecc::fields::field::Field;
 use crate::plonk::proof_system::proving_key::ProvingKey;
 use crate::plonk::proof_system::widgets::random_widgets::random_widget::ProverRandomWidget;
 use crate::proof_system::work_queue::WorkQueue;

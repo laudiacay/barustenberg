@@ -1,9 +1,9 @@
 use crate::{
+    ecc::fields::field::Field,
     plonk::proof_system::proving_key::ProvingKey,
     proof_system::work_queue::WorkQueue,
     transcript::{BarretenHasher, Transcript},
 };
-use ark_ff::Field;
 
 pub trait ProverRandomWidget<H: BarretenHasher, Fr: Field> {
     fn new(input_key: &ProvingKey<Fr>) -> Self;

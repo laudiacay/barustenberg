@@ -1,6 +1,7 @@
-use ark_bn254::Fr;
-
-use crate::{ecc::Field, numeric::bitop::Msb};
+use crate::{
+    ecc::{curves::bn254::fr::Fr, fields::field::Field},
+    numeric::bitop::Msb,
+};
 use std::vec::Vec;
 
 pub const MIN_GROUP_PER_THREAD: usize = 4;

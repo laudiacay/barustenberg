@@ -1,7 +1,5 @@
 use std::sync::Arc;
 
-use ark_bn254::{G1Affine, G2Affine};
-
 // TODO do this later properly
 pub struct MillerLines {}
 

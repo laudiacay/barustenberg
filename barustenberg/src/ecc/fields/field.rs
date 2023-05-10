@@ -8,8 +8,47 @@ use std::{
 use primitive_types::U256;
 use serde::{Deserialize, Serialize};
 
+pub trait FieldParams {
+    const modus_0: u64;
+    const modus_1: u64;
+    const modus_2: u64;
+    const modus_3: u64;
+
+    const r_squared_0: u64;
+    const r_squared_1: u64;
+    const r_squared_2: u64;
+    const r_squared_3: u64;
+
+    const cube_root_0: u64;
+    const cube_root_1: u64;
+    const cube_root_2: u64;
+    const cube_root_3: u64;
+
+    const primitive_root_0: u64;
+    const primitive_root_1: u64;
+    const primitive_root_2: u64;
+    const primitive_root_3: u64;
+
+    const endo_g1_lo: u64;
+    const endo_g1_mid: u64;
+    const endo_g1_hi: u64;
+    const endo_g2_lo: u64;
+    const endo_g2_mid: u64;
+    const endo_minus_b1_lo: u64;
+    const endo_minus_b1_mid: u64;
+    const endo_b2_lo: u64;
+    const endo_b2_mid: u64;
+
+    const r_inv: u64;
+
+    const coset_generators_0: [u64; 8];
+    const coset_generators_1: [u64; 8];
+    const coset_generators_2: [u64; 8];
+    const coset_generators_3: [u64; 8];
+}
+
 #[derive(Copy, Serialize, Deserialize)]
-pub struct FieldImpl<Params> {
+pub struct FieldImpl<Params: FieldParams> {
     data: [u64; 4],
     phantom: PhantomData<Params>,
 }
@@ -127,13 +166,13 @@ pub fn square_accumulate(
     todo!()
 }
 
-pub trait Field<Params> {
+pub trait Field {
     #[cfg(all(features = "SIZEOFINT128", not(features = "WASM")))]
     const LO_MASK: u128 = 0xffffffffffffffff;
 
     fn new() -> Self;
-    fn from_u256(params: Params, input: U256) -> Self;
-    fn from_u64(params: Params, input: u64) -> Self;
+    fn from_u256(input: U256) -> Self;
+    fn from_u64(input: u64) -> Self;
     fn from_i64(input: i64) -> Self;
     fn from_parts(a: u64, b: u64, c: u64, d: u64) -> Self;
 
@@ -141,29 +180,9 @@ pub trait Field<Params> {
     fn as_u64(&self) -> u64;
     fn as_u128(&self) -> u128;
     fn as_u256(&self) -> U256;
+    const MODULUS: U256;
 
-    const MODULUS: U256 = U256::from_parts(
-        Params::MODULUS_0,
-        Params::MODULUS_1,
-        Params::MODULUS_2,
-        Params::MODULUS_3,
-    );
-
-    fn cube_root_of_unity() -> Self {
-        if Params::CUBE_ROOT_0 != 0 {
-            Self::from_parts(
-                Params::CUBE_ROOT_0,
-                Params::CUBE_ROOT_1,
-                Params::CUBE_ROOT_2,
-                Params::CUBE_ROOT_3,
-            )
-        } else {
-            let two_inv = Field::from_i64(2).invert();
-            let numerator = -Field::from_i64(3).sqrt() - Field::from_i64(1);
-            let result = two_inv * numerator;
-            result
-        }
-    }
+    fn cube_root_of_unity() -> Self;
 
     fn zero() -> Self {
         Self::from_parts(0, 0, 0, 0)
@@ -177,54 +196,12 @@ pub trait Field<Params> {
         Self::from_i64(1)
     }
 
-    fn external_coset_generator() -> Self {
-        Self::from_parts(
-            Params::COSET_GENERATORS_0[7],
-            Params::COSET_GENERATORS_1[7],
-            Params::COSET_GENERATORS_2[7],
-            Params::COSET_GENERATORS_3[7],
-        )
-    }
+    fn external_coset_generator() -> Self;
+    fn tag_coset_generator() -> Self;
 
-    fn tag_coset_generator() -> Self {
-        Self::from_parts(
-            Params::COSET_GENERATORS_0[6],
-            Params::COSET_GENERATORS_1[6],
-            Params::COSET_GENERATORS_2[6],
-            Params::COSET_GENERATORS_3[6],
-        )
-    }
+    fn coset_generator(idx: usize) -> Self;
 
-    fn coset_generator(idx: usize) -> Self {
-        assert!(idx < 7);
-        Self::from_parts(
-            Params::COSET_GENERATORS_0[idx],
-            Params::COSET_GENERATORS_1[idx],
-            Params::COSET_GENERATORS_2[idx],
-            Params::COSET_GENERATORS_3[idx],
-        )
-    }
-
-    fn to_montgomery_form(&self) -> Self {
-        let r_squared = Self::from_parts(
-            Params::r_squared_0,
-            Params::r_squared_1,
-            Params::r_squared_2,
-            Params::r_squared_3,
-        );
-
-        let mut result = self;
-        // TODO: are these reductions needed?
-        // Rationale: We want to take any 256-bit input and be able to convert into montgomery form.
-        // A basic heuristic we use is that any input into the `*` operator must be between [0, 2p - 1]
-        // to prevent overflows in the asm algorithm.
-        // However... r_squared is already reduced so perhaps we can relax this requirement?
-        // (would be good to identify a failure case where not calling self_reduce triggers an error)
-        result.self_reduce_once();
-        result.self_reduce_once();
-        result.self_reduce_once();
-        return (result * r_squared).reduce_once();
-    }
+    fn to_montgomery_form(&self) -> Self;
 
     fn from_montgomery_form(&self) -> Self {
         // constexpr field one_raw{ 1, 0, 0, 0 };
@@ -247,12 +224,7 @@ pub trait Field<Params> {
         todo!("implement pow_64")
     }
     // TODO BUG is this little_endian rep correct?
-    const modulus_minus_two: U256 = U256::from_little_endian(&[
-        Params::modulus_0 - 2u64,
-        Params::modulus_1,
-        Params::modulus_2,
-        Params::modulus_3,
-    ]);
+    const modulus_minus_two: U256;
 
     fn invert(&self) -> Self {
         todo!();
@@ -511,7 +483,7 @@ pub trait Field<Params> {
 }
 
 // TODO maybe these params should be trait object/phantoms
-impl<Params> Field<Params> for FieldImpl<Params> {
+impl<Params> Field for FieldImpl<Params> {
     #[cfg(all(features = "SIZEOFINT128", not(features = "WASM")))]
     const LO_MASK: u128 = 0xffffffffffffffff;
 
@@ -605,6 +577,55 @@ impl<Params> Field<Params> for FieldImpl<Params> {
         Params::MODULUS_2,
         Params::MODULUS_3,
     );
+
+    fn external_coset_generator() -> Self {
+        Self::from_parts(
+            Params::COSET_GENERATORS_0[7],
+            Params::COSET_GENERATORS_1[7],
+            Params::COSET_GENERATORS_2[7],
+            Params::COSET_GENERATORS_3[7],
+        )
+    }
+
+    fn tag_coset_generator() -> Self {
+        Self::from_parts(
+            Params::COSET_GENERATORS_0[6],
+            Params::COSET_GENERATORS_1[6],
+            Params::COSET_GENERATORS_2[6],
+            Params::COSET_GENERATORS_3[6],
+        )
+    }
+
+    fn coset_generator(idx: usize) -> Self {
+        assert!(idx < 7);
+        Self::from_parts(
+            Params::COSET_GENERATORS_0[idx],
+            Params::COSET_GENERATORS_1[idx],
+            Params::COSET_GENERATORS_2[idx],
+            Params::COSET_GENERATORS_3[idx],
+        )
+    }
+
+    fn to_montgomery_form(&self) -> Self {
+        let r_squared = Self::from_parts(
+            Params::r_squared_0,
+            Params::r_squared_1,
+            Params::r_squared_2,
+            Params::r_squared_3,
+        );
+
+        let mut result = self;
+        // TODO: are these reductions needed?
+        // Rationale: We want to take any 256-bit input and be able to convert into montgomery form.
+        // A basic heuristic we use is that any input into the `*` operator must be between [0, 2p - 1]
+        // to prevent overflows in the asm algorithm.
+        // However... r_squared is already reduced so perhaps we can relax this requirement?
+        // (would be good to identify a failure case where not calling self_reduce triggers an error)
+        result.self_reduce_once();
+        result.self_reduce_once();
+        result.self_reduce_once();
+        return (result * r_squared).reduce_once();
+    }
 
     fn sqr(&self) -> Self {
         todo!("implement sqr")
@@ -716,7 +737,21 @@ impl<Params> Field<Params> for FieldImpl<Params> {
             *self
         }
     }
-
+    fn cube_root_of_unity() -> Self {
+        if Params::CUBE_ROOT_0 != 0 {
+            Self::from_parts(
+                Params::CUBE_ROOT_0,
+                Params::CUBE_ROOT_1,
+                Params::CUBE_ROOT_2,
+                Params::CUBE_ROOT_3,
+            )
+        } else {
+            let two_inv = Field::from_i64(2).invert();
+            let numerator = -Field::from_i64(3).sqrt() - Field::from_i64(1);
+            let result = two_inv * numerator;
+            result
+        }
+    }
     /**
      * For short Weierstrass curves y^2 = x^3 + b mod r, if there exists a cube root of unity mod r,
      * we can take advantage of an enodmorphism to decompose a 254 bit scalar into 2 128 bit scalars.

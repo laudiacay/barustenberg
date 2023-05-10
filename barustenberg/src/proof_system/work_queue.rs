@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use crate::ecc::Field;
+use crate::ecc::fields::field::Field;
 use crate::plonk::proof_system::proving_key::ProvingKey;
 use crate::transcript::Transcript;
 
