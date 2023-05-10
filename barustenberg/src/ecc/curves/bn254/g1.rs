@@ -28,3 +28,4 @@ struct Bn254G1ParamsImpl {}
 impl Bn254G1Params for Bn254G1ParamsImpl {}
 
 pub type G1 = GroupImpl<Fq, Fr, Bn254G1ParamsImpl>;
+pub type G1Affine = <G1 as Group<Fq, Fr, Bn254G1ParamsImpl>>::Affine;

@@ -1,5 +1,5 @@
 use crate::ecc::{
-    curves::bn254::{fq::Fq, g1::G1},
+    curves::bn254::{fq::Fq, g1::G1Affine},
     groups::wnaf::WNAF_SIZE,
 };
 
@@ -58,9 +58,9 @@ fn get_num_rounds(num_points: usize) -> usize {
 
 #[derive(Copy, Eq)]
 pub struct AffineProductRuntimeState {
-    points: Vec<G1::Affine>,
-    point_pairs_1: Vec<G1::Affine>,
-    point_pairs_2: Vec<G1::Affine>,
+    points: Vec<G1Affine>,
+    point_pairs_1: Vec<G1Affine>,
+    point_pairs_2: Vec<G1Affine>,
     scratch_space: Vec<Fq>,
     bucket_counts: Vec<u32>,
     bit_offsets: Vec<u32>,
@@ -74,8 +74,8 @@ pub struct AffineProductRuntimeState {
 pub struct PippengerRuntimeState {
     point_schedule: Vec<u64>,
     skew_table: Vec<bool>,
-    point_pairs_1: Vec<G1::Affine>,
-    point_pairs_2: Vec<G1::Affine>,
+    point_pairs_1: Vec<G1Affine>,
+    point_pairs_2: Vec<G1Affine>,
     scratch_space: Vec<Fq>,
     bucket_counts: Vec<u32>,
     bit_counts: Vec<u32>,

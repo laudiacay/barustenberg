@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::ecc::curves::bn254::fr::Fr;
-use crate::ecc::curves::bn254::g1::G1;
+use crate::ecc::curves::bn254::g1::{G1, G1Affine};
 use crate::ecc::fields::field::Field;
 use crate::proof_system::work_queue::WorkQueue;
 use crate::transcript::{BarretenHasher, Transcript};
@@ -64,7 +64,7 @@ pub(crate) struct KateCommitmentScheme<H: BarretenHasher, S: Settings<H>> {
     kate_open_proof: CommitmentOpenProof,
 }
 
-impl<H: BarretenHasher, S: Settings<H>> CommitmentScheme<Fr, G1::Affine, H>
+impl<H: BarretenHasher, S: Settings<H>> CommitmentScheme<Fr, G1Affine, H>
     for KateCommitmentScheme<H, S>
 {
     fn commit(
@@ -118,7 +118,7 @@ impl<H: BarretenHasher, S: Settings<H>> CommitmentScheme<Fr, G1::Affine, H>
     fn batch_verify(
         &self,
         transcript: &Transcript<H>,
-        kate_g1_elements: &mut HashMap<String, G1::Affine>,
+        kate_g1_elements: &mut HashMap<String, G1Affine>,
         kate_fr_elements: &mut HashMap<String, Fr>,
         input_key: Option<Arc<VerificationKey>>,
     ) {

@@ -22,6 +22,8 @@ pub trait GroupParams<Fq: Field> {
 
 pub trait Group<CoordinateField: Field, SubgroupField: Field, Params: GroupParams<CoordinateField>>
 {
+    type Affine: AffineElement<CoordinateField, SubgroupField, Params>;
+
     // coordinate_field: CoordinateField,
     // subgroup_field: SubgroupField,
     // element: element::Element<CoordinateField, SubgroupField, GroupParams>,
@@ -53,19 +55,20 @@ pub trait Group<CoordinateField: Field, SubgroupField: Field, Params: GroupParam
     ) {
         // Implement conditional_negate_affine logic here
     }
-    const one: Element<CoordinateField, SubgroupField, Params> = ElementImpl {
+    const one: dyn Element<CoordinateField, SubgroupField, Params> = ElementImpl {
         x: GroupParams::one_x,
         y: GroupParams::one_y,
         z: CoordinateField::one(),
     };
 
-    const point_at_infinity: Element<CoordinateField, SubgroupField, Params> =
+    const point_at_infinity: dyn Element<CoordinateField, SubgroupField, Params> =
         Self::one.set_infinity();
 
-    const affine_one: AffineElementImpl = AffineElementImpl {
-        x: GroupParams::one_x,
-        y: GroupParams::one_y,
-    };
+    const affine_one: dyn AffineElement<CoordinateField, SubgroupField, Params> =
+        AffineElementImpl {
+            x: GroupParams::one_x,
+            y: GroupParams::one_y,
+        };
 
     const affine_point_at_infinity: AffineElementImpl<CoordinateField, SubgroupField, Params> =
         Self::affine_one.set_infinity();

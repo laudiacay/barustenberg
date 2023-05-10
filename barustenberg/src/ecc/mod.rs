@@ -1,4 +1,4 @@
-use self::{curves::bn254::g1::G1, fields::field::Field};
+use self::{curves::bn254::g1::{G1, G1Affine}, fields::field::Field};
 
 // TODO todo - stubs to get the compiler to cooperate.
 pub(crate) mod curves;
@@ -40,7 +40,7 @@ struct MillerLines {
 }
 
 pub fn reduced_ate_pairing_batch_precomputed(
-    p_affines: &[G1::Affine],
+    p_affines: &[G1Affine],
     miller_lines: &MillerLines,
     num_points: usize,
 ) -> Fq12 {

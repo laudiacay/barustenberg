@@ -1,5 +1,7 @@
 use std::sync::Arc;
 
+use crate::ecc::curves::bn254::{g1::G1, g2::G2};
+
 // TODO do this later properly
 pub struct MillerLines {}
 
@@ -9,7 +11,7 @@ pub trait VerifierReferenceString {
 }
 
 pub trait ProverReferenceString {
-    fn get_monomial_points(&mut self) -> &mut G1::Affine;
+    fn get_monomial_points(&mut self) -> &mut G1Affine;
     fn get_monomial_size(&self) -> usize;
 }
 pub trait ReferenceStringFactory {
