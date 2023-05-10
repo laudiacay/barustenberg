@@ -17,9 +17,10 @@ pub mod transcript;
 // logging!
 // tests!
 // docstrings!
-// fields: arkworks?
 // perf
 // why are things pub/not pub/pub(crate)? do things sensibly.
+// claudia you cannot be hippity hopping through the vtable like this remove these dyns
+// macros and consts and inlining for maxfast
 
 /// Test utilities.
 #[cfg(any(test, feature = "test_utils"))]

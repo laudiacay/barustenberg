@@ -30,20 +30,20 @@ where
     }
 
     pub fn compute_quotient_evaluation_contribution(
-        key: &Arc<Transcript::Key>,
-        alpha_base: Field,
+        key: &Arc<Transcript<H>::Key>,
+        alpha_base: F,
         transcript: &Transcript<H>,
-        quotient_numerator_eval: &mut Field,
+        quotient_numerator_eval: &mut F,
         idpolys: bool,
-    ) -> Field {
+    ) -> F {
         // ...
     }
 
     pub fn append_scalar_multiplication_inputs(
-        key: &Arc<Transcript::Key>,
-        alpha_base: Field,
+        key: &Arc<Transcript<H>::Key>,
+        alpha_base: F,
         transcript: &Transcript<H>,
-    ) -> Field {
+    ) -> F {
         // ...
     }
 }

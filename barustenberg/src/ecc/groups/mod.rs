@@ -29,12 +29,7 @@ pub trait Group<CoordinateField: Field, SubgroupField: Field, Params: GroupParam
     // fr: SubgroupField,
     // Affine = AffineElementImpl<CoordinateField, SubgroupField, GroupParams>;
     fn derive_generators<const N: usize>(
-    ) -> [AffineElement<CoordinateField, SubgroupField, Params>; N]
-    where
-        CoordinateField: Default + Clone + PartialEq,
-        SubgroupField: Default + Clone + PartialEq,
-        GroupParams: Default + Clone,
-    {
+    ) -> [dyn AffineElement<CoordinateField, SubgroupField, Params>; N] {
         let mut generators = [AffineElement::default(); N];
         let mut count = 0;
         let mut seed = 0;
@@ -52,19 +47,19 @@ pub trait Group<CoordinateField: Field, SubgroupField: Field, Params: GroupParam
     }
 
     fn conditional_negate_affine(
-        src: &AffineElement<CoordinateField, SubgroupField, GroupParams>,
-        dest: &mut AffineElement<CoordinateField, SubgroupField, GroupParams>,
+        src: &dyn AffineElement<CoordinateField, SubgroupField, Params>,
+        dest: &mut dyn AffineElement<CoordinateField, SubgroupField, Params>,
         predicate: u64,
     ) {
         // Implement conditional_negate_affine logic here
     }
-    const one: Element<CoordinateField, SubgroupField, GroupParams> = ElementImpl {
+    const one: Element<CoordinateField, SubgroupField, Params> = ElementImpl {
         x: GroupParams::one_x,
         y: GroupParams::one_y,
         z: CoordinateField::one(),
     };
 
-    const point_at_infinity: Element<CoordinateField, SubgroupField, GroupParams> =
+    const point_at_infinity: Element<CoordinateField, SubgroupField, Params> =
         Self::one.set_infinity();
 
     const affine_one: AffineElementImpl = AffineElementImpl {
@@ -72,7 +67,7 @@ pub trait Group<CoordinateField: Field, SubgroupField: Field, Params: GroupParam
         y: GroupParams::one_y,
     };
 
-    const affine_point_at_infinity: AffineElementImpl<CoordinateField, SubgroupField, GroupParams> =
+    const affine_point_at_infinity: AffineElementImpl<CoordinateField, SubgroupField, Params> =
         Self::affine_one.set_infinity();
 
     const curve_a: CoordinateField = GroupParams::a;
