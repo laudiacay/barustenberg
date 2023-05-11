@@ -71,7 +71,8 @@ pub mod containers {
 /// - `Transcript`: Transcript struct
 /// - `Settings`: Configuration
 /// - `NUM_WIDGET_RELATIONS`: How many powers of α are needed
-pub trait BaseGetter<Field, Transcript, Settings, const NUM_WIDGET_RELATIONS: usize> {
+pub trait BaseGetter<H: BarretenHasher, F: Field, S: Settings<H>, const NUM_WIDGET_RELATIONS: usize>
+{
     /// Create a challenge array from transcript.
     /// Loads alpha, beta, gamma, eta, zeta, and nu and calculates powers of alpha.
     ///
@@ -83,10 +84,10 @@ pub trait BaseGetter<Field, Transcript, Settings, const NUM_WIDGET_RELATIONS: us
     /// # Returns
     /// A structure with an array of challenge values and powers of α
     fn get_challenges(
-        transcript: &Transcript,
-        alpha_base: Field,
+        transcript: &Transcript<H>,
+        alpha_base: F,
         required_challenges: u8,
-    ) -> ChallengeArray<Field, NUM_WIDGET_RELATIONS> {
+    ) -> ChallengeArray<F, NUM_WIDGET_RELATIONS> {
         let mut result = ChallengeArray::default();
         let add_challenge = |label: &str, tag: usize, required: bool, index: usize| {
             assert!(!required || transcript.has_challenge(label));
@@ -150,8 +151,8 @@ pub trait BaseGetter<Field, Transcript, Settings, const NUM_WIDGET_RELATIONS: us
 
 /// Implements loading polynomial openings from transcript in addition to BaseGetter's
 /// loading challenges from the transcript and computing powers of α
-pub trait EvaluationGetter<F, Transcript, Settings, const NUM_WIDGET_RELATIONS: usize>:
-    BaseGetter<F, Transcript, Settings, NUM_WIDGET_RELATIONS>
+pub trait EvaluationGetter<F, H: BarretenHasher, S: Settings<H>, const NUM_WIDGET_RELATIONS: usize>:
+    BaseGetter<H, F, S, NUM_WIDGET_RELATIONS>
 where
     F: Field,
 {
@@ -261,13 +262,18 @@ impl<F: Field> TransitionWidgetBase<F> {
 
     // other methods and trait implementations
 }
-pub struct TransitionWidget<F: Field, Settings, KernelBase: KernelBaseFunctions<F>> {
+pub struct TransitionWidget<
+    H: BarretenHasher,
+    F: Field,
+    S: Settings<H>,
+    KernelBase: KernelBaseFunctions<F>,
+> {
     base: TransitionWidgetBase<F>,
-    phantom: std::marker::PhantomData<Settings>,
+    phantom: std::marker::PhantomData<S>,
 }
 
-impl<H: BarretenHasher, F: Field, S: Settings<H>, KernelBase: KernelBaseFunctions<Field>>
-    TransitionWidget<F, S, KernelBase>
+impl<H: BarretenHasher, F: Field, S: Settings<H>, KernelBase: KernelBaseFunctions<F>>
+    TransitionWidget<H, F, S, KernelBase>
 {
     pub fn new(key: Option<Arc<ProvingKey<Field>>>) -> Self {
         Self {

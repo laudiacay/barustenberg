@@ -3,6 +3,8 @@ use std::collections::HashMap;
 use tracing::info;
 use typenum::{U16, U32};
 
+use crate::plonk::proof_system::verification_key::VerificationKey;
+
 pub trait BarretenHasher {
     type SecurityParameterSize: ArrayLength<u8>;
     type PrngOutputSize: ArrayLength<u8>;
@@ -143,6 +145,8 @@ impl Manifest {
 struct Challenge<T: BarretenHasher> {
     data: GenericArray<u8, T::PrngOutputSize>,
 }
+
+pub type TranscriptKey = VerificationKey;
 
 #[derive(Clone, Default)]
 pub struct Transcript<T: BarretenHasher> {

@@ -35,7 +35,7 @@ pub struct ArithmeticKernel<
 impl<H: BarretenHasher, F, Getters, PolyContainer> ArithmeticKernel<H, F, Getters, PolyContainer, 1>
 where
     F: Field,
-    Getters: BaseGetter<F, PolyContainer>,
+    Getters: BaseGetter<F, Transcript<H>, dyn Settings<H>, 1>,
 {
     pub const QUOTIENT_REQUIRED_CHALLENGES: u8 = CHALLENGE_BIT_ALPHA;
     pub const UPDATE_REQUIRED_CHALLENGES: u8 = CHALLENGE_BIT_ALPHA;
@@ -80,7 +80,31 @@ where
     }
 }
 
-pub type ProverArithmeticWidget<Settings> = TransitionWidget<Fr, Settings, ArithmeticKernel>;
+pub type ProverArithmeticWidget<
+    F: Field,
+    H: BarretenHasher,
+    S: Settings<H>,
+    const NUM_WIDGET_RELATIONS: usize,
+    PolyContainer,
+    Getters: BaseGetter<H, F, S, NUM_WIDGET_RELATIONS>,
+> = TransitionWidget<
+    H,
+    Fr,
+    S,
+    ArithmeticKernel<H, Fr, Getters, PolyContainer, NUM_WIDGET_RELATIONS>,
+>;
 
-pub type VerifierArithmeticWidget<F, Group, Transcript, Settings> =
-    GenericVerifierWidget<F, Transcript, Settings, ArithmeticKernel>;
+pub type VerifierArithmeticWidget<
+    H: BarretenHasher,
+    F: Field,
+    Group,
+    const NUM_WIDGET_RELATIONS: usize,
+    Getters: BaseGetter<H, F, S, NUM_WIDGET_RELATIONS>,
+    PolyContainer,
+    S: Settings<H>,
+> = GenericVerifierWidget<
+    F,
+    H,
+    S,
+    ArithmeticKernel<H, Fr, Getters, PolyContainer, NUM_WIDGET_RELATIONS>,
+>;

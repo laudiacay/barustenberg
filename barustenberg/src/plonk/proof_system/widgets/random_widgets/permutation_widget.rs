@@ -2,7 +2,7 @@ use crate::ecc::fields::field::Field;
 use crate::plonk::proof_system::proving_key::ProvingKey;
 use crate::plonk::proof_system::widgets::random_widgets::random_widget::ProverRandomWidget;
 use crate::proof_system::work_queue::WorkQueue;
-use crate::transcript::{BarretenHasher, Transcript};
+use crate::transcript::{BarretenHasher, Transcript, TranscriptKey};
 use std::sync::Arc;
 pub struct VerifierPermutationWidget<
     H: BarretenHasher,
@@ -30,7 +30,7 @@ where
     }
 
     pub fn compute_quotient_evaluation_contribution(
-        key: &Arc<Transcript<H>::Key>,
+        key: &Arc<TranscriptKey>,
         alpha_base: F,
         transcript: &Transcript<H>,
         quotient_numerator_eval: &mut F,
@@ -40,7 +40,7 @@ where
     }
 
     pub fn append_scalar_multiplication_inputs(
-        key: &Arc<Transcript<H>::Key>,
+        key: &Arc<TranscriptKey>,
         alpha_base: F,
         transcript: &Transcript<H>,
     ) -> F {
