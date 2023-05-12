@@ -50,8 +50,12 @@ impl<H: BarretenHasher> Settings<H> for StandardSettings<H> {
     fn is_plookup(&self) -> bool {
         false
     }
-    fn hasher(&self) -> dyn BarretenHasher {
+    fn hasher(&self) -> H {
         self.hasher
+    }
+
+    fn requires_shifted_wire(wire_shift_settings: u64, wire_index: u64) -> bool {
+        ((wire_shift_settings >> wire_index) & 1u64) == 1u64
     }
 }
 
