@@ -6,12 +6,12 @@ use std::{
 use crate::ecc::EllCoeffs;
 
 use super::{
-    field::FieldParams,
+    field::{FieldGeneral, FieldParams, FieldParamsGeneral},
     field2::{Field2, Field2Params},
     field6::{Field6, Field6Params},
 };
 
-pub trait Field12Params<F1P: FieldParams, F2P: Field2Params<F1P>> {
+pub trait Field12Params<F1P: FieldParams, F2P: Field2Params<F1P>>: FieldParamsGeneral {
     const frobenius_coefficients_1: Field2<F1P, F2P>;
     const frobenius_coefficients_2: Field2<F1P, F2P>;
     const frobenius_coefficients_3: Field2<F1P, F2P>;
@@ -26,6 +26,15 @@ pub struct Field12<
     c0: Field6<F1P, F2P, F6P>,
     c1: Field6<F1P, F2P, F6P>,
     phantom: PhantomData<Params>,
+}
+
+impl<
+        F1P: FieldParams,
+        F2P: Field2Params<F1P>,
+        F6P: Field6Params<F1P, F2P>,
+        Params: Field12Params<F1P, F2P>,
+    > FieldGeneral<Params> for Field12<F1P, F2P, F6P, Params>
+{
 }
 
 impl<
@@ -62,7 +71,7 @@ impl<
         }
     }
 
-    fn self_sparse_mul(&mut self, ell: &EllCoeffs<Field2<F1P, F2P>>) {
+    fn self_sparse_mul(&mut self, ell: &EllCoeffs<F2P, Field2<F1P, F2P>>) {
         todo!("todo")
     }
 

@@ -8,11 +8,22 @@ use std::{
 use primitive_types::U256;
 use serde::{Deserialize, Serialize};
 
-pub trait FieldParams {
-    const modus_0: u64;
-    const modus_1: u64;
-    const modus_2: u64;
-    const modus_3: u64;
+pub trait FieldParamsGeneral {}
+pub trait FieldGeneral<FPG: FieldParamsGeneral> {
+    fn one() -> Self
+    where
+        Self: Sized;
+
+    fn zero() -> Self
+    where
+        Self: Sized;
+}
+
+pub trait FieldParams: FieldParamsGeneral + Eq + PartialEq {
+    const modulus_0: u64;
+    const modulus_1: u64;
+    const modulus_2: u64;
+    const modulus_3: u64;
 
     const r_squared_0: u64;
     const r_squared_1: u64;
@@ -50,11 +61,13 @@ pub trait FieldParams {
 #[cfg(all(features = "SIZEOFINT128", not(features = "WASM")))]
 const LO_MASK: u128 = 0xffffffffffffffff;
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub(crate) struct Field<Params: FieldParams> {
     data: [u64; 4],
     phantom: PhantomData<Params>,
 }
+
+impl<Params: FieldParamsGeneral + FieldParams> FieldGeneral<Params> for Field<Params> {}
 
 pub struct WideArray {
     pub data: [u64; 8],
@@ -184,7 +197,7 @@ impl<Params: FieldParams> Field<Params> {
         -Self::from_i64(1)
     }
 
-    fn one() -> Self
+    pub fn one() -> Self
     where
         Self: Sized,
     {
@@ -197,14 +210,6 @@ impl<Params: FieldParams> Field<Params> {
 
     fn uint256_t_no_montgomery_conversion(&self) -> U256 {
         U256::from_parts(self.data[0], self.data[1], self.data[2], self.data[3])
-    }
-
-    fn pow(&self, exp: &U256) -> Self {
-        todo!("implement pow")
-    }
-
-    fn pow_64(&self, exp: u64) -> Self {
-        todo!("implement pow_64")
     }
 
     fn invert(&self) -> Self {
@@ -301,36 +306,6 @@ impl<Params: FieldParams> Field<Params> {
             *self
         }
     }
-
-    /**
-     * For short Weierstrass curves y^2 = x^3 + b mod r, if there exists a cube root of unity mod r,
-     * we can take advantage of an enodmorphism to decompose a 254 bit scalar into 2 128 bit scalars.
-     * \beta = cube root of 1, mod q (q = order of fq)
-     * \lambda = cube root of 1, mod r (r = order of fr)
-     *
-     * For a point P1 = (X, Y), where Y^2 = X^3 + b, we know that
-     * the point P2 = (X * \beta, Y) is also a point on the curve
-     * We can represent P2 as a scalar multiplication of P1, where P2 = \lambda * P1
-     *
-     * For a generic multiplication of P1 by a 254 bit scalar k, we can decompose k
-     * into 2 127 bit scalars (k1, k2), such that k = k1 - (k2 * \lambda)
-     *
-     * We can now represent (k * P1) as (k1 * P1) - (k2 * P2), where P2 = (X * \beta, Y).
-     * As k1, k2 have half the bit length of k, we have reduced the number of loop iterations of our
-     * scalar multiplication algorithm in half
-     *
-     * To find k1, k2, We use the extended euclidean algorithm to find 4 short scalars [a1, a2], [b1, b2] such that
-     * modulus = (a1 * b2) - (b1 * a2)
-     * We then compute scalars c1 = round(b2 * k / r), c2 = round(b1 * k / r), where
-     * k1 = (c1 * a1) + (c2 * a2), k2 = -((c1 * b1) + (c2 * b2))
-     * We pre-compute scalars g1 = (2^256 * b1) / n, g2 = (2^256 * b2) / n, to avoid having to perform long division
-     * on 512-bit scalars
-     **/
-    fn split_into_endomorphism_scalars(k: &Self, k1: &Self, k2: &Self) {
-        todo!("split_into_endomorphism_scalars")
-    }
-
-    fn split_into_endomorphism_scalars_384(input: &Self, k1_out: &Self, k2_out: &Self) {}
 
     fn random_element(engine: Option<&mut dyn rand::RngCore>) -> Self {
         todo!() // Implement the random_element logic
@@ -529,7 +504,7 @@ impl<Params: FieldParams> Field<Params> {
         result
     }
 
-    fn from_parts(a: u64, b: u64, c: u64, d: u64) -> Self {
+    pub const fn from_parts(a: u64, b: u64, c: u64, d: u64) -> Self {
         Field {
             data: [a, b, c, d],
             phantom: PhantomData,
@@ -653,93 +628,6 @@ impl<Params: FieldParams> Field<Params> {
         ])
     }
 
-    fn invert(&self) -> Self {
-        // TODO: Implement the inversion logic
-    }
-
-    fn batch_invert(coeffs: &mut [Self]) {
-        // TODO: Implement the batch inversion logic
-    }
-
-    fn batch_invert_slice(coeffs: &mut [Self], n: usize) {
-        // TODO: Implement the batch inversion logic for a slice
-    }
-
-    fn sqrt(&self) -> (bool, Self) {
-        // TODO: Implement the square root logic
-    }
-
-    pub fn self_neg(&mut self) {
-        // TODO: Implement the self negation logic
-    }
-
-    pub fn self_to_montgomery_form(&mut self) {
-        // TODO: Implement the conversion to Montgomery form logic for self
-    }
-
-    pub fn self_from_montgomery_form(&mut self) {
-        // TODO: Implement the conversion from Montgomery form logic for self
-    }
-
-    fn self_conditional_negate(&mut self, predicate: u64) {
-        // TODO: Implement the self conditional negate logic
-    }
-
-    fn reduce_once(&self) -> Self {
-        // TODO: Implement the reduce once logic
-    }
-
-    fn self_reduce_once(&mut self) {
-        // TODO: Implement the self reduce once logic
-    }
-
-    fn self_set_msb(&mut self) {
-        // TODO: Implement the set msb logic for self
-    }
-
-    fn is_msb_set(&self) -> bool {
-        // TODO: Implement the is msb set logic
-    }
-
-    fn is_msb_set_word(&self) -> u64 {
-        // TODO: Implement the is msb set word logic
-    }
-
-    pub fn is_zero(&self) -> bool {
-        // TODO: Implement the is zero logic
-    }
-
-    fn get_root_of_unity(degree: usize) -> Self {
-        todo!() // Implement the get_root_of_unity logic
-    }
-
-    fn serialize_to_buffer(value: &Self, buffer: &mut [u8]) {
-        todo!() // Implement the serialize_to_buffer logic
-    }
-
-    fn serialize_from_buffer(buffer: &[u8]) -> Self {
-        todo!() // Implement the serialize_from_buffer logic
-    }
-
-    fn to_buffer(&self) -> Vec<u8> {
-        todo!() // Implement the to_buffer logic
-    }
-
-    fn mul_512(&self, other: &Self) -> WideArray {
-        todo!() // Implement the mul_512 logic
-    }
-
-    fn sqr_512(&self) -> WideArray {
-        todo!() // Implement the sqr_512 logic
-    }
-
-    fn conditionally_subtract_from_double_modulus(&self, predicate: u64) -> Self {
-        if predicate != 0 {
-            todo!() // Implement the subtraction when predicate is non-zero
-        } else {
-            *self
-        }
-    }
     fn cube_root_of_unity() -> Self {
         if Params::CUBE_ROOT_0 != 0 {
             Self::from_parts(
@@ -957,14 +845,6 @@ impl<Params: FieldParams> DivAssign for Field<Params> {
         todo!();
     }
 }
-
-impl<Params: FieldParams> PartialEq for Field<Params> {
-    fn eq(&self, other: &Self) -> bool {
-        todo!();
-    }
-}
-
-impl<Params: FieldParams> Eq for Field<Params> {}
 
 impl<Params: FieldParams> PartialOrd for Field<Params> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {

@@ -1,6 +1,9 @@
 use self::{
-    curves::bn254::{fq12::Fq12, g1::G1Affine},
-    fields::field::{Field, FieldParams},
+    curves::bn254::{
+        fq12::{Bn254Fq12ParamsImpl, Fq12},
+        g1::G1Affine,
+    },
+    fields::field::{FieldGeneral, FieldParamsGeneral},
 };
 
 // TODO todo - stubs to get the compiler to cooperate.
@@ -30,16 +33,16 @@ pub(crate) mod groups;
 
 pub struct Pippenger {}
 
-struct EllCoeffs<QuadFP: FieldParams> {
-    o: Field<QuadFP>,
-    vw: Field<QuadFP>,
-    vv: Field<QuadFP>,
+struct EllCoeffs<FPG: FieldParamsGeneral, QuadFP: FieldGeneral<FPG>> {
+    o: QuadFP,
+    vw: QuadFP,
+    vv: QuadFP,
 }
 
 const PRECOMPUTED_COEFFICIENTS_LENGTH: usize = 87;
 
 struct MillerLines {
-    lines: [EllCoeffs<Fq12>; PRECOMPUTED_COEFFICIENTS_LENGTH],
+    lines: [EllCoeffs<Bn254Fq12ParamsImpl, Fq12>; PRECOMPUTED_COEFFICIENTS_LENGTH],
 }
 
 pub fn reduced_ate_pairing_batch_precomputed(

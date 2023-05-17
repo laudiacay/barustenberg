@@ -4,10 +4,16 @@ use crate::ecc::groups::{Group, GroupParams};
 use super::fq::{Bn254FqParamsImpl, Fq};
 use super::fr::Bn254FrParamsImpl;
 
-trait Bn254G1Params: GroupParams<Fq> {
-    const USE_ENDOMORPHISM: bool = true;
+struct Bn254G1ParamsImpl {}
+
+impl Bn254FqParamsImpl {
     const can_hash_to_curve: bool = true;
     const small_elements: bool = true;
+}
+
+impl GroupParams<Bn254FqParamsImpl, Bn254FrParamsImpl> for Bn254G1ParamsImpl {
+    const USE_ENDOMORPHISM: bool = true;
+
     const has_a: bool = true;
     const one_x: Fq = Fq::one();
     const one_y: Fq = Fq::from_parts(
@@ -25,9 +31,5 @@ trait Bn254G1Params: GroupParams<Fq> {
     );
 }
 
-struct Bn254G1ParamsImpl {}
-
-impl Bn254G1Params for Bn254G1ParamsImpl {}
-
-pub type G1 = Group<Bn254FqParamsImpl, Bn254FrParamsImpl, Bn254G1ParamsImpl>;
-pub type G1Affine = Affine<Bn254FqParamsImpl, Bn254FrParamsImpl, Bn254G1ParamsImpl>;
+pub type G1 = Group<Bn254FqParamsImpl, Fq, Bn254FrParamsImpl, Bn254G1ParamsImpl>;
+pub type G1Affine = Affine<Bn254FqParamsImpl, Fq, Bn254FrParamsImpl, Bn254G1ParamsImpl>;

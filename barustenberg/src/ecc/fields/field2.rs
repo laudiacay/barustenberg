@@ -7,51 +7,43 @@ use crate::ecc::fields::field::Field;
 use primitive_types::U256;
 use serde::{Deserialize, Serialize};
 
-use super::field::FieldParams;
+use super::field::{FieldGeneral, FieldParams, FieldParamsGeneral};
 
-pub trait Field2Params<BaseFieldParams: FieldParams> {
-    const twist_coeff_b_0: Field<BaseFieldParams>;
-    const twist_coeff_b_1: Field<BaseFieldParams>;
-    const twist_mul_by_q_x_0: Field<BaseFieldParams>;
-    const twist_mul_by_q_x_1: Field<BaseFieldParams>;
-    const twist_mul_by_q_y_0: Field<BaseFieldParams>;
-    const twist_mul_by_q_y_1: Field<BaseFieldParams>;
-    const twist_cube_root_0: Field<BaseFieldParams>;
-    const twist_cube_root_1: Field<BaseFieldParams>;
+pub trait Field2Params<F1P: FieldParams>: FieldParamsGeneral {
+    const twist_coeff_b_0: Field<F1P>;
+    const twist_coeff_b_1: Field<F1P>;
+    const twist_mul_by_q_x_0: Field<F1P>;
+    const twist_mul_by_q_x_1: Field<F1P>;
+    const twist_mul_by_q_y_0: Field<F1P>;
+    const twist_mul_by_q_y_1: Field<F1P>;
+    const twist_cube_root_0: Field<F1P>;
+    const twist_cube_root_1: Field<F1P>;
 }
 
-pub struct Field2<BaseFieldParams: FieldParams, Params: Field2Params<BaseFieldParams>> {
-    c0: Field<BaseFieldParams>,
-    c1: Field<BaseFieldParams>,
+pub struct Field2<F1P: FieldParams, Params: Field2Params<F1P>> {
+    c0: Field<F1P>,
+    c1: Field<F1P>,
     phantom: PhantomData<Params>,
 }
 
-impl<BaseFieldParams: FieldParams, Params: Field2Params<BaseFieldParams>> PartialEq
-    for Field2<BaseFieldParams, Params>
-{
+impl<F1P: FieldParams, Params: Field2Params<F1P>> FieldGeneral<Params> for Field2<F1P, Params> {}
+
+impl<F1P: FieldParams, Params: Field2Params<F1P>> PartialEq for Field2<F1P, Params> {
     // todo
 }
-impl<BaseFieldParams: FieldParams, Params: Field2Params<BaseFieldParams>> Eq
-    for Field2<BaseFieldParams, Params>
-{
+impl<F1P: FieldParams, Params: Field2Params<F1P>> Eq for Field2<F1P, Params> {
     // todo
 }
 
-impl<BaseFieldParams: FieldParams, Params: Field2Params<BaseFieldParams>> Add
-    for Field2<BaseFieldParams, Params>
-{
+impl<F1P: FieldParams, Params: Field2Params<F1P>> Add for Field2<F1P, Params> {
     type Output = Self;
     //    return { c0 + other.c0, c1 + other.c1 };
 }
-impl<BaseFieldParams: FieldParams, Params: Field2Params<BaseFieldParams>> Sub
-    for Field2<BaseFieldParams, Params>
-{
+impl<F1P: FieldParams, Params: Field2Params<F1P>> Sub for Field2<F1P, Params> {
     type Output = Self;
     //    return { c0 - other.c0, c1 - other.c1 };
 }
-impl<BaseFieldParams: FieldParams, Params: Field2Params<BaseFieldParams>> Mul
-    for Field2<BaseFieldParams, Params>
-{
+impl<F1P: FieldParams, Params: Field2Params<F1P>> Mul for Field2<F1P, Params> {
     type Output = Self;
     /*
         // no funny primes please! we assume -1 is not a quadratic residue
@@ -64,59 +56,42 @@ impl<BaseFieldParams: FieldParams, Params: Field2Params<BaseFieldParams>> Mul
     return { t1 - t2, t3 * t4 - (t1 + t2) };
      */
 }
-impl<BaseFieldParams: FieldParams, Params: Field2Params<BaseFieldParams>> Neg
-    for Field2<BaseFieldParams, Params>
-{
+impl<F1P: FieldParams, Params: Field2Params<F1P>> Neg for Field2<F1P, Params> {
     type Output = Self;
     //    return { -c0, -c1 };
 }
-impl<BaseFieldParams: FieldParams, Params: Field2Params<BaseFieldParams>> Div
-    for Field2<BaseFieldParams, Params>
-{
+impl<F1P: FieldParams, Params: Field2Params<F1P>> Div for Field2<F1P, Params> {
     type Output = Self;
     //    return operator*(other.invert());
 }
 
-impl<BaseFieldParams: FieldParams, Params: Field2Params<BaseFieldParams>> AddAssign
-    for Field2<BaseFieldParams, Params>
-{
+impl<F1P: FieldParams, Params: Field2Params<F1P>> AddAssign for Field2<F1P, Params> {
     fn add_assign(&mut self, rhs: Self) {
         self = self + rhs
     }
 }
 
-impl<BaseFieldParams: FieldParams, Params: Field2Params<BaseFieldParams>> SubAssign
-    for Field2<BaseFieldParams, Params>
-{
+impl<F1P: FieldParams, Params: Field2Params<F1P>> SubAssign for Field2<F1P, Params> {
     fn sub_assign(&mut self, rhs: Self) {
         self = self - rhs
     }
 }
 
-impl<BaseFieldParams: FieldParams, Params: Field2Params<BaseFieldParams>> MulAssign
-    for Field2<BaseFieldParams, Params>
-{
+impl<F1P: FieldParams, Params: Field2Params<F1P>> MulAssign for Field2<F1P, Params> {
     fn mul_assign(&mut self, rhs: Self) {
         self = self * rhs
     }
 }
 
-impl<BaseFieldParams: FieldParams, Params: Field2Params<BaseFieldParams>> DivAssign
-    for Field2<BaseFieldParams, Params>
-{
+impl<F1P: FieldParams, Params: Field2Params<F1P>> DivAssign for Field2<F1P, Params> {
     fn div_assign(&mut self, rhs: Self) {
         self = self / rhs
     }
 }
 
-impl<BaseFieldParams: FieldParams, Params: Field2Params<BaseFieldParams>> Serialize
-    for Field2<BaseFieldParams, Params>
-{
-}
+impl<F1P: FieldParams, Params: Field2Params<F1P>> Serialize for Field2<F1P, Params> {}
 
-impl<'de, BaseFieldParams: FieldParams, Params: Field2Params<BaseFieldParams>> Deserialize<'de>
-    for Field2<BaseFieldParams, Params>
-{
+impl<'de, F1P: FieldParams, Params: Field2Params<F1P>> Deserialize<'de> for Field2<F1P, Params> {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
@@ -126,15 +101,13 @@ impl<'de, BaseFieldParams: FieldParams, Params: Field2Params<BaseFieldParams>> D
 }
 
 // TODO a shitton of this stuff should be done with macros at compiletime for speed.
-impl<BaseFieldParams: FieldParams, Params: Field2Params<BaseFieldParams>>
-    Field2<BaseFieldParams, Params>
-{
+impl<F1P: FieldParams, Params: Field2Params<F1P>> Field2<F1P, Params> {
     // TODO sin that this is a function
     pub fn modulus() -> U256 {
-        Field::<BaseFieldParams>::modulus()
+        Field::<F1P>::modulus()
     }
 
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self::zero()
     }
 
@@ -152,7 +125,7 @@ impl<BaseFieldParams: FieldParams, Params: Field2Params<BaseFieldParams>>
             phantom: PhantomData,
         }
     }
-    fn twist_coeff_b() -> Self {
+    pub fn twist_coeff_b() -> Self {
         Field2 {
             c0: Params::twist_coeff_b_0,
             c1: Params::twist_coeff_b_1,
@@ -228,7 +201,7 @@ impl<BaseFieldParams: FieldParams, Params: Field2Params<BaseFieldParams>>
             phantom: PhantomData,
         }
     }
-    fn mul_by_fq(&self, a: Field<BaseFieldParams>) -> Self {
+    fn mul_by_fq(&self, a: Field<F1P>) -> Self {
         Field2 {
             c0: a * &self.c0,
             c1: a * &self.c1,
@@ -340,7 +313,7 @@ impl<BaseFieldParams: FieldParams, Params: Field2Params<BaseFieldParams>>
         self.c1.self_neg()
     }
 
-    fn random_element(engine: Option<&mut dyn rand::Rng>) -> Self {
+    fn random_element(engine: Option<&mut dyn rand::RngCore>) -> Self {
         //     return { base::random_element(engine), base::random_element(engine) };
 
         todo!() // Implement the random_element logic

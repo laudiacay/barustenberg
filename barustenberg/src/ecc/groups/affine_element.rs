@@ -4,35 +4,45 @@ use std::vec;
 
 use primitive_types::U256;
 
-use crate::ecc::fields::field::{Field, FieldParams};
+use crate::ecc::fields::field::{Field, FieldGeneral, FieldParams, FieldParamsGeneral};
 
 use super::GroupParams;
 
 #[derive(Default, PartialEq, Eq)]
-pub struct Affine<FqP, FrP, Params>
+pub struct Affine<FqP, Fq: FieldGeneral<FqP>, FrP, Params>
 where
-    FqP: Default + Clone + PartialEq + FieldParams,
-    FrP: Default + Clone + FieldParams,
-    Params: Default + Clone + GroupParams<FqP>,
+    FqP: FieldParamsGeneral,
+    FrP: FieldParams,
+    Params: GroupParams<FqP, FrP>,
 {
-    x: Field<FqP>,
-    y: Field<FqP>,
+    x: Fq,
+    y: Fq,
+    phantom1: std::marker::PhantomData<FrP>,
+    phantom2: std::marker::PhantomData<Params>,
 }
 
 impl<
-        FqP: Default + Clone + PartialEq + FieldParams,
-        FrP: Default + Clone + FieldParams,
-        Params: Default + Clone + GroupParams<FqP>,
-    > Affine<FqP, FrP, Params>
+        FqP: FieldParamsGeneral,
+        Fq: FieldGeneral<FqP>,
+        FrP: FieldParams,
+        Params: GroupParams<FqP, FrP>,
+    > Affine<FqP, Fq, FrP, Params>
 {
     fn new(a: Field<FqP>, b: Field<FqP>) -> Self {
-        Self { x: a, y: b }
+        Self {
+            x: a,
+            y: b,
+            phantom1: std::marker::PhantomData,
+            phantom2: std::marker::PhantomData,
+        }
     }
 
     fn one() -> Self {
         Self {
             x: Params::one_x(),
             y: Params::one_y(),
+            phantom1: std::marker::PhantomData,
+            phantom2: std::marker::PhantomData,
         }
     }
 
@@ -86,11 +96,12 @@ impl<
     }
 }
 
-impl<FqP, FrP, Params: GroupParams<FqP>> PartialOrd for Affine<FqP, FrP, Params>
+impl<FqP, Fq, FrP, Params: GroupParams<FqP, FrP>> PartialOrd for Affine<FqP, Fq, FrP, Params>
 where
-    FqP: Default + Clone + PartialEq + PartialOrd,
-    FrP: Default + Clone,
-    Params: Default + Clone,
+    FqP: FieldParams + PartialOrd + PartialEq,
+    Fq: FieldGeneral<FqP>,
+    FrP: FieldParams + PartialOrd + PartialEq,
+    Params: PartialEq,
 {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         if self == other {

@@ -4,11 +4,11 @@ use std::{
 };
 
 use super::{
-    field::FieldParams,
+    field::{FieldGeneral, FieldParams, FieldParamsGeneral},
     field2::{Field2, Field2Params},
 };
 
-pub trait Field6Params<F1P: FieldParams, F2P: Field2Params<F1P>> {
+pub trait Field6Params<F1P: FieldParams, F2P: Field2Params<F1P>>: FieldParamsGeneral {
     const frobenius_coeffs_c1_1: Field2<F1P, F2P>;
     const frobenius_coeffs_c1_2: Field2<F1P, F2P>;
     const frobenius_coeffs_c1_3: Field2<F1P, F2P>;
@@ -22,6 +22,11 @@ pub struct Field6<F1P: FieldParams, F2P: Field2Params<F1P>, Params: Field6Params
     pub c1: Field2<F1P, F2P>,
     pub c2: Field2<F1P, F2P>,
     phantom: PhantomData<Params>,
+}
+
+impl<F1P: FieldParams, F2P: Field2Params<F1P>, Params: Field6Params<F1P, F2P>> FieldGeneral<Params>
+    for Field6<F1P, F2P, Params>
+{
 }
 
 impl<F1P: FieldParams, F2P: Field2Params<F1P>, Params: Field6Params<F1P, F2P>>

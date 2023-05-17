@@ -11,7 +11,11 @@ use super::{
 };
 
 use crate::{
-    ecc::{curves::bn254::g1::G1Affine, fields::field::FieldParams},
+    ecc::{
+        curves::bn254::g1::G1Affine,
+        fields::field::{Field, FieldParams},
+        groups::GroupParams,
+    },
     proof_system::work_queue,
     transcript::{BarretenHasher, Manifest, Transcript},
 };
@@ -20,19 +24,33 @@ use crate::proof_system::work_queue::WorkQueue;
 
 // todo https://doc.rust-lang.org/reference/const_eval.html
 
-pub struct Prover<'a, Fr: FieldParams, H: BarretenHasher, S: Settings<H>> {
+pub struct Prover<
+    'a,
+    FqP: FieldParams,
+    FrP: FieldParams,
+    G1AffineP: GroupParams<FqP, FrP>,
+    H: BarretenHasher,
+    S: Settings<H>,
+> {
     pub circuit_size: usize,
     pub transcript: Transcript<H>,
-    pub key: Arc<ProvingKey<Fr>>,
-    pub queue: WorkQueue<Fr>,
-    pub random_widgets: Vec<dyn ProverRandomWidget<H, Fr>>,
-    pub transition_widgets: Vec<TransitionWidgetBase<Fr>>,
-    pub commitment_scheme: dyn CommitmentScheme<Fr, G1Affine, H>,
+    pub key: Arc<ProvingKey<FrP>>,
+    pub queue: WorkQueue<FrP>,
+    pub random_widgets: Vec<dyn ProverRandomWidget<H, FrP>>,
+    pub transition_widgets: Vec<TransitionWidgetBase<FrP>>,
+    pub commitment_scheme: dyn CommitmentScheme<FqP, FrP, G1AffineP, H>,
 }
 
-impl<Fr: FieldParams, H: BarretenHasher, S: Settings<H>> Prover<'_, Fr, H, S> {
+impl<
+        FqP: FieldParams,
+        FrP: FieldParams,
+        G1AffineP: GroupParams<FqP, FrP>,
+        H: BarretenHasher,
+        S: Settings<H>,
+    > Prover<'_, FqP, FrP, G1AffineP, H, S>
+{
     pub fn new(
-        input_key: Option<Arc<ProvingKey<Fr>>>,
+        input_key: Option<Arc<ProvingKey<FrP>>>,
         input_manifest: Option<&Manifest>,
         input_settings: Option<S>,
     ) -> Self {
@@ -705,7 +723,7 @@ impl<Fr: FieldParams, H: BarretenHasher, S: Settings<H>> Prover<'_, Fr, H, S> {
     fn get_queued_work_item_info(&self) -> work_queue::WorkItemInfo {
         self.get_queue().get_queued_work_item_info()
     }
-    fn get_scalar_multiplication_data(&self, work_item_number: usize) -> Fr {
+    fn get_scalar_multiplication_data(&self, work_item_number: usize) -> Field<FrP> {
         self.get_queue()
             .get_scalar_multiplication_data(work_item_number)
     }
@@ -713,20 +731,20 @@ impl<Fr: FieldParams, H: BarretenHasher, S: Settings<H>> Prover<'_, Fr, H, S> {
         self.get_queue()
             .get_scalar_multiplication_size(work_item_number)
     }
-    fn get_ifft_data(&self, work_item_number: usize) -> &Fr {
+    fn get_ifft_data(&self, work_item_number: usize) -> &Field<FrP> {
         self.get_queue().get_ifft_data(work_item_number)
     }
-    fn get_fft_data(&self, work_item_number: usize) -> &work_queue::QueuedFftInputs<Fr> {
+    fn get_fft_data(&self, work_item_number: usize) -> &work_queue::QueuedFftInputs<Field<FrP>> {
         self.get_queue().get_fft_data(work_item_number)
     }
     fn put_scalar_multiplication_data(&self, result: G1Affine, work_item_number: usize) {
         self.get_queue()
             .put_scalar_multiplication_data(result, work_item_number);
     }
-    fn put_fft_data(&self, result: Fr, work_item_number: usize) {
+    fn put_fft_data(&self, result: Field<FrP>, work_item_number: usize) {
         self.get_queue().put_fft_data(result, work_item_number);
     }
-    fn put_ifft_data(&self, result: Fr, work_item_number: usize) {
+    fn put_ifft_data(&self, result: Field<FrP>, work_item_number: usize) {
         self.get_queue().put_ifft_data(result, work_item_number);
     }
     fn reset(&self) {

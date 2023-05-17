@@ -14,8 +14,8 @@
 
 use crate::{
     ecc::{
-        curves::bn254::g1::G1Affine,
         fields::field::{Field, FieldParams},
+        groups::{affine_element::Affine, GroupParams},
     },
     transcript::{BarretenHasher, Manifest},
 };
@@ -50,17 +50,28 @@ impl<H: BarretenHasher, PS: Settings<H>> dyn VerifierBase<H, PS> {
     }
 }
 
-pub struct Verifier<Fr: FieldParams, H: BarretenHasher, PS: Settings<H>> {
+pub struct Verifier<
+    FqP: FieldParams,
+    FrP: FieldParams,
+    G1AffineP: GroupParams<FqP, FrP>,
+    H: BarretenHasher,
+    PS: Settings<H>,
+> {
     settings: PS,
     key: Option<Arc<VerificationKey>>,
     manifest: Manifest,
-    kate_g1_elements: HashMap<String, G1Affine>,
-    kate_fr_elements: HashMap<String, Fr>,
-    commitment_scheme: Box<dyn CommitmentScheme<Fr, G1Affine, H>>,
+    kate_g1_elements: HashMap<String, Affine<FqP, Field<FqP>, FrP, G1AffineP>>,
+    kate_fr_elements: HashMap<String, Field<FrP>>,
+    commitment_scheme: Box<dyn CommitmentScheme<FqP, FrP, G1AffineP, H>>,
 }
 
-impl<Fr: FieldParams, H: BarretenHasher, PS: Settings<H>> VerifierBase<H, PS>
-    for Verifier<Fr, H, PS>
+impl<
+        FqP: FieldParams,
+        FrP: FieldParams,
+        G1AffineP: GroupParams<FqP, FrP>,
+        H: BarretenHasher,
+        PS: Settings<H>,
+    > VerifierBase<H, PS> for Verifier<FqP, FrP, G1AffineP, H, PS>
 {
     fn new(verifier_key: Option<Arc<VerificationKey>>, manifest: Manifest) -> Self {
         // Implement constructor logic here.

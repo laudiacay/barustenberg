@@ -4,11 +4,15 @@ use super::{
     fq2::{Bn254Fq2ParamsImpl, Fq2},
     fr::Bn254FrParamsImpl,
 };
+struct Bn254G2ParamsImpl {}
 
-trait Bn254G2Params: GroupParams<Fq2> {
-    const USE_ENDOMORPHISM: bool = false;
+impl Bn254G2ParamsImpl {
     const can_hash_to_curve: bool = false;
     const small_elements: bool = false;
+}
+
+impl GroupParams<Bn254Fq2ParamsImpl, Bn254FrParamsImpl> for Bn254G2ParamsImpl {
+    const USE_ENDOMORPHISM: bool = false;
     const has_a: bool = false;
 
     const one_x: Fq2 = Fq2::from_parts(
@@ -35,8 +39,5 @@ trait Bn254G2Params: GroupParams<Fq2> {
     const b: Fq2 = Fq2::twist_coeff_b();
 }
 
-struct Bn254G2ParamsImpl {}
-impl Bn254G2Params for Bn254G2ParamsImpl {}
-
-pub type G2 = Group<Bn254Fq2ParamsImpl, Bn254FrParamsImpl, Bn254G2ParamsImpl>;
-pub type G2Affine = Affine<Bn254Fq2ParamsImpl, Bn254FrParamsImpl, Bn254G2ParamsImpl>;
+pub type G2 = Group<Bn254Fq2ParamsImpl, Fq2, Bn254FrParamsImpl, Bn254G2ParamsImpl>;
+pub type G2Affine = Affine<Bn254Fq2ParamsImpl, Fq2, Bn254FrParamsImpl, Bn254G2ParamsImpl>;
