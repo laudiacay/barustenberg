@@ -1,4 +1,4 @@
-use crate::ecc::fields::field::{FieldImpl, FieldParams};
+use crate::ecc::fields::field::{Field, FieldParams};
 
 trait Bn254FrParams: FieldParams {
     // Note: limbs here are combined as concat(_3, _2, _1, _0)
@@ -79,8 +79,8 @@ trait Bn254FrParams: FieldParams {
     ];
 }
 
-struct Bn256FrParamsImpl {}
+pub struct Bn254FrParamsImpl {}
 
-impl Bn254FrParams for Bn256FrParamsImpl {}
+impl Bn254FrParams for Bn254FrParamsImpl {}
 
-pub type Fr = FieldImpl<Bn256FrParamsImpl>;
+pub type Fr = Field<Bn254FrParamsImpl>;

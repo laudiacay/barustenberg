@@ -4,7 +4,7 @@ use std::sync::Arc;
 use std::vec::Vec;
 
 use crate::ecc::curves::bn254::scalar_multiplication::runtime_states::PippengerRuntimeState;
-use crate::ecc::fields::field::Field;
+use crate::ecc::fields::field::FieldParams;
 use crate::plonk::proof_system::constants::NUM_QUOTIENT_PARTS;
 
 use crate::plonk::composer::composer_base::ComposerType;
@@ -17,7 +17,7 @@ use super::types::PolynomialManifest;
 
 const MIN_THREAD_BLOCK: usize = 4;
 
-struct ProvingKeyData<Fr: Field> {
+struct ProvingKeyData<Fr: FieldParams> {
     composer_type: u32,
     circuit_size: u32,
     num_public_inputs: u32,
@@ -27,7 +27,7 @@ struct ProvingKeyData<Fr: Field> {
     memory_write_records: Vec<u32>,
     polynomial_store: PolynomialStore<Fr>,
 }
-pub struct ProvingKey<Fr: Field> {
+pub struct ProvingKey<Fr: FieldParams> {
     pub composer_type: u32,
     pub circuit_size: usize,
     pub log_circuit_size: usize,
@@ -49,7 +49,7 @@ pub struct ProvingKey<Fr: Field> {
     pub polynomial_manifest: PolynomialManifest,
 }
 
-impl<Fr: Field> ProvingKey<Fr> {
+impl<Fr: FieldParams> ProvingKey<Fr> {
     pub fn new_with_data(data: ProvingKeyData<Fr>, crs: Arc<dyn ProverReferenceString>) -> Self {
         let ProvingKeyData {
             composer_type,
@@ -149,7 +149,7 @@ impl<Fr: Field> ProvingKey<Fr> {
     }
 }
 
-impl<Fr: Field> Serialize for ProvingKey<Fr> {
+impl<Fr: FieldParams> Serialize for ProvingKey<Fr> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         // TODO
         /*
@@ -214,7 +214,7 @@ impl<Fr: Field> Serialize for ProvingKey<Fr> {
     }
 }
 
-impl<'de, Fr: Field> Deserialize<'de> for ProvingKey<Fr> {
+impl<'de, Fr: FieldParams> Deserialize<'de> for ProvingKey<Fr> {
     fn deserialize<D>(deserializer: D) -> Result<ProvingKey<Fr>, D::Error>
     where
         D: Deserializer<'de>,

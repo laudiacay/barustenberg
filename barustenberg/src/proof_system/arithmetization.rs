@@ -33,9 +33,9 @@ trait Ultra: Arithmetization<NumWires = U4, NumSelectors = U11> {}
 pub mod gate_data {
     use serde::{Deserialize, Serialize};
 
-    use crate::ecc::fields::field::Field;
+    use crate::ecc::fields::field::FieldParams;
 
-    struct AddTriple<Fr: Field> {
+    struct AddTriple<Fr: FieldParams> {
         a: u32,
         b: u32,
         c: u32,
@@ -45,7 +45,7 @@ pub mod gate_data {
         const_scaling: Fr,
     }
 
-    struct AddQuad<Fr: Field> {
+    struct AddQuad<Fr: FieldParams> {
         a: u32,
         b: u32,
         c: u32,
@@ -57,7 +57,7 @@ pub mod gate_data {
         const_scaling: Fr,
     }
 
-    struct MulQuad<Fr: Field> {
+    struct MulQuad<Fr: FieldParams> {
         a: u32,
         b: u32,
         c: u32,
@@ -70,7 +70,7 @@ pub mod gate_data {
         const_scaling: Fr,
     }
 
-    struct MulTriple<Fr: Field> {
+    struct MulTriple<Fr: FieldParams> {
         a: u32,
         b: u32,
         c: u32,
@@ -80,7 +80,7 @@ pub mod gate_data {
     }
 
     #[derive(Eq, Serialize, Deserialize)]
-    struct PolyTriple<Fr: Field> {
+    struct PolyTriple<Fr: FieldParams> {
         a: u32,
         b: u32,
         c: u32,
@@ -91,7 +91,7 @@ pub mod gate_data {
         q_c: Fr,
     }
 
-    struct FixedGroupAddQuad<Fr: Field> {
+    struct FixedGroupAddQuad<Fr: FieldParams> {
         a: u32,
         b: u32,
         c: u32,
@@ -102,7 +102,7 @@ pub mod gate_data {
         q_y_2: Fr,
     }
 
-    struct FixedGroupInitQuad<Fr: Field> {
+    struct FixedGroupInitQuad<Fr: FieldParams> {
         q_x_1: Fr,
         q_x_2: Fr,
         q_y_1: Fr,
@@ -115,7 +115,7 @@ pub mod gate_data {
         out: Vec<u32>,
     }
 
-    struct EccAddGate<Fr: Field> {
+    struct EccAddGate<Fr: FieldParams> {
         x1: u32,
         y1: u32,
         x2: u32,

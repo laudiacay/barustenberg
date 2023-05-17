@@ -1,6 +1,6 @@
-use crate::ecc::fields::field2::{Field2Impl, Field2Params};
+use crate::ecc::fields::field2::{Field2, Field2Params};
 
-use super::fq::Fq;
+use super::fq::{Bn254FqParamsImpl, Fq};
 
 pub trait Bn254Fq2Params: Field2Params<Fq> {
     const twist_coeff_b_0: Fq = Fq::from_parts(
@@ -53,8 +53,8 @@ pub trait Bn254Fq2Params: Field2Params<Fq> {
     );
 }
 
-struct Bn254Fq2ParamsImpl {}
+pub struct Bn254Fq2ParamsImpl {}
 
 impl Bn254Fq2Params for Bn254Fq2ParamsImpl {}
 
-pub type Fq2 = Field2Impl<Fq, Bn254Fq2ParamsImpl>;
+pub type Fq2 = Field2<Bn254FqParamsImpl, Bn254Fq2ParamsImpl>;

@@ -3,7 +3,8 @@ use std::sync::Arc;
 
 use crate::ecc::curves::bn254::fr::Fr;
 use crate::ecc::curves::bn254::g1::G1Affine;
-use crate::ecc::fields::field::Field;
+use crate::ecc::fields::field::{Field, FieldParams};
+use crate::ecc::groups::GroupParams;
 use crate::proof_system::work_queue::WorkQueue;
 use crate::transcript::{BarretenHasher, Transcript};
 
@@ -12,7 +13,7 @@ use super::types::proof::CommitmentOpenProof;
 use super::types::prover_settings::Settings;
 use super::verification_key::VerificationKey;
 
-pub trait CommitmentScheme<Fr: Field, G1Affine: Field, H: BarretenHasher> {
+pub trait CommitmentScheme<Fr: FieldParams, G1Affine: GroupParams, H: BarretenHasher> {
     fn commit(
         &mut self,
         coefficients: &mut [Fr],

@@ -5,7 +5,7 @@ use std::{
 };
 
 use crate::{
-    ecc::fields::field::Field,
+    ecc::fields::field::{Field, FieldParams},
     plonk::proof_system::{
         proving_key::ProvingKey,
         types::{
@@ -14,10 +14,12 @@ use crate::{
             PolynomialManifest,
         },
     },
-    transcript::{BarretenHasher, Transcript},
+    transcript::{BarretenHasher, Transcript, TranscriptKey},
 };
 
 use self::containers::{ChallengeArray, CoefficientArray, PolyArray, PolyPtrMap};
+
+use super::arithmetic_widget::Getters;
 
 pub enum ChallengeIndex {
     Alpha,
@@ -71,7 +73,12 @@ pub mod containers {
 /// - `Transcript`: Transcript struct
 /// - `Settings`: Configuration
 /// - `NUM_WIDGET_RELATIONS`: How many powers of α are needed
-pub trait BaseGetter<H: BarretenHasher, F: Field, S: Settings<H>, const NUM_WIDGET_RELATIONS: usize>
+pub trait BaseGetter<
+    H: BarretenHasher,
+    F: FieldParams,
+    S: Settings<H>,
+    const NUM_WIDGET_RELATIONS: usize,
+>
 {
     /// Create a challenge array from transcript.
     /// Loads alpha, beta, gamma, eta, zeta, and nu and calculates powers of alpha.
@@ -137,9 +144,9 @@ pub trait BaseGetter<H: BarretenHasher, F: Field, S: Settings<H>, const NUM_WIDG
     }
 
     fn update_alpha(
-        challenges: &ChallengeArray<Field, NUM_WIDGET_RELATIONS>,
+        challenges: &ChallengeArray<F, NUM_WIDGET_RELATIONS>,
         num_independent_relations: usize,
-    ) -> Field {
+    ) -> F {
         if num_independent_relations == 0 {
             challenges.alpha_powers[0]
         } else {
@@ -154,7 +161,7 @@ pub trait BaseGetter<H: BarretenHasher, F: Field, S: Settings<H>, const NUM_WIDG
 pub trait EvaluationGetter<F, H: BarretenHasher, S: Settings<H>, const NUM_WIDGET_RELATIONS: usize>:
     BaseGetter<H, F, S, NUM_WIDGET_RELATIONS>
 where
-    F: Field,
+    F: FieldParams,
 {
     /// Get a polynomial at offset `id`
     ///
@@ -171,8 +178,8 @@ where
     ///
     /// The chosen polynomial
     fn get_value<const USE_SHIFTED_EVALUATION: bool, const ID: usize>(
-        polynomials: &PolyArray<Field>,
-    ) -> &Field {
+        polynomials: &PolyArray<F>,
+    ) -> &F {
         if USE_SHIFTED_EVALUATION {
             &polynomials[ID].1
         } else {
@@ -192,8 +199,8 @@ where
     /// `PolyArray`
     fn get_polynomial_evaluations(
         polynomial_manifest: &PolynomialManifest,
-        transcript: &Transcript,
-    ) -> PolyArray<Field> {
+        transcript: &Transcript<H>,
+    ) -> PolyArray<F> {
         let mut result: PolyArray<Field> = Default::default();
         for i in 0..polynomial_manifest.len() {
             let info = &polynomial_manifest[i];
@@ -215,7 +222,7 @@ where
 pub trait FFTGetter<F, Transcript, Settings, const NUM_WIDGET_RELATIONS: usize>:
     BaseGetter<F, Transcript, Settings, NUM_WIDGET_RELATIONS>
 where
-    F: Field,
+    F: FieldParams,
 {
     fn get_polynomials(
         key: &ProvingKey<F>,
@@ -251,31 +258,70 @@ where
     }
 }
 
-pub struct TransitionWidgetBase<F: Field> {
+pub struct TransitionWidgetBase<F: FieldParams> {
     pub key: Option<Arc<ProvingKey<F>>>,
 }
 
-impl<F: Field> TransitionWidgetBase<F> {
+impl<F: FieldParams> TransitionWidgetBase<F> {
     pub fn new(key: Option<Arc<ProvingKey<F>>>) -> Self {
         Self { key }
     }
 
     // other methods and trait implementations
 }
+
+trait KernelBaseTrait {}
+
+trait KernelBase<F: FieldParams, PC, G: Getters<F, PC>, const NUM_INDEPENDENT_RELATIONS: usize>:
+    KernelBaseTrait
+{
+    fn get_required_polynomial_ids() -> HashSet<PolynomialIndex>;
+    fn quotient_required_challenges() -> u8;
+    fn update_required_challenges() -> u8;
+    fn compute_linear_terms(
+        polynomials: &PolyPtrMap<F>,
+        challenges: &ChallengeArray<F, NUM_INDEPENDENT_RELATIONS>,
+        linear_terms: &mut CoefficientArray<F>,
+        index: usize,
+    );
+    fn sum_linear_terms(
+        polynomials: &PolyPtrMap<F>,
+        challenges: &ChallengeArray<F, NUM_INDEPENDENT_RELATIONS>,
+        linear_terms: &CoefficientArray<F>,
+        index: usize,
+    ) -> F;
+    fn compute_non_linear_terms(
+        polynomials: &PolyPtrMap<F>,
+        challenges: &ChallengeArray<F, NUM_INDEPENDENT_RELATIONS>,
+        quotient_term: &mut F,
+        index: usize,
+    );
+}
+
 pub struct TransitionWidget<
     H: BarretenHasher,
-    F: Field,
+    F: FieldParams,
     S: Settings<H>,
-    KernelBase: KernelBaseFunctions<F>,
+    PC,
+    G: Getters<F, PC>,
+    const NUM_INDEPENDENT_RELATIONS: usize,
+    KB: KernelBaseTrait,
 > {
     base: TransitionWidgetBase<F>,
     phantom: std::marker::PhantomData<S>,
 }
 
-impl<H: BarretenHasher, F: Field, S: Settings<H>, KernelBase: KernelBaseFunctions<F>>
-    TransitionWidget<H, F, S, KernelBase>
+impl<
+        H: BarretenHasher,
+        F: FieldParams,
+        S: Settings<H>,
+        PC,
+        G: Getters<F, PC>,
+        const NUM_INDEPENDENT_RELATIONS: usize,
+        KB: KernelBaseTrait,
+    > TransitionWidget<H, F, S, PC, G, { NUM_INDEPENDENT_RELATIONS }, KB>
 {
-    pub fn new(key: Option<Arc<ProvingKey<Field>>>) -> Self {
+    pub fn new(key: Option<Arc<ProvingKey<F>>>) -> Self {
         Self {
             base: TransitionWidgetBase::new(key),
             phantom: std::marker::PhantomData,
@@ -321,32 +367,28 @@ impl<H: BarretenHasher, F: Field, S: Settings<H>, KernelBase: KernelBaseFunction
 }
 
 // Implementations for the derived classes
-impl<F, Settings, KernelBase> From<TransitionWidget<F, Settings, KernelBase>>
+impl<F, S, H, KernelBase, PC, G, const NUM_INDEPENDENT_RELATIONS: usize>
+    From<TransitionWidget<H, F, S, PC, G, { NUM_INDEPENDENT_RELATIONS }, KernelBase>>
     for TransitionWidgetBase<F>
-where
-    F: Field,
-    KernelBase: KernelBaseFunctions<F>,
 {
     // Other methods and trait implementations
 }
 
 pub struct GenericVerifierWidget<F, Hash, Settings, KernelBase>
 where
-    F: Field,
-    KernelBase: KernelBaseFunctions<F>,
+    F: FieldParams,
 {
     phantom: PhantomData<(F, Hash, Settings)>,
 }
 
-impl<Hash, F, Settings, KernelBase> GenericVerifierWidget<F, Hash, Settings, KernelBase>
+impl<H, F, Settings, KernelBase> GenericVerifierWidget<F, H, Settings, KernelBase>
 where
-    F: Field,
-    KernelBase: KernelBaseFunctions<F>,
+    F: FieldParams,
 {
     pub fn compute_quotient_evaluation_contribution(
-        key: &Arc<Transcript::Key>,
+        key: &Arc<TranscriptKey>,
         alpha_base: F,
-        transcript: &Transcript<Hash>,
+        transcript: &Transcript<H>,
         quotient_numerator_eval: &mut F,
     ) -> F {
         let polynomial_evaluations = EvaluationGetter::<
@@ -381,9 +423,9 @@ where
     }
 
     pub fn append_scalar_multiplication_inputs(
-        key: &Arc<Transcript::Key>,
+        key: &Arc<TranscriptKey>,
         alpha_base: F,
-        transcript: &Transcript,
+        transcript: &Transcript<H>,
         scalar_mult_inputs: &mut HashMap<String, F>,
     ) -> F {
         let challenges =

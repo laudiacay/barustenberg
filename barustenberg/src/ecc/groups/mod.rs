@@ -1,28 +1,118 @@
-use self::{
-    affine_element::{AffineElement, AffineElementImpl},
-    element::{Element, ElementImpl},
-};
+use std::ops::{Add, Mul};
 
-use super::fields::field::Field;
+use self::affine_element::Affine;
+
+use super::fields::field::{Field, FieldParams};
 
 pub(crate) mod affine_element;
-pub(crate) mod element;
 pub(crate) mod wnaf;
 #[cfg(test)]
 mod wnaf_test;
 
-pub trait GroupParams<Fq: Field> {
+pub trait GroupParams<FqP: FieldParams> {
     const USE_ENDOMORPHISM: bool;
     const has_a: bool;
-    const one_x: Fq;
-    const one_y: Fq;
-    const a: Fq;
-    const b: Fq;
+    const one_x: Field<FqP>;
+    const one_y: Field<FqP>;
+    const a: Field<FqP>;
+    const b: Field<FqP>;
 }
 
-pub trait Group<CoordinateField: Field, SubgroupField: Field, Params: GroupParams<CoordinateField>>
-{
-    type Affine: AffineElement<CoordinateField, SubgroupField, Params>;
+pub struct Group<FqP: FieldParams, FrP: FieldParams, Params: GroupParams<FqP>> {
+    pub x: Field<FqP>,
+    pub y: Field<FqP>,
+    pub z: Field<FqP>,
+}
+
+impl<FqP: FieldParams, FrP: FieldParams, Params: GroupParams<FqP>> Group<FqP, FrP, Params> {
+    fn one() -> Self {
+        Group {
+            x: Params::one_x,
+            y: Params::one_y,
+            z: Self::Fq::one(),
+        }
+    }
+
+    fn zero() -> Self {
+        let mut zero = Group {
+            x: Field::<FqP>::zero(),
+            y: Self::Fq::zero(),
+            z: Self::Fq::zero(),
+        };
+        zero.self_set_infinity();
+        zero
+    }
+
+    fn random_element(rng: &mut impl rand::RngCore) -> Self {
+        // Implement random_element logic
+    }
+
+    fn dbl(&self) -> Self {
+        // Implement dbl logic
+    }
+
+    fn self_dbl(&mut self) {
+        // Implement self_dbl logic
+    }
+
+    fn self_mixed_add_or_sub(&mut self, other: &Affine<FqP, FrP, Params>, predicate: u64) {
+        // Implement self_mixed_add_or_sub logic
+    }
+
+    // Implement other methods
+
+    fn normalize(&self) -> Self {
+        // Implement normalize logic
+    }
+
+    fn infinity() -> Self {
+        let mut infinity = Self {
+            x: Self::Fq::zero(),
+            y: Self::Fq::one(),
+            z: Self::Fq::zero(),
+        };
+        infinity.self_set_infinity();
+        infinity
+    }
+
+    fn set_infinity(&self) -> Self {
+        todo!("set_infinity")
+        // Implement set_infinity logic
+    }
+
+    fn self_set_infinity(&mut self) {
+        todo!("self_set_infinity")
+        // Implement self_set_infinity logic
+    }
+
+    fn is_point_at_infinity(&self) -> bool {
+        todo!("is_point_at_infinity")
+        // Implement is_point_at_infinity logic
+    }
+    fn on_curve(&self) -> bool {
+        // Implement on_curve logic
+        todo!("on_curve")
+    }
+
+    fn batch_normalize(elements: &mut [Self]) {
+        // Implement batch_normalize logic
+        todo!("fix batch_normalize")
+    }
+
+    fn batch_mul_with_endomorphism(
+        points: &[Affine<FqP, FrP, Params>],
+        exponent: &Field<FrP>,
+    ) -> Vec<Affine<FqP, FrP, Params>> {
+        // Implement batch_mul_with_endomorphism logic
+    }
+
+    fn mul_without_endomorphism(&self, exponent: &Field<FrP>) -> Affine<FqP, FrP, Params> {
+        // Implement mul_without_endomorphism logic
+    }
+
+    fn mul_with_endomorphism(&self, exponent: &Field<FrP>) -> Affine<FqP, FrP, Params> {
+        // Implement mul_with_endomorphism logic
+    }
 
     // coordinate_field: CoordinateField,
     // subgroup_field: SubgroupField,
@@ -30,15 +120,14 @@ pub trait Group<CoordinateField: Field, SubgroupField: Field, Params: GroupParam
     // fq: CoordinateField,
     // fr: SubgroupField,
     // Affine = AffineElementImpl<CoordinateField, SubgroupField, GroupParams>;
-    fn derive_generators<const N: usize>(
-    ) -> [dyn AffineElement<CoordinateField, SubgroupField, Params>; N] {
-        let mut generators = [AffineElement::default(); N];
+    fn derive_generators<const N: usize>() -> [Affine<FqP, FrP, Params>; N] {
+        let mut generators = [Affine::default(); N];
         let mut count = 0;
         let mut seed = 0;
 
         while count < N {
             seed += 1;
-            let candidate = AffineElement::hash_to_curve(seed);
+            let candidate = Affine::hash_to_curve(seed);
             if candidate.on_curve() && !candidate.is_point_at_infinity() {
                 generators[count] = candidate;
                 count += 1;
@@ -49,36 +138,51 @@ pub trait Group<CoordinateField: Field, SubgroupField: Field, Params: GroupParam
     }
 
     fn conditional_negate_affine(
-        src: &dyn AffineElement<CoordinateField, SubgroupField, Params>,
-        dest: &mut dyn AffineElement<CoordinateField, SubgroupField, Params>,
+        src: &Affine<FqP, FrP, Params>,
+        dest: &mut Affine<FqP, FrP, Params>,
         predicate: u64,
     ) {
         // Implement conditional_negate_affine logic here
     }
-    const one: dyn Element<CoordinateField, SubgroupField, Params> = ElementImpl {
+    const one: Self = Self {
         x: GroupParams::one_x,
         y: GroupParams::one_y,
-        z: CoordinateField::one(),
+        z: Self::Fq::one(),
     };
 
-    const point_at_infinity: dyn Element<CoordinateField, SubgroupField, Params> =
-        Self::one.set_infinity();
+    const point_at_infinity: Self = Self::one.set_infinity();
 
-    const affine_one: dyn AffineElement<CoordinateField, SubgroupField, Params> =
-        AffineElementImpl {
-            x: GroupParams::one_x,
-            y: GroupParams::one_y,
-        };
+    const affine_one: Affine<FqP, FrP, Params> = Affine {
+        x: GroupParams::one_x,
+        y: GroupParams::one_y,
+    };
 
-    const affine_point_at_infinity: AffineElementImpl<CoordinateField, SubgroupField, Params> =
-        Self::affine_one.set_infinity();
+    const affine_point_at_infinity: Affine<FqP, FrP, Params> = Self::affine_one.set_infinity();
 
-    const curve_a: CoordinateField = GroupParams::a;
-    const curve_b: CoordinateField = GroupParams::b;
+    const curve_a: Field<FqP> = GroupParams::a;
+    const curve_b: Field<FqP> = GroupParams::b;
 }
 
-pub struct GroupImpl<Fq: Field, Fr: Field, Params: GroupParams<Fq>> {}
-impl<Fq: Field, Fr: Field, Params: GroupParams<Fq>> Group<Fq, Fr, Params>
-    for GroupImpl<Fq, Fr, Params>
-{
+impl<Fq, Fr, Params> Add for Group<Fq, Fr, Params> {
+    type Output = Self;
+
+    fn add(self, other: Self) -> Self {
+        // Implement add logic
+        todo!()
+    }
+}
+
+// Implement other operator traits for Element
+impl<Fq, Fr, Params> Mul<Fr> for Group<Fq, Fr, Params> {
+    type Output = Self;
+
+    fn mul(self, other: Fr) -> Self {
+        // Implement mul logic
+    }
+}
+
+impl<FqP, FrP, Params> From<Group<FqP, FrP, Params>> for Affine<FqP, FrP, Params> {
+    fn from(element: Group<FqP, FrP, Params>) -> Self {
+        // Implement From trait
+    }
 }

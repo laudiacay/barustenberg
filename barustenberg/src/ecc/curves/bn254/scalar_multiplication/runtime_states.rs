@@ -56,7 +56,7 @@ fn get_num_rounds(num_points: usize) -> usize {
     WNAF_SIZE(bits_per_bucket + 1)
 }
 
-#[derive(Copy, Eq)]
+#[derive(Clone, Eq)]
 pub struct AffineProductRuntimeState {
     points: Vec<G1Affine>,
     point_pairs_1: Vec<G1Affine>,
@@ -70,7 +70,7 @@ pub struct AffineProductRuntimeState {
     bucket_empty_status: Vec<bool>,
 }
 
-#[derive(Copy, Eq)]
+#[derive(Clone, Eq)]
 pub struct PippengerRuntimeState {
     point_schedule: Vec<u64>,
     skew_table: Vec<bool>,

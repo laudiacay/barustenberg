@@ -1,12 +1,15 @@
 use crate::{
-    ecc::{curves::bn254::fr::Fr, fields::field::Field},
+    ecc::{
+        curves::bn254::fr::Fr,
+        fields::field::{Field, FieldParams},
+    },
     numeric::bitop::Msb,
 };
 use std::vec::Vec;
 
 pub const MIN_GROUP_PER_THREAD: usize = 4;
 
-pub struct EvaluationDomain<F: Field> {
+pub struct EvaluationDomain<F: FieldParams> {
     /// n, always a power of 2
     pub size: usize,
     /// num_threads * thread_size = size
@@ -17,23 +20,23 @@ pub struct EvaluationDomain<F: Field> {
     log2_num_threads: usize,
     generator_size: usize,
     /// omega; the nth root of unity
-    root: F,
+    root: Field<F>,
     /// omega^{-1}
-    root_inverse: F,
+    root_inverse: Field<F>,
     /// n; same as size
-    domain: F,
+    domain: Field<F>,
     /// n^{-1}
-    domain_inverse: F,
-    generator: F,
-    generator_inverse: F,
-    four_inverse: F,
+    domain_inverse: Field<F>,
+    generator: Field<F>,
+    generator_inverse: Field<F>,
+    four_inverse: Field<F>,
     /// An entry for each of the log(n) rounds: each entry is a pointer to
     /// the subset of the roots of unity required for that fft round.
     /// E.g. round_roots[0] = [1, ω^(n/2 - 1)],
     ///      round_roots[1] = [1, ω^(n/4 - 1), ω^(n/2 - 1), ω^(3n/4 - 1)]
     ///      ...
-    round_roots: Vec<Vec<F>>,
-    inverse_round_roots: Vec<Vec<F>>,
+    round_roots: Vec<Vec<Field<F>>>,
+    inverse_round_roots: Vec<Vec<Field<F>>>,
 }
 
 fn compute_num_threads(size: usize) -> usize {
@@ -47,11 +50,11 @@ fn compute_num_threads(size: usize) -> usize {
     return num_threads;
 }
 
-fn compute_lookup_table_single<F: Field>(
-    input_root: &F,
+fn compute_lookup_table_single<F: FieldParams>(
+    input_root: &Field<F>,
     size: usize,
-    roots: &[F],
-    round_roots: &mut Vec<&mut [F]>,
+    roots: &[Field<F>],
+    round_roots: &mut Vec<&mut [Field<F>]>,
 ) {
     todo!("unimplemented, see comment below");
     // ORIGINAL CODE:
@@ -103,7 +106,7 @@ fn compute_lookup_table_single<F: Field>(
     // }
 }
 
-impl<F: Field> EvaluationDomain<F> {
+impl<F: FieldParams> EvaluationDomain<F> {
     pub fn new(domain_size: usize, target_generator_size: Option<usize>) -> Self {
         // TODO: implement constructor logic
 

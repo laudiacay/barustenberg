@@ -1,4 +1,4 @@
-use crate::ecc::fields::field::{FieldImpl, FieldParams};
+use crate::ecc::fields::field::{Field, FieldParams};
 
 pub trait Bn254FqParams: FieldParams {
     const modulus_0: u64 = 0x3C208C16D87CFD47;
@@ -75,8 +75,8 @@ pub trait Bn254FqParams: FieldParams {
     ];
 }
 
-struct Bn254FqParamsImpl {}
+pub struct Bn254FqParamsImpl {}
 
 impl Bn254FqParams for Bn254FqParamsImpl {}
 
-pub type Fq = FieldImpl<Bn254FqParamsImpl>;
+pub type Fq = Field<Bn254FqParamsImpl>;

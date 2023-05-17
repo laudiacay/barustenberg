@@ -13,7 +13,10 @@
 // use crate::barretenberg::scalar_multiplication;
 
 use crate::{
-    ecc::{curves::bn254::g1::G1Affine, fields::field::Field},
+    ecc::{
+        curves::bn254::g1::G1Affine,
+        fields::field::{Field, FieldParams},
+    },
     transcript::{BarretenHasher, Manifest},
 };
 
@@ -47,7 +50,7 @@ impl<H: BarretenHasher, PS: Settings<H>> dyn VerifierBase<H, PS> {
     }
 }
 
-pub struct Verifier<Fr: Field, H: BarretenHasher, PS: Settings<H>> {
+pub struct Verifier<Fr: FieldParams, H: BarretenHasher, PS: Settings<H>> {
     settings: PS,
     key: Option<Arc<VerificationKey>>,
     manifest: Manifest,
@@ -56,7 +59,9 @@ pub struct Verifier<Fr: Field, H: BarretenHasher, PS: Settings<H>> {
     commitment_scheme: Box<dyn CommitmentScheme<Fr, G1Affine, H>>,
 }
 
-impl<Fr: Field, H: BarretenHasher, PS: Settings<H>> VerifierBase<H, PS> for Verifier<Fr, H, PS> {
+impl<Fr: FieldParams, H: BarretenHasher, PS: Settings<H>> VerifierBase<H, PS>
+    for Verifier<Fr, H, PS>
+{
     fn new(verifier_key: Option<Arc<VerificationKey>>, manifest: Manifest) -> Self {
         // Implement constructor logic here.
     }

@@ -50,7 +50,7 @@ impl<H: BarretenHasher> Settings<H> for StandardSettings<H> {
     fn is_plookup(&self) -> bool {
         false
     }
-    fn hasher(&self) -> dyn BarretenHasher {
+    fn hasher(&self) -> H {
         self.hasher
     }
 }
@@ -88,7 +88,7 @@ impl Settings<PedersenBlake3s> for TurboSettings {
     fn is_plookup(&self) -> bool {
         false
     }
-    fn hasher(&self) -> dyn BarretenHasher {
+    fn hasher(&self) -> PedersenBlake3s {
         PedersenBlake3s {}
     }
 }
@@ -130,7 +130,7 @@ impl Settings<PlookupPedersenBlake3s> for UltraSettings {
     fn is_plookup(&self) -> bool {
         false
     }
-    fn hasher(&self) -> dyn BarretenHasher {
+    fn hasher(&self) -> PlookupPedersenBlake3s {
         PlookupPedersenBlake3s {}
     }
 }
@@ -162,7 +162,7 @@ impl Settings<PedersenBlake3s> for UltraToStandardSettings {
     fn is_plookup(&self) -> bool {
         false
     }
-    fn hasher(&self) -> dyn BarretenHasher {
+    fn hasher(&self) -> PedersenBlake3s {
         PedersenBlake3s {}
     }
 }
@@ -194,7 +194,7 @@ impl Settings<Keccak256> for UltraWithKeccakSettings {
     fn is_plookup(&self) -> bool {
         false
     }
-    fn hasher(&self) -> dyn BarretenHasher {
+    fn hasher(&self) -> Keccak256 {
         Keccak256 {}
     }
 }

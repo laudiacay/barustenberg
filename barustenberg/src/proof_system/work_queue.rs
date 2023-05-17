@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use crate::ecc::fields::field::Field;
+use crate::ecc::fields::field::FieldParams;
 use crate::plonk::proof_system::proving_key::ProvingKey;
 use crate::transcript::Transcript;
 
@@ -17,7 +17,7 @@ pub(crate) struct WorkItemInfo {
     num_iffts: usize,
 }
 
-struct WorkItem<Fr: Field> {
+struct WorkItem<Fr: FieldParams> {
     work_type: WorkType,
     mul_scalars: Rc<Vec<Fr>>,
     tag: String,
@@ -25,18 +25,18 @@ struct WorkItem<Fr: Field> {
     index: usize,
 }
 
-pub(crate) struct QueuedFftInputs<Fr: Field> {
+pub(crate) struct QueuedFftInputs<Fr: FieldParams> {
     data: Vec<Fr>,
     shift_factor: Fr,
 }
 
-pub(crate) struct WorkQueue<Fr: Field> {
+pub(crate) struct WorkQueue<Fr: FieldParams> {
     key: Option<Rc<ProvingKey<Fr>>>,
     transcript: Option<Rc<Transcript<Fr>>>,
     work_items: Vec<WorkItem<Fr>>,
 }
 
-impl<Fr: Field> WorkQueue<Fr> {
+impl<Fr: FieldParams> WorkQueue<Fr> {
     /*
     work_item_info get_queued_work_item_info() const;
 

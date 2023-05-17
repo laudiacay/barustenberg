@@ -1,8 +1,12 @@
-use crate::ecc::fields::field12::{Field12Impl, Field12Params};
+use crate::ecc::fields::field12::{Field12, Field12Params};
 
-use super::{fq::Fq, fq2::Fq2, fq6::Fq6};
+use super::{
+    fq::{Bn254FqParamsImpl, Fq},
+    fq2::{Bn254Fq2ParamsImpl, Fq2},
+    fq6::Bn254Fq6ParamsImpl,
+};
 
-pub trait Bn254Fq12Params: Field12Params<Fq, Fq2, Fq6> {
+pub trait Bn254Fq12Params: Field12Params<Fq, Fq2> {
     const frobenius_coefficients_1: Fq2 = Fq2::new(
         0xaf9ba69633144907,
         0xca6b1d7387afb78a,
@@ -40,4 +44,5 @@ pub trait Bn254Fq12Params: Field12Params<Fq, Fq2, Fq6> {
 struct Bn254Fq12ParamsImpl {}
 
 impl Bn254Fq12Params for Bn254Fq12ParamsImpl {}
-pub type Fq12 = Field12Impl<Fq, Fq2, Fq6, Bn254Fq12ParamsImpl>;
+pub type Fq12 =
+    Field12<Bn254FqParamsImpl, Bn254Fq2ParamsImpl, Bn254Fq6ParamsImpl, Bn254Fq12ParamsImpl>;

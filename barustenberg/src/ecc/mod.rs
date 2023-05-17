@@ -1,6 +1,6 @@
 use self::{
     curves::bn254::{fq12::Fq12, g1::G1Affine},
-    fields::field::Field,
+    fields::field::{Field, FieldParams},
 };
 
 // TODO todo - stubs to get the compiler to cooperate.
@@ -30,10 +30,10 @@ pub(crate) mod groups;
 
 pub struct Pippenger {}
 
-struct EllCoeffs<QuadraticField: Field> {
-    o: QuadraticField,
-    vw: QuadraticField,
-    vv: QuadraticField,
+struct EllCoeffs<QuadFP: FieldParams> {
+    o: Field<QuadFP>,
+    vw: Field<QuadFP>,
+    vv: Field<QuadFP>,
 }
 
 const PRECOMPUTED_COEFFICIENTS_LENGTH: usize = 87;

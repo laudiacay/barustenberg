@@ -1,6 +1,9 @@
-use crate::ecc::fields::field6::{Field6Impl, Field6Params};
+use crate::ecc::fields::field6::{Field6, Field6Params};
 
-use super::{fq::Fq, fq2::Fq2};
+use super::{
+    fq::{Bn254FqParamsImpl, Fq},
+    fq2::{Bn254Fq2ParamsImpl, Fq2},
+};
 
 pub trait Bn254Fq6Params: Field6Params<Fq, Fq2> {
     const frobenius_coeffs_c1_1: Fq2 = Fq2::new(
@@ -70,8 +73,8 @@ pub trait Bn254Fq6Params: Field6Params<Fq, Fq2> {
     );
 }
 
-struct Bn254Fq6ParamsImpl {}
+pub struct Bn254Fq6ParamsImpl {}
 
 impl Bn254Fq6Params for Bn254Fq6ParamsImpl {}
 
-pub type Fq6 = Field6Impl<Fq, Fq2, Bn254Fq6ParamsImpl>;
+pub type Fq6 = Field6<Bn254FqParamsImpl, Bn254Fq2ParamsImpl, Bn254Fq6ParamsImpl>;

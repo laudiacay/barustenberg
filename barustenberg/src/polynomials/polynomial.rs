@@ -1,3 +1,3 @@
-use crate::ecc::fields::field::Field;
+use crate::ecc::fields::field::FieldParams;
 
-pub(crate) struct Polynomial<F: Field> {}
+pub(crate) struct Polynomial<F: FieldParams> {}

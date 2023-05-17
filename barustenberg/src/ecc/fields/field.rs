@@ -47,8 +47,11 @@ pub trait FieldParams {
     const coset_generators_3: [u64; 8];
 }
 
-#[derive(Copy, Serialize, Deserialize)]
-pub struct FieldImpl<Params: FieldParams> {
+#[cfg(all(features = "SIZEOFINT128", not(features = "WASM")))]
+const LO_MASK: u128 = 0xffffffffffffffff;
+
+#[derive(Clone, Serialize, Deserialize)]
+pub(crate) struct Field<Params: FieldParams> {
     data: [u64; 4],
     phantom: PhantomData<Params>,
 }
@@ -166,55 +169,35 @@ pub fn square_accumulate(
     todo!()
 }
 
-pub trait Field {
-    #[cfg(all(features = "SIZEOFINT128", not(features = "WASM")))]
-    const LO_MASK: u128 = 0xffffffffffffffff;
-
-    fn new() -> Self;
-    fn from_u256(input: U256) -> Self;
-    fn from_u64(input: u64) -> Self;
-    fn from_i64(input: i64) -> Self;
-    fn from_parts(a: u64, b: u64, c: u64, d: u64) -> Self;
-
-    fn as_u32(&self) -> u32;
-    fn as_u64(&self) -> u64;
-    fn as_u128(&self) -> u128;
-    fn as_u256(&self) -> U256;
-    const MODULUS: U256;
-
-    fn cube_root_of_unity() -> Self;
-
-    fn zero() -> Self {
+impl<Params: FieldParams> Field<Params> {
+    pub fn zero() -> Self
+    where
+        Self: Sized,
+    {
         Self::from_parts(0, 0, 0, 0)
     }
 
-    fn neg_one() -> Self {
+    fn neg_one() -> Self
+    where
+        Self: Sized,
+    {
         -Self::from_i64(1)
     }
 
-    fn one() -> Self {
+    fn one() -> Self
+    where
+        Self: Sized,
+    {
         Self::from_i64(1)
     }
 
-    fn external_coset_generator() -> Self;
-    fn tag_coset_generator() -> Self;
-
-    fn coset_generator(idx: usize) -> Self;
-
-    fn to_montgomery_form(&self) -> Self;
-
-    fn from_montgomery_form(&self) -> Self {
-        // constexpr field one_raw{ 1, 0, 0, 0 };
-        // return operator*(one_raw).reduce_once();
-        todo!("this might ought to be an into or a from, btw")
+    pub fn from_montgomery_form(&self) -> Self {
+        todo!()
     }
 
     fn uint256_t_no_montgomery_conversion(&self) -> U256 {
         U256::from_parts(self.data[0], self.data[1], self.data[2], self.data[3])
     }
-
-    fn sqr(&self) -> Self;
-    fn self_sqr(&mut self);
 
     fn pow(&self, exp: &U256) -> Self {
         todo!("implement pow")
@@ -223,35 +206,39 @@ pub trait Field {
     fn pow_64(&self, exp: u64) -> Self {
         todo!("implement pow_64")
     }
-    // TODO BUG is this little_endian rep correct?
-    const modulus_minus_two: U256;
 
     fn invert(&self) -> Self {
         todo!();
         // TODO: Implement the inversion logic
     }
 
-    fn batch_invert(coeffs: &mut [Self]) {
+    fn batch_invert(coeffs: &mut [Self])
+    where
+        Self: Sized,
+    {
         // TODO: Implement the batch inversion logic
     }
 
-    fn batch_invert_slice(coeffs: &mut [Self], n: usize) {
+    fn batch_invert_slice(coeffs: &mut [Self], n: usize)
+    where
+        Self: Sized,
+    {
         // TODO: Implement the batch inversion logic for a slice
     }
 
-    fn sqrt(&self) -> (bool, Self) {
+    pub fn sqrt(&self) -> (bool, Self) {
         // TODO: Implement the square root logic
     }
 
-    fn self_neg(&mut self) {
+    pub fn self_neg(&mut self) {
         // TODO: Implement the self negation logic
     }
 
-    fn self_to_montgomery_form(&mut self) {
+    pub fn self_to_montgomery_form(&mut self) {
         // TODO: Implement the conversion to Montgomery form logic for self
     }
 
-    fn self_from_montgomery_form(&mut self) {
+    pub fn self_from_montgomery_form(&mut self) {
         // TODO: Implement the conversion from Montgomery form logic for self
     }
 
@@ -279,7 +266,7 @@ pub trait Field {
         // TODO: Implement the is msb set word logic
     }
 
-    fn is_zero(&self) -> bool {
+    pub fn is_zero(&self) -> bool {
         // TODO: Implement the is zero logic
     }
 
@@ -345,11 +332,14 @@ pub trait Field {
 
     fn split_into_endomorphism_scalars_384(input: &Self, k1_out: &Self, k2_out: &Self) {}
 
-    fn random_element(engine: Option<&mut dyn rand::Rng>) -> Self {
+    fn random_element(engine: Option<&mut dyn rand::RngCore>) -> Self {
         todo!() // Implement the random_element logic
     }
 
-    fn multiplicative_generator() -> Self {
+    fn multiplicative_generator() -> Self
+    where
+        Self: Sized,
+    {
         todo!() // Implement the multiplicative_generator logic
     }
 
@@ -369,7 +359,10 @@ pub trait Field {
         todo!()
     }
 
-    fn add(&self, other: &Self) -> Self {
+    fn add(&self, other: &Self) -> Self
+    where
+        Self: Sized,
+    {
         todo!()
     }
 
@@ -393,13 +386,19 @@ pub trait Field {
         todo!()
     }
 
-    const COSET_GENERATOR_SIZE: usize = 15;
+    fn coset_generator_size() -> usize {
+        15
+    }
+
     fn tonelli_shanks_sqrt(&self) -> Self {
         todo!()
     }
 
     #[cfg(not(features = "BBERG_NO_ASM"))]
-    const ZERO_REFERENCE: u64 = 0x00;
+    fn zero_reference() -> u64 {
+        // TODO noooooo this should not be a function
+        0x00
+    }
     #[cfg(not(features = "BBERG_NO_ASM"))]
     fn asm_mul(a: &Self, b: &Self) -> Self {
         todo!()
@@ -480,15 +479,8 @@ pub trait Field {
     fn asm_self_reduce_once(a: &Self) {
         todo!()
     }
-}
-
-// TODO maybe these params should be trait object/phantoms
-impl<Params> Field for FieldImpl<Params> {
-    #[cfg(all(features = "SIZEOFINT128", not(features = "WASM")))]
-    const LO_MASK: u128 = 0xffffffffffffffff;
-
     fn new() -> Self {
-        FieldImpl {
+        Field {
             data: [0, 0, 0, 0],
             phantom: PhantomData,
         }
@@ -497,7 +489,7 @@ impl<Params> Field for FieldImpl<Params> {
     fn from_u256(input: U256) -> Self {
         let mut data = [0_u64; 4];
         input.to_little_endian(data);
-        let mut result = FieldImpl {
+        let mut result = Field {
             data,
             phantom: PhantomData,
         };
@@ -506,7 +498,7 @@ impl<Params> Field for FieldImpl<Params> {
     }
 
     fn from_u64(input: u64) -> Self {
-        let mut result = FieldImpl {
+        let mut result = Field {
             data: [input, 0, 0, 0],
             phantom: PhantomData,
         };
@@ -515,7 +507,7 @@ impl<Params> Field for FieldImpl<Params> {
     }
 
     fn from_i64(input: i64) -> Self {
-        let mut result = FieldImpl {
+        let mut result = Field {
             data: [0, 0, 0, 0],
             phantom: PhantomData,
         };
@@ -538,7 +530,7 @@ impl<Params> Field for FieldImpl<Params> {
     }
 
     fn from_parts(a: u64, b: u64, c: u64, d: u64) -> Self {
-        FieldImpl {
+        Field {
             data: [a, b, c, d],
             phantom: PhantomData,
         }
@@ -571,13 +563,17 @@ impl<Params> Field for FieldImpl<Params> {
         )
     }
 
-    const MODULUS: U256 = U256::from_parts(
-        Params::MODULUS_0,
-        Params::MODULUS_1,
-        Params::MODULUS_2,
-        Params::MODULUS_3,
-    );
+    // TODO macro...???
+    pub fn modulus() -> U256 {
+        U256::from_parts(
+            Params::MODULUS_0,
+            Params::MODULUS_1,
+            Params::MODULUS_2,
+            Params::MODULUS_3,
+        )
+    }
 
+    // TODO macro
     fn external_coset_generator() -> Self {
         Self::from_parts(
             Params::COSET_GENERATORS_0[7],
@@ -587,6 +583,7 @@ impl<Params> Field for FieldImpl<Params> {
         )
     }
 
+    // TODO macro
     fn tag_coset_generator() -> Self {
         Self::from_parts(
             Params::COSET_GENERATORS_0[6],
@@ -606,7 +603,7 @@ impl<Params> Field for FieldImpl<Params> {
         )
     }
 
-    fn to_montgomery_form(&self) -> Self {
+    pub fn to_montgomery_form(&self) -> Self {
         let r_squared = Self::from_parts(
             Params::r_squared_0,
             Params::r_squared_1,
@@ -643,12 +640,18 @@ impl<Params> Field for FieldImpl<Params> {
         todo!("implement pow_64")
     }
     // TODO BUG is this little_endian rep correct?
-    const modulus_minus_two: U256 = U256::from_little_endian(&[
-        Params::modulus_0 - 2u64,
-        Params::modulus_1,
-        Params::modulus_2,
-        Params::modulus_3,
-    ]);
+    // TODO macro or trait with const not function this is so awful
+    fn modulus_minus_two() -> U256
+    where
+        Self: Sized,
+    {
+        U256::from_little_endian(&[
+            Params::modulus_0 - 2u64,
+            Params::modulus_1,
+            Params::modulus_2,
+            Params::modulus_3,
+        ])
+    }
 
     fn invert(&self) -> Self {
         // TODO: Implement the inversion logic
@@ -666,15 +669,15 @@ impl<Params> Field for FieldImpl<Params> {
         // TODO: Implement the square root logic
     }
 
-    fn self_neg(&mut self) {
+    pub fn self_neg(&mut self) {
         // TODO: Implement the self negation logic
     }
 
-    fn self_to_montgomery_form(&mut self) {
+    pub fn self_to_montgomery_form(&mut self) {
         // TODO: Implement the conversion to Montgomery form logic for self
     }
 
-    fn self_from_montgomery_form(&mut self) {
+    pub fn self_from_montgomery_form(&mut self) {
         // TODO: Implement the conversion from Montgomery form logic for self
     }
 
@@ -702,7 +705,7 @@ impl<Params> Field for FieldImpl<Params> {
         // TODO: Implement the is msb set word logic
     }
 
-    fn is_zero(&self) -> bool {
+    pub fn is_zero(&self) -> bool {
         // TODO: Implement the is zero logic
     }
 
@@ -881,7 +884,7 @@ impl<Params> Field for FieldImpl<Params> {
 
 //TODO handle BBERG_INLINE as macros
 
-impl fmt::Display for dyn Field {
+impl<Params: FieldParams> fmt::Display for Field<Params> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let out = self.from_montgomery_form();
         write!(
@@ -892,15 +895,15 @@ impl fmt::Display for dyn Field {
     }
 }
 
-impl<Params> Mul for dyn Field {
+impl<Params: FieldParams> Mul for Field<Params> {
     type Output = Self;
 
     fn mul(self, rhs: Self) -> Self {
-        todo!();
+        todo!()
     }
 }
 
-impl<Params> Add for dyn Field {
+impl<Params: FieldParams> Add for Field<Params> {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self {
@@ -908,7 +911,7 @@ impl<Params> Add for dyn Field {
     }
 }
 
-impl<Params> Sub for dyn Field {
+impl<Params: FieldParams> Sub for Field<Params> {
     type Output = Self;
 
     fn sub(self, rhs: Self) -> Self {
@@ -916,7 +919,7 @@ impl<Params> Sub for dyn Field {
     }
 }
 
-impl<Params> Neg for dyn Field {
+impl<Params: FieldParams> Neg for Field<Params> {
     type Output = Self;
 
     fn neg(self) -> Self {
@@ -924,53 +927,52 @@ impl<Params> Neg for dyn Field {
     }
 }
 
-impl<Params> Div for dyn Field {
+impl<Params: FieldParams> Div for Field<Params> {
     type Output = Self;
 
     fn div(self, rhs: Self) -> Self {
         todo!();
     }
 }
-
-impl<Params> AddAssign for dyn Field {
+impl<Params: FieldParams> AddAssign for Field<Params> {
     fn add_assign(&mut self, rhs: Self) {
         todo!();
     }
 }
 
-impl<Params> SubAssign for dyn Field {
+impl<Params: FieldParams> SubAssign for Field<Params> {
     fn sub_assign(&mut self, rhs: Self) {
         todo!();
     }
 }
 
-impl<Params> MulAssign for dyn Field {
+impl<Params: FieldParams> MulAssign for Field<Params> {
     fn mul_assign(&mut self, rhs: Self) {
         todo!();
     }
 }
 
-impl<Params> DivAssign for dyn Field {
+impl<Params: FieldParams> DivAssign for Field<Params> {
     fn div_assign(&mut self, rhs: Self) {
         todo!();
     }
 }
 
-impl<Params> PartialEq for dyn Field {
+impl<Params: FieldParams> PartialEq for Field<Params> {
     fn eq(&self, other: &Self) -> bool {
         todo!();
     }
 }
 
-impl<Params> Eq for dyn Field {}
+impl<Params: FieldParams> Eq for Field<Params> {}
 
-impl<Params> PartialOrd for dyn Field {
+impl<Params: FieldParams> PartialOrd for Field<Params> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         todo!();
     }
 }
 
-impl<Params> Ord for dyn Field {
+impl<Params: FieldParams> Ord for Field<Params> {
     fn cmp(&self, other: &Self) -> Ordering {
         todo!();
     }

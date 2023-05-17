@@ -4,77 +4,28 @@ use std::vec;
 
 use primitive_types::U256;
 
-use super::element::Element;
+use crate::ecc::fields::field::{Field, FieldParams};
+
 use super::GroupParams;
 
-pub trait AffineElement<Fq, Fr, Params: GroupParams<Fq>> {
-    fn new(a: Fq, b: Fq) -> Self;
-
-    fn one() -> Self;
-
-    fn from_compressed(compressed: U256) -> Self
-    where
-        Fq: 'static;
-
-    fn from_compressed_unsafe(compressed: U256) -> [Self; 2]
-    where
-        Fq: 'static;
-
-    fn is_point_at_infinity(&self) -> bool;
-
-    fn on_curve(&self) -> bool;
-
-    fn compress(&self) -> U256;
-
-    fn serialize_to_buffer(&self, buffer: &mut [u8]);
-
-    fn serialize_from_buffer(buffer: &[u8]) -> Self;
-
-    fn to_buffer(&self) -> Vec<u8>;
+#[derive(Default, PartialEq, Eq)]
+pub struct Affine<FqP, FrP, Params>
+where
+    FqP: Default + Clone + PartialEq + FieldParams,
+    FrP: Default + Clone + FieldParams,
+    Params: Default + Clone + GroupParams<FqP>,
+{
+    x: Field<FqP>,
+    y: Field<FqP>,
 }
 
-impl<Fq, Fr, Params> PartialEq for dyn AffineElement<Fq, Fr, Params>
-where
-    Fq: Default + Clone + PartialEq,
-    Fr: Default + Clone,
-    Params: Default + Clone,
+impl<
+        FqP: Default + Clone + PartialEq + FieldParams,
+        FrP: Default + Clone + FieldParams,
+        Params: Default + Clone + GroupParams<FqP>,
+    > Affine<FqP, FrP, Params>
 {
-    fn eq(&self, other: &Self) -> bool {
-        self.x == other.x && self.y == other.y
-    }
-}
-
-pub struct AffineElementImpl<Fq, Fr, Params>
-where
-    Fq: Default + Clone + PartialEq,
-    Fr: Default + Clone,
-    Params: Default + Clone,
-{
-    x: Fq,
-    y: Fq,
-}
-
-impl<Fq, Fr, Params> Default for AffineElementImpl<Fq, Fr, Params>
-where
-    Fq: Default + Clone + PartialEq,
-    Fr: Default + Clone,
-    Params: Default + Clone,
-{
-    fn default() -> Self {
-        Self {
-            x: Fq::default(),
-            y: Fq::default(),
-        }
-    }
-}
-
-impl<Fq, Fr, Params> AffineElement<Fq, Fr, Params> for AffineElementImpl<Fq, Fr, Params>
-where
-    Fq: Default + Clone + PartialEq,
-    Fr: Default + Clone,
-    Params: Default + Clone,
-{
-    fn new(a: Fq, b: Fq) -> Self {
+    fn new(a: Field<FqP>, b: Field<FqP>) -> Self {
         Self { x: a, y: b }
     }
 
@@ -85,10 +36,7 @@ where
         }
     }
 
-    fn from_compressed(compressed: U256) -> Self
-    where
-        Fq: 'static,
-    {
+    fn from_compressed(compressed: U256) -> Self {
         // Implementation for (BaseField::modulus >> 255) == 0
         let _compile_time_enabled: std::marker::PhantomData<()>;
         // TODO: Implement logic for this case
@@ -96,8 +44,8 @@ where
     }
 
     fn from_compressed_unsafe(compressed: U256) -> [Self; 2]
-    where
-        Fq: 'static,
+// where
+    //     Fq: 'static,
     {
         // Implementation for (BaseField::modulus >> 255) == 1
         let _compile_time_enabled: std::marker::PhantomData<()>;
@@ -138,21 +86,10 @@ where
     }
 }
 
-impl<Fq, Fr, Params: GroupParams<Fq>> PartialEq for dyn AffineElement<Fq, Fr, Params>
+impl<FqP, FrP, Params: GroupParams<FqP>> PartialOrd for Affine<FqP, FrP, Params>
 where
-    Fq: Default + Clone + PartialEq,
-    Fr: Default + Clone,
-    Params: Default + Clone,
-{
-    fn eq(&self, other: &Self) -> bool {
-        self.x == other.x && self.y == other.y
-    }
-}
-
-impl<Fq, Fr, Params: GroupParams<Fq>> PartialOrd for dyn AffineElement<Fq, Fr, Params>
-where
-    Fq: Default + Clone + PartialEq + PartialOrd,
-    Fr: Default + Clone,
+    FqP: Default + Clone + PartialEq + PartialOrd,
+    FrP: Default + Clone,
     Params: Default + Clone,
 {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
@@ -167,11 +104,5 @@ where
         } else {
             self.y.partial_cmp(&other.y)
         }
-    }
-}
-
-impl<Fq, Fr, Params> From<dyn Element<Fq, Fr, Params>> for dyn AffineElement<Fq, Fr, Params> {
-    fn from(element: dyn Element<Fq, Fr, Params>) -> Self {
-        // Implement From trait
     }
 }

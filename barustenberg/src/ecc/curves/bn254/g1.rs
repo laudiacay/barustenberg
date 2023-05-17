@@ -1,6 +1,8 @@
-use crate::ecc::groups::{Group, GroupImpl, GroupParams};
+use crate::ecc::groups::affine_element::Affine;
+use crate::ecc::groups::{Group, GroupParams};
 
-use super::{fq::Fq, fr::Fr};
+use super::fq::{Bn254FqParamsImpl, Fq};
+use super::fr::Bn254FrParamsImpl;
 
 trait Bn254G1Params: GroupParams<Fq> {
     const USE_ENDOMORPHISM: bool = true;
@@ -27,5 +29,5 @@ struct Bn254G1ParamsImpl {}
 
 impl Bn254G1Params for Bn254G1ParamsImpl {}
 
-pub type G1 = GroupImpl<Fq, Fr, Bn254G1ParamsImpl>;
-pub type G1Affine = <G1 as Group<Fq, Fr, Bn254G1ParamsImpl>>::Affine;
+pub type G1 = Group<Bn254FqParamsImpl, Bn254FrParamsImpl, Bn254G1ParamsImpl>;
+pub type G1Affine = Affine<Bn254FqParamsImpl, Bn254FrParamsImpl, Bn254G1ParamsImpl>;

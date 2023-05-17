@@ -1,4 +1,4 @@
-use crate::{ecc::fields::field::Field, polynomials::Polynomial};
+use crate::{ecc::fields::field::FieldParams, polynomials::Polynomial};
 use anyhow::{anyhow, Result};
 use std::{
     collections::HashMap,
@@ -6,10 +6,10 @@ use std::{
 };
 
 #[derive(Debug, Clone)]
-pub(crate) struct PolynomialStore<Fr: Field> {
+pub(crate) struct PolynomialStore<Fr: FieldParams> {
     polynomial_map: HashMap<String, Polynomial<Fr>>,
 }
-impl<Fr: Field> PolynomialStore<Fr> {
+impl<Fr: FieldParams> PolynomialStore<Fr> {
     pub(crate) const fn new() -> Self {
         Self {
             polynomial_map: HashMap::new(),
@@ -76,7 +76,7 @@ impl<Fr: Field> PolynomialStore<Fr> {
     // TODO: "allow for const range based for loop"
 }
 
-impl<Fr: Field> Display for PolynomialStore<Fr> {
+impl<Fr: FieldParams> Display for PolynomialStore<Fr> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let size_in_mb = (self.get_size_in_bytes() / 1e6) as f32;
         write!(f, "PolynomialStore contents total size: {} MB", size_in_mb);

@@ -1,5 +1,5 @@
 use crate::{
-    ecc::{curves::bn254::fr::Fr, fields::field::Field},
+    ecc::{curves::bn254::fr::Fr, fields::field::FieldParams},
     plonk::proof_system::{
         types::{polynomial_manifest::PolynomialIndex, prover_settings::Settings},
         widgets::transition_widgets::transition_widget::containers::{
@@ -23,18 +23,18 @@ pub trait Getters<Field, PolyContainer> {
 
 pub struct ArithmeticKernel<
     H: BarretenHasher,
-    Field,
+    FieldParams,
     Getters,
     PolyContainer,
     const NUM_WIDGET_RELATIONS: usize,
 > {
-    base_getter: dyn BaseGetter<Field, Transcript<H>, dyn Settings<H>, NUM_WIDGET_RELATIONS>,
-    phantom: PhantomData<(Field, Getters, PolyContainer)>,
+    base_getter: dyn BaseGetter<FieldParams, Transcript<H>, dyn Settings<H>, NUM_WIDGET_RELATIONS>,
+    phantom: PhantomData<(FieldParams, Getters, PolyContainer)>,
 }
 
 impl<H: BarretenHasher, F, Getters, PolyContainer> ArithmeticKernel<H, F, Getters, PolyContainer, 1>
 where
-    F: Field,
+    F: FieldParams,
     Getters: BaseGetter<F, Transcript<H>, dyn Settings<H>, 1>,
 {
     pub const QUOTIENT_REQUIRED_CHALLENGES: u8 = CHALLENGE_BIT_ALPHA;
@@ -81,7 +81,7 @@ where
 }
 
 pub type ProverArithmeticWidget<
-    F: Field,
+    F: FieldParams,
     H: BarretenHasher,
     S: Settings<H>,
     const NUM_WIDGET_RELATIONS: usize,
@@ -91,12 +91,15 @@ pub type ProverArithmeticWidget<
     H,
     Fr,
     S,
+    PolyContainer,
+    Getters,
+    NUM_WIDGET_RELATIONS,
     ArithmeticKernel<H, Fr, Getters, PolyContainer, NUM_WIDGET_RELATIONS>,
 >;
 
 pub type VerifierArithmeticWidget<
     H: BarretenHasher,
-    F: Field,
+    F: FieldParams,
     Group,
     const NUM_WIDGET_RELATIONS: usize,
     Getters: BaseGetter<H, F, S, NUM_WIDGET_RELATIONS>,
