@@ -8,7 +8,7 @@ use crate::ecc::fields::field::{Field, FieldGeneral, FieldParams, FieldParamsGen
 
 use super::GroupParams;
 
-#[derive(Default, PartialEq, Eq)]
+#[derive(Clone, Default, PartialEq, Eq)]
 pub struct Affine<FqP, Fq: FieldGeneral<FqP>, FrP, Params>
 where
     FqP: FieldParamsGeneral,

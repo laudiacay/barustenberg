@@ -1,4 +1,4 @@
-use crate::ecc::fields::field::{Field, FieldParams, FieldParamsGeneral};
+use crate::ecc::fields::field::{Field, FieldGeneral, FieldParams, FieldParamsGeneral};
 
 #[derive(Clone, PartialEq, Eq)]
 pub struct Bn254FqParamsImpl {}

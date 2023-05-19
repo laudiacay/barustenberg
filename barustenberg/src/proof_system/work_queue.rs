@@ -4,6 +4,7 @@ use crate::ecc::fields::field::FieldParams;
 use crate::plonk::proof_system::proving_key::ProvingKey;
 use crate::transcript::{BarretenHasher, Transcript};
 
+#[derive(PartialEq, Eq, Clone, Copy)]
 enum WorkType {
     Fft,
     SmallFft,
@@ -66,7 +67,7 @@ impl<H: BarretenHasher, Fr: FieldParams> WorkQueue<H, Fr> {
     pub fn new(
         prover_key: Option<Rc<ProvingKey<Fr>>>,
         prover_transcript: Option<Rc<Transcript<H>>>,
-    ) {
+    ) -> Self {
         WorkQueue {
             key: prover_key,
             transcript: prover_transcript,

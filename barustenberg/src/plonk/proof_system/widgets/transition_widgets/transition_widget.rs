@@ -50,14 +50,14 @@ static _MAX_NUM_CHALLENGES_CHECK: () = {
 pub mod containers {
     use generic_array::GenericArray;
 
-    use crate::plonk::proof_system::types::polynomial_manifest::PolynomialIndex;
+    use crate::{plonk::proof_system::types::polynomial_manifest::PolynomialIndex, ecc::fields::field::{Field, FieldParams}};
 
     use super::MaxNumChallengesTN;
     use std::collections::HashMap;
 
-    pub struct ChallengeArray<Field, NumRelations: generic_array::ArrayLength<Field>> {
-        pub elements: GenericArray<Field, MaxNumChallengesTN>,
-        pub alpha_powers: GenericArray<Field, NumRelations>,
+    pub struct ChallengeArray<FP: FieldParams, NumRelations: generic_array::ArrayLength<Field<FP>>> {
+        pub elements: GenericArray<Field<FP>, MaxNumChallengesTN>,
+        pub alpha_powers: GenericArray<Field<FP>, NumRelations>,
     }
 
     pub type PolyArray<Field> = [(Field, Field); PolynomialIndex::MaxNumPolynomials as usize];
@@ -106,9 +106,9 @@ pub trait BaseGetter<
     fn get_challenges(
         &self,
         transcript: &Transcript<H>,
-        alpha_base: F,
+        alpha_base: Field<F>,
         required_challenges: u8,
-    ) -> ChallengeArray<F, NWidgetRelations> {
+    ) -> ChallengeArray<Field<F>, NWidgetRelations> {
         let mut result = ChallengeArray::default();
         let add_challenge = |label: &str, tag: usize, required: bool, index: usize| {
             assert!(!required || transcript.has_challenge(label));
@@ -159,7 +159,7 @@ pub trait BaseGetter<
 
     fn update_alpha(
         &mut self,
-        challenges: &ChallengeArray<F, NWidgetRelations>,
+        challenges: &ChallengeArray<Field<F>, NWidgetRelations>,
         num_independent_relations: usize,
     ) -> F {
         if num_independent_relations == 0 {
@@ -290,14 +290,12 @@ impl<F: FieldParams> TransitionWidgetBase<F> {
     // other methods and trait implementations
 }
 
-trait KernelBaseTrait {}
-
 trait KernelBase<
     F: FieldParams,
     PC,
     G: Getters<F, PC>,
-    NumIndependentRelations: generic_array::ArrayLength<F>,
->: KernelBaseTrait
+    NumIndependentRelations: generic_array::ArrayLength<Field<F>>,
+>
 {
     fn get_required_polynomial_ids() -> HashSet<PolynomialIndex>;
     fn quotient_required_challenges() -> u8;
@@ -328,8 +326,8 @@ pub struct TransitionWidget<
     S: Settings<H>,
     PC,
     G: Getters<F, PC>,
-    NIndependentRelations: typenum::Unsigned,
-    KB: KernelBaseTrait,
+    NIndependentRelations: generic_array::ArrayLength<Field<F>>,
+    KB: KernelBase<F, PC, G, NIndependentRelations>,
 > {
     base: TransitionWidgetBase<F>,
     phantom: std::marker::PhantomData<(H, S, PC, G, KB, NIndependentRelations)>,
@@ -341,8 +339,8 @@ impl<
         S: Settings<H>,
         PC,
         G: Getters<F, PC>,
-        NIndependentRelations: typenum::Unsigned,
-        KB: KernelBaseTrait,
+        NIndependentRelations: generic_array::ArrayLength<Field<F>>,
+        KB: KernelBase<F, PC, G, NIndependentRelations>,
     > TransitionWidget<H, F, S, PC, G, NIndependentRelations, KB>
 {
     pub fn new(key: Option<Arc<ProvingKey<F>>>) -> Self {
@@ -383,9 +381,9 @@ impl<
             KernelBase::compute_non_linear_terms(&polynomials, &challenges, quotient_term, i);
         }
 
-        FFTGetter::<Field, _, _, KernelBase::NUM_INDEPENDENT_RELATIONS>::update_alpha(
+        FFTGetter::<Field, _, _, KernelBase::NumIndependentRelations>::update_alpha(
             &challenges,
-            KernelBase::NUM_INDEPENDENT_RELATIONS,
+            KernelBase::NumIndependentRelations,
         )
     }
 }
@@ -395,29 +393,37 @@ impl<
         F: FieldParams,
         H: BarretenHasher,
         S: Settings<H>,
-        KernelBase: KernelBaseTrait,
+        KB: KernelBase<F, PC, G, NIndependentRelations>,
         PC,
         G: Getters<F, PC>,
         NIndependentRelations: typenum::Unsigned,
-    > From<TransitionWidget<H, F, S, PC, G, NIndependentRelations, KernelBase>>
+    > From<TransitionWidget<H, F, S, PC, G, NIndependentRelations, KB>>
     for TransitionWidgetBase<F>
 {
-    // Other methods and trait implementations
+    fn from(widget: TransitionWidget<H, F, S, PC, G, NIndependentRelations, KB>) -> Self {
+        widget.base
+    }
 }
 
-pub struct GenericVerifierWidget<F, Hash, Settings, KernelBase>
+pub struct GenericVerifierWidget<F:FieldParams, H: BarretenHasher, PC, G: Getters<F, PC>, NIndependentRelations: generic_array::ArrayLength<F>, S: Settings<H>, KB>
 where
-    F: FieldParams,
-    KernelBase: KernelBaseTrait,
+    KB: KernelBase<
+        F,
+        PC,
+        G,
+        NIndependentRelations>
 {
-    phantom: PhantomData<(F, Hash, Settings, KernelBase)>,
+    phantom: PhantomData<(F, H, S, KB, PC, G)>,
 }
 
-impl<H, F, Settings, KernelBase> GenericVerifierWidget<F, H, Settings, KernelBase>
+impl <F:FieldParams, H: BarretenHasher, PC, G: Getters<F, PC>, NIndependentRelations: generic_array::ArrayLength<F>, S: Settings<H>, KB>
+GenericVerifierWidget<F, H, PC, G, NIndependentRelations, S, KB>
 where
-    F: FieldParams,
-    H: BarretenHasher,
-    KernelBase: KernelBaseTrait,
+    KB: KernelBase<
+        F,
+        PC,
+        G,
+        NIndependentRelations>
 {
     pub fn compute_quotient_evaluation_contribution(
         key: &Arc<TranscriptKey>,
@@ -429,30 +435,31 @@ where
             F,
             _,
             _,
-            KernelBase::NUM_INDEPENDENT_RELATIONS,
+            KernelBase::NumIndependentRelations,
         >::get_polynomial_evaluations(
             &key.polynomial_manifest, transcript
         );
         let challenges =
-            EvaluationGetter::<Field, _, _, KernelBase::NUM_INDEPENDENT_RELATIONS>::get_challenges(
+            EvaluationGetter::<Field, _, _, KernelBase::NumIndependentRelations>::get_challenges(
                 transcript,
                 &alpha_base,
                 KernelBase::quotient_required_challenges(),
             );
 
         let mut linear_terms = CoefficientArray::default();
-        KernelBase::compute_linear_terms(&polynomial_evaluations, &challenges, &mut linear_terms);
+        KernelBase::compute_linear_terms(&polynomial_evaluations, &challenges, &mut linear_terms, todo!("where is index"));
         *quotient_numerator_eval +=
-            KernelBase::sum_linear_terms(&polynomial_evaluations, &challenges, &linear_terms);
+            KernelBase::sum_linear_terms(&polynomial_evaluations, &challenges, &linear_terms, todo!("where is index"));
         KernelBase::compute_non_linear_terms(
             &polynomial_evaluations,
             &challenges,
             quotient_numerator_eval,
+            todo!("where is the index")
         );
 
-        EvaluationGetter::<Field, _, _, KernelBase::NUM_INDEPENDENT_RELATIONS>::update_alpha(
+        EvaluationGetter::<Field, _, _, KernelBase::NIndependentRelations>::update_alpha(
             &challenges,
-            KernelBase::NUM_INDEPENDENT_RELATIONS,
+            KernelBase::NIndependentRelations,
         )
     }
 

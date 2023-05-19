@@ -17,6 +17,7 @@ pub trait Field12Params<F1P: FieldParams, F2P: Field2Params<F1P>>: FieldParamsGe
     const frobenius_coefficients_3: Field2<F1P, F2P>;
 }
 
+#[derive(PartialEq, Eq)]
 pub struct Field12<
     F1P: FieldParams,
     F2P: Field2Params<F1P>,
@@ -35,6 +36,19 @@ impl<
         Params: Field12Params<F1P, F2P>,
     > FieldGeneral<Params> for Field12<F1P, F2P, F6P, Params>
 {
+    fn one() -> Self
+    where
+        Self: Sized,
+    {
+        Self::one()
+    }
+
+    fn zero() -> Self
+    where
+        Self: Sized,
+    {
+        Self::zero()
+    }
 }
 
 impl<
@@ -107,18 +121,6 @@ impl<
     }
 }
 
-// eq
-impl<
-        F1P: FieldParams,
-        F2P: Field2Params<F1P>,
-        F6P: Field6Params<F1P, F2P>,
-        Params: Field12Params<F1P, F2P>,
-    > PartialEq for Field12<F1P, F2P, F6P, Params>
-{
-    fn eq(&self, other: &Self) -> bool {
-        self.c0 == other.c0 && self.c1 == other.c1
-    }
-}
 //add
 impl<
         F1P: FieldParams,

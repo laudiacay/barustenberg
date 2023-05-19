@@ -43,6 +43,11 @@ pub mod polynomial_arithmetic {
         x != 0 && (x & (x - 1)) == 0
     }
 
+    #[inline]
+    fn is_power_of_two_usize(x: usize) -> bool {
+        x != 0 && (x & (x - 1)) == 0
+    }
+
     fn copy_polynomial<Fr: Copy + Default>(
         src: &[Fr],
         dest: &mut [Fr],
@@ -71,9 +76,9 @@ pub mod polynomial_arithmetic {
     ) {
         // Assert that the number of polynomials is a power of two.
         let num_polys = coeffs.len();
-        assert!(is_power_of_two(num_polys));
+        assert!(is_power_of_two_usize(num_polys));
         let poly_domain_size = domain_size / num_polys;
-        assert!(is_power_of_two(poly_domain_size));
+        assert!(is_power_of_two_usize(poly_domain_size));
 
         // TODO Implement the msb from numeric/bitop/get_msb.cpp
         let log2_size = domain_size.get_msb();

@@ -9,7 +9,7 @@ pub(crate) enum PolynomialSource {
 
 pub(crate) enum EvaluationType {
     NonShifted,
-    SHIFTED,
+    Shifted,
 }
 
 pub(crate) enum PolynomialIndex {

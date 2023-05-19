@@ -32,7 +32,7 @@ impl<H: BarretenHasher, Fr: FieldParams> ProverRandomWidget<H, Fr> {
 
 impl<H: BarretenHasher, Fr: FieldParams> Clone for Box<ProverRandomWidget<H, Fr>> {
     fn clone(&self) -> Self {
-        self.boxed_clone()
+        Box::new(self.boxed_clone())
     }
 }
 
@@ -40,7 +40,9 @@ pub trait BoxedCloneProverRandomWidget {
     fn boxed_clone(&self) -> Self;
 }
 
-impl<H: BarretenHasher, Fr: FieldParams> BoxedCloneProverRandomWidget for ProverRandomWidget<H, Fr> {
+impl<H: BarretenHasher, Fr: FieldParams> BoxedCloneProverRandomWidget
+    for ProverRandomWidget<H, Fr>
+{
     fn boxed_clone(&self) -> Box<ProverRandomWidget<H, Fr>> {
         Box::new(self.clone())
     }

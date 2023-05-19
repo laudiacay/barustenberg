@@ -20,49 +20,81 @@ pub trait Field2Params<F1P: FieldParams>: FieldParamsGeneral {
     const twist_cube_root_1: Field<F1P>;
 }
 
+#[derive(PartialEq, Eq, Serialize, Deserialize, Clone, Debug)]
 pub struct Field2<F1P: FieldParams, Params: Field2Params<F1P>> {
     c0: Field<F1P>,
     c1: Field<F1P>,
     phantom: PhantomData<Params>,
 }
 
-impl<F1P: FieldParams, Params: Field2Params<F1P>> FieldGeneral<Params> for Field2<F1P, Params> {}
-
-impl<F1P: FieldParams, Params: Field2Params<F1P>> PartialEq for Field2<F1P, Params> {
-    // todo
-}
-impl<F1P: FieldParams, Params: Field2Params<F1P>> Eq for Field2<F1P, Params> {
-    // todo
+impl<F1P: FieldParams, Params: Field2Params<F1P>> FieldGeneral<Params> for Field2<F1P, Params> {
+    fn one() -> Self
+    where
+        Self: Sized,
+    {
+        Self::one()
+    }
+    fn zero() -> Self
+    where
+        Self: Sized,
+    {
+        Self::zero()
+    }
 }
 
 impl<F1P: FieldParams, Params: Field2Params<F1P>> Add for Field2<F1P, Params> {
     type Output = Self;
-    //    return { c0 + other.c0, c1 + other.c1 };
+    fn add(self, rhs: Self) -> Self::Output {
+        Self {
+            c0: self.c0 + rhs.c0,
+            c1: self.c1 + rhs.c1,
+            phantom: PhantomData,
+        }
+    }
 }
 impl<F1P: FieldParams, Params: Field2Params<F1P>> Sub for Field2<F1P, Params> {
     type Output = Self;
-    //    return { c0 - other.c0, c1 - other.c1 };
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        Self {
+            c0: self.c0 - rhs.c0,
+            c1: self.c1 - rhs.c1,
+            phantom: PhantomData,
+        }
+    }
 }
 impl<F1P: FieldParams, Params: Field2Params<F1P>> Mul for Field2<F1P, Params> {
     type Output = Self;
-    /*
-        // no funny primes please! we assume -1 is not a quadratic residue
-    static_assert((base::modulus.data[0] & 0x3UL) == 0x3UL);
-    base t1 = c0 * other.c0;
-    base t2 = c1 * other.c1;
-    base t3 = c0 + c1;
-    base t4 = other.c0 + other.c1;
 
-    return { t1 - t2, t3 * t4 - (t1 + t2) };
-     */
+    fn mul(self, rhs: Self) -> Self::Output {
+        // no funny primes please! we assume -1 is not a quadratic residue
+        assert_eq!((Params::modulus[0] & 0x3), 0x3);
+        let t1 = self.c0 * rhs.c0;
+        let t2 = self.c1 * rhs.c1;
+        let t3 = self.c0 + self.c1;
+        let t4 = rhs.c0 + rhs.c1;
+        Self {
+            c0: t1 - t2,
+            c1: t3 * t4 - (t1 + t2),
+            phantom: PhantomData,
+        }
+    }
 }
 impl<F1P: FieldParams, Params: Field2Params<F1P>> Neg for Field2<F1P, Params> {
     type Output = Self;
-    //    return { -c0, -c1 };
+    fn neg(self) -> Self::Output {
+        Self {
+            c0: -self.c0,
+            c1: -self.c1,
+            phantom: PhantomData,
+        }
+    }
 }
 impl<F1P: FieldParams, Params: Field2Params<F1P>> Div for Field2<F1P, Params> {
     type Output = Self;
-    //    return operator*(other.invert());
+    fn div(self, other: Self) -> Self::Output {
+        self * other.invert()
+    }
 }
 
 impl<F1P: FieldParams, Params: Field2Params<F1P>> AddAssign for Field2<F1P, Params> {
@@ -88,18 +120,6 @@ impl<F1P: FieldParams, Params: Field2Params<F1P>> DivAssign for Field2<F1P, Para
         self = self / rhs
     }
 }
-
-impl<F1P: FieldParams, Params: Field2Params<F1P>> Serialize for Field2<F1P, Params> {}
-
-impl<'de, F1P: FieldParams, Params: Field2Params<F1P>> Deserialize<'de> for Field2<F1P, Params> {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        todo!()
-    }
-}
-
 // TODO a shitton of this stuff should be done with macros at compiletime for speed.
 impl<F1P: FieldParams, Params: Field2Params<F1P>> Field2<F1P, Params> {
     // TODO sin that this is a function

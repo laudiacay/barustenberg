@@ -20,7 +20,7 @@ pub trait FieldGeneral<FPG: FieldParamsGeneral> {
 }
 
 // TODO this endianness might be flipped
-fn u256_from_le_u64_parts(inp: [u64;4]) -> U256 {
+fn u256_from_le_u64_parts(inp: [u64; 4]) -> U256 {
     let ua = U256::from(inp[0]);
     let ub = U256::from(inp[1]);
     let uc = U256::from(inp[2]);
@@ -84,7 +84,7 @@ pub trait FieldParams: FieldParamsGeneral + Eq + PartialEq {
 #[cfg(all(features = "SIZEOFINT128", not(features = "WASM")))]
 const LO_MASK: u128 = 0xffffffffffffffff;
 
-#[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Serialize, Debug, Deserialize, PartialEq, Eq)]
 pub(crate) struct Field<Params: FieldParams> {
     data: [u64; 4],
     phantom: PhantomData<Params>,
@@ -120,7 +120,9 @@ pub struct MyU256 {
 
 impl WnafTable {
     pub const fn new(target: &U256) -> WnafTable {
-        let target: MyU256 = MyU256{data: u256_to_le_u64_parts(*target)};
+        let target: MyU256 = MyU256 {
+            data: u256_to_le_u64_parts(*target),
+        };
         WnafTable {
             windows: [
                 (target.data[0] & 15) as u8,
@@ -583,12 +585,12 @@ impl<Params: FieldParams> Field<Params> {
 
     // TODO macro...???
     pub fn modulus() -> U256 {
-        u256_from_le_u64_parts(
-            [Params::MODULUS_0,
+        u256_from_le_u64_parts([
+            Params::MODULUS_0,
             Params::MODULUS_1,
             Params::MODULUS_2,
-            Params::MODULUS_3]
-        )
+            Params::MODULUS_3,
+        ])
     }
 
     // TODO macro
@@ -597,7 +599,7 @@ impl<Params: FieldParams> Field<Params> {
             Params::COSET_GENERATORS_0[7],
             Params::COSET_GENERATORS_1[7],
             Params::COSET_GENERATORS_2[7],
-            Params::COSET_GENERATORS_3[7]
+            Params::COSET_GENERATORS_3[7],
         )
     }
 
@@ -607,7 +609,7 @@ impl<Params: FieldParams> Field<Params> {
             Params::COSET_GENERATORS_0[6],
             Params::COSET_GENERATORS_1[6],
             Params::COSET_GENERATORS_2[6],
-            Params::COSET_GENERATORS_3[6]
+            Params::COSET_GENERATORS_3[6],
         )
     }
 
@@ -617,7 +619,7 @@ impl<Params: FieldParams> Field<Params> {
             Params::COSET_GENERATORS_0[idx],
             Params::COSET_GENERATORS_1[idx],
             Params::COSET_GENERATORS_2[idx],
-            Params::COSET_GENERATORS_3[idx]
+            Params::COSET_GENERATORS_3[idx],
         )
     }
 

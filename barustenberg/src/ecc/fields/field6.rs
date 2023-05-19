@@ -17,6 +17,7 @@ pub trait Field6Params<F1P: FieldParams, F2P: Field2Params<F1P>>: FieldParamsGen
     const frobenius_coeffs_c2_3: Field2<F1P, F2P>;
 }
 
+#[derive(Clone, PartialEq, Eq)]
 pub struct Field6<F1P: FieldParams, F2P: Field2Params<F1P>, Params: Field6Params<F1P, F2P>> {
     pub c0: Field2<F1P, F2P>,
     pub c1: Field2<F1P, F2P>,
@@ -27,6 +28,19 @@ pub struct Field6<F1P: FieldParams, F2P: Field2Params<F1P>, Params: Field6Params
 impl<F1P: FieldParams, F2P: Field2Params<F1P>, Params: Field6Params<F1P, F2P>> FieldGeneral<Params>
     for Field6<F1P, F2P, Params>
 {
+    fn one() -> Self
+    where
+        Self: Sized,
+    {
+        Self::one()
+    }
+
+    fn zero() -> Self
+    where
+        Self: Sized,
+    {
+        Self::zero()
+    }
 }
 
 impl<F1P: FieldParams, F2P: Field2Params<F1P>, Params: Field6Params<F1P, F2P>>
@@ -49,17 +63,37 @@ impl<F1P: FieldParams, F2P: Field2Params<F1P>, Params: Field6Params<F1P, F2P>>
             phantom: PhantomData,
         }
     }
-    fn is_zero(&self) -> bool {}
+    fn is_zero(&self) -> bool {
+        todo!("Field6::is_zero")
+    }
 
-    fn sqr(&self) -> Self {}
-    fn invert(&self) -> Self {}
-    fn mul_by_fq2(&self, other: &Field2<F1P, F2P>) -> Self {}
-    fn frobenius_map_one(&self) -> Self {}
-    fn frobenius_map_two(&self) -> Self {}
-    fn frobenius_map_three(&self) -> Self {}
-    fn random_element(engine: &mut impl rand::RngCore) -> Self {}
-    fn to_montgomery_form(&self) -> Self {}
-    fn from_montgomery_form(&self) -> Self {}
+    fn sqr(&self) -> Self {
+        todo!("Field6::sqr")
+    }
+    fn invert(&self) -> Self {
+        todo!("Field6::invert")
+    }
+    fn mul_by_fq2(&self, other: &Field2<F1P, F2P>) -> Self {
+        todo!("Field6::mul_by_fq2")
+    }
+    fn frobenius_map_one(&self) -> Self {
+        todo!("Field6::frobenius_map_one")
+    }
+    fn frobenius_map_two(&self) -> Self {
+        todo!("Field6::frobenius_map_two")
+    }
+    fn frobenius_map_three(&self) -> Self {
+        todo!("Field6::frobenius_map_three")
+    }
+    fn random_element(engine: &mut impl rand::RngCore) -> Self {
+        todo!("Field6::random_element")
+    }
+    fn to_montgomery_form(&self) -> Self {
+        todo!("Field6::to_montgomery_form")
+    }
+    fn from_montgomery_form(&self) -> Self {
+        todo!("Field6::from_montgomery_form")
+    }
 }
 
 impl<F1P: FieldParams, F2P: Field2Params<F1P>, Params: Field6Params<F1P, F2P>> Add
@@ -95,6 +129,8 @@ impl<F1P: FieldParams, F2P: Field2Params<F1P>, Params: Field6Params<F1P, F2P>> S
 impl<F1P: FieldParams, F2P: Field2Params<F1P>, Params: Field6Params<F1P, F2P>> Neg
     for Field6<F1P, F2P, Params>
 {
+    type Output = Self;
+
     fn neg(self) -> Self {
         Field6 {
             c0: -self.c0,
@@ -133,6 +169,7 @@ impl<F1P: FieldParams, F2P: Field2Params<F1P>, Params: Field6Params<F1P, F2P>> M
 impl<F1P: FieldParams, F2P: Field2Params<F1P>, Params: Field6Params<F1P, F2P>> Div
     for Field6<F1P, F2P, Params>
 {
+    type Output = Self;
     fn div(self, other: Self) -> Self {
         self * other.invert()
     }
@@ -165,13 +202,4 @@ impl<F1P: FieldParams, F2P: Field2Params<F1P>, Params: Field6Params<F1P, F2P>> D
     fn div_assign(&mut self, rhs: Self) {
         *self = *self / rhs
     }
-}
-
-impl<F1P: FieldParams, F2P: Field2Params<F1P>, Params: Field6Params<F1P, F2P>> PartialEq
-    for Field6<F1P, F2P, Params>
-{
-}
-impl<F1P: FieldParams, F2P: Field2Params<F1P>, Params: Field6Params<F1P, F2P>> Eq
-    for Field6<F1P, F2P, Params>
-{
 }

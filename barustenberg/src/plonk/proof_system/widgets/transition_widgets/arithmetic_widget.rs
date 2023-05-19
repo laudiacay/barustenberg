@@ -42,11 +42,12 @@ where
     Getters: BaseGetter<H, F, S, U1>,
 {
     // TODO see all these U1s they should be a named variable but they are not :( inherent associate type problem
-    pub const QUOTIENT_REQUIRED_CHALLENGES: u8 = CHALLENGE_BIT_ALPHA;
-    pub const UPDATE_REQUIRED_CHALLENGES: u8 = CHALLENGE_BIT_ALPHA;
+    pub const QUOTIENT_REQUIRED_CHALLENGES: u8 = CHALLENGE_BIT_ALPHA as u8;
+    pub const UPDATE_REQUIRED_CHALLENGES: u8 = CHALLENGE_BIT_ALPHA as u8;
 
     pub fn get_required_polynomial_ids() -> &'static HashSet<PolynomialIndex> {
         // ...
+        todo!("ArithmeticKernel::get_required_polynomial_ids")
     }
 
     pub fn compute_linear_terms(
@@ -94,7 +95,7 @@ pub type ProverArithmeticWidget<
     Getters: BaseGetter<H, F, S, NWidgetRelations>,
 > = TransitionWidget<
     H,
-    Fr,
+    F,
     S,
     PolyContainer,
     Getters,
@@ -108,11 +109,14 @@ pub type VerifierArithmeticWidget<
     Group,
     NWidgetRelations: typenum::Unsigned,
     Getters: BaseGetter<H, F, S, NWidgetRelations>,
-    PolyContainer,
+    PC,
     S: Settings<H>,
 > = GenericVerifierWidget<
     F,
     H,
+    PC,
+    Getters,
+    NWidgetRelations,
     S,
-    ArithmeticKernel<H, Fr, S, Getters, PolyContainer, NWidgetRelations>,
+    ArithmeticKernel<H, Fr, S, Getters, PC, NWidgetRelations>,
 >;

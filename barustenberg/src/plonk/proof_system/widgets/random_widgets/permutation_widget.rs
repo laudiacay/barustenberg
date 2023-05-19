@@ -25,7 +25,7 @@ where
 {
     pub fn new() -> Self {
         Self {
-            transcript: Transcript::default(),
+            transcript: Transcript::<H>::default(),
             phantom: PhantomData,
         }
     }

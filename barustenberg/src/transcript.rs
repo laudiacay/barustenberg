@@ -1,7 +1,7 @@
 use generic_array::{ArrayLength, GenericArray};
 use std::collections::HashMap;
 use tracing::info;
-use typenum::{U16, U32};
+use typenum::{Unsigned, U16, U32};
 
 use crate::plonk::proof_system::verification_key::VerificationKey;
 
@@ -88,6 +88,7 @@ impl BarretenHasher for PlookupPedersenBlake3s {
 }
 
 /// ManifestEntry describes one piece of data that is used in a particular round of the protocol.
+#[derive(Clone, Default)]
 pub struct ManifestEntry {
     pub name: String,
     pub num_bytes: usize,
@@ -157,7 +158,7 @@ struct Challenge<H: BarretenHasher> {
 
 pub type TranscriptKey = VerificationKey;
 
-#[derive(Clone, Default)]
+#[derive(Default)]
 pub struct Transcript<H: BarretenHasher> {
     current_round: usize,
     num_challenge_bytes: usize,
@@ -239,6 +240,7 @@ impl<H: BarretenHasher> Transcript<H> {
 
     fn parse(input_transcript: Vec<u8>, manifest: Manifest, challenge_bytes: usize) -> Self {
         // implementation
+        todo!("Transcript::parse")
     }
 
     pub fn get_manifest(&self) -> Manifest {
@@ -408,7 +410,7 @@ impl<H: BarretenHasher> Transcript<H> {
     ) -> GenericArray<u8, H::PrngOutputSize> {
         info!("get_challenge(): {}", challenge_name);
         assert!(self.challenges.contains_key(challenge_name));
-        &self.challenges.get(challenge_name).unwrap()[idx].data
+        self.challenges.get(challenge_name).unwrap()[idx].data
     }
 
     /// Get the challenge index from map (needed when we name subchallenges).
@@ -421,7 +423,8 @@ impl<H: BarretenHasher> Transcript<H> {
     ///
     /// The index of the subchallenge in the vector corresponding to the challenge.
     pub fn get_challenge_index_from_map(&self, challenge_map_name: &str) -> isize {
-        self.challenge_map[challenge_map_name];
+        // TODO bad unwrap
+        self.challenge_map[challenge_map_name].try_into().unwrap()
     }
 
     /// Check if a challenge exists.
@@ -455,12 +458,12 @@ impl<H: BarretenHasher> Transcript<H> {
     ) -> GenericArray<u8, H::PrngOutputSize> {
         let key = self.challenge_map[challenge_map_name];
         if key == -1 {
-            let mut result = [0; Transcript::PRNG_OUTPUT_SIZE];
-            result[Transcript::PRNG_OUTPUT_SIZE - 1] = 1;
-            return &result;
+            let mut result = GenericArray::default();
+            result[<H::PrngOutputSize as Unsigned>::USIZE - 1] = 1;
+            return result;
         }
-        let value = &self.challenges[challenge_name][key as usize];
-        &value.data
+        let value = self.challenges[challenge_name][key as usize];
+        value.data
     }
 
     /// Get the number of challenges in the transcript.
@@ -508,7 +511,8 @@ impl<H: BarretenHasher> Transcript<H> {
                 }
             }
         }
-        return -1;
+        //return -1;
+        todo!("how do you return -1 in get_element_size? seems wrong.")
     }
 
     /// serialize the transcript to a byte vector.
