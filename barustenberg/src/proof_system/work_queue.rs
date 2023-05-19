@@ -2,7 +2,7 @@ use std::rc::Rc;
 
 use crate::ecc::fields::field::FieldParams;
 use crate::plonk::proof_system::proving_key::ProvingKey;
-use crate::transcript::Transcript;
+use crate::transcript::{BarretenHasher, Transcript};
 
 enum WorkType {
     Fft,
@@ -30,13 +30,13 @@ pub(crate) struct QueuedFftInputs<Fr: FieldParams> {
     shift_factor: Fr,
 }
 
-pub(crate) struct WorkQueue<Fr: FieldParams> {
+pub(crate) struct WorkQueue<H: BarretenHasher, Fr: FieldParams> {
     key: Option<Rc<ProvingKey<Fr>>>,
-    transcript: Option<Rc<Transcript<Fr>>>,
+    transcript: Option<Rc<Transcript<H>>>,
     work_items: Vec<WorkItem<Fr>>,
 }
 
-impl<Fr: FieldParams> WorkQueue<Fr> {
+impl<H: BarretenHasher, Fr: FieldParams> WorkQueue<H, Fr> {
     /*
     work_item_info get_queued_work_item_info() const;
 
@@ -65,7 +65,7 @@ impl<Fr: FieldParams> WorkQueue<Fr> {
 
     pub fn new(
         prover_key: Option<Rc<ProvingKey<Fr>>>,
-        prover_transcript: Option<Rc<Transcript<Fr>>>,
+        prover_transcript: Option<Rc<Transcript<H>>>,
     ) {
         WorkQueue {
             key: prover_key,

@@ -79,7 +79,7 @@ pub mod gate_data {
         const_scaling: Fr,
     }
 
-    #[derive(Eq, Serialize, Deserialize)]
+    #[derive(PartialEq, Eq, Serialize, Deserialize)]
     struct PolyTriple<Fr: FieldParams> {
         a: u32,
         b: u32,

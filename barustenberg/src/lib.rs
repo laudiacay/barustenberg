@@ -21,6 +21,7 @@ pub mod transcript;
 // why are things pub/not pub/pub(crate)? do things sensibly.
 // claudia you cannot be hippity hopping through the vtable like this remove these dyns
 // macros and consts and inlining for maxfast
+// remove all the extra trait bounds if you don't need them. sometimes you don't need them.
 
 /// Test utilities.
 #[cfg(any(test, feature = "test_utils"))]

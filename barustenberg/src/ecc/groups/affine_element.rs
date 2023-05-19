@@ -17,8 +17,7 @@ where
 {
     x: Fq,
     y: Fq,
-    phantom1: std::marker::PhantomData<FrP>,
-    phantom2: std::marker::PhantomData<Params>,
+    phantom: std::marker::PhantomData<(FqP, FrP, Params)>,
 }
 
 impl<
@@ -28,12 +27,11 @@ impl<
         Params: GroupParams<FqP, FrP>,
     > Affine<FqP, Fq, FrP, Params>
 {
-    fn new(a: Field<FqP>, b: Field<FqP>) -> Self {
+    fn new(a: dyn FieldGeneral<FqP>, b: Field<FrP>) -> Self {
         Self {
             x: a,
             y: b,
-            phantom1: std::marker::PhantomData,
-            phantom2: std::marker::PhantomData,
+            phantom: std::marker::PhantomData,
         }
     }
 
@@ -41,8 +39,7 @@ impl<
         Self {
             x: Params::one_x(),
             y: Params::one_y(),
-            phantom1: std::marker::PhantomData,
-            phantom2: std::marker::PhantomData,
+            phantom: std::marker::PhantomData,
         }
     }
 
@@ -98,9 +95,9 @@ impl<
 
 impl<FqP, Fq, FrP, Params: GroupParams<FqP, FrP>> PartialOrd for Affine<FqP, Fq, FrP, Params>
 where
-    FqP: FieldParams + PartialOrd + PartialEq,
-    Fq: FieldGeneral<FqP>,
-    FrP: FieldParams + PartialOrd + PartialEq,
+    FqP: FieldParams + PartialEq,
+    Fq: FieldGeneral<FqP> + PartialOrd + PartialEq,
+    FrP: FieldParams + PartialEq,
     Params: PartialEq,
 {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {

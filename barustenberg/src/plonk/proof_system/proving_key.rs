@@ -17,7 +17,7 @@ use super::types::PolynomialManifest;
 
 const MIN_THREAD_BLOCK: usize = 4;
 
-struct ProvingKeyData<Fr: FieldParams> {
+struct ProvingKeyData<FP: FieldParams> {
     composer_type: u32,
     circuit_size: u32,
     num_public_inputs: u32,
@@ -25,7 +25,7 @@ struct ProvingKeyData<Fr: FieldParams> {
     recursive_proof_public_input_indices: Vec<u32>,
     memory_read_records: Vec<u32>,
     memory_write_records: Vec<u32>,
-    polynomial_store: PolynomialStore<Fr>,
+    polynomial_store: PolynomialStore<FP>,
 }
 pub struct ProvingKey<Fr: FieldParams> {
     pub composer_type: u32,
@@ -44,7 +44,7 @@ pub struct ProvingKey<Fr: FieldParams> {
     /// The reference_string object contains the monomial SRS. We can access it using:
     /// Monomial SRS: reference_string->get_monomial_points()
     pub reference_string: Arc<dyn ProverReferenceString>,
-    pub quotient_polynomial_parts: [Polynomial<Fr>; NUM_QUOTIENT_PARTS],
+    pub quotient_polynomial_parts: [Polynomial<Fr>; NUM_QUOTIENT_PARTS as usize],
     pub pippenger_runtime_state: PippengerRuntimeState,
     pub polynomial_manifest: PolynomialManifest,
 }

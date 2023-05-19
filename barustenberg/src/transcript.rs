@@ -10,6 +10,9 @@ pub trait BarretenHasher {
     type PrngOutputSize: ArrayLength<u8>;
 
     fn hash(buffer: &[u8]) -> GenericArray<u8, Self::PrngOutputSize>;
+
+    // const SECURITY_PARAMETER_SIZE: usize;
+    // const PRNG_OUTPUT_SIZE: usize;
 }
 
 pub struct Keccak256 {}
@@ -17,6 +20,9 @@ pub struct Keccak256 {}
 impl BarretenHasher for Keccak256 {
     type SecurityParameterSize = U32;
     type PrngOutputSize = U32;
+
+    // const SECURITY_PARAMETER_SIZE: usize = 32;
+    // const PRNG_OUTPUT_SIZE: usize = 32;
 
     fn hash(buffer: &[u8]) -> GenericArray<u8, Self::PrngOutputSize> {
         // TODO from gpt
@@ -44,6 +50,9 @@ pub struct PedersenBlake3s {}
 impl BarretenHasher for PedersenBlake3s {
     type SecurityParameterSize = U16;
     type PrngOutputSize = U32;
+
+    // const SECURITY_PARAMETER_SIZE: usize = 16;
+    // const PRNG_OUTPUT_SIZE: usize = 32;
 
     fn hash(input: &[u8]) -> GenericArray<u8, Self::PrngOutputSize> {
         // TODO from original codebase
@@ -142,25 +151,24 @@ impl Manifest {
 }
 
 #[derive(Clone, Default)]
-struct Challenge<T: BarretenHasher> {
-    data: GenericArray<u8, T::PrngOutputSize>,
+struct Challenge<H: BarretenHasher> {
+    data: GenericArray<u8, H::PrngOutputSize>,
 }
 
 pub type TranscriptKey = VerificationKey;
 
 #[derive(Clone, Default)]
-pub struct Transcript<T: BarretenHasher> {
+pub struct Transcript<H: BarretenHasher> {
     current_round: usize,
     num_challenge_bytes: usize,
-    hasher: T,
     elements: HashMap<String, Vec<u8>>,
-    challenges: HashMap<String, Vec<Challenge<T>>>,
-    current_challenge: Challenge<T>,
+    challenges: HashMap<String, Vec<Challenge<H>>>,
+    current_challenge: Challenge<H>,
     manifest: Manifest,
     challenge_map: HashMap<String, i32>,
 }
 
-impl<T: BarretenHasher> Transcript<T> {
+impl<H: BarretenHasher> Transcript<H> {
     pub fn add_element(&mut self, element_name: &str, buffer: Vec<u8>) {
         info!("Adding element {} to transcript", element_name);
         // from elements.insert({ element_name, buffer });
@@ -183,7 +191,7 @@ impl<T: BarretenHasher> Transcript<T> {
     pub fn new(
         input_transcript: &[u8],
         input_manifest: Manifest,
-        hash_type: T,
+        hash_type: H,
         num_challenge_bytes: usize,
     ) -> Self {
         let num_rounds = input_manifest.get_num_rounds();
@@ -216,7 +224,6 @@ impl<T: BarretenHasher> Transcript<T> {
 
         let mut transcript = Self {
             num_challenge_bytes,
-            hasher: hash_type,
             manifest: input_manifest,
             elements,
             challenges: std::collections::HashMap::new(),
@@ -230,12 +237,7 @@ impl<T: BarretenHasher> Transcript<T> {
         transcript
     }
 
-    fn parse(
-        input_transcript: Vec<u8>,
-        manifest: Manifest,
-        hash_type: T,
-        challenge_bytes: usize,
-    ) -> Self {
+    fn parse(input_transcript: Vec<u8>, manifest: Manifest, challenge_bytes: usize) -> Self {
         // implementation
     }
 
@@ -403,7 +405,7 @@ impl<T: BarretenHasher> Transcript<T> {
         &self,
         challenge_name: &str,
         idx: usize,
-    ) -> &[u8; Transcript::PRNG_OUTPUT_SIZE] {
+    ) -> GenericArray<u8, H::PrngOutputSize> {
         info!("get_challenge(): {}", challenge_name);
         assert!(self.challenges.contains_key(challenge_name));
         &self.challenges.get(challenge_name).unwrap()[idx].data
@@ -450,7 +452,7 @@ impl<T: BarretenHasher> Transcript<T> {
         &self,
         challenge_name: &str,
         challenge_map_name: &str,
-    ) -> &[u8; Transcript::PRNG_OUTPUT_SIZE] {
+    ) -> GenericArray<u8, H::PrngOutputSize> {
         let key = self.challenge_map[challenge_map_name];
         if key == -1 {
             let mut result = [0; Transcript::PRNG_OUTPUT_SIZE];

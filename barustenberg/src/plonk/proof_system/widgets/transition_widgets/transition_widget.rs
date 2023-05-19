@@ -219,10 +219,11 @@ where
 
 /// Provides access to polynomials (monomial or coset FFT) for use in widgets
 /// Coset FFT access is needed in quotient construction.
-pub trait FFTGetter<F, Transcript, Settings, const NUM_WIDGET_RELATIONS: usize>:
-    BaseGetter<F, Transcript, Settings, NUM_WIDGET_RELATIONS>
+pub trait FFTGetter<H, F, S, const NUM_WIDGET_RELATIONS: usize>:
+    BaseGetter<H, F, S, NUM_WIDGET_RELATIONS>
 where
     F: FieldParams,
+    S: Settings<H>,
 {
     fn get_polynomials(
         key: &ProvingKey<F>,
@@ -308,7 +309,7 @@ pub struct TransitionWidget<
     KB: KernelBaseTrait,
 > {
     base: TransitionWidgetBase<F>,
-    phantom: std::marker::PhantomData<S>,
+    phantom: std::marker::PhantomData<(H, S, PC, G, KB)>,
 }
 
 impl<
@@ -367,7 +368,7 @@ impl<
 }
 
 // Implementations for the derived classes
-impl<F, S, H, KernelBase, PC, G, const NUM_INDEPENDENT_RELATIONS: usize>
+impl<F: FieldParams, H: BarretenHasher, S:Settings<H>, KernelBase, PC, G: Getters<F, PC>, const NUM_INDEPENDENT_RELATIONS: usize>
     From<TransitionWidget<H, F, S, PC, G, { NUM_INDEPENDENT_RELATIONS }, KernelBase>>
     for TransitionWidgetBase<F>
 {

@@ -25,7 +25,6 @@ use crate::proof_system::work_queue::WorkQueue;
 // todo https://doc.rust-lang.org/reference/const_eval.html
 
 pub struct Prover<
-    'a,
     FqP: FieldParams,
     FrP: FieldParams,
     G1AffineP: GroupParams<FqP, FrP>,
@@ -35,7 +34,7 @@ pub struct Prover<
     pub circuit_size: usize,
     pub transcript: Transcript<H>,
     pub key: Arc<ProvingKey<FrP>>,
-    pub queue: WorkQueue<FrP>,
+    pub queue: WorkQueue<H, FrP>,
     pub random_widgets: Vec<dyn ProverRandomWidget<H, FrP>>,
     pub transition_widgets: Vec<TransitionWidgetBase<FrP>>,
     pub commitment_scheme: dyn CommitmentScheme<FqP, FrP, G1AffineP, H>,
@@ -47,7 +46,7 @@ impl<
         G1AffineP: GroupParams<FqP, FrP>,
         H: BarretenHasher,
         S: Settings<H>,
-    > Prover<'_, FqP, FrP, G1AffineP, H, S>
+    > Prover<FqP, FrP, G1AffineP, H, S>
 {
     pub fn new(
         input_key: Option<Arc<ProvingKey<FrP>>>,

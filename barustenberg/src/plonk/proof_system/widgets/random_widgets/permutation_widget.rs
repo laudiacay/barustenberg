@@ -3,6 +3,7 @@ use crate::plonk::proof_system::proving_key::ProvingKey;
 use crate::plonk::proof_system::widgets::random_widgets::random_widget::ProverRandomWidget;
 use crate::proof_system::work_queue::WorkQueue;
 use crate::transcript::{BarretenHasher, Transcript, TranscriptKey};
+use std::marker::PhantomData;
 use std::sync::Arc;
 pub struct VerifierPermutationWidget<
     H: BarretenHasher,
@@ -13,7 +14,7 @@ pub struct VerifierPermutationWidget<
     FP: FieldParams,
 {
     transcript: Transcript<H>,
-    // phantom: PhantomData<(Field, Group)>,
+    phantom: PhantomData<(FP, Group)>,
 }
 
 impl<H, F, Group, const NUM_ROOTS_CUT_OUT_OF_VANISHING_POLYNOMIAL: usize>
@@ -25,7 +26,7 @@ where
     pub fn new() -> Self {
         Self {
             transcript: Transcript::default(),
-            //phantom: PhantomData,
+            phantom: PhantomData,
         }
     }
 
@@ -36,6 +37,7 @@ where
         quotient_numerator_eval: &mut F,
         idpolys: bool,
     ) -> F {
+        todo!("VerifierPermutationWidget::compute_quotient_evaluation_contribution")
         // ...
     }
 
@@ -83,7 +85,7 @@ impl<
         &mut self,
         transcript: &mut Transcript<Hash>,
         round_number: usize,
-        queue: &mut WorkQueue<Fr>,
+        queue: &mut WorkQueue<Hash, Fr>,
     ) {
         // ...
     }

@@ -6,7 +6,7 @@ use crate::{
             ChallengeArray, CoefficientArray,
         },
     },
-    transcript::{BarretenHasher, Transcript},
+    transcript::BarretenHasher,
 };
 use std::{
     collections::{HashMap, HashSet},
@@ -24,18 +24,20 @@ pub trait Getters<Field, PolyContainer> {
 pub struct ArithmeticKernel<
     H: BarretenHasher,
     FieldParams,
+    S: Settings<H>,
     Getters,
     PolyContainer,
     const NUM_WIDGET_RELATIONS: usize,
 > {
-    base_getter: dyn BaseGetter<FieldParams, Transcript<H>, dyn Settings<H>, NUM_WIDGET_RELATIONS>,
+    base_getter: dyn BaseGetter<H, FieldParams, dyn Settings<H>, NUM_WIDGET_RELATIONS>,
     phantom: PhantomData<(FieldParams, Getters, PolyContainer)>,
 }
 
-impl<H: BarretenHasher, F, Getters, PolyContainer> ArithmeticKernel<H, F, Getters, PolyContainer, 1>
+impl<H: BarretenHasher, F, Getters, S: Settings<H>, PolyContainer>
+    ArithmeticKernel<H, F, S, Getters, PolyContainer, 1>
 where
     F: FieldParams,
-    Getters: BaseGetter<F, Transcript<H>, dyn Settings<H>, 1>,
+    Getters: BaseGetter<H, F, S, 1>,
 {
     pub const QUOTIENT_REQUIRED_CHALLENGES: u8 = CHALLENGE_BIT_ALPHA;
     pub const UPDATE_REQUIRED_CHALLENGES: u8 = CHALLENGE_BIT_ALPHA;
@@ -94,7 +96,7 @@ pub type ProverArithmeticWidget<
     PolyContainer,
     Getters,
     NUM_WIDGET_RELATIONS,
-    ArithmeticKernel<H, Fr, Getters, PolyContainer, NUM_WIDGET_RELATIONS>,
+    ArithmeticKernel<H, Fr, S, Getters, PolyContainer, NUM_WIDGET_RELATIONS>,
 >;
 
 pub type VerifierArithmeticWidget<
@@ -109,5 +111,5 @@ pub type VerifierArithmeticWidget<
     F,
     H,
     S,
-    ArithmeticKernel<H, Fr, Getters, PolyContainer, NUM_WIDGET_RELATIONS>,
+    ArithmeticKernel<H, Fr, S, Getters, PolyContainer, NUM_WIDGET_RELATIONS>,
 >;

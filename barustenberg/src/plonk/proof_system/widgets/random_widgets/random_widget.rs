@@ -12,7 +12,7 @@ pub trait ProverRandomWidget<H: BarretenHasher, Fr: FieldParams> {
         &self,
         transcript: &mut Transcript<H>,
         size: usize,
-        work_queue: &mut WorkQueue<Fr>,
+        work_queue: &mut WorkQueue<H, Fr>,
     );
 
     fn compute_quotient_contribution(&self, alpha_base: Fr, transcript: &Transcript<H>) -> Fr;

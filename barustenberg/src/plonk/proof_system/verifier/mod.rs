@@ -38,10 +38,8 @@ pub trait VerifierBase<H: BarretenHasher, PS: Settings<H>> {
     fn validate_commitments(&self) -> bool;
     fn validate_scalars(&self) -> bool;
     fn verify_proof(&self, proof: &Proof) -> bool;
-}
 
-impl<H: BarretenHasher, PS: Settings<H>> dyn VerifierBase<H, PS> {
-    pub fn from_other(other: &Self) -> Self {
+    fn from_other(other: &Self) -> Self {
         Self {
             manifest: other.manifest.clone(),
             key: other.key.clone(),

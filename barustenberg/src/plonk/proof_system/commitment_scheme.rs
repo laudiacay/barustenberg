@@ -26,7 +26,7 @@ pub trait CommitmentScheme<
         coefficients: &mut [Field<FrP>],
         tag: &str,
         item_constant: Field<FrP>,
-        queue: &mut WorkQueue<Field<FrP>>,
+        queue: &mut WorkQueue<H, Field<FrP>>,
     );
 
     fn compute_opening_polynomial(
@@ -48,13 +48,13 @@ pub trait CommitmentScheme<
         n: usize,
         tags: &[String],
         item_constants: &[Field<FrP>],
-        queue: &mut WorkQueue<Field<FrP>>,
+        queue: &mut WorkQueue<H, Field<FrP>>,
     );
 
     fn batch_open(
         &mut self,
         transcript: &Transcript<H>,
-        queue: &mut WorkQueue<Field<FrP>>,
+        queue: &mut WorkQueue<H, Field<FrP>>,
         input_key: Option<Arc<ProvingKey<Field<FrP>>>>,
     );
 
@@ -91,7 +91,7 @@ impl<
         coefficients: &mut [Fr],
         tag: &str,
         item_constant: Fr,
-        queue: &mut WorkQueue<Fr>,
+        queue: &mut WorkQueue<H, Fr>,
     ) {
         todo!()
     }
@@ -120,7 +120,7 @@ impl<
         n: usize,
         tags: &[String],
         item_constants: &[Fr],
-        queue: &mut WorkQueue<Fr>,
+        queue: &mut WorkQueue<H, Fr>,
     ) {
         todo!()
     }
@@ -128,7 +128,7 @@ impl<
     fn batch_open(
         &mut self,
         transcript: &Transcript<H>,
-        queue: &mut WorkQueue<Fr>,
+        queue: &mut WorkQueue<H, Fr>,
         input_key: Option<Arc<ProvingKey<Fr>>>,
     ) {
         todo!()

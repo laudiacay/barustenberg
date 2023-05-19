@@ -3,16 +3,19 @@ use anyhow::{anyhow, Result};
 use std::{
     collections::HashMap,
     fmt::{self, Display, Formatter},
+    marker::PhantomData,
 };
 
 #[derive(Debug, Clone)]
 pub(crate) struct PolynomialStore<Fr: FieldParams> {
     polynomial_map: HashMap<String, Polynomial<Fr>>,
+    phantom: PhantomData<Fr>,
 }
 impl<Fr: FieldParams> PolynomialStore<Fr> {
     pub(crate) const fn new() -> Self {
         Self {
             polynomial_map: HashMap::new(),
+            phantom: PhantomData,
         }
     }
 
