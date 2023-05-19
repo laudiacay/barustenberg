@@ -441,10 +441,10 @@ fn generate_test_data<'a>(n: usize) -> Prover<'a, Fr, StandardSettings> {
     key.polynomial_store.insert("q_m_fft", q_m_fft);
     key.polynomial_store.insert("q_c_fft", q_c_fft);
 
-    let permutation_widget: Box<dyn ProverPermutationWidget> =
+    let permutation_widget: Box<ProverPermutationWidget> =
         Box::new(ProverPermutationWidget::<3>::new(key.clone()));
 
-    let widget: Box<dyn ProverArithmeticWidget<StandardSettings>> =
+    let widget: Box<ProverArithmeticWidget<StandardSettings>> =
         Box::new(ProverArithmeticWidget::<StandardSettings>::new(key.clone()));
 
     let kate_commitment_scheme = Box::new(KateCommitmentScheme::<StandardSettings>::new());
@@ -463,7 +463,7 @@ use crate::{
         curves::bn254::{
             fq::Fq,
             fr::Fr,
-            g1::G1,
+            g1::{G1Affine, G1},
             scalar_multiplication::{
                 runtime_states::PippengerRuntimeState,
                 scalar_multiplication::generate_pippenger_point_table,

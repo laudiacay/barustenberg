@@ -307,7 +307,7 @@ impl<Params: FieldParams> Field<Params> {
         }
     }
 
-    fn random_element(engine: Option<&mut dyn rand::RngCore>) -> Self {
+    pub fn random_element(engine: Option<&mut dyn rand::RngCore>) -> Self {
         todo!() // Implement the random_element logic
     }
 

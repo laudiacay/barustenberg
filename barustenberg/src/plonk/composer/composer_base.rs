@@ -4,7 +4,7 @@ use proptest::sample::Selector;
 use rand::RngCore;
 
 use crate::{
-    ecc::curves::grumpkin::Fr,
+    ecc::{curves::grumpkin::Fr, fields::field::FieldParams},
     plonk::proof_system::{proving_key::ProvingKey, verification_key::VerificationKey},
     srs::reference_string::ReferenceStringFactory,
 };
@@ -48,18 +48,18 @@ impl CycleNode {
     }
 }
 
-pub struct ComposerBase {
+pub struct ComposerBase<FrP: FieldParams> {
     pub num_gates: usize,
     crs_factory: Arc<dyn ReferenceStringFactory>,
     num_selectors: usize,
     selectors: Vec<Vec<Selector>>,
     selector_properties: Vec<SelectorProperties>,
     rand_engine: Option<Box<dyn RngCore>>,
-    circuit_proving_key: Option<Arc<ProvingKey<Fr>>>,
+    circuit_proving_key: Option<Arc<ProvingKey<FrP>>>,
     circuit_verification_key: Option<Arc<VerificationKey>>,
 }
 
-impl ComposerBase {
+impl<FrP: FieldParams> ComposerBase<FrP> {
     pub fn new(
         num_selectors: usize,
         size_hint: usize,
@@ -88,7 +88,7 @@ impl ComposerBase {
         }
     }
     pub fn with_keys(
-        p_key: Arc<ProvingKey<Fr>>,
+        p_key: Arc<ProvingKey<FrP>>,
         v_key: Arc<VerificationKey>,
         num_selectors: usize,
         size_hint: usize,

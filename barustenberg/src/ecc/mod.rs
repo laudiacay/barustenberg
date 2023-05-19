@@ -1,3 +1,5 @@
+use std::marker::PhantomData;
+
 use self::{
     curves::bn254::{
         fq12::{Bn254Fq12ParamsImpl, Fq12},
@@ -37,6 +39,7 @@ struct EllCoeffs<FPG: FieldParamsGeneral, QuadFP: FieldGeneral<FPG>> {
     o: QuadFP,
     vw: QuadFP,
     vv: QuadFP,
+    phantom: PhantomData<FPG>,
 }
 
 const PRECOMPUTED_COEFFICIENTS_LENGTH: usize = 87;

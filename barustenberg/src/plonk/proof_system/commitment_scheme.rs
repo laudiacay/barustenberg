@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::marker::PhantomData;
 use std::sync::Arc;
 
 use crate::ecc::curves::bn254::fr::Fr;
@@ -26,7 +27,7 @@ pub trait CommitmentScheme<
         coefficients: &mut [Field<FrP>],
         tag: &str,
         item_constant: Field<FrP>,
-        queue: &mut WorkQueue<H, Field<FrP>>,
+        queue: &mut WorkQueue<H, FrP>,
     );
 
     fn compute_opening_polynomial(
@@ -48,14 +49,14 @@ pub trait CommitmentScheme<
         n: usize,
         tags: &[String],
         item_constants: &[Field<FrP>],
-        queue: &mut WorkQueue<H, Field<FrP>>,
+        queue: &mut WorkQueue<H, FrP>,
     );
 
     fn batch_open(
         &mut self,
         transcript: &Transcript<H>,
-        queue: &mut WorkQueue<H, Field<FrP>>,
-        input_key: Option<Arc<ProvingKey<Field<FrP>>>>,
+        queue: &mut WorkQueue<H, FrP>,
+        input_key: Option<Arc<ProvingKey<FrP>>>,
     );
 
     fn batch_verify(
@@ -69,13 +70,14 @@ pub trait CommitmentScheme<
     fn add_opening_evaluations_to_transcript(
         &self,
         transcript: &mut Transcript<H>,
-        input_key: Option<Arc<ProvingKey<Fr>>>,
+        input_key: Option<Arc<ProvingKey<FrP>>>,
         in_lagrange_form: bool,
     );
 }
 
 pub(crate) struct KateCommitmentScheme<H: BarretenHasher, S: Settings<H>> {
     kate_open_proof: CommitmentOpenProof,
+    phantom: PhantomData<(H, S)>,
 }
 
 impl<
@@ -84,14 +86,14 @@ impl<
         G1AffineP: GroupParams<FqP, FrP>,
         H: BarretenHasher,
         S: Settings<H>,
-    > CommitmentScheme<FrP, FqP, G1AffineP, H> for KateCommitmentScheme<H, S>
+    > CommitmentScheme<FqP, FrP, G1AffineP, H> for KateCommitmentScheme<H, S>
 {
     fn commit(
         &mut self,
-        coefficients: &mut [Fr],
+        coefficients: &mut [Field<FrP>],
         tag: &str,
-        item_constant: Fr,
-        queue: &mut WorkQueue<H, Fr>,
+        item_constant: Field<FrP>,
+        queue: &mut WorkQueue<H, FrP>,
     ) {
         todo!()
     }
@@ -99,28 +101,34 @@ impl<
     fn add_opening_evaluations_to_transcript(
         &self,
         transcript: &mut Transcript<H>,
-        input_key: Option<Arc<ProvingKey<Fr>>>,
+        input_key: Option<Arc<ProvingKey<FrP>>>,
         in_lagrange_form: bool,
     ) {
         todo!()
     }
 
-    fn compute_opening_polynomial(&self, src: &[Fr], dest: &mut [Fr], z: &Fr, n: usize) {
+    fn compute_opening_polynomial(
+        &self,
+        src: &[Field<FrP>],
+        dest: &mut [Field<FrP>],
+        z: &Field<FrP>,
+        n: usize,
+    ) {
         todo!()
     }
 
     fn generic_batch_open(
         &self,
-        src: &[Fr],
-        dest: &mut [Fr],
+        src: &[Field<FrP>],
+        dest: &mut [Field<FrP>],
         num_polynomials: usize,
-        z_points: &[Fr],
+        z_points: &[Field<FrP>],
         num_z_points: usize,
-        challenges: &[Fr],
+        challenges: &[Field<FrP>],
         n: usize,
         tags: &[String],
-        item_constants: &[Fr],
-        queue: &mut WorkQueue<H, Fr>,
+        item_constants: &[Field<FrP>],
+        queue: &mut WorkQueue<H, FrP>,
     ) {
         todo!()
     }
@@ -128,8 +136,8 @@ impl<
     fn batch_open(
         &mut self,
         transcript: &Transcript<H>,
-        queue: &mut WorkQueue<H, Fr>,
-        input_key: Option<Arc<ProvingKey<Fr>>>,
+        queue: &mut WorkQueue<H, FrP>,
+        input_key: Option<Arc<ProvingKey<FrP>>>,
     ) {
         todo!()
     }
@@ -138,7 +146,7 @@ impl<
         &self,
         transcript: &Transcript<H>,
         kate_g1_elements: &mut HashMap<String, G1Affine>,
-        kate_fr_elements: &mut HashMap<String, Fr>,
+        kate_fr_elements: &mut HashMap<String, Field<FrP>>,
         input_key: Option<Arc<VerificationKey>>,
     ) {
         todo!()

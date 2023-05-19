@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{marker::PhantomData, sync::Arc};
 
 use super::{
     commitment_scheme::CommitmentScheme,
@@ -38,6 +38,7 @@ pub struct Prover<
     pub random_widgets: Vec<dyn ProverRandomWidget<H, FrP>>,
     pub transition_widgets: Vec<TransitionWidgetBase<FrP>>,
     pub commitment_scheme: dyn CommitmentScheme<FqP, FrP, G1AffineP, H>,
+    phantom: PhantomData<S>,
 }
 
 impl<
@@ -733,7 +734,7 @@ impl<
     fn get_ifft_data(&self, work_item_number: usize) -> &Field<FrP> {
         self.get_queue().get_ifft_data(work_item_number)
     }
-    fn get_fft_data(&self, work_item_number: usize) -> &work_queue::QueuedFftInputs<Field<FrP>> {
+    fn get_fft_data(&self, work_item_number: usize) -> &work_queue::QueuedFftInputs<FrP> {
         self.get_queue().get_fft_data(work_item_number)
     }
     fn put_scalar_multiplication_data(&self, result: G1Affine, work_item_number: usize) {

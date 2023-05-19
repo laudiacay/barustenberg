@@ -36,15 +36,28 @@ pub const CHALLENGE_BIT_GAMMA: usize = 1 << (ChallengeIndex::Gamma as usize);
 pub const CHALLENGE_BIT_ETA: usize = 1 << (ChallengeIndex::Eta as usize);
 pub const CHALLENGE_BIT_ZETA: usize = 1 << (ChallengeIndex::Zeta as usize);
 
+// need maxnumchallenges as a typenum, not just as an enum
+pub type MaxNumChallengesTN = typenum::consts::U5;
+
+// and check its correspondance with the enum before we continue...
+static _MAX_NUM_CHALLENGES_CHECK: () = {
+    assert_eq!(
+        MaxNumChallengesTN::to_usize(),
+        ChallengeIndex::MaxNumChallenges as usize
+    );
+};
+
 pub mod containers {
+    use generic_array::GenericArray;
+
     use crate::plonk::proof_system::types::polynomial_manifest::PolynomialIndex;
 
-    use super::ChallengeIndex;
+    use super::MaxNumChallengesTN;
     use std::collections::HashMap;
 
-    pub struct ChallengeArray<Field, const NUM_WIDGET_RELATIONS: usize> {
-        pub elements: [Field; ChallengeIndex::MaxNumChallenges as usize],
-        pub alpha_powers: [Field; NUM_WIDGET_RELATIONS],
+    pub struct ChallengeArray<Field, NumRelations: generic_array::ArrayLength<Field>> {
+        pub elements: GenericArray<Field, MaxNumChallengesTN>,
+        pub alpha_powers: GenericArray<Field, NumRelations>,
     }
 
     pub type PolyArray<Field> = [(Field, Field); PolynomialIndex::MaxNumPolynomials as usize];
@@ -77,7 +90,7 @@ pub trait BaseGetter<
     H: BarretenHasher,
     F: FieldParams,
     S: Settings<H>,
-    const NUM_WIDGET_RELATIONS: usize,
+    NWidgetRelations: generic_array::ArrayLength<F>,
 >
 {
     /// Create a challenge array from transcript.
@@ -94,7 +107,7 @@ pub trait BaseGetter<
         transcript: &Transcript<H>,
         alpha_base: F,
         required_challenges: u8,
-    ) -> ChallengeArray<F, NUM_WIDGET_RELATIONS> {
+    ) -> ChallengeArray<F, NWidgetRelations> {
         let mut result = ChallengeArray::default();
         let add_challenge = |label: &str, tag: usize, required: bool, index: usize| {
             assert!(!required || transcript.has_challenge(label));
@@ -136,7 +149,7 @@ pub trait BaseGetter<
             0,
         );
         result.alpha_powers[0] = alpha_base;
-        for i in 1..NUM_WIDGET_RELATIONS {
+        for i in 1..NWidgetRelations::to_usize() {
             result.alpha_powers[i] =
                 result.alpha_powers[i - 1] * result.elements[ChallengeIndex::Alpha as usize];
         }
@@ -144,7 +157,7 @@ pub trait BaseGetter<
     }
 
     fn update_alpha(
-        challenges: &ChallengeArray<F, NUM_WIDGET_RELATIONS>,
+        challenges: &ChallengeArray<F, NWidgetRelations>,
         num_independent_relations: usize,
     ) -> F {
         if num_independent_relations == 0 {
@@ -158,9 +171,12 @@ pub trait BaseGetter<
 
 /// Implements loading polynomial openings from transcript in addition to BaseGetter's
 /// loading challenges from the transcript and computing powers of α
-pub trait EvaluationGetter<F, H: BarretenHasher, S: Settings<H>, const NUM_WIDGET_RELATIONS: usize>:
-    BaseGetter<H, F, S, NUM_WIDGET_RELATIONS>
-where
+pub trait EvaluationGetter<
+    F,
+    H: BarretenHasher,
+    S: Settings<H>,
+    NWidgetRelations: generic_array::ArrayLength<F>,
+>: BaseGetter<H, F, S, NWidgetRelations> where
     F: FieldParams,
 {
     /// Get a polynomial at offset `id`
@@ -219,10 +235,11 @@ where
 
 /// Provides access to polynomials (monomial or coset FFT) for use in widgets
 /// Coset FFT access is needed in quotient construction.
-pub trait FFTGetter<H, F, S, const NUM_WIDGET_RELATIONS: usize>:
-    BaseGetter<H, F, S, NUM_WIDGET_RELATIONS>
+pub trait FFTGetter<H, F, S, NWidgetRelations: generic_array::ArrayLength<F>>:
+    BaseGetter<H, F, S, NWidgetRelations>
 where
     F: FieldParams,
+    H: BarretenHasher,
     S: Settings<H>,
 {
     fn get_polynomials(
@@ -273,27 +290,31 @@ impl<F: FieldParams> TransitionWidgetBase<F> {
 
 trait KernelBaseTrait {}
 
-trait KernelBase<F: FieldParams, PC, G: Getters<F, PC>, const NUM_INDEPENDENT_RELATIONS: usize>:
-    KernelBaseTrait
+trait KernelBase<
+    F: FieldParams,
+    PC,
+    G: Getters<F, PC>,
+    NumIndependentRelations: generic_array::ArrayLength<F>,
+>: KernelBaseTrait
 {
     fn get_required_polynomial_ids() -> HashSet<PolynomialIndex>;
     fn quotient_required_challenges() -> u8;
     fn update_required_challenges() -> u8;
     fn compute_linear_terms(
         polynomials: &PolyPtrMap<F>,
-        challenges: &ChallengeArray<F, NUM_INDEPENDENT_RELATIONS>,
+        challenges: &ChallengeArray<F, NumIndependentRelations>,
         linear_terms: &mut CoefficientArray<F>,
         index: usize,
     );
     fn sum_linear_terms(
         polynomials: &PolyPtrMap<F>,
-        challenges: &ChallengeArray<F, NUM_INDEPENDENT_RELATIONS>,
+        challenges: &ChallengeArray<F, NumIndependentRelations>,
         linear_terms: &CoefficientArray<F>,
         index: usize,
     ) -> F;
     fn compute_non_linear_terms(
         polynomials: &PolyPtrMap<F>,
-        challenges: &ChallengeArray<F, NUM_INDEPENDENT_RELATIONS>,
+        challenges: &ChallengeArray<F, NumIndependentRelations>,
         quotient_term: &mut F,
         index: usize,
     );
@@ -305,11 +326,11 @@ pub struct TransitionWidget<
     S: Settings<H>,
     PC,
     G: Getters<F, PC>,
-    const NUM_INDEPENDENT_RELATIONS: usize,
+    NIndependentRelations: typenum::Unsigned,
     KB: KernelBaseTrait,
 > {
     base: TransitionWidgetBase<F>,
-    phantom: std::marker::PhantomData<(H, S, PC, G, KB)>,
+    phantom: std::marker::PhantomData<(H, S, PC, G, KB, NIndependentRelations)>,
 }
 
 impl<
@@ -318,9 +339,9 @@ impl<
         S: Settings<H>,
         PC,
         G: Getters<F, PC>,
-        const NUM_INDEPENDENT_RELATIONS: usize,
+        NIndependentRelations: typenum::Unsigned,
         KB: KernelBaseTrait,
-    > TransitionWidget<H, F, S, PC, G, { NUM_INDEPENDENT_RELATIONS }, KB>
+    > TransitionWidget<H, F, S, PC, G, NIndependentRelations, KB>
 {
     pub fn new(key: Option<Arc<ProvingKey<F>>>) -> Self {
         Self {
@@ -368,8 +389,15 @@ impl<
 }
 
 // Implementations for the derived classes
-impl<F: FieldParams, H: BarretenHasher, S:Settings<H>, KernelBase, PC, G: Getters<F, PC>, const NUM_INDEPENDENT_RELATIONS: usize>
-    From<TransitionWidget<H, F, S, PC, G, { NUM_INDEPENDENT_RELATIONS }, KernelBase>>
+impl<
+        F: FieldParams,
+        H: BarretenHasher,
+        S: Settings<H>,
+        KernelBase: KernelBaseTrait,
+        PC,
+        G: Getters<F, PC>,
+        NIndependentRelations: typenum::Unsigned,
+    > From<TransitionWidget<H, F, S, PC, G, NIndependentRelations, KernelBase>>
     for TransitionWidgetBase<F>
 {
     // Other methods and trait implementations
@@ -378,13 +406,16 @@ impl<F: FieldParams, H: BarretenHasher, S:Settings<H>, KernelBase, PC, G: Getter
 pub struct GenericVerifierWidget<F, Hash, Settings, KernelBase>
 where
     F: FieldParams,
+    KernelBase: KernelBaseTrait,
 {
-    phantom: PhantomData<(F, Hash, Settings)>,
+    phantom: PhantomData<(F, Hash, Settings, KernelBase)>,
 }
 
 impl<H, F, Settings, KernelBase> GenericVerifierWidget<F, H, Settings, KernelBase>
 where
     F: FieldParams,
+    H: BarretenHasher,
+    KernelBase: KernelBaseTrait,
 {
     pub fn compute_quotient_evaluation_contribution(
         key: &Arc<TranscriptKey>,

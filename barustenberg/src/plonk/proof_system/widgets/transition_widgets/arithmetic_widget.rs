@@ -1,3 +1,5 @@
+use typenum::U1;
+
 use crate::{
     ecc::{curves::bn254::fr::Fr, fields::field::FieldParams},
     plonk::proof_system::{
@@ -27,18 +29,19 @@ pub struct ArithmeticKernel<
     S: Settings<H>,
     Getters,
     PolyContainer,
-    const NUM_WIDGET_RELATIONS: usize,
+    NIndependentRelations: typenum::Unsigned,
 > {
-    base_getter: dyn BaseGetter<H, FieldParams, dyn Settings<H>, NUM_WIDGET_RELATIONS>,
+    base_getter: Box<dyn BaseGetter<H, FieldParams, S, NIndependentRelations>>,
     phantom: PhantomData<(FieldParams, Getters, PolyContainer)>,
 }
 
 impl<H: BarretenHasher, F, Getters, S: Settings<H>, PolyContainer>
-    ArithmeticKernel<H, F, S, Getters, PolyContainer, 1>
+    ArithmeticKernel<H, F, S, Getters, PolyContainer, U1>
 where
     F: FieldParams,
-    Getters: BaseGetter<H, F, S, 1>,
+    Getters: BaseGetter<H, F, S, U1>,
 {
+    // TODO see all these U1s they should be a named variable but they are not :( inherent associate type problem
     pub const QUOTIENT_REQUIRED_CHALLENGES: u8 = CHALLENGE_BIT_ALPHA;
     pub const UPDATE_REQUIRED_CHALLENGES: u8 = CHALLENGE_BIT_ALPHA;
 
@@ -48,7 +51,7 @@ where
 
     pub fn compute_linear_terms(
         polynomials: &PolyContainer,
-        challenges: &ChallengeArray<F, { Self::NUM_INDEPENDENT_RELATIONS }>,
+        challenges: &ChallengeArray<F, U1>,
         linear_terms: &mut CoefficientArray<F>,
         i: usize,
     ) {
@@ -57,7 +60,7 @@ where
 
     pub fn compute_non_linear_terms(
         polynomials: &PolyContainer,
-        challenges: &ChallengeArray<F, { Self::NUM_INDEPENDENT_RELATIONS }>,
+        challenges: &ChallengeArray<F, U1>,
         field: &mut F,
         i: usize,
     ) {
@@ -66,7 +69,7 @@ where
 
     pub fn sum_linear_terms(
         polynomials: &PolyContainer,
-        challenges: &ChallengeArray<F, { Self::NUM_INDEPENDENT_RELATIONS }>,
+        challenges: &ChallengeArray<F, U1>,
         linear_terms: &mut CoefficientArray<F>,
         i: usize,
     ) -> F {
@@ -76,7 +79,7 @@ where
     pub fn update_kate_opening_scalars(
         linear_terms: &CoefficientArray<F>,
         scalars: &mut HashMap<String, F>,
-        challenges: &ChallengeArray<F, { Self::NUM_INDEPENDENT_RELATIONS }>,
+        challenges: &ChallengeArray<F, U1>,
     ) {
         // ...
     }
@@ -86,30 +89,30 @@ pub type ProverArithmeticWidget<
     F: FieldParams,
     H: BarretenHasher,
     S: Settings<H>,
-    const NUM_WIDGET_RELATIONS: usize,
+    NWidgetRelations: typenum::Unsigned,
     PolyContainer,
-    Getters: BaseGetter<H, F, S, NUM_WIDGET_RELATIONS>,
+    Getters: BaseGetter<H, F, S, NWidgetRelations>,
 > = TransitionWidget<
     H,
     Fr,
     S,
     PolyContainer,
     Getters,
-    NUM_WIDGET_RELATIONS,
-    ArithmeticKernel<H, Fr, S, Getters, PolyContainer, NUM_WIDGET_RELATIONS>,
+    NWidgetRelations,
+    ArithmeticKernel<H, Fr, S, Getters, PolyContainer, NWidgetRelations>,
 >;
 
 pub type VerifierArithmeticWidget<
     H: BarretenHasher,
     F: FieldParams,
     Group,
-    const NUM_WIDGET_RELATIONS: usize,
-    Getters: BaseGetter<H, F, S, NUM_WIDGET_RELATIONS>,
+    NWidgetRelations: typenum::Unsigned,
+    Getters: BaseGetter<H, F, S, NWidgetRelations>,
     PolyContainer,
     S: Settings<H>,
 > = GenericVerifierWidget<
     F,
     H,
     S,
-    ArithmeticKernel<H, Fr, S, Getters, PolyContainer, NUM_WIDGET_RELATIONS>,
+    ArithmeticKernel<H, Fr, S, Getters, PolyContainer, NWidgetRelations>,
 >;
