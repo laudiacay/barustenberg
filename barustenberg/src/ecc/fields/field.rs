@@ -19,6 +19,29 @@ pub trait FieldGeneral<FPG: FieldParamsGeneral> {
         Self: Sized;
 }
 
+// TODO this endianness might be flipped
+fn u256_from_le_u64_parts(inp: [u64;4]) -> U256 {
+    let ua = U256::from(inp[0]);
+    let ub = U256::from(inp[1]);
+    let uc = U256::from(inp[2]);
+    let ud = U256::from(inp[3]);
+    let mut result = U256::zero();
+    result = result | (ua << (0));
+    result = result | (ub << (64));
+    result = result | (uc << (128));
+    result = result | (ud << (192));
+    result
+}
+
+fn u256_to_le_u64_parts(value: U256) -> [u64; 4] {
+    let mut result = [0u64; 4];
+    result[0] = value.as_u64();
+    result[1] = (value >> 64).as_u64();
+    result[2] = (value >> 128).as_u64();
+    result[3] = (value >> 192).as_u64();
+    result
+}
+
 pub trait FieldParams: FieldParamsGeneral + Eq + PartialEq {
     const modulus_0: u64;
     const modulus_1: u64;
@@ -67,7 +90,21 @@ pub(crate) struct Field<Params: FieldParams> {
     phantom: PhantomData<Params>,
 }
 
-impl<Params: FieldParamsGeneral + FieldParams> FieldGeneral<Params> for Field<Params> {}
+impl<Params: FieldParamsGeneral + FieldParams> FieldGeneral<Params> for Field<Params> {
+    fn one() -> Self
+    where
+        Self: Sized,
+    {
+        Field::<Params>::one()
+    }
+
+    fn zero() -> Self
+    where
+        Self: Sized,
+    {
+        Field::<Params>::zero()
+    }
+}
 
 pub struct WideArray {
     pub data: [u64; 8],
@@ -77,8 +114,13 @@ pub struct WnafTable {
     windows: [u8; 64],
 }
 
+pub struct MyU256 {
+    data: [u64; 4],
+}
+
 impl WnafTable {
     pub const fn new(target: &U256) -> WnafTable {
+        let target: MyU256 = MyU256{data: u256_to_le_u64_parts(*target)};
         WnafTable {
             windows: [
                 (target.data[0] & 15) as u8,
@@ -209,7 +251,7 @@ impl<Params: FieldParams> Field<Params> {
     }
 
     fn uint256_t_no_montgomery_conversion(&self) -> U256 {
-        U256::from_parts(self.data[0], self.data[1], self.data[2], self.data[3])
+        u256_from_le_u64_parts(self.data)
     }
 
     fn invert(&self) -> Self {
@@ -233,6 +275,7 @@ impl<Params: FieldParams> Field<Params> {
 
     pub fn sqrt(&self) -> (bool, Self) {
         // TODO: Implement the square root logic
+        todo!("implement sqrt")
     }
 
     pub fn self_neg(&mut self) {
@@ -252,6 +295,7 @@ impl<Params: FieldParams> Field<Params> {
     }
 
     fn reduce_once(&self) -> Self {
+        todo!("implement reduce_once")
         // TODO: Implement the reduce once logic
     }
 
@@ -264,14 +308,17 @@ impl<Params: FieldParams> Field<Params> {
     }
 
     fn is_msb_set(&self) -> bool {
+        todo!("implement is_msb_set")
         // TODO: Implement the is msb set logic
     }
 
     fn is_msb_set_word(&self) -> u64 {
+        todo!("implement is_msb_set_word")
         // TODO: Implement the is msb set word logic
     }
 
     pub fn is_zero(&self) -> bool {
+        todo!("implement is_zero")
         // TODO: Implement the is zero logic
     }
 
@@ -323,11 +370,13 @@ impl<Params: FieldParams> Field<Params> {
     }
 
     fn not_modulus() -> U256 {
-        -Self::modulus()
+        todo!("implement not_modulus")
+        // -Self::modulus()
     }
 
     fn twice_not_modulus() -> U256 {
-        -(Self::twice_modulus())
+        todo!("implement twice_not_modulus")
+        //-(Self::twice_modulus())
     }
 
     fn reduce(&self) -> Self {
@@ -462,8 +511,7 @@ impl<Params: FieldParams> Field<Params> {
     }
 
     fn from_u256(input: U256) -> Self {
-        let mut data = [0_u64; 4];
-        input.to_little_endian(data);
+        let data = u256_to_le_u64_parts(input);
         let mut result = Field {
             data,
             phantom: PhantomData,
@@ -530,21 +578,16 @@ impl<Params: FieldParams> Field<Params> {
 
     fn as_u256(&self) -> U256 {
         let out = self.from_montgomery_form();
-        U256::from_parts(
-            out.data[0] as u64,
-            out.data[1] as u64,
-            out.data[2] as u64,
-            out.data[3] as u64,
-        )
+        u256_from_le_u64_parts(self.data)
     }
 
     // TODO macro...???
     pub fn modulus() -> U256 {
-        U256::from_parts(
-            Params::MODULUS_0,
+        u256_from_le_u64_parts(
+            [Params::MODULUS_0,
             Params::MODULUS_1,
             Params::MODULUS_2,
-            Params::MODULUS_3,
+            Params::MODULUS_3]
         )
     }
 
@@ -554,7 +597,7 @@ impl<Params: FieldParams> Field<Params> {
             Params::COSET_GENERATORS_0[7],
             Params::COSET_GENERATORS_1[7],
             Params::COSET_GENERATORS_2[7],
-            Params::COSET_GENERATORS_3[7],
+            Params::COSET_GENERATORS_3[7]
         )
     }
 
@@ -564,7 +607,7 @@ impl<Params: FieldParams> Field<Params> {
             Params::COSET_GENERATORS_0[6],
             Params::COSET_GENERATORS_1[6],
             Params::COSET_GENERATORS_2[6],
-            Params::COSET_GENERATORS_3[6],
+            Params::COSET_GENERATORS_3[6]
         )
     }
 
@@ -574,7 +617,7 @@ impl<Params: FieldParams> Field<Params> {
             Params::COSET_GENERATORS_0[idx],
             Params::COSET_GENERATORS_1[idx],
             Params::COSET_GENERATORS_2[idx],
-            Params::COSET_GENERATORS_3[idx],
+            Params::COSET_GENERATORS_3[idx]
         )
     }
 

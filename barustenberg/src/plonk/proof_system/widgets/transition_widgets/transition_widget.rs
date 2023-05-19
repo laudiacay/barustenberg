@@ -104,6 +104,7 @@ pub trait BaseGetter<
     /// # Returns
     /// A structure with an array of challenge values and powers of α
     fn get_challenges(
+        &self,
         transcript: &Transcript<H>,
         alpha_base: F,
         required_challenges: u8,
@@ -118,31 +119,31 @@ pub trait BaseGetter<
                 result.elements[tag] = Field::random_element();
             }
         };
-        add_challenge(
+        self.add_challenge(
             "alpha",
             ChallengeIndex::Alpha as usize,
             required_challenges & CHALLENGE_BIT_ALPHA != 0,
             0,
         );
-        add_challenge(
+        self.add_challenge(
             "beta",
             ChallengeIndex::Beta as usize,
             required_challenges & CHALLENGE_BIT_BETA != 0,
             0,
         );
-        add_challenge(
+        self.add_challenge(
             "beta",
             ChallengeIndex::Gamma as usize,
             required_challenges & CHALLENGE_BIT_GAMMA != 0,
             1,
         );
-        add_challenge(
+        self.add_challenge(
             "eta",
             ChallengeIndex::Eta as usize,
             required_challenges & CHALLENGE_BIT_ETA != 0,
             0,
         );
-        add_challenge(
+        self.add_challenge(
             "z",
             ChallengeIndex::Zeta as usize,
             required_challenges & CHALLENGE_BIT_ZETA != 0,
@@ -157,13 +158,14 @@ pub trait BaseGetter<
     }
 
     fn update_alpha(
+        &mut self,
         challenges: &ChallengeArray<F, NWidgetRelations>,
         num_independent_relations: usize,
     ) -> F {
         if num_independent_relations == 0 {
-            challenges.alpha_powers[0]
+            self.challenges.alpha_powers[0]
         } else {
-            challenges.alpha_powers[num_independent_relations - 1]
+            self.challenges.alpha_powers[num_independent_relations - 1]
                 * challenges.elements[ChallengeIndex::Alpha as usize]
         }
     }
@@ -263,7 +265,7 @@ where
         result
     }
 
-    fn get_value<const EVALUATION_TYPE: EvaluationType, const ID: usize>(
+    fn get_value<const EVALUATION_TYPE: usize, const ID: usize>(
         polynomials: &PolyPtrMap<F>,
         index: usize,
     ) -> &F {

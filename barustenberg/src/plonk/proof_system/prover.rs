@@ -35,9 +35,9 @@ pub struct Prover<
     pub transcript: Transcript<H>,
     pub key: Arc<ProvingKey<FrP>>,
     pub queue: WorkQueue<H, FrP>,
-    pub random_widgets: Vec<dyn ProverRandomWidget<H, FrP>>,
+    pub random_widgets: Vec<ProverRandomWidget<H, FrP>>,
     pub transition_widgets: Vec<TransitionWidgetBase<FrP>>,
-    pub commitment_scheme: dyn CommitmentScheme<FqP, FrP, G1AffineP, H>,
+    pub commitment_scheme: Box<dyn CommitmentScheme<FqP, FrP, G1AffineP, H>>,
     phantom: PhantomData<S>,
 }
 
@@ -70,6 +70,7 @@ impl<
             random_widgets: Vec::new(),
             transition_widgets: Vec::new(),
             commitment_scheme: CommitmentScheme::default(),
+            phantom: PhantomData,
         }
     }
 

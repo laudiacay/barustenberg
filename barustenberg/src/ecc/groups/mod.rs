@@ -27,8 +27,7 @@ pub struct Group<
     pub x: Fq,
     pub y: Fq,
     pub z: Fq,
-    phantom1: std::marker::PhantomData<FrP>,
-    phantom2: std::marker::PhantomData<Params>,
+    phantom: std::marker::PhantomData<(FqP, FrP, Params)>,
 }
 
 impl<
@@ -43,8 +42,7 @@ impl<
             x: Params::one_x,
             y: Params::one_y,
             z: Self::Fq::one(),
-            phantom1: std::marker::PhantomData,
-            phantom2: std::marker::PhantomData,
+            phantom: std::marker::PhantomData,
         }
     }
 
@@ -53,8 +51,7 @@ impl<
             x: Field::<FqP>::zero(),
             y: Self::Fq::zero(),
             z: Self::Fq::zero(),
-            phantom1: std::marker::PhantomData,
-            phantom2: std::marker::PhantomData,
+            phantom: std::marker::PhantomData,
         };
         zero.self_set_infinity();
         zero
@@ -87,8 +84,7 @@ impl<
             x: Self::Fq::zero(),
             y: Self::Fq::one(),
             z: Self::Fq::zero(),
-            phantom1: std::marker::PhantomData,
-            phantom2: std::marker::PhantomData,
+            phantom: std::marker::PhantomData,
         };
         infinity.self_set_infinity();
         infinity
@@ -167,8 +163,7 @@ impl<
         x: GroupParams::one_x,
         y: GroupParams::one_y,
         z: Self::Fq::one(),
-        phantom1: std::marker::PhantomData,
-        phantom2: std::marker::PhantomData,
+        phantom: std::marker::PhantomData,
     };
 
     const point_at_infinity: Self = Self::one.set_infinity();
@@ -176,17 +171,22 @@ impl<
     const affine_one: Affine<FqP, Fq, FrP, Params> = Affine {
         x: GroupParams::one_x,
         y: GroupParams::one_y,
-        phantom1: std::marker::PhantomData,
-        phantom2: std::marker::PhantomData,
+        phantom: std::marker::PhantomData,
     };
 
     const affine_point_at_infinity: Affine<FqP, Fq, FrP, Params> = Self::affine_one.set_infinity();
 
-    const curve_a: Field<FqP> = GroupParams::a;
-    const curve_b: Field<FqP> = GroupParams::b;
+    const curve_a: dyn FieldGeneral<FqP> = GroupParams::a;
+    const curve_b: dyn FieldGeneral<FqP> = GroupParams::b;
 }
 
-impl<Fqp, Fq, Frp, Params> Add for Group<Fqp, Fq, Frp, Params> {
+impl<
+        Fqp: FieldParamsGeneral,
+        Fq: FieldGeneral<Fqp>,
+        Frp: FieldParams,
+        Params: GroupParams<Fqp, Frp>,
+    > Add for Group<Fqp, Fq, Frp, Params>
+{
     type Output = Self;
 
     fn add(self, other: Self) -> Self {
@@ -196,16 +196,28 @@ impl<Fqp, Fq, Frp, Params> Add for Group<Fqp, Fq, Frp, Params> {
 }
 
 // Implement other operator traits for Element
-impl<Fqp, Fq, Fr, Params> Mul<Fr> for Group<Fqp, Fq, Fr, Params> {
+impl<
+        Fqp: FieldParamsGeneral,
+        Fq: FieldGeneral<Fqp>,
+        Frp: FieldParams,
+        Params: GroupParams<Fqp, Frp>,
+    > Mul<Field<Frp>> for Group<Fqp, Fq, Frp, Params>
+{
     type Output = Self;
 
-    fn mul(self, other: Fr) -> Self {
+    fn mul(self, other: Field<Frp>) -> Self {
         // Implement mul logic
     }
 }
 
-impl<FqP, Fq, FrP, Params> From<Group<FqP, Fq, FrP, Params>> for Affine<FqP, Fq, FrP, Params> {
-    fn from(element: Group<FqP, Fq, FrP, Params>) -> Self {
+impl<
+        Fqp: FieldParamsGeneral,
+        Fq: FieldGeneral<Fqp>,
+        Frp: FieldParams,
+        Params: GroupParams<Fqp, Frp>,
+    > From<Group<Fqp, Fq, Frp, Params>> for Affine<Fqp, Fq, Frp, Params>
+{
+    fn from(element: Group<Fqp, Fq, Frp, Params>) -> Self {
         // Implement From trait
     }
 }

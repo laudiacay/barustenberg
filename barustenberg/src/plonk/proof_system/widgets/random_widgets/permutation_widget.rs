@@ -57,7 +57,7 @@ pub struct ProverPermutationWidget<
     const IDPOLYS: bool,
     const NUM_ROOTS_CUT_OUT_OF_VANISHING_POLYNOMIAL: usize,
 > {
-    prover_random_widget: dyn ProverRandomWidget<Hash, Fr>,
+    prover_random_widget: ProverRandomWidget<Hash, Fr>,
 }
 
 impl<
