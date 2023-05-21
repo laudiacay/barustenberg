@@ -75,6 +75,7 @@ where
         i: usize,
     ) -> F {
         // ...
+        todo!("ArithmeticKernel::sum_linear_terms")
     }
 
     pub fn update_kate_opening_scalars(

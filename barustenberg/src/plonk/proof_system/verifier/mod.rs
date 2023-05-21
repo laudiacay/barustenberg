@@ -38,14 +38,6 @@ pub trait VerifierBase<H: BarretenHasher, PS: Settings<H>> {
     fn validate_commitments(&self) -> bool;
     fn validate_scalars(&self) -> bool;
     fn verify_proof(&self, proof: &Proof) -> bool;
-
-    fn from_other(other: &Self) -> Self {
-        Self {
-            manifest: other.manifest.clone(),
-            key: other.key.clone(),
-            commitment_scheme: other.commitment_scheme.clone(),
-        }
-    }
 }
 
 pub struct Verifier<
@@ -73,17 +65,21 @@ impl<
 {
     fn new(verifier_key: Option<Arc<VerificationKey>>, manifest: Manifest) -> Self {
         // Implement constructor logic here.
+        todo!("Verifier::new")
     }
 
     fn validate_commitments(&self) -> bool {
         // Implement validate_commitments logic here.
+        todo!("Verifier::validate_commitments")
     }
 
     fn validate_scalars(&self) -> bool {
         // Implement validate_scalars logic here.
+        todo!("Verifier::validate_scalars")
     }
 
     fn verify_proof(&self, proof: &Proof) -> bool {
         // Implement verify_proof logic here.
+        todo!("Verifier::verify_proof")
     }
 }

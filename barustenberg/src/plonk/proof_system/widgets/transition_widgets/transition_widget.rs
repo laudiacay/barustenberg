@@ -122,31 +122,31 @@ pub trait BaseGetter<
         self.add_challenge(
             "alpha",
             ChallengeIndex::Alpha as usize,
-            required_challenges & CHALLENGE_BIT_ALPHA != 0,
+            required_challenges & CHALLENGE_BIT_ALPHA as u8!= 0,
             0,
         );
         self.add_challenge(
             "beta",
             ChallengeIndex::Beta as usize,
-            required_challenges & CHALLENGE_BIT_BETA != 0,
+            required_challenges & CHALLENGE_BIT_BETA as u8 != 0,
             0,
         );
         self.add_challenge(
             "beta",
             ChallengeIndex::Gamma as usize,
-            required_challenges & CHALLENGE_BIT_GAMMA != 0,
+            required_challenges & CHALLENGE_BIT_GAMMA as u8 != 0,
             1,
         );
         self.add_challenge(
             "eta",
             ChallengeIndex::Eta as usize,
-            required_challenges & CHALLENGE_BIT_ETA != 0,
+            required_challenges & CHALLENGE_BIT_ETA as u8 != 0,
             0,
         );
         self.add_challenge(
             "z",
             ChallengeIndex::Zeta as usize,
-            required_challenges & CHALLENGE_BIT_ZETA != 0,
+            required_challenges & CHALLENGE_BIT_ZETA as u8 != 0,
             0,
         );
         result.alpha_powers[0] = alpha_base;
@@ -219,14 +219,14 @@ pub trait EvaluationGetter<
         polynomial_manifest: &PolynomialManifest,
         transcript: &Transcript<H>,
     ) -> PolyArray<F> {
-        let mut result: PolyArray<Field> = Default::default();
+        let mut result: PolyArray<Field<F>> = Default::default();
         for i in 0..polynomial_manifest.len() {
             let info = &polynomial_manifest[i];
             let label = info.polynomial_label.clone();
-            result[info.index].0 = transcript.get_field_element(&label);
+            result[info.index].0 = transcript.get_element(&label);
 
             if info.requires_shifted_evaluation {
-                result[info.index].1 = transcript.get_field_element(&(label + "_omega"));
+                result[info.index].1 = transcript.get_element(&(label + "_omega"));
             } else {
                 result[info.index].1 = Field::zero();
             }
@@ -381,9 +381,8 @@ impl<
             KernelBase::compute_non_linear_terms(&polynomials, &challenges, quotient_term, i);
         }
 
-        FFTGetter::<Field, _, _, KernelBase::NumIndependentRelations>::update_alpha(
+        FFTGetter::<H, F, S, KernelBase::NumIndependentRelations>::update_alpha(
             &challenges,
-            KernelBase::NumIndependentRelations,
         )
     }
 }
@@ -460,7 +459,6 @@ where
 
         EvaluationGetter::<Field, _, _, KernelBase::NIndependentRelations>::update_alpha(
             &challenges,
-            KernelBase::NIndependentRelations,
         )
     }
 
@@ -471,16 +469,15 @@ where
         scalar_mult_inputs: &mut HashMap<String, F>,
     ) -> F {
         let challenges =
-            EvaluationGetter::<F, _, _, KernelBase::NUM_INDEPENDENT_RELATIONS>::get_challenges(
+            EvaluationGetter::<F, H, S, KernelBase::NUM_INDEPENDENT_RELATIONS>::get_challenges(
                 transcript,
                 &alpha_base,
                 KernelBase::quotient_required_challenges()
                     | KernelBase::update_required_challenges(),
             );
 
-        EvaluationGetter::<F, _, _, KernelBase::NUM_INDEPENDENT_RELATIONS>::update_alpha(
+        EvaluationGetter::<F, H, S, KernelBase::NUM_INDEPENDENT_RELATIONS>::update_alpha(
             &challenges,
-            KernelBase::NUM_INDEPENDENT_RELATIONS,
         )
     }
 }

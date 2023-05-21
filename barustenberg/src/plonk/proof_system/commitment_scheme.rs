@@ -34,7 +34,7 @@ pub trait CommitmentScheme<
         &self,
         src: &[Field<FrP>],
         dest: &mut [Field<FrP>],
-        z: &Fr,
+        z: &Field<FrP>,
         n: usize,
     );
 
@@ -145,7 +145,7 @@ impl<
     fn batch_verify(
         &self,
         transcript: &Transcript<H>,
-        kate_g1_elements: &mut HashMap<String, G1Affine>,
+        kate_g1_elements: &mut HashMap<String, Affine<FqP, Field<FqP>, FrP, G1AffineP>>,
         kate_fr_elements: &mut HashMap<String, Field<FrP>>,
         input_key: Option<Arc<VerificationKey>>,
     ) {
