@@ -90,7 +90,7 @@ pub trait BaseGetter<
     H: BarretenHasher,
     F: FieldParams,
     S: Settings<H>,
-    NWidgetRelations: generic_array::ArrayLength<F>,
+    NWidgetRelations: generic_array::ArrayLength<Field<F>>,
 >
 {
     /// Create a challenge array from transcript.
@@ -108,7 +108,7 @@ pub trait BaseGetter<
         transcript: &Transcript<H>,
         alpha_base: Field<F>,
         required_challenges: u8,
-    ) -> ChallengeArray<Field<F>, NWidgetRelations> {
+    ) -> ChallengeArray<F, NWidgetRelations> {
         let mut result = ChallengeArray::default();
         let add_challenge = |label: &str, tag: usize, required: bool, index: usize| {
             assert!(!required || transcript.has_challenge(label));
@@ -159,7 +159,7 @@ pub trait BaseGetter<
 
     fn update_alpha(
         &mut self,
-        challenges: &ChallengeArray<Field<F>, NWidgetRelations>,
+        challenges: &ChallengeArray<F, NWidgetRelations>,
         num_independent_relations: usize,
     ) -> F {
         if num_independent_relations == 0 {
@@ -177,7 +177,7 @@ pub trait EvaluationGetter<
     F,
     H: BarretenHasher,
     S: Settings<H>,
-    NWidgetRelations: generic_array::ArrayLength<F>,
+    NWidgetRelations: generic_array::ArrayLength<Field<F>>,
 >: BaseGetter<H, F, S, NWidgetRelations> where
     F: FieldParams,
 {
@@ -237,7 +237,7 @@ pub trait EvaluationGetter<
 
 /// Provides access to polynomials (monomial or coset FFT) for use in widgets
 /// Coset FFT access is needed in quotient construction.
-pub trait FFTGetter<H, F, S, NWidgetRelations: generic_array::ArrayLength<F>>:
+pub trait FFTGetter<H, F, S, NWidgetRelations: generic_array::ArrayLength<Field<F>>>:
     BaseGetter<H, F, S, NWidgetRelations>
 where
     F: FieldParams,
@@ -396,7 +396,7 @@ impl<
         KB: KernelBase<F, PC, G, NIndependentRelations>,
         PC,
         G: Getters<F, PC>,
-        NIndependentRelations: typenum::Unsigned,
+        NIndependentRelations: generic_array::ArrayLength<Field<F>>,
     > From<TransitionWidget<H, F, S, PC, G, NIndependentRelations, KB>>
     for TransitionWidgetBase<F>
 {
@@ -405,18 +405,19 @@ impl<
     }
 }
 
-pub struct GenericVerifierWidget<F:FieldParams, H: BarretenHasher, PC, G: Getters<F, PC>, NIndependentRelations: generic_array::ArrayLength<F>, S: Settings<H>, KB>
+pub struct GenericVerifierWidget<F:FieldParams, H: BarretenHasher, PC, G: Getters<F, PC>, NIndependentRelations, S: Settings<H>, KB>
 where
+    NIndependentRelations: generic_array::ArrayLength<Field<F>>,
     KB: KernelBase<
         F,
         PC,
         G,
         NIndependentRelations>
 {
-    phantom: PhantomData<(F, H, S, KB, PC, G)>,
+    phantom: PhantomData<(F, H, S, KB, PC, G, NIndependentRelations)>,
 }
 
-impl <F:FieldParams, H: BarretenHasher, PC, G: Getters<F, PC>, NIndependentRelations: generic_array::ArrayLength<F>, S: Settings<H>, KB>
+impl <F:FieldParams, H: BarretenHasher, PC, G: Getters<F, PC>, NIndependentRelations: generic_array::ArrayLength<Field<F>>, S: Settings<H>, KB>
 GenericVerifierWidget<F, H, PC, G, NIndependentRelations, S, KB>
 where
     KB: KernelBase<
