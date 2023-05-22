@@ -13,30 +13,30 @@ pub struct EvaluationDomain<F: FieldParams> {
     /// n, always a power of 2
     pub size: usize,
     /// num_threads * thread_size = size
-    num_threads: usize,
-    thread_size: usize,
-    log2_size: usize,
-    log2_thread_size: usize,
-    log2_num_threads: usize,
-    generator_size: usize,
+    pub num_threads: usize,
+    pub thread_size: usize,
+    pub log2_size: usize,
+    pub log2_thread_size: usize,
+    pub log2_num_threads: usize,
+    pub generator_size: usize,
     /// omega; the nth root of unity
-    root: Field<F>,
+    pub root: Field<F>,
     /// omega^{-1}
-    root_inverse: Field<F>,
+    pub root_inverse: Field<F>,
     /// n; same as size
-    domain: Field<F>,
+    pub domain: Field<F>,
     /// n^{-1}
-    domain_inverse: Field<F>,
-    generator: Field<F>,
-    generator_inverse: Field<F>,
-    four_inverse: Field<F>,
+    pub domain_inverse: Field<F>,
+    pub generator: Field<F>,
+    pub generator_inverse: Field<F>,
+    pub four_inverse: Field<F>,
     /// An entry for each of the log(n) rounds: each entry is a pointer to
     /// the subset of the roots of unity required for that fft round.
     /// E.g. round_roots[0] = [1, ω^(n/2 - 1)],
     ///      round_roots[1] = [1, ω^(n/4 - 1), ω^(n/2 - 1), ω^(3n/4 - 1)]
     ///      ...
-    round_roots: Vec<Vec<Field<F>>>,
-    inverse_round_roots: Vec<Vec<Field<F>>>,
+    pub round_roots: Vec<Vec<Field<F>>>,
+    pub inverse_round_roots: Vec<Vec<Field<F>>>,
 }
 
 fn compute_num_threads(size: usize) -> usize {
@@ -158,11 +158,11 @@ impl<F: FieldParams> EvaluationDomain<F> {
         // TODO: implement compute_generator_table logic
     }
 
-    pub fn get_round_roots(&self) -> &Vec<Vec<F>> {
+    pub fn get_round_roots(&self) -> &Vec<Vec<Field<F>>> {
         &self.round_roots
     }
 
-    pub fn get_inverse_round_roots(&self) -> &Vec<Vec<F>> {
+    pub fn get_inverse_round_roots(&self) -> &Vec<Vec<Field<F>>> {
         &self.inverse_round_roots
     }
 }

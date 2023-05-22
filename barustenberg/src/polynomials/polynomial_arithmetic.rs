@@ -1,151 +1,147 @@
-pub mod polynomial_arithmetic {
-    use lazy_static::lazy_static;
-    use std::sync::Mutex;
+use lazy_static::lazy_static;
+use std::{cell::RefCell, sync::Mutex};
 
-    use crate::{ecc::curves::bn254::fr::Fr, numeric::bitop::Msb}; // NOTE: This might not be the right Fr, need to check vs gumpkin
-    struct ScratchSpace<T> {
-        working_memory: Mutex<Option<Vec<T>>>,
+use crate::{
+    ecc::{
+        curves::bn254::fr::Fr,
+        fields::field::{Field, FieldParams},
+    },
+    numeric::bitop::Msb,
+}; // NOTE: This might not be the right Fr, need to check vs gumpkin
+struct ScratchSpace<T> {
+    working_memory: Mutex<Option<Vec<T>>>,
+}
+
+impl<T> ScratchSpace<T> {
+    pub fn get_scratch_space(&self, num_elements: usize) -> &mut [T] {
+        let mut working_memory = self.working_memory.lock().unwrap();
+        let current_size = working_memory.as_ref().map(|v| v.len()).unwrap_or(0);
+
+        if num_elements > current_size {
+            *working_memory = Some(Vec::with_capacity(num_elements));
+        }
+
+        working_memory.as_mut().unwrap().as_mut_slice()
     }
+}
 
-    impl<T> ScratchSpace<T> {
-        pub fn get_scratch_space(&self, num_elements: usize) -> &mut [T] {
-            let mut working_memory = self.working_memory.lock().unwrap();
-            let current_size = working_memory.as_ref().map(|v| v.len()).unwrap_or(0);
+lazy_static! {
+    static ref SCRATCH_SPACE: ScratchSpace<Field<FrP>> = ScratchSpace {
+        working_memory: Mutex::new(None),
+    };
+}
 
-            if num_elements > current_size {
-                *working_memory = Some(Vec::with_capacity(num_elements));
-            }
+#[inline]
+fn reverse_bits(x: u32, bit_length: u32) -> u32 {
+    let x = ((x & 0xaaaaaaaa) >> 1) | ((x & 0x55555555) << 1);
+    let x = ((x & 0xcccccccc) >> 2) | ((x & 0x33333333) << 2);
+    let x = ((x & 0xf0f0f0f0) >> 4) | ((x & 0x0f0f0f0f) << 4);
+    let x = ((x & 0xff00ff00) >> 8) | ((x & 0x00ff00ff) << 8);
+    ((x >> 16) | (x << 16)) >> (32 - bit_length)
+}
+#[inline]
+fn is_power_of_two(x: u64) -> bool {
+    x != 0 && (x & (x - 1)) == 0
+}
 
-            working_memory.as_mut().unwrap().as_mut_slice()
+#[inline]
+fn is_power_of_two_usize(x: usize) -> bool {
+    x != 0 && (x & (x - 1)) == 0
+}
+
+fn copy_polynomial<Fr: Copy + Default>(
+    src: &[Fr],
+    dest: &mut [Fr],
+    num_src_coefficients: usize,
+    num_target_coefficients: usize,
+) {
+    // TODO: fiddle around with avx asm to see if we can speed up
+    dest[..num_src_coefficients].copy_from_slice(&src[..num_src_coefficients]);
+
+    if num_target_coefficients > num_src_coefficients {
+        // fill out the polynomial coefficients with zeroes
+        for i in num_src_coefficients..num_target_coefficients {
+            dest[i] = Fr::default();
+        }
+    }
+}
+
+use std::ops::{Add, Mul, Sub};
+
+use super::evaluation_domain::EvaluationDomain;
+
+fn fft_inner_serial<Fr: Copy + Default + Add<Output = Fr> + Sub<Output = Fr> + Mul<Output = Fr>>(
+    coeffs: &mut [Vec<Fr>],
+    domain_size: usize,
+    root_table: &[Vec<Fr>],
+) {
+    // Assert that the number of polynomials is a power of two.
+    let num_polys = coeffs.len();
+    assert!(is_power_of_two_usize(num_polys));
+    let poly_domain_size = domain_size / num_polys;
+    assert!(is_power_of_two_usize(poly_domain_size));
+
+    // TODO Implement the msb from numeric/bitop/get_msb.cpp
+    let log2_size = domain_size.get_msb();
+    let log2_poly_size = poly_domain_size.get_msb();
+
+    for i in 0..=domain_size {
+        let swap_index = reverse_bits(i as u32, log2_size as u32) as usize;
+
+        if i < swap_index {
+            let even_poly_idx = i >> log2_poly_size;
+            let even_elem_idx = i % poly_domain_size;
+            let odd_poly_idx = swap_index >> log2_poly_size;
+            let odd_elem_idx = swap_index % poly_domain_size;
+            coeffs[even_poly_idx][even_elem_idx] = coeffs[odd_poly_idx][odd_elem_idx];
         }
     }
 
-    lazy_static! {
-        static ref SCRATCH_SPACE: ScratchSpace<Fr> = ScratchSpace {
-            working_memory: Mutex::new(None),
-        };
+    for l in 0..num_polys {
+        for k in (0..poly_domain_size).step_by(2) {
+            let temp = coeffs[l][k + 1];
+            coeffs[l][k + 1] = coeffs[l][k] - coeffs[l][k + 1];
+            coeffs[l][k] = coeffs[l][k] + temp;
+        }
     }
 
-    pub fn get_scratch_space(num_elements: usize) -> &'static mut [Fr] {
+    for m in (2..domain_size).step_by(2) {
+        let i = m.get_msb();
+        for k in (0..domain_size).step_by(2 * m) {
+            for j in 0..m {
+                let even_poly_idx = (k + j) >> log2_poly_size;
+                let even_elem_idx = (k + j) & (poly_domain_size - 1);
+                let odd_poly_idx = (k + j + m) >> log2_poly_size;
+                let odd_elem_idx = (k + j + m) & (poly_domain_size - 1);
+
+                let temp = root_table[i - 1][j] * coeffs[odd_poly_idx][odd_elem_idx];
+                coeffs[odd_poly_idx][odd_elem_idx] = coeffs[even_poly_idx][even_elem_idx] - temp;
+                coeffs[even_poly_idx][even_elem_idx] = coeffs[even_poly_idx][even_elem_idx] + temp;
+            }
+        }
+    }
+}
+
+impl<FrP: FieldParams> EvaluationDomain<FrP> {
+    pub fn get_scratch_space(num_elements: usize) -> &'static mut [Field<FrP>] {
         SCRATCH_SPACE.get_scratch_space(num_elements)
     }
 
-    #[inline]
-    fn reverse_bits(x: u32, bit_length: u32) -> u32 {
-        let x = ((x & 0xaaaaaaaa) >> 1) | ((x & 0x55555555) << 1);
-        let x = ((x & 0xcccccccc) >> 2) | ((x & 0x33333333) << 2);
-        let x = ((x & 0xf0f0f0f0) >> 4) | ((x & 0x0f0f0f0f) << 4);
-        let x = ((x & 0xff00ff00) >> 8) | ((x & 0x00ff00ff) << 8);
-        ((x >> 16) | (x << 16)) >> (32 - bit_length)
-    }
-    #[inline]
-    fn is_power_of_two(x: u64) -> bool {
-        x != 0 && (x & (x - 1)) == 0
-    }
-
-    #[inline]
-    fn is_power_of_two_usize(x: usize) -> bool {
-        x != 0 && (x & (x - 1)) == 0
-    }
-
-    fn copy_polynomial<Fr: Copy + Default>(
-        src: &[Fr],
-        dest: &mut [Fr],
-        num_src_coefficients: usize,
-        num_target_coefficients: usize,
-    ) {
-        // TODO: fiddle around with avx asm to see if we can speed up
-        dest[..num_src_coefficients].copy_from_slice(&src[..num_src_coefficients]);
-
-        if num_target_coefficients > num_src_coefficients {
-            // fill out the polynomial coefficients with zeroes
-            for i in num_src_coefficients..num_target_coefficients {
-                dest[i] = Fr::default();
-            }
-        }
-    }
-
-    use std::ops::{Add, Mul, Sub};
-
-    fn fft_inner_serial<
-        Fr: Copy + Default + Add<Output = Fr> + Sub<Output = Fr> + Mul<Output = Fr>,
-    >(
-        coeffs: &mut [Vec<Fr>],
-        domain_size: usize,
-        root_table: &[Vec<Fr>],
-    ) {
-        // Assert that the number of polynomials is a power of two.
-        let num_polys = coeffs.len();
-        assert!(is_power_of_two_usize(num_polys));
-        let poly_domain_size = domain_size / num_polys;
-        assert!(is_power_of_two_usize(poly_domain_size));
-
-        // TODO Implement the msb from numeric/bitop/get_msb.cpp
-        let log2_size = domain_size.get_msb();
-        let log2_poly_size = poly_domain_size.get_msb();
-
-        for i in 0..=domain_size {
-            let swap_index = reverse_bits(i as u32, log2_size as u32) as usize;
-
-            if i < swap_index {
-                let even_poly_idx = i >> log2_poly_size;
-                let even_elem_idx = i % poly_domain_size;
-                let odd_poly_idx = swap_index >> log2_poly_size;
-                let odd_elem_idx = swap_index % poly_domain_size;
-                coeffs[even_poly_idx][even_elem_idx] = coeffs[odd_poly_idx][odd_elem_idx];
-            }
-        }
-
-        for l in 0..num_polys {
-            for k in (0..poly_domain_size).step_by(2) {
-                let temp = coeffs[l][k + 1];
-                coeffs[l][k + 1] = coeffs[l][k] - coeffs[l][k + 1];
-                coeffs[l][k] = coeffs[l][k] + temp;
-            }
-        }
-
-        for m in (2..domain_size).step_by(2) {
-            let i = m.get_msb();
-            for k in (0..domain_size).step_by(2 * m) {
-                for j in 0..m {
-                    let even_poly_idx = (k + j) >> log2_poly_size;
-                    let even_elem_idx = (k + j) & (poly_domain_size - 1);
-                    let odd_poly_idx = (k + j + m) >> log2_poly_size;
-                    let odd_elem_idx = (k + j + m) & (poly_domain_size - 1);
-
-                    let temp = root_table[i - 1][j] * coeffs[odd_poly_idx][odd_elem_idx];
-                    coeffs[odd_poly_idx][odd_elem_idx] =
-                        coeffs[even_poly_idx][even_elem_idx] - temp;
-                    coeffs[even_poly_idx][even_elem_idx] =
-                        coeffs[even_poly_idx][even_elem_idx] + temp;
-                }
-            }
-        }
-    }
-
-    pub struct EvaluationDomain<Fr> {
-        pub num_threads: usize,
-        pub size: usize,
-        pub log2_size: usize,
-        pub roots: Vec<Fr>,
-        pub inverse_roots: Vec<Fr>,
-    }
-
-    fn scale_by_generator<Fr: Copy + Mul<Output = Fr>>(
-        coeffs: &[Fr],
-        target: &mut [Fr],
-        domain: &EvaluationDomain<Fr>,
-        generator_start: Fr,
-        generator_shift: Fr,
+    fn scale_by_generator(
+        &self,
+        coeffs: &[Field<FrP>],
+        target: &mut [Field<FrP>],
+        generator_start: Field<FrP>,
+        generator_shift: Field<FrP>,
         generator_size: usize,
     ) {
-        let generator_size_per_thread = generator_size / domain.num_threads;
+        let generator_size_per_thread = generator_size / self.num_threads;
 
         target
             .par_chunks_mut(generator_size_per_thread)
             .enumerate()
             .for_each(|(j, chunk)| {
-                let thread_shift = generator_shift.pow(j as u64 * generator_size_per_thread as u64);
+                let thread_shift = generator_shift.pow(j.into() * generator_size_per_thread.into());
                 let mut work_generator = generator_start * thread_shift;
 
                 for (i, coeff) in chunk.iter_mut().enumerate() {
@@ -163,14 +159,9 @@ pub mod polynomial_arithmetic {
     /// @param src_domain The domain of size n.
     /// @param subgroup_roots Pointer to the array for saving subgroup members.
 
-    pub trait FieldElement: Sized + Copy + Mul<Output = Self> {
-        fn get_root_of_unity(log2_subgroup_size: usize) -> Self;
-        fn self_sqr(&mut self);
-    }
-
-    fn compute_multiplicative_subgroup<Fr: FieldElement>(
+    fn compute_multiplicative_subgroup(
+        &self,
         log2_subgroup_size: usize,
-        src_domain: &EvaluationDomain<Fr>,
         subgroup_roots: &mut [Fr],
     ) {
         let subgroup_size = 1 << log2_subgroup_size;
@@ -179,8 +170,8 @@ pub mod polynomial_arithmetic {
         let subgroup_root = Fr::get_root_of_unity(log2_subgroup_size);
 
         // Step 2: compute the cofactor term g^n
-        let mut accumulator = src_domain.generator;
-        for _ in 0..src_domain.log2_size {
+        let mut accumulator = self.generator;
+        for _ in 0..self.log2_size {
             accumulator.self_sqr();
         }
 
@@ -190,39 +181,44 @@ pub mod polynomial_arithmetic {
             subgroup_roots[i] = subgroup_roots[i - 1] * subgroup_root;
         }
     }
-    pub fn fft_inner_parallel_vec<T>(
-        coeffs: &mut [Box<T>],
-        domain: &EvaluationDomain<T>,
-        root_table: &[Vec<T>],
+
+    // TODO readd pragma omp parallel
+    pub fn fft_inner_parallel_inplace(
+        &self,
+        coeffs: &mut RefCell<Vec<Vec<Field<FrP>>>>,
+        fr: &Field<FrP>,
+        root_table: &Vec<Vec<Field<FrP>>>,
     ) {
-        let scratch_space = get_scratch_space(domain.size); // Implement the get_scratch_space function
+        let scratch_space = Self::get_scratch_space(self.size); // Implement the get_scratch_space function
+
+        let coeffs = coeffs.borrow_mut();
 
         let num_polys = coeffs.len();
         assert!(num_polys.is_power_of_two());
-        let poly_size = domain.size / num_polys;
+        let poly_size = self.size / num_polys;
         assert!(poly_size.is_power_of_two());
         let poly_mask = poly_size - 1;
         let log2_poly_size = poly_size.trailing_zeros() as usize;
 
         // First FFT round is a special case - no need to multiply by root table, because all entries are 1.
         // We also combine the bit reversal step into the first round, to avoid a redundant round of copying data
-        for j in 0..domain.num_threads {
-            let mut temp_1 = Fr::__copy(coeffs[0][0]); // Just initializing with an element, any element will do
+        for j in 0..self.num_threads {
+            let mut temp_1 = coeffs[0][0].clone(); // Just initializing with an element, any element will do
             let mut temp_2 = temp_1;
-            for i in (j * domain.thread_size..(j + 1) * domain.thread_size).step_by(2) {
-                let next_index_1 = reverse_bits((i + 2) as u32, domain.log2_size as u32) as usize;
-                let next_index_2 = reverse_bits((i + 3) as u32, domain.log2_size as u32) as usize;
+            for i in (j * self.thread_size..(j + 1) * self.thread_size).step_by(2) {
+                let next_index_1 = reverse_bits((i + 2) as u32, self.log2_size as u32) as usize;
+                let next_index_2 = reverse_bits((i + 3) as u32, self.log2_size as u32) as usize;
 
-                let swap_index_1 = reverse_bits(i as u32, domain.log2_size as u32) as usize;
-                let swap_index_2 = reverse_bits((i + 1) as u32, domain.log2_size as u32) as usize;
+                let swap_index_1 = reverse_bits(i as u32, self.log2_size as u32) as usize;
+                let swap_index_2 = reverse_bits((i + 1) as u32, self.log2_size as u32) as usize;
 
                 let poly_idx_1 = swap_index_1 >> log2_poly_size;
                 let elem_idx_1 = swap_index_1 & poly_mask;
                 let poly_idx_2 = swap_index_2 >> log2_poly_size;
                 let elem_idx_2 = swap_index_2 & poly_mask;
 
-                temp_1 = Fr::__copy(coeffs[poly_idx_1][elem_idx_1]);
-                temp_2 = Fr::__copy(coeffs[poly_idx_2][elem_idx_2]);
+                temp_1 = coeffs[poly_idx_1][elem_idx_1].clone();
+                temp_2 = coeffs[poly_idx_2][elem_idx_2].clone();
                 scratch_space[i + 1] = temp_1 - temp_2;
                 scratch_space[i] = temp_1 + temp_2;
             }
@@ -230,14 +226,14 @@ pub mod polynomial_arithmetic {
 
         // hard code exception for when the domain size is tiny - we won't execute the next loop, so need to manually
         // reduce + copy
-        if domain.size <= 2 {
+        if self.size <= 2 {
             coeffs[0][0] = scratch_space[0];
             coeffs[0][1] = scratch_space[1];
         }
         // Outer FFT loop - iterates over the FFT rounds
-        for m in (2..=domain.size).step_by(2) {
-            for j in 0..domain.num_threads {
-                let mut temp: Fr;
+        for m in (2..=self.size).step_by(2) {
+            for j in 0..self.num_threads {
+                let mut temp: Field<FrP>;
 
                 // Ok! So, what's going on here? This is the inner loop of the FFT algorithm, and we want to break it
                 // out into multiple independent threads. For `num_threads`, each thread will evaluation `domain.size /
@@ -246,8 +242,8 @@ pub mod polynomial_arithmetic {
 
                 // Here, `start` and `end` are used as our iterator limits, so that we can use our iterator `i` to
                 // directly access the roots of unity lookup table
-                let start = j * (domain.thread_size >> 1);
-                let end = (j + 1) * (domain.thread_size >> 1);
+                let start = j * (self.thread_size >> 1);
+                let end = (j + 1) * (self.thread_size >> 1);
 
                 // For all but the last round of our FFT, the roots of unity that we need, will be a subset of our
                 // lookup table. e.g. for a size 2^n FFT, the 2^n'th roots create a multiplicative subgroup of order 2^n
@@ -285,13 +281,13 @@ pub mod polynomial_arithmetic {
                 // our indexer, because we don't store the precomputed root values for the 1st round (because they're
                 // all 1).
 
-                let round_roots = &root_table[((m.trailing_zeros() - 1) as usize)];
+                let round_roots = root_table[((m.trailing_zeros() - 1) as usize)];
 
                 // Finally, we want to treat the final round differently from the others,
                 // so that we can reduce out of our 'coarse' reduction and store the output in `coeffs` instead of
                 // `scratch_space`
 
-                if m != (domain.size >> 1) {
+                if m != (self.size >> 1) {
                     for i in start..end {
                         let k1 = (i & index_mask) << 1;
                         let j1 = i & block_mask;
@@ -317,25 +313,27 @@ pub mod polynomial_arithmetic {
             }
         }
     }
-    pub fn fft_inner_parallel<T>(
-        coeffs: &mut [T],
-        target: &mut [T],
-        domain: &EvaluationDomain<T>,
-        root_table: &[Vec<T>],
+    // TODO readd pragma omp parallel
+    pub fn fft_inner_parallel(
+        &self,
+        coeffs: &mut [Field<FrP>],
+        target: &mut [Field<FrP>],
+        fr: &Field<FrP>,
+        root_table: &[Vec<Field<FrP>>],
     ) {
         // First FFT round is a special case - no need to multiply by root table, because all entries are 1.
         // We also combine the bit reversal step into the first round, to avoid a redundant round of copying data
-        (0..domain.num_threads).into_par_iter().for_each(|j| {
-            let mut temp_1 = T::zero();
-            let mut temp_2 = T::zero();
-            let thread_start = j * domain.thread_size;
-            let thread_end = (j + 1) * domain.thread_size;
+        (0..self.num_threads).into_par_iter().for_each(|j| {
+            let mut temp_1 = Field::<FrP>::zero();
+            let mut temp_2 = Field::<FrP>::zero();
+            let thread_start = j * self.thread_size;
+            let thread_end = (j + 1) * self.thread_size;
             for i in (thread_start..thread_end).step_by(2) {
-                let next_index_1 = reverse_bits((i + 2) as u32, domain.log2_size as u32) as usize;
-                let next_index_2 = reverse_bits((i + 3) as u32, domain.log2_size as u32) as usize;
+                let next_index_1 = reverse_bits((i + 2) as u32, self.log2_size as u32) as usize;
+                let next_index_2 = reverse_bits((i + 3) as u32, self.log2_size as u32) as usize;
 
-                let swap_index_1 = reverse_bits(i as u32, domain.log2_size as u32) as usize;
-                let swap_index_2 = reverse_bits((i + 1) as u32, domain.log2_size as u32) as usize;
+                let swap_index_1 = reverse_bits(i as u32, self.log2_size as u32) as usize;
+                let swap_index_2 = reverse_bits((i + 1) as u32, self.log2_size as u32) as usize;
 
                 temp_1 = coeffs[swap_index_1];
                 temp_2 = coeffs[swap_index_2];
@@ -346,18 +344,19 @@ pub mod polynomial_arithmetic {
 
         // hard code exception for when the domain size is tiny - we won't execute the next loop, so need to manually
         // reduce + copy
-        if domain.size <= 2 {
+        if self.size <= 2 {
             coeffs[0] = target[0];
             coeffs[1] = target[1];
         }
 
         // outer FFT loop
-        for m in (2..domain.size).step_by(2) {
-            (0..domain.num_threads).into_par_iter().for_each(|j| {
-                let mut temp = T::zero();
+        // TODO this is super incorrect
+        for m in (2..self.size).step_by(2) {
+            (0..self.num_threads).for_each(|j| {
+                let mut temp = Field::<FrP>::zero();
 
-                let start = j * (domain.thread_size >> 1);
-                let end = (j + 1) * (domain.thread_size >> 1);
+                let start = j * (self.thread_size >> 1);
+                let end = (j + 1) * (self.thread_size >> 1);
 
                 let block_mask = m - 1;
                 let index_mask = !block_mask;
@@ -392,47 +391,50 @@ pub mod polynomial_arithmetic {
     //     }
     // }
 
-    fn partial_fft_serial_inner<T: FieldElement>(
-        coeffs: &mut [T],
-        target: &mut [T],
-        domain: &EvaluationDomain<T>,
-        root_table: &[&[T]],
+    fn partial_fft_serial_inner(
+        &self,
+        coeffs: &mut [Field<FrP>],
+        target: &mut [Field<FrP>],
+        root_table: &Vec<Vec<Field<FrP>>>,
     ) {
-        let n = domain.size >> 2;
-        let full_mask = domain.size - 1;
-        let m = domain.size >> 1;
+        let n = self.size >> 2;
+        let full_mask = self.size - 1;
+        let m = self.size >> 1;
         let half_mask = m - 1;
         let round_roots = &root_table[((m as f64).log2() as usize) - 1];
         let mut root_index;
 
         for i in 0..n {
             for s in 0..4 {
-                target[(3 - s) * n + i] = T::zero();
+                target[(3 - s) * n + i] = Field::<FrP>::zero();
                 for j in 0..4 {
                     let index = i + j * n;
                     root_index = (index * (s + 1)) & full_mask;
-                    target[(3 - s) * n + i] += (if root_index < m { T::one() } else { -T::one() })
-                        * coeffs[index]
+                    target[(3 - s) * n + i] += (if root_index < m {
+                        Field::<FrP>::one()
+                    } else {
+                        -Field::<FrP>::one()
+                    }) * coeffs[index]
                         * round_roots[root_index & half_mask];
                 }
             }
         }
     }
 
-    fn partial_fft_parallel_inner<T: FieldElement>(
-        coeffs: &mut [T],
-        domain: &EvaluationDomain<T>,
-        root_table: &[&[T]],
-        constant: T,
+    fn partial_fft_parallel_inner(
+        &self,
+        coeffs: &mut [Field<FrP>],
+        root_table: &Vec<Vec<Field<FrP>>>,
+        constant: Field<FrP>,
         is_coset: bool,
     ) {
-        let n = domain.size >> 2;
-        let full_mask = domain.size - 1;
-        let m = domain.size >> 1;
+        let n = self.size >> 2;
+        let full_mask = self.size - 1;
+        let m = self.size >> 1;
         let half_mask = m - 1;
         let round_roots = &root_table[((m as f64).log2() as usize) - 1];
 
-        let small_domain = EvaluationDomain::new(n).unwrap();
+        let small_domain = EvaluationDomain::new(n, None);
 
         for i in 0..small_domain.size {
             let mut temp = [
@@ -441,10 +443,10 @@ pub mod polynomial_arithmetic {
                 coeffs[i + 2 * n],
                 coeffs[i + 3 * n],
             ];
-            coeffs[i] = T::zero();
-            coeffs[i + n] = T::zero();
-            coeffs[i + 2 * n] = T::zero();
-            coeffs[i + 3 * n] = T::zero();
+            coeffs[i] = Field::<FrP>::zero();
+            coeffs[i + n] = Field::<FrP>::zero();
+            coeffs[i + 2 * n] = Field::<FrP>::zero();
+            coeffs[i + 3 * n] = Field::<FrP>::zero();
 
             let mut index;
             let mut root_index;
@@ -466,138 +468,111 @@ pub mod polynomial_arithmetic {
                     coeffs[(3 - s) * n + i] += root_multiplier * temp[j];
                 }
                 if is_coset {
-                    temp_constant *= domain.generator;
+                    temp_constant *= self.generator;
                     coeffs[(3 - s) * n + i] *= temp_constant;
                 }
             }
         }
     }
 
-    fn partial_fft_serial<T: FieldElement>(
-        coeffs: &mut [T],
-        target: &mut [T],
-        domain: &EvaluationDomain<T>,
-    ) {
-        partial_fft_serial_inner(coeffs, target, domain, domain.get_round_roots());
+    fn partial_fft_serial(&self, coeffs: &mut [Field<FrP>], target: &mut [Field<FrP>]) {
+        self.partial_fft_serial_inner(coeffs, target, self.get_round_roots());
     }
 
-    fn partial_fft<T: FieldElement>(
-        coeffs: &mut [T],
-        domain: &EvaluationDomain<T>,
-        constant: T,
-        is_coset: bool,
-    ) {
-        partial_fft_parallel_inner(coeffs, domain, domain.get_round_roots(), constant, is_coset);
+    fn partial_fft(&self, coeffs: &mut [Field<FrP>], constant: Field<FrP>, is_coset: bool) {
+        self.partial_fft_parallel_inner(coeffs, self.get_round_roots(), constant, is_coset);
     }
 
-    fn fft<T: FieldElement>(coeffs: &mut [T], domain: &EvaluationDomain<T>) {
-        fft_inner_parallel(coeffs, domain, domain.root, domain.get_round_roots());
+    fn fft(&self, coeffs: &mut [Field<FrP>]) {
+        self.fft_inner_parallel_inplace(coeffs, &self.root, self.get_round_roots());
     }
 
-    fn fft_with_target<T: FieldElement>(
-        coeffs: &mut [T],
-        target: &mut [T],
-        domain: &EvaluationDomain<T>,
-    ) {
-        fft_inner_parallel(coeffs, target, domain, domain.get_round_roots());
+    fn fft_with_target(&self, coeffs: &mut [Field<FrP>], target: &mut [Field<FrP>]) {
+        self.fft_inner_parallel_inplace(coeffs, target, self.get_round_roots());
     }
 
     // The remaining functions require you to create a version of `fft_inner_parallel` that accepts a Vec<&[T]> as the first parameter.
 
-    fn ifft<T: FieldElement>(coeffs: &mut [T], domain: &EvaluationDomain<T>) {
-        fft_inner_parallel(
-            coeffs,
-            domain,
-            domain.root_inverse,
-            domain.get_inverse_round_roots(),
-        );
-        for i in 0..domain.size {
-            coeffs[i] *= domain.domain_inverse;
+    fn ifft_inplace(&self, coeffs: &mut [Field<FrP>]) {
+        self.fft_inner_parallel_inplace(coeffs, &self.root_inverse, self.get_inverse_round_roots());
+        for i in 0..self.size {
+            coeffs[i] *= self.domain_inverse;
         }
     }
 
-    fn ifft_with_target<T: FieldElement>(
-        coeffs: &mut [T],
-        target: &mut [T],
-        domain: &EvaluationDomain<T>,
-    ) {
-        fft_inner_parallel(coeffs, target, domain, domain.get_round_roots());
-        for i in 0..domain.size {
-            target[i] *= domain.domain_inverse;
+    fn ifft(&self, coeffs: &mut [Field<FrP>], target: &mut [Field<FrP>]) {
+        self.fft_inner_parallel(coeffs, target, &self.root_inverse, self.get_round_roots());
+        for i in 0..self.size {
+            target[i] *= self.domain_inverse;
         }
     }
 
-    fn fft_with_constant<T: FieldElement>(
-        coeffs: &mut [T],
-        domain: &EvaluationDomain<T>,
-        value: T,
-    ) {
-        fft_inner_parallel(coeffs, domain, domain.root, domain.get_round_roots());
-        for i in 0..domain.size {
+    fn fft_with_constant(&self, coeffs: &mut [Field<FrP>], value: Field<FrP>) {
+        self.fft_inner_parallel_inplace(coeffs, &self.root, self.get_round_roots());
+        for i in 0..self.size {
             coeffs[i] *= value;
         }
     }
 
     // The remaining `coset_fft` functions require you to create a version of `scale_by_generator` that accepts a Vec<&[T]> as the first parameter.
-    fn coset_fft<T: FieldElement>(
-        coeffs: &mut [T],
-        domain: &EvaluationDomain<T>,
-        _: &EvaluationDomain<T>,
+    fn coset_fft(
+        &self,
+        coeffs: &mut [Field<FrP>],
+        _: &EvaluationDomain<FrP>,
         domain_extension: usize,
     ) {
         let log2_domain_extension = domain_extension.get_msb() as usize;
-        let primitive_root = T::get_root_of_unity(domain.log2_size + log2_domain_extension);
+        let primitive_root =
+            Field::<FrP>::get_root_of_unity(self.log2_size + log2_domain_extension);
 
-        let scratch_space_len = domain.size * domain_extension;
+        let scratch_space_len = self.size * domain_extension;
         let mut scratch_space = vec![T::zero(); scratch_space_len];
 
         let mut coset_generators = vec![T::zero(); domain_extension];
-        coset_generators[0] = domain.generator;
+        coset_generators[0] = self.generator;
         for i in 1..domain_extension {
             coset_generators[i] = coset_generators[i - 1] * primitive_root;
         }
 
         for i in (0..domain_extension).rev() {
-            scale_by_generator(
-                &mut coeffs[i * domain.size..],
-                &mut coeffs[(i * domain.size)..],
-                domain,
-                T::one(),
+            self.scale_by_generator(
+                &mut coeffs[i * self.size..],
+                &mut coeffs[(i * self.size)..],
+                Field::<FrP>::one(),
                 coset_generators[i],
-                domain.size,
+                self.size,
             );
         }
 
         for i in 0..domain_extension {
-            fft_inner_parallel(
-                &mut coeffs[(i * domain.size)..],
-                &mut scratch_space[(i * domain.size)..],
-                domain,
-                domain.get_round_roots(),
+            self.fft_inner_parallel_inplace(
+                &mut coeffs[(i * self.size)..],
+                &mut scratch_space[(i * self.size)..],
+                self.get_round_roots(),
             );
         }
 
         if domain_extension == 4 {
-            for j in 0..domain.num_threads {
-                let start = j * domain.thread_size;
-                let end = (j + 1) * domain.thread_size;
+            for j in 0..self.num_threads {
+                let start = j * self.thread_size;
+                let end = (j + 1) * self.thread_size;
                 for i in start..end {
                     scratch_space[i] = coeffs[i << 2];
-                    scratch_space[i + (1 << domain.log2_size)] = coeffs[(i << 2) + 1];
-                    scratch_space[i + (2 << domain.log2_size)] = coeffs[(i << 2) + 2];
-                    scratch_space[i + (3 << domain.log2_size)] = coeffs[(i << 2) + 3];
+                    scratch_space[i + (1 << self.log2_size)] = coeffs[(i << 2) + 1];
+                    scratch_space[i + (2 << self.log2_size)] = coeffs[(i << 2) + 2];
+                    scratch_space[i + (3 << self.log2_size)] = coeffs[(i << 2) + 3];
                 }
             }
-            for i in 0..domain.size {
+            for i in 0..self.size {
                 for j in 0..domain_extension {
-                    scratch_space[i + (j << domain.log2_size)] =
+                    scratch_space[i + (j << self.log2_size)] =
                         coeffs[(i << log2_domain_extension) + j];
                 }
             }
         } else {
             for i in 0..domain.size {
                 for j in 0..domain_extension {
-                    scratch_space[i + (j << domain.log2_size)] =
+                    scratch_space[i + (j << self.log2_size)] =
                         coeffs[(i << log2_domain_extension) + j];
                 }
             }

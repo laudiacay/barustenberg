@@ -1,4 +1,4 @@
-use crate::{ecc::fields::field::FieldParams, polynomials::Polynomial};
+use crate::{ecc::fields::field::{FieldParams, Field}, polynomials::Polynomial};
 use anyhow::{anyhow, Result};
 use std::{
     collections::HashMap,
@@ -53,7 +53,7 @@ impl<Fr: FieldParams> PolynomialStore<Fr> {
     pub(crate) const fn remove(&mut self, key: String) -> Result<Polynomial<Fr>> {
         self.polynomial_map
             .remove(&key)
-            .ok_or(anyhow!("didn't find polynomial..."))
+            .ok_or(Err(Error::string("didn't find polynomial...")))
     }
 
     /// Get the current size (bytes) of all polynomials in the PolynomialStore
@@ -63,7 +63,7 @@ impl<Fr: FieldParams> PolynomialStore<Fr> {
     fn get_size_in_bytes(&self) -> usize {
         let mut size_in_bytes: usize = 0;
         for (_, entry) in self.polynomial_map.iter() {
-            size_in_bytes += entry.size() * Fr::SizeInBytes::to_int();
+            size_in_bytes += entry.size() * Field::<Fr>::size_in_bytes();
         }
         size_in_bytes
     }
@@ -81,10 +81,10 @@ impl<Fr: FieldParams> PolynomialStore<Fr> {
 
 impl<Fr: FieldParams> Display for PolynomialStore<Fr> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        let size_in_mb = (self.get_size_in_bytes() / 1e6) as f32;
+        let size_in_mb = (self.get_size_in_bytes() / 1_000_000) as f32;
         write!(f, "PolynomialStore contents total size: {} MB", size_in_mb);
         for (key, entry) in self.polynomial_map.iter() {
-            let entry_bytes = entry.size() * Fr::SizeInBytes::to_int();
+            let entry_bytes = entry.size() * Field::<Fr>::size_in_bytes();
             write!(
                 f,
                 "PolynomialStore: {} -> {} bytes, {:?}",

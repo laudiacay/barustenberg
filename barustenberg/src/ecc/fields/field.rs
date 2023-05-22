@@ -42,7 +42,7 @@ fn u256_to_le_u64_parts(value: U256) -> [u64; 4] {
     result
 }
 
-pub trait FieldParams: FieldParamsGeneral + Eq + PartialEq {
+pub trait FieldParams: FieldParamsGeneral + Eq + PartialEq{
     const modulus_0: u64;
     const modulus_1: u64;
     const modulus_2: u64;
@@ -91,7 +91,7 @@ pub(crate) struct Field<Params: FieldParams> {
 }
 
 impl<Params: FieldParamsGeneral + FieldParams> FieldGeneral<Params> for Field<Params> {
-    fn one() -> Self
+   fn one() -> Self
     where
         Self: Sized,
     {
@@ -227,6 +227,11 @@ pub fn square_accumulate(
 }
 
 impl<Params: FieldParams> Field<Params> {
+
+    pub const fn size_in_bytes() -> usize {
+        4 * 8
+    }
+
     pub fn zero() -> Self
     where
         Self: Sized,
@@ -324,7 +329,7 @@ impl<Params: FieldParams> Field<Params> {
         // TODO: Implement the is zero logic
     }
 
-    fn get_root_of_unity(degree: usize) -> Self {
+    pub fn get_root_of_unity(degree: usize) -> Self {
         todo!() // Implement the get_root_of_unity logic
     }
 
@@ -652,7 +657,7 @@ impl<Params: FieldParams> Field<Params> {
         todo!("implement sqr_inplace")
     }
 
-    fn pow(&self, exp: &U256) -> Self {
+    pub fn pow(&self, exp: &U256) -> Self {
         todo!("implement pow")
     }
 

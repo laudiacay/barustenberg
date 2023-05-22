@@ -50,7 +50,10 @@ static _MAX_NUM_CHALLENGES_CHECK: () = {
 pub mod containers {
     use generic_array::GenericArray;
 
-    use crate::{plonk::proof_system::types::polynomial_manifest::PolynomialIndex, ecc::fields::field::{Field, FieldParams}};
+    use crate::{
+        ecc::fields::field::{Field, FieldParams},
+        plonk::proof_system::types::polynomial_manifest::PolynomialIndex,
+    };
 
     use super::MaxNumChallengesTN;
     use std::collections::HashMap;
@@ -122,7 +125,7 @@ pub trait BaseGetter<
         self.add_challenge(
             "alpha",
             ChallengeIndex::Alpha as usize,
-            required_challenges & CHALLENGE_BIT_ALPHA as u8!= 0,
+            required_challenges & CHALLENGE_BIT_ALPHA as u8 != 0,
             0,
         );
         self.add_challenge(
@@ -381,9 +384,7 @@ impl<
             KernelBase::compute_non_linear_terms(&polynomials, &challenges, quotient_term, i);
         }
 
-        FFTGetter::<H, F, S, KernelBase::NumIndependentRelations>::update_alpha(
-            &challenges,
-        )
+        FFTGetter::<H, F, S, KernelBase::NumIndependentRelations>::update_alpha(&challenges)
     }
 }
 
@@ -404,26 +405,32 @@ impl<
     }
 }
 
-pub struct GenericVerifierWidget<F:FieldParams, H: BarretenHasher, PC, G: Getters<F, PC>, NIndependentRelations, S: Settings<H>, KB>
-where
+pub struct GenericVerifierWidget<
+    F: FieldParams,
+    H: BarretenHasher,
+    PC,
+    G: Getters<F, PC>,
+    NIndependentRelations,
+    S: Settings<H>,
+    KB,
+> where
     NIndependentRelations: generic_array::ArrayLength<Field<F>>,
-    KB: KernelBase<
-        F,
-        PC,
-        G,
-        NIndependentRelations>
+    KB: KernelBase<F, PC, G, NIndependentRelations>,
 {
     phantom: PhantomData<(F, H, S, KB, PC, G, NIndependentRelations)>,
 }
 
-impl <F:FieldParams, H: BarretenHasher, PC, G: Getters<F, PC>, NIndependentRelations: generic_array::ArrayLength<Field<F>>, S: Settings<H>, KB>
-GenericVerifierWidget<F, H, PC, G, NIndependentRelations, S, KB>
-where
-    KB: KernelBase<
-        F,
+impl<
+        F: FieldParams,
+        H: BarretenHasher,
         PC,
-        G,
-        NIndependentRelations>
+        G: Getters<F, PC>,
+        NIndependentRelations: generic_array::ArrayLength<Field<F>>,
+        S: Settings<H>,
+        KB,
+    > GenericVerifierWidget<F, H, PC, G, NIndependentRelations, S, KB>
+where
+    KB: KernelBase<F, PC, G, NIndependentRelations>,
 {
     pub fn compute_quotient_evaluation_contribution(
         key: &Arc<TranscriptKey>,
@@ -431,14 +438,11 @@ where
         transcript: &Transcript<H>,
         quotient_numerator_eval: &mut F,
     ) -> F {
-        let polynomial_evaluations = EvaluationGetter::<
-            F,
-            _,
-            _,
-            KernelBase::NumIndependentRelations,
-        >::get_polynomial_evaluations(
-            &key.polynomial_manifest, transcript
-        );
+        let polynomial_evaluations =
+            EvaluationGetter::<H, S, NIndependentRelations, F>::get_polynomial_evaluations(
+                &key.polynomial_manifest,
+                transcript,
+            );
         let challenges =
             EvaluationGetter::<Field, _, _, KernelBase::NumIndependentRelations>::get_challenges(
                 transcript,
@@ -447,14 +451,23 @@ where
             );
 
         let mut linear_terms = CoefficientArray::default();
-        KernelBase::compute_linear_terms(&polynomial_evaluations, &challenges, &mut linear_terms, todo!("where is index"));
-        *quotient_numerator_eval +=
-            KernelBase::sum_linear_terms(&polynomial_evaluations, &challenges, &linear_terms, todo!("where is index"));
+        KernelBase::compute_linear_terms(
+            &polynomial_evaluations,
+            &challenges,
+            &mut linear_terms,
+            todo!("where is index"),
+        );
+        *quotient_numerator_eval += KernelBase::sum_linear_terms(
+            &polynomial_evaluations,
+            &challenges,
+            &linear_terms,
+            todo!("where is index"),
+        );
         KernelBase::compute_non_linear_terms(
             &polynomial_evaluations,
             &challenges,
             quotient_numerator_eval,
-            todo!("where is the index")
+            todo!("where is the index"),
         );
 
         EvaluationGetter::<Field, _, _, KernelBase::NIndependentRelations>::update_alpha(
