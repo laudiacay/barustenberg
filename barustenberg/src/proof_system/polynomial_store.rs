@@ -1,4 +1,7 @@
-use crate::{ecc::fields::field::{FieldParams, Field}, polynomials::Polynomial};
+use crate::{
+    ecc::fields::field::{Field, FieldParams},
+    polynomials::Polynomial,
+};
 use anyhow::{anyhow, Result};
 use std::{
     collections::HashMap,

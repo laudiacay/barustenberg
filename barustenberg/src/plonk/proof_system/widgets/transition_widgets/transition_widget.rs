@@ -434,9 +434,9 @@ where
 {
     pub fn compute_quotient_evaluation_contribution(
         key: &Arc<TranscriptKey>,
-        alpha_base: F,
+        alpha_base: Field<F>,
         transcript: &Transcript<H>,
-        quotient_numerator_eval: &mut F,
+        quotient_numerator_eval: &mut Field<F>,
     ) -> F {
         let polynomial_evaluations =
             EvaluationGetter::<H, S, NIndependentRelations, F>::get_polynomial_evaluations(

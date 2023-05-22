@@ -4,6 +4,7 @@ use super::{
     fq2::{Bn254Fq2ParamsImpl, Fq2},
     fr::Bn254FrParamsImpl,
 };
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 struct Bn254G2ParamsImpl {}
 
 impl Bn254G2ParamsImpl {

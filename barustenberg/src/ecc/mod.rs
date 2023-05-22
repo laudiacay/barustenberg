@@ -33,8 +33,6 @@ pub(crate) mod groups;
 //     type Output: Group;
 // }
 
-pub struct Pippenger {}
-
 struct EllCoeffs<FPG: FieldParamsGeneral, QuadFP: FieldGeneral<FPG>> {
     o: QuadFP,
     vw: QuadFP,

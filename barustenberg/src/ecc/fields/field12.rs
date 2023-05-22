@@ -19,7 +19,7 @@ pub trait Field12Params<F1P: FieldParams, F2P: Field2Params<F1P>>: FieldParamsGe
 
 #[derive(PartialEq, Eq)]
 pub struct Field12<
-    F1P: FieldParams,
+    F1P: FieldParams + FieldParamsGeneral,
     F2P: Field2Params<F1P>,
     F6P: Field6Params<F1P, F2P>,
     Params: Field12Params<F1P, F2P>,
@@ -52,7 +52,7 @@ impl<
 }
 
 impl<
-        F1P: FieldParams,
+        F1P: FieldParams + FieldParamsGeneral,
         F2P: Field2Params<F1P>,
         F6P: Field6Params<F1P, F2P>,
         Params: Field12Params<F1P, F2P>,
@@ -73,11 +73,11 @@ impl<
     }
 
     fn one() -> Self {
-        Self::new(Self::F6::one(), Self::F6::zero())
+        Self::new(Field6::<F1P, F2P,F6P>::one(), Field6::<F1P, F2P, F6P>::zero())
     }
 
     fn mul_by_non_residue(&self, a: &Field6<F1P, F2P, F6P>) -> Field6<F1P, F2P, F6P> {
-        Self::F6 {
+        Field6::<F1P, F2P,F6P> {
             c0: Field6::<F1P, F2P, F6P>::mul_by_non_residue(a.c2),
             c1: a.c0,
             c2: a.c1,

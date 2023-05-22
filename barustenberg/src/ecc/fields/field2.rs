@@ -131,17 +131,25 @@ impl<F1P: FieldParams, Params: Field2Params<F1P>> Field2<F1P, Params> {
         Self::zero()
     }
 
+    pub fn new_from_elems(c0: Field<F1P>, c1: Field<F1P>) -> Self {
+        Field2 {
+            c0,
+            c1,
+            phantom: PhantomData,
+        }
+    }
+
     pub fn zero() -> Self {
         Field2 {
-            c0: Self::BaseField::zero(),
-            c1: Self::BaseField::zero(),
+            c0: Field::<F1P>::zero(),
+            c1: Field::<F1P>::zero(),
             phantom: PhantomData,
         }
     }
     pub fn one() -> Self {
         Field2 {
-            c0: Self::BaseField::one(),
-            c1: Self::BaseField::zero(),
+            c0: Field::<F1P>::one(),
+            c1: Field::<F1P>::zero(),
             phantom: PhantomData,
         }
     }
@@ -179,15 +187,15 @@ impl<F1P: FieldParams, Params: Field2Params<F1P>> Field2<F1P, Params> {
         // non residue = 9 + i \in Fq2
         // r.c0 = 9a0 - a1
         // r.c1 = 9a1 + a0
-        let mut t0: Self::F1 = self.c0 + self.c0;
+        let mut t0: Field<F1P> = self.c0 + self.c0;
         t0 += t0;
         t0 += t0;
         t0 += self.c0;
-        let mut t1: Self::F1 = self.c1 + self.c1;
+        let mut t1: Field<F1P> = self.c1 + self.c1;
         t1 += t1;
         t1 += t1;
         t1 += self.c1;
-        let t2: Self::F1 = t1 - self.c1;
+        let t2: Field<F1P> = t1 - self.c1;
 
         Self::new_from_elems(t2, t1 + self.c0)
         // T0 = a.c0 + a.c0; ???
@@ -223,8 +231,8 @@ impl<F1P: FieldParams, Params: Field2Params<F1P>> Field2<F1P, Params> {
     }
     fn mul_by_fq(&self, a: Field<F1P>) -> Self {
         Field2 {
-            c0: a * &self.c0,
-            c1: a * &self.c1,
+            c0: a * self.c0,
+            c1: a * self.c1,
             phantom: PhantomData,
         }
     }
@@ -290,7 +298,7 @@ impl<F1P: FieldParams, Params: Field2Params<F1P>> Field2<F1P, Params> {
     }
 
     fn reduce_once(&self) -> Self {
-        self
+        *self
         // return { c0.reduce_once(), c1.reduce_once() };
     }
 

@@ -1,12 +1,14 @@
+use crate::ecc::fields::field::{Field, FieldGeneral};
 use crate::ecc::groups::affine_element::Affine;
 use crate::ecc::groups::{Group, GroupParams};
 
 use super::fq::{Bn254FqParamsImpl, Fq};
 use super::fr::Bn254FrParamsImpl;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 struct Bn254G1ParamsImpl {}
 
-impl Bn254FqParamsImpl {
+impl Bn254G1ParamsImpl {
     const can_hash_to_curve: bool = true;
     const small_elements: bool = true;
 }
@@ -15,15 +17,15 @@ impl GroupParams<Bn254FqParamsImpl, Bn254FrParamsImpl> for Bn254G1ParamsImpl {
     const USE_ENDOMORPHISM: bool = true;
 
     const has_a: bool = true;
-    const one_x: Fq = Fq::one();
-    const one_y: Fq = Fq::from_parts(
+    const one_x : dyn FieldGeneral<Bn254FqParamsImpl>= Field::<Bn254FqParamsImpl>::one();
+    const one_y = Field::<Bn254FqParamsImpl>::from_parts(
         0xa6ba871b8b1e1b3a,
         0x14f1d651eb8e167b,
         0xccdd46def0f28c58,
         0x1c14ef83340fbe5e,
     );
-    const a: Fq = Fq::from_parts(0, 0, 0, 0);
-    const b: Fq = Fq::from_parts(
+    const a = Field::<Bn254FqParamsImpl>::from_parts(0, 0, 0, 0);
+    const b = Field::<Bn254FqParamsImpl>::from_parts(
         0x7a17caa950ad28d7,
         0x1f6ac17ae15521b9,
         0x334bea4e696bd284,

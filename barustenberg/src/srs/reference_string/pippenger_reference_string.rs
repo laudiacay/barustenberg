@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::{
-    ecc::Pippenger,
+    ecc::curves::bn254::scalar_multiplication::pippenger::Pippenger,
     srs::reference_string::{
         ProverReferenceString, ReferenceStringFactory, VerifierReferenceString,
     },
@@ -21,13 +21,13 @@ impl<'a> PippengerReferenceString<'a> {
 
 impl<'a> ProverReferenceString for PippengerReferenceString<'a> {
     // TODO
-    // fn get_monomial_size(&self) -> usize {
-    //     self.pippenger.get_num_points()
-    // }
+    fn get_monomial_size(&self) -> usize {
+        todo!()
+    }
 
-    // fn get_monomial_points(&mut self) -> &mut g1::AffineElement {
-    //     self.pippenger.get_point_table()
-    // }
+    fn get_monomial_points(&mut self) -> &mut Affine<G1> {
+        todo!()
+    }
 }
 
 pub struct PippengerReferenceStringFactory<'a> {

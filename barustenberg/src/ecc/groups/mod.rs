@@ -9,7 +9,7 @@ pub(crate) mod wnaf;
 #[cfg(test)]
 mod wnaf_test;
 
-pub trait GroupParams<FqP: FieldParamsGeneral, FrP: FieldParams> {
+pub trait GroupParams<FqP: FieldParamsGeneral, FrP: FieldParams> : Clone + Copy + Default + PartialEq + Eq + std::fmt::Debug {
     const USE_ENDOMORPHISM: bool;
     const has_a: bool;
     const one_x: dyn FieldGeneral<FqP>;

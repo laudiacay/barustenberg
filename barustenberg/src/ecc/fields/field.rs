@@ -42,7 +42,7 @@ fn u256_to_le_u64_parts(value: U256) -> [u64; 4] {
     result
 }
 
-pub trait FieldParams: FieldParamsGeneral + Eq + PartialEq{
+pub trait FieldParams: FieldParamsGeneral + Eq + PartialEq + Clone {
     const modulus_0: u64;
     const modulus_1: u64;
     const modulus_2: u64;
@@ -91,7 +91,7 @@ pub(crate) struct Field<Params: FieldParams> {
 }
 
 impl<Params: FieldParamsGeneral + FieldParams> FieldGeneral<Params> for Field<Params> {
-   fn one() -> Self
+    fn one() -> Self
     where
         Self: Sized,
     {
@@ -227,7 +227,6 @@ pub fn square_accumulate(
 }
 
 impl<Params: FieldParams> Field<Params> {
-
     pub const fn size_in_bytes() -> usize {
         4 * 8
     }
@@ -591,40 +590,40 @@ impl<Params: FieldParams> Field<Params> {
     // TODO macro...???
     pub fn modulus() -> U256 {
         u256_from_le_u64_parts([
-            Params::MODULUS_0,
-            Params::MODULUS_1,
-            Params::MODULUS_2,
-            Params::MODULUS_3,
+            Params::modulus_0,
+            Params::modulus_1,
+            Params::modulus_2,
+            Params::modulus_3,
         ])
     }
 
     // TODO macro
     fn external_coset_generator() -> Self {
         Self::from_parts(
-            Params::COSET_GENERATORS_0[7],
-            Params::COSET_GENERATORS_1[7],
-            Params::COSET_GENERATORS_2[7],
-            Params::COSET_GENERATORS_3[7],
+            Params::coset_generators_0[7],
+            Params::coset_generators_1[7],
+            Params::coset_generators_2[7],
+            Params::coset_generators_3[7],
         )
     }
 
     // TODO macro
     fn tag_coset_generator() -> Self {
         Self::from_parts(
-            Params::COSET_GENERATORS_0[6],
-            Params::COSET_GENERATORS_1[6],
-            Params::COSET_GENERATORS_2[6],
-            Params::COSET_GENERATORS_3[6],
+            Params::coset_generators_0[6],
+            Params::coset_generators_1[6],
+            Params::coset_generators_2[6],
+            Params::coset_generators_3[6],
         )
     }
 
     fn coset_generator(idx: usize) -> Self {
         assert!(idx < 7);
         Self::from_parts(
-            Params::COSET_GENERATORS_0[idx],
-            Params::COSET_GENERATORS_1[idx],
-            Params::COSET_GENERATORS_2[idx],
-            Params::COSET_GENERATORS_3[idx],
+            Params::coset_generators_0[idx],
+            Params::coset_generators_1[idx],
+            Params::coset_generators_2[idx],
+            Params::coset_generators_3[idx],
         )
     }
 
@@ -646,7 +645,7 @@ impl<Params: FieldParams> Field<Params> {
         result.self_reduce_once();
         result.self_reduce_once();
         result.self_reduce_once();
-        return (result * r_squared).reduce_once();
+        return (*result * r_squared).reduce_once();
     }
 
     fn sqr(&self) -> Self {
@@ -670,7 +669,7 @@ impl<Params: FieldParams> Field<Params> {
     where
         Self: Sized,
     {
-        U256::from_little_endian(&[
+        u256_from_le_u64_parts([
             Params::modulus_0 - 2u64,
             Params::modulus_1,
             Params::modulus_2,
@@ -679,12 +678,12 @@ impl<Params: FieldParams> Field<Params> {
     }
 
     fn cube_root_of_unity() -> Self {
-        if Params::CUBE_ROOT_0 != 0 {
+        if Params::cube_root_0 != 0 {
             Self::from_parts(
-                Params::CUBE_ROOT_0,
-                Params::CUBE_ROOT_1,
-                Params::CUBE_ROOT_2,
-                Params::CUBE_ROOT_3,
+                Params::cube_root_0,
+                Params::cube_root_1,
+                Params::cube_root_2,
+                Params::cube_root_3,
             )
         } else {
             let two_inv = Field::from_i64(2).invert();
