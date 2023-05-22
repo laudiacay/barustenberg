@@ -158,7 +158,6 @@ struct Challenge<H: BarretenHasher> {
 
 pub type TranscriptKey = VerificationKey;
 
-#[derive(Default)]
 pub struct Transcript<H: BarretenHasher> {
     current_round: usize,
     num_challenge_bytes: usize,
@@ -167,6 +166,22 @@ pub struct Transcript<H: BarretenHasher> {
     current_challenge: Challenge<H>,
     manifest: Manifest,
     challenge_map: HashMap<String, i32>,
+}
+
+impl<H: BarretenHasher> Default for Transcript<H> {
+    fn default() -> Self {
+        Self {
+            current_round: 0,
+            num_challenge_bytes: 0,
+            elements: HashMap::new(),
+            challenges: HashMap::new(),
+            current_challenge: Challenge {
+                data: GenericArray::default(),
+            },
+            manifest: Manifest::default(),
+            challenge_map: HashMap::new(),
+        }
+    }
 }
 
 impl<H: BarretenHasher> Transcript<H> {

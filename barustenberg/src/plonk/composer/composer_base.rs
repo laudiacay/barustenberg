@@ -1,13 +1,15 @@
-use std::sync::Arc;
+use std::{collections::HashMap, default, sync::Arc};
 
-use proptest::sample::Selector;
+use ark_ec::AffineRepr;
 use rand::RngCore;
+use std::default::Default;
 
 use crate::{
-    ecc::{curves::grumpkin::Fr, fields::field::FieldParams},
     plonk::proof_system::{proving_key::ProvingKey, verification_key::VerificationKey},
     srs::reference_string::ReferenceStringFactory,
 };
+
+use ark_ff::{FftField, Field};
 
 pub const DUMMY_TAG: u32 = 0;
 pub const REAL_VARIABLE: u32 = u32::MAX - 1;
@@ -48,18 +50,43 @@ impl CycleNode {
     }
 }
 
-pub struct ComposerBase<FrP: FieldParams> {
+pub struct ComposerBase<F: Field + FftField, G1Affine: AffineRepr, G2Affine: AffineRepr> {
     pub num_gates: usize,
-    crs_factory: Arc<dyn ReferenceStringFactory>,
+    crs_factory: Arc<dyn ReferenceStringFactory<G1Affine, G2Affine>>,
     num_selectors: usize,
-    selectors: Vec<Vec<Selector>>,
+    selectors: Vec<Vec<F>>,
     selector_properties: Vec<SelectorProperties>,
     rand_engine: Option<Box<dyn RngCore>>,
-    circuit_proving_key: Option<Arc<ProvingKey<FrP>>>,
+    circuit_proving_key: Option<Arc<ProvingKey<F, G1Affine>>>,
     circuit_verification_key: Option<Arc<VerificationKey>>,
+    w_l: Vec<u32>,
+    w_r: Vec<u32>,
+    w_o: Vec<u32>,
+    w_4: Vec<u32>,
+    failed: bool,
+    _err: Option<String>,
+    zero_idx: u32,
+    public_inputs: Vec<u32>,
+    variables: Vec<F>,
+    /// index of next variable in equivalence class (=REAL_VARIABLE if you're last)
+    next_var_index: Vec<u32>,
+    /// index of  previous variable in equivalence class (=FIRST if you're in a cycle alone)
+    prev_var_index: Vec<u32>,
+    /// indices of corresponding real variables
+    real_variable_index: Vec<u32>,
+    real_variable_tags: Vec<u32>,
+    current_tag: u32,
+    /// The permutation on variable tags. See
+    /// https://github.com/AztecProtocol/plonk-with-lookups-private/blob/new-stuff/GenPermuations.pdf
+    /// DOCTODO: replace with the relevant wiki link.
+    tau: HashMap<u32, u32>,
+    wire_copy_cycles: Vec<Vec<CycleNode>>,
+    computed_witness: bool,
 }
 
-impl<FrP: FieldParams> ComposerBase<FrP> {
+impl<F: Field + FftField, G1Affine: AffineRepr, G2Affine: AffineRepr>
+    ComposerBase<F, G1Affine, G2Affine>
+{
     pub fn new(
         num_selectors: usize,
         size_hint: usize,
@@ -69,49 +96,77 @@ impl<FrP: FieldParams> ComposerBase<FrP> {
         Self::with_crs_factory(crs_factory, num_selectors, size_hint, selector_properties)
     }
 
+    pub fn default() -> Self {
+        Self {
+            num_gates: 0,
+            crs_factory: Arc::new(Default::default()),
+            num_selectors: 0,
+            selectors: Default::default(),
+            selector_properties: Default::default(),
+            rand_engine: Default::default(),
+            circuit_proving_key: Default::default(),
+            circuit_verification_key: Default::default(),
+            w_l: vec![],
+            w_r: vec![],
+            w_o: vec![],
+            w_4: vec![],
+            public_inputs: vec![],
+            variables: Default::default(),
+            next_var_index: Default::default(),
+            prev_var_index: Default::default(),
+            real_variable_index: Default::default(),
+            real_variable_tags: Default::default(),
+            current_tag: DUMMY_TAG,
+            tau: Default::default(),
+            wire_copy_cycles: Default::default(),
+            computed_witness: false,
+            failed: Default::default(),
+            _err: Default::default(),
+            zero_idx: Default::default(),
+        }
+    }
+
     pub fn with_crs_factory(
-        crs_factory: Arc<dyn ReferenceStringFactory>,
+        crs_factory: Arc<dyn ReferenceStringFactory<G1Affine, G2Affine>>,
         num_selectors: usize,
         size_hint: usize,
         selector_properties: Vec<SelectorProperties>,
     ) -> Self {
-        let selectors = vec![Vec::with_capacity(size_hint); num_selectors];
-        Self {
-            num_gates: 0,
-            crs_factory,
-            num_selectors,
-            selectors,
-            selector_properties,
-            rand_engine: None,
-            circuit_proving_key: None,
-            circuit_verification_key: None,
-        }
+        let mut selfie = Self::default();
+        selfie.selectors = vec![Vec::with_capacity(size_hint); num_selectors];
+        selfie.rand_engine = None;
+        selfie.circuit_proving_key = None;
+        selfie.circuit_verification_key = None;
+        selfie.num_selectors = num_selectors;
+        selfie.selector_properties = selector_properties;
+        selfie.crs_factory = crs_factory;
+        selfie.num_gates = 0;
+        selfie
     }
     pub fn with_keys(
-        p_key: Arc<ProvingKey<FrP>>,
+        p_key: Arc<ProvingKey<F, G1Affine>>,
         v_key: Arc<VerificationKey>,
         num_selectors: usize,
         size_hint: usize,
         selector_properties: Vec<SelectorProperties>,
     ) -> Self {
-        let selectors = vec![Vec::with_capacity(size_hint); num_selectors];
-        Self {
-            num_gates: 0,
-            circuit_proving_key: Some(p_key),
-            circuit_verification_key: Some(v_key),
-            num_selectors,
-            selectors,
-            selector_properties,
-            rand_engine: None,
-            crs_factory: Arc::new(ReferenceStringFactory::new("../srs_db/ignition")),
-        }
+        let mut selfie = Self::default();
+        selfie.selectors = vec![Vec::with_capacity(size_hint); num_selectors];
+        selfie.rand_engine = None;
+        selfie.circuit_proving_key = Some(p_key);
+        selfie.circuit_verification_key = Some(v_key);
+        selfie.num_selectors = num_selectors;
+        selfie.selector_properties = selector_properties;
+        selfie.num_gates = 0;
+        selfie.crs_factory = Arc::new(ReferenceStringFactory::new("../srs_db/ignition"));
+        selfie
     }
     pub fn get_first_variable_in_class(&self, index: usize) -> usize {
-        let mut idx = index;
-        while self.prev_var_index[idx] != FIRST_VARIABLE_IN_CLASS {
-            idx = self.prev_var_index[idx];
+        let mut idx = index as u32;
+        while self.prev_var_index[idx as usize] != FIRST_VARIABLE_IN_CLASS {
+            idx = self.prev_var_index[idx as usize];
         }
-        idx
+        idx as usize
     }
     fn update_real_variable_indices(&mut self, index: u32, new_real_index: u32) {
         let mut cur_index = index;
@@ -135,7 +190,7 @@ impl<FrP: FieldParams> ComposerBase<FrP> {
     ///
     /// * The value of the variable.
     #[inline]
-    fn get_variable(&self, index: u32) -> Fr {
+    fn get_variable(&self, index: u32) -> F {
         assert!(self.variables.len() > index as usize);
         self.variables[self.real_variable_index[index as usize] as usize]
     }
@@ -151,19 +206,19 @@ impl<FrP: FieldParams> ComposerBase<FrP> {
     ///
     /// * The value of the variable.
     #[inline]
-    fn get_variable_reference(&self, index: u32) -> &Fr {
+    fn get_variable_reference(&self, index: u32) -> &F {
         assert!(self.variables.len() > index as usize);
         &self.variables[self.real_variable_index[index as usize] as usize]
     }
 
-    fn get_public_input(&self, index: u32) -> Fr {
+    fn get_public_input(&self, index: u32) -> F {
         self.get_variable(self.public_inputs[index as usize])
     }
 
-    fn get_public_inputs(&self) -> Vec<Fr> {
+    fn get_public_inputs(&self) -> Vec<F> {
         let mut result = Vec::new();
         for i in 0..self.get_num_public_inputs() {
-            result.push(self.get_public_input(i));
+            result.push(self.get_public_input(i.try_into().unwrap()));
         }
         result
     }
@@ -176,7 +231,7 @@ impl<FrP: FieldParams> ComposerBase<FrP> {
     /// # Returns
     ///
     /// * The index of the new variable in the variables vector
-    fn add_variable(&mut self, in_value: Fr) -> u32 {
+    fn add_variable(&mut self, in_value: F) -> u32 {
         self.variables.push(in_value);
 
         // By default, we assume each new variable belongs in its own copy-cycle. These defaults can be modified later
@@ -207,7 +262,7 @@ impl<FrP: FieldParams> ComposerBase<FrP> {
     /// # Returns
     ///
     /// * The index of the new variable in the variables vector
-    fn add_public_variable(&mut self, in_value: Fr) -> u32 {
+    fn add_public_variable(&mut self, in_value: F) -> u32 {
         let index = self.add_variable(in_value);
         self.public_inputs.push(index);
         index

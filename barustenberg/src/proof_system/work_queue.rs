@@ -1,6 +1,8 @@
 use std::rc::Rc;
 
-use crate::ecc::fields::field::FieldParams;
+use ark_ec::AffineRepr;
+use ark_ff::{FftField, Field};
+
 use crate::plonk::proof_system::proving_key::ProvingKey;
 use crate::transcript::{BarretenHasher, Transcript};
 
@@ -18,7 +20,7 @@ pub(crate) struct WorkItemInfo {
     num_iffts: usize,
 }
 
-struct WorkItem<Fr: FieldParams> {
+struct WorkItem<Fr: Field> {
     work_type: WorkType,
     mul_scalars: Rc<Vec<Fr>>,
     tag: String,
@@ -26,18 +28,18 @@ struct WorkItem<Fr: FieldParams> {
     index: usize,
 }
 
-pub(crate) struct QueuedFftInputs<Fr: FieldParams> {
+pub(crate) struct QueuedFftInputs<Fr: Field> {
     data: Vec<Fr>,
     shift_factor: Fr,
 }
 
-pub(crate) struct WorkQueue<H: BarretenHasher, Fr: FieldParams> {
-    key: Option<Rc<ProvingKey<Fr>>>,
+pub(crate) struct WorkQueue<H: BarretenHasher, Fr: Field + FftField, G1Affine: AffineRepr> {
+    key: Option<Rc<ProvingKey<Fr, G1Affine>>>,
     transcript: Option<Rc<Transcript<H>>>,
     work_items: Vec<WorkItem<Fr>>,
 }
 
-impl<H: BarretenHasher, Fr: FieldParams> WorkQueue<H, Fr> {
+impl<H: BarretenHasher, Fr: Field + FftField, G1Affine: AffineRepr> WorkQueue<H, Fr, G1Affine> {
     /*
     work_item_info get_queued_work_item_info() const;
 
@@ -65,7 +67,7 @@ impl<H: BarretenHasher, Fr: FieldParams> WorkQueue<H, Fr> {
      */
 
     pub fn new(
-        prover_key: Option<Rc<ProvingKey<Fr>>>,
+        prover_key: Option<Rc<ProvingKey<Fr, G1Affine>>>,
         prover_transcript: Option<Rc<Transcript<H>>>,
     ) -> Self {
         WorkQueue {

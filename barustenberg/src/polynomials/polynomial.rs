@@ -1,15 +1,17 @@
 use std::marker::PhantomData;
 
-use crate::ecc::fields::field::FieldParams;
+use ark_ff::Field;
 
 #[derive(Debug, Clone)]
-pub(crate) struct Polynomial<F: FieldParams> {
+pub(crate) struct Polynomial<F: Field> {
+    degree: usize,
     phantom: PhantomData<F>,
 }
 
-impl<F: FieldParams> Polynomial<F> {
-    pub(crate) const fn new() -> Self {
+impl<F: Field> Polynomial<F> {
+    pub(crate) const fn new(degree: usize) -> Self {
         Self {
+            degree,
             phantom: PhantomData,
         }
     }

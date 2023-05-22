@@ -1,18 +1,22 @@
 use std::marker::PhantomData;
 
+use ark_ec::AffineRepr;
+use ark_ff::{FftField, Field};
+
 use crate::{
-    ecc::fields::field::FieldParams,
     plonk::proof_system::proving_key::ProvingKey,
     proof_system::work_queue::WorkQueue,
     transcript::{BarretenHasher, Transcript},
 };
 
-pub struct ProverRandomWidget<H: BarretenHasher, Fr: FieldParams> {
-    phantom: PhantomData<(H, Fr)>,
+pub struct ProverRandomWidget<H: BarretenHasher, Fr: Field, G1Affine: AffineRepr> {
+    phantom: PhantomData<(H, Fr, G1Affine)>,
 }
 
-impl<H: BarretenHasher, Fr: FieldParams> ProverRandomWidget<H, Fr> {
-    pub fn new(input_key: &ProvingKey<Fr>) -> Self {
+impl<H: BarretenHasher, Fr: Field + FftField, G1Affine: AffineRepr>
+    ProverRandomWidget<H, Fr, G1Affine>
+{
+    pub fn new(input_key: &ProvingKey<Fr, G1Affine>) -> Self {
         todo!("ProverRandomWidget::new")
     }
 
@@ -20,7 +24,7 @@ impl<H: BarretenHasher, Fr: FieldParams> ProverRandomWidget<H, Fr> {
         &self,
         transcript: &mut Transcript<H>,
         size: usize,
-        work_queue: &mut WorkQueue<H, Fr>,
+        work_queue: &mut WorkQueue<H, Fr, G1Affine>,
     ) {
         todo!("ProverRandomWidget::compute_round_commitments")
     }
@@ -30,7 +34,9 @@ impl<H: BarretenHasher, Fr: FieldParams> ProverRandomWidget<H, Fr> {
     }
 }
 
-impl<H: BarretenHasher, Fr: FieldParams> Clone for Box<ProverRandomWidget<H, Fr>> {
+impl<H: BarretenHasher, Fr: Field, G1Affine: AffineRepr> Clone
+    for Box<ProverRandomWidget<H, Fr, G1Affine>>
+{
     fn clone(&self) -> Self {
         Box::new(self.boxed_clone())
     }
@@ -40,15 +46,17 @@ pub trait BoxedCloneProverRandomWidget {
     fn boxed_clone(&self) -> Self;
 }
 
-impl<H: BarretenHasher, Fr: FieldParams> BoxedCloneProverRandomWidget
-    for ProverRandomWidget<H, Fr>
+impl<H: BarretenHasher, Fr: Field, G1Affine: AffineRepr> BoxedCloneProverRandomWidget
+    for ProverRandomWidget<H, Fr, G1Affine>
 {
-    fn boxed_clone(&self) -> Box<ProverRandomWidget<H, Fr>> {
+    fn boxed_clone(&self) -> Box<ProverRandomWidget<H, Fr, G1Affine>> {
         Box::new(self.clone())
     }
 }
 
-impl<H: BarretenHasher, Fr: FieldParams> PartialEq for ProverRandomWidget<H, Fr> {
+impl<H: BarretenHasher, Fr: Field, G1Affine: AffineRepr> PartialEq
+    for ProverRandomWidget<H, Fr, G1Affine>
+{
     fn eq(&self, other: &Self) -> bool {
         self.key() == other.key()
     }
@@ -61,4 +69,7 @@ impl<H: BarretenHasher, Fr: FieldParams> PartialEq for ProverRandomWidget<H, Fr>
 //     }
 // }
 
-impl<H: BarretenHasher, Fr: FieldParams> Eq for ProverRandomWidget<H, Fr> {}
+impl<H: BarretenHasher, Fr: Field, G1Affine: AffineRepr> Eq
+    for ProverRandomWidget<H, Fr, G1Affine>
+{
+}

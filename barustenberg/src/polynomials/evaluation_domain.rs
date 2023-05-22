@@ -1,15 +1,11 @@
-use crate::{
-    ecc::{
-        curves::bn254::fr::Fr,
-        fields::field::{Field, FieldParams},
-    },
-    numeric::bitop::Msb,
-};
+use ark_ff::{FftField, Field};
+
+use crate::numeric::bitop::Msb;
 use std::vec::Vec;
 
 pub const MIN_GROUP_PER_THREAD: usize = 4;
 
-pub struct EvaluationDomain<F: FieldParams> {
+pub struct EvaluationDomain<F: Field + FftField> {
     /// n, always a power of 2
     pub size: usize,
     /// num_threads * thread_size = size
@@ -20,23 +16,23 @@ pub struct EvaluationDomain<F: FieldParams> {
     pub log2_num_threads: usize,
     pub generator_size: usize,
     /// omega; the nth root of unity
-    pub root: Field<F>,
+    pub root: F,
     /// omega^{-1}
-    pub root_inverse: Field<F>,
+    pub root_inverse: F,
     /// n; same as size
-    pub domain: Field<F>,
+    pub domain: F,
     /// n^{-1}
-    pub domain_inverse: Field<F>,
-    pub generator: Field<F>,
-    pub generator_inverse: Field<F>,
-    pub four_inverse: Field<F>,
+    pub domain_inverse: F,
+    pub generator: F,
+    pub generator_inverse: F,
+    pub four_inverse: F,
     /// An entry for each of the log(n) rounds: each entry is a pointer to
     /// the subset of the roots of unity required for that fft round.
     /// E.g. round_roots[0] = [1, ω^(n/2 - 1)],
     ///      round_roots[1] = [1, ω^(n/4 - 1), ω^(n/2 - 1), ω^(3n/4 - 1)]
     ///      ...
-    pub round_roots: Vec<Vec<Field<F>>>,
-    pub inverse_round_roots: Vec<Vec<Field<F>>>,
+    pub round_roots: Vec<Vec<F>>,
+    pub inverse_round_roots: Vec<Vec<F>>,
 }
 
 fn compute_num_threads(size: usize) -> usize {
@@ -50,11 +46,11 @@ fn compute_num_threads(size: usize) -> usize {
     return num_threads;
 }
 
-fn compute_lookup_table_single<F: FieldParams>(
-    input_root: &Field<F>,
+fn compute_lookup_table_single<F: Field>(
+    input_root: &F,
     size: usize,
-    roots: &[Field<F>],
-    round_roots: &mut Vec<&mut [Field<F>]>,
+    roots: &[F],
+    round_roots: &mut Vec<&mut [F]>,
 ) {
     todo!("unimplemented, see comment below");
     // ORIGINAL CODE:
@@ -106,7 +102,7 @@ fn compute_lookup_table_single<F: FieldParams>(
     // }
 }
 
-impl<F: FieldParams> EvaluationDomain<F> {
+impl<F: Field + FftField> EvaluationDomain<F> {
     pub fn new(domain_size: usize, target_generator_size: Option<usize>) -> Self {
         // TODO: implement constructor logic
 
@@ -158,14 +154,14 @@ impl<F: FieldParams> EvaluationDomain<F> {
         // TODO: implement compute_generator_table logic
     }
 
-    pub fn get_round_roots(&self) -> &Vec<Vec<Field<F>>> {
+    pub fn get_round_roots(&self) -> &Vec<Vec<F>> {
         &self.round_roots
     }
 
-    pub fn get_inverse_round_roots(&self) -> &Vec<Vec<Field<F>>> {
+    pub fn get_inverse_round_roots(&self) -> &Vec<Vec<F>> {
         &self.inverse_round_roots
     }
 }
 
-pub type BarretenbergEvaluationDomain = EvaluationDomain<Fr>;
-pub type GrumpkinEvaluationDomain = EvaluationDomain<crate::ecc::curves::grumpkin::Fr>;
+pub type BarretenbergEvaluationDomain = EvaluationDomain<ark_bn254::Fr>;
+pub type GrumpkinEvaluationDomain = EvaluationDomain<grumpkin::Fr>;

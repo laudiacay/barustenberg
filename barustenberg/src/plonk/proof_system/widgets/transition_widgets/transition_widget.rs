@@ -4,8 +4,11 @@ use std::{
     sync::Arc,
 };
 
+use ark_ec::AffineRepr;
+use ark_ff::{FftField, Field};
+use typenum::Unsigned;
+
 use crate::{
-    ecc::fields::field::{Field, FieldParams},
     plonk::proof_system::{
         proving_key::ProvingKey,
         types::{
@@ -50,17 +53,16 @@ static _MAX_NUM_CHALLENGES_CHECK: () = {
 pub mod containers {
     use generic_array::GenericArray;
 
-    use crate::{
-        ecc::fields::field::{Field, FieldParams},
-        plonk::proof_system::types::polynomial_manifest::PolynomialIndex,
-    };
+    use crate::plonk::proof_system::types::polynomial_manifest::PolynomialIndex;
 
     use super::MaxNumChallengesTN;
+    use ark_ff::Field;
     use std::collections::HashMap;
 
-    pub struct ChallengeArray<FP: FieldParams, NumRelations: generic_array::ArrayLength<Field<FP>>> {
-        pub elements: GenericArray<Field<FP>, MaxNumChallengesTN>,
-        pub alpha_powers: GenericArray<Field<FP>, NumRelations>,
+    #[derive(Default)]
+    pub struct ChallengeArray<F: Field, NumRelations: generic_array::ArrayLength<F>> {
+        pub elements: GenericArray<F, MaxNumChallengesTN>,
+        pub alpha_powers: GenericArray<F, NumRelations>,
     }
 
     pub type PolyArray<Field> = [(Field, Field); PolynomialIndex::MaxNumPolynomials as usize];
@@ -91,9 +93,9 @@ pub mod containers {
 /// - `NUM_WIDGET_RELATIONS`: How many powers of α are needed
 pub trait BaseGetter<
     H: BarretenHasher,
-    F: FieldParams,
+    F: Field,
     S: Settings<H>,
-    NWidgetRelations: generic_array::ArrayLength<Field<F>>,
+    NWidgetRelations: generic_array::ArrayLength<F>,
 >
 {
     /// Create a challenge array from transcript.
@@ -109,8 +111,9 @@ pub trait BaseGetter<
     fn get_challenges(
         &self,
         transcript: &Transcript<H>,
-        alpha_base: Field<F>,
+        alpha_base: F,
         required_challenges: u8,
+        rng: &mut dyn rand::RngCore,
     ) -> ChallengeArray<F, NWidgetRelations> {
         let mut result = ChallengeArray::default();
         let add_challenge = |label: &str, tag: usize, required: bool, index: usize| {
@@ -119,7 +122,9 @@ pub trait BaseGetter<
                 assert!(index < transcript.get_num_challenges(label));
                 result.elements[tag] = transcript.get_challenge_field_element(label, index);
             } else {
-                result.elements[tag] = Field::random_element();
+                let mut random_bytes = vec![0u8; std::mem::size_of::<F>()];
+                rng.fill_bytes(&mut random_bytes);
+                result.elements[tag] = F::from_random_bytes(random_bytes.as_ref());
             }
         };
         self.add_challenge(
@@ -177,12 +182,11 @@ pub trait BaseGetter<
 /// Implements loading polynomial openings from transcript in addition to BaseGetter's
 /// loading challenges from the transcript and computing powers of α
 pub trait EvaluationGetter<
-    F,
+    F: Field,
     H: BarretenHasher,
     S: Settings<H>,
-    NWidgetRelations: generic_array::ArrayLength<Field<F>>,
->: BaseGetter<H, F, S, NWidgetRelations> where
-    F: FieldParams,
+    NWidgetRelations: generic_array::ArrayLength<F>,
+>: BaseGetter<H, F, S, NWidgetRelations>
 {
     /// Get a polynomial at offset `id`
     ///
@@ -222,7 +226,7 @@ pub trait EvaluationGetter<
         polynomial_manifest: &PolynomialManifest,
         transcript: &Transcript<H>,
     ) -> PolyArray<F> {
-        let mut result: PolyArray<Field<F>> = Default::default();
+        let mut result: PolyArray<F> = Default::default();
         for i in 0..polynomial_manifest.len() {
             let info = &polynomial_manifest[i];
             let label = info.polynomial_label.clone();
@@ -240,15 +244,15 @@ pub trait EvaluationGetter<
 
 /// Provides access to polynomials (monomial or coset FFT) for use in widgets
 /// Coset FFT access is needed in quotient construction.
-pub trait FFTGetter<H, F, S, NWidgetRelations: generic_array::ArrayLength<Field<F>>>:
+pub trait FFTGetter<H, F, G1Affine: AffineRepr, S, NWidgetRelations: generic_array::ArrayLength<F>>:
     BaseGetter<H, F, S, NWidgetRelations>
 where
-    F: FieldParams,
+    F: Field + FftField,
     H: BarretenHasher,
     S: Settings<H>,
 {
     fn get_polynomials(
-        key: &ProvingKey<F>,
+        key: &ProvingKey<F, G1Affine>,
         required_polynomial_ids: &HashSet<PolynomialIndex>,
     ) -> PolyPtrMap<F> {
         let mut result = PolyPtrMap::new();
@@ -281,12 +285,12 @@ where
     }
 }
 
-pub struct TransitionWidgetBase<F: FieldParams> {
-    pub key: Option<Arc<ProvingKey<F>>>,
+pub struct TransitionWidgetBase<F: Field + FftField, G1Affine: AffineRepr> {
+    pub key: Option<Arc<ProvingKey<F, G1Affine>>>,
 }
 
-impl<F: FieldParams> TransitionWidgetBase<F> {
-    pub fn new(key: Option<Arc<ProvingKey<F>>>) -> Self {
+impl<F: Field + FftField, G1Affine: AffineRepr> TransitionWidgetBase<F, G1Affine> {
+    pub fn new(key: Option<Arc<ProvingKey<F, G1Affine>>>) -> Self {
         Self { key }
     }
 
@@ -294,10 +298,10 @@ impl<F: FieldParams> TransitionWidgetBase<F> {
 }
 
 trait KernelBase<
-    F: FieldParams,
+    F: Field,
     PC,
     G: Getters<F, PC>,
-    NumIndependentRelations: generic_array::ArrayLength<Field<F>>,
+    NumIndependentRelations: generic_array::ArrayLength<F>,
 >
 {
     fn get_required_polynomial_ids() -> HashSet<PolynomialIndex>;
@@ -325,28 +329,30 @@ trait KernelBase<
 
 pub struct TransitionWidget<
     H: BarretenHasher,
-    F: FieldParams,
+    F: Field + FftField,
+    G1Affine: AffineRepr,
     S: Settings<H>,
     PC,
     G: Getters<F, PC>,
-    NIndependentRelations: generic_array::ArrayLength<Field<F>>,
+    NIndependentRelations: generic_array::ArrayLength<F>,
     KB: KernelBase<F, PC, G, NIndependentRelations>,
 > {
-    base: TransitionWidgetBase<F>,
+    base: TransitionWidgetBase<F, G1Affine>,
     phantom: std::marker::PhantomData<(H, S, PC, G, KB, NIndependentRelations)>,
 }
 
 impl<
         H: BarretenHasher,
-        F: FieldParams,
+        F: Field + FftField,
+        G1Affine: AffineRepr,
         S: Settings<H>,
         PC,
         G: Getters<F, PC>,
-        NIndependentRelations: generic_array::ArrayLength<Field<F>>,
+        NIndependentRelations: generic_array::ArrayLength<F>,
         KB: KernelBase<F, PC, G, NIndependentRelations>,
-    > TransitionWidget<H, F, S, PC, G, NIndependentRelations, KB>
+    > TransitionWidget<H, F, G1Affine, S, PC, G, NIndependentRelations, KB>
 {
-    pub fn new(key: Option<Arc<ProvingKey<F>>>) -> Self {
+    pub fn new(key: Option<Arc<ProvingKey<F, G1Affine>>>) -> Self {
         Self {
             base: TransitionWidgetBase::new(key),
             phantom: std::marker::PhantomData,
@@ -390,23 +396,24 @@ impl<
 
 // Implementations for the derived classes
 impl<
-        F: FieldParams,
+        F: Field + FftField,
         H: BarretenHasher,
+        G1Affine: AffineRepr,
         S: Settings<H>,
         KB: KernelBase<F, PC, G, NIndependentRelations>,
         PC,
         G: Getters<F, PC>,
-        NIndependentRelations: generic_array::ArrayLength<Field<F>>,
-    > From<TransitionWidget<H, F, S, PC, G, NIndependentRelations, KB>>
-    for TransitionWidgetBase<F>
+        NIndependentRelations: generic_array::ArrayLength<F>,
+    > From<TransitionWidget<H, F, G1Affine, S, PC, G, NIndependentRelations, KB>>
+    for TransitionWidgetBase<F, G1Affine>
 {
-    fn from(widget: TransitionWidget<H, F, S, PC, G, NIndependentRelations, KB>) -> Self {
+    fn from(widget: TransitionWidget<H, F, G1Affine, S, PC, G, NIndependentRelations, KB>) -> Self {
         widget.base
     }
 }
 
 pub struct GenericVerifierWidget<
-    F: FieldParams,
+    F: Field,
     H: BarretenHasher,
     PC,
     G: Getters<F, PC>,
@@ -414,18 +421,18 @@ pub struct GenericVerifierWidget<
     S: Settings<H>,
     KB,
 > where
-    NIndependentRelations: generic_array::ArrayLength<Field<F>>,
+    NIndependentRelations: generic_array::ArrayLength<F>,
     KB: KernelBase<F, PC, G, NIndependentRelations>,
 {
     phantom: PhantomData<(F, H, S, KB, PC, G, NIndependentRelations)>,
 }
 
 impl<
-        F: FieldParams,
+        F: Field,
         H: BarretenHasher,
         PC,
         G: Getters<F, PC>,
-        NIndependentRelations: generic_array::ArrayLength<Field<F>>,
+        NIndependentRelations: generic_array::ArrayLength<F>,
         S: Settings<H>,
         KB,
     > GenericVerifierWidget<F, H, PC, G, NIndependentRelations, S, KB>
@@ -434,9 +441,9 @@ where
 {
     pub fn compute_quotient_evaluation_contribution(
         key: &Arc<TranscriptKey>,
-        alpha_base: Field<F>,
+        alpha_base: F,
         transcript: &Transcript<H>,
-        quotient_numerator_eval: &mut Field<F>,
+        quotient_numerator_eval: &mut F,
     ) -> F {
         let polynomial_evaluations =
             EvaluationGetter::<H, S, NIndependentRelations, F>::get_polynomial_evaluations(

@@ -1,35 +1,7 @@
-use lazy_static::lazy_static;
-use std::{cell::RefCell, sync::Mutex};
+use ark_ff::{FftField, Field};
+use std::cell::RefCell;
 
-use crate::{
-    ecc::{
-        curves::bn254::fr::Fr,
-        fields::field::{Field, FieldParams},
-    },
-    numeric::bitop::Msb,
-}; // NOTE: This might not be the right Fr, need to check vs gumpkin
-struct ScratchSpace<T> {
-    working_memory: Mutex<Option<Vec<T>>>,
-}
-
-impl<T> ScratchSpace<T> {
-    pub fn get_scratch_space(&self, num_elements: usize) -> &mut [T] {
-        let mut working_memory = self.working_memory.lock().unwrap();
-        let current_size = working_memory.as_ref().map(|v| v.len()).unwrap_or(0);
-
-        if num_elements > current_size {
-            *working_memory = Some(Vec::with_capacity(num_elements));
-        }
-
-        working_memory.as_mut().unwrap().as_mut_slice()
-    }
-}
-
-lazy_static! {
-    static ref SCRATCH_SPACE: ScratchSpace<Field<FrP>> = ScratchSpace {
-        working_memory: Mutex::new(None),
-    };
-}
+use crate::numeric::bitop::Msb;
 
 #[inline]
 fn reverse_bits(x: u32, bit_length: u32) -> u32 {
@@ -122,17 +94,13 @@ fn fft_inner_serial<Fr: Copy + Default + Add<Output = Fr> + Sub<Output = Fr> + M
     }
 }
 
-impl<FrP: FieldParams> EvaluationDomain<FrP> {
-    pub fn get_scratch_space(num_elements: usize) -> &'static mut [Field<FrP>] {
-        SCRATCH_SPACE.get_scratch_space(num_elements)
-    }
-
+impl<Fr: Field + FftField> EvaluationDomain<Fr> {
     fn scale_by_generator(
         &self,
-        coeffs: &[Field<FrP>],
-        target: &mut [Field<FrP>],
-        generator_start: Field<FrP>,
-        generator_shift: Field<FrP>,
+        coeffs: &[Fr],
+        target: &mut [Fr],
+        generator_start: Fr,
+        generator_shift: Fr,
         generator_size: usize,
     ) {
         let generator_size_per_thread = generator_size / self.num_threads;
@@ -172,7 +140,7 @@ impl<FrP: FieldParams> EvaluationDomain<FrP> {
         // Step 2: compute the cofactor term g^n
         let mut accumulator = self.generator;
         for _ in 0..self.log2_size {
-            accumulator.self_sqr();
+            accumulator.square_in_place();
         }
 
         // Step 3: fill array with subgroup_size values of (g.X)^n, scaled by the cofactor
@@ -185,9 +153,9 @@ impl<FrP: FieldParams> EvaluationDomain<FrP> {
     // TODO readd pragma omp parallel
     pub fn fft_inner_parallel_inplace(
         &self,
-        coeffs: &mut RefCell<Vec<Vec<Field<FrP>>>>,
-        fr: &Field<FrP>,
-        root_table: &Vec<Vec<Field<FrP>>>,
+        coeffs: &mut RefCell<Vec<Vec<Fr>>>,
+        fr: &Fr,
+        root_table: &Vec<Vec<Fr>>,
     ) {
         let scratch_space = Self::get_scratch_space(self.size); // Implement the get_scratch_space function
 
@@ -233,7 +201,7 @@ impl<FrP: FieldParams> EvaluationDomain<FrP> {
         // Outer FFT loop - iterates over the FFT rounds
         for m in (2..=self.size).step_by(2) {
             for j in 0..self.num_threads {
-                let mut temp: Field<FrP>;
+                let mut temp: Fr;
 
                 // Ok! So, what's going on here? This is the inner loop of the FFT algorithm, and we want to break it
                 // out into multiple independent threads. For `num_threads`, each thread will evaluation `domain.size /
@@ -316,16 +284,16 @@ impl<FrP: FieldParams> EvaluationDomain<FrP> {
     // TODO readd pragma omp parallel
     pub fn fft_inner_parallel(
         &self,
-        coeffs: &mut [Field<FrP>],
-        target: &mut [Field<FrP>],
-        fr: &Field<FrP>,
-        root_table: &[Vec<Field<FrP>>],
+        coeffs: &mut [Fr],
+        target: &mut [Fr],
+        fr: &Fr,
+        root_table: &[Vec<Fr>],
     ) {
         // First FFT round is a special case - no need to multiply by root table, because all entries are 1.
         // We also combine the bit reversal step into the first round, to avoid a redundant round of copying data
         (0..self.num_threads).into_par_iter().for_each(|j| {
-            let mut temp_1 = Field::<FrP>::zero();
-            let mut temp_2 = Field::<FrP>::zero();
+            let mut temp_1 = Fr::zero();
+            let mut temp_2 = Fr::zero();
             let thread_start = j * self.thread_size;
             let thread_end = (j + 1) * self.thread_size;
             for i in (thread_start..thread_end).step_by(2) {
@@ -353,7 +321,7 @@ impl<FrP: FieldParams> EvaluationDomain<FrP> {
         // TODO this is super incorrect
         for m in (2..self.size).step_by(2) {
             (0..self.num_threads).for_each(|j| {
-                let mut temp = Field::<FrP>::zero();
+                let mut temp = Fr::zero();
 
                 let start = j * (self.thread_size >> 1);
                 let end = (j + 1) * (self.thread_size >> 1);
@@ -393,9 +361,9 @@ impl<FrP: FieldParams> EvaluationDomain<FrP> {
 
     fn partial_fft_serial_inner(
         &self,
-        coeffs: &mut [Field<FrP>],
-        target: &mut [Field<FrP>],
-        root_table: &Vec<Vec<Field<FrP>>>,
+        coeffs: &mut [Fr],
+        target: &mut [Fr],
+        root_table: &Vec<Vec<Fr>>,
     ) {
         let n = self.size >> 2;
         let full_mask = self.size - 1;
@@ -406,14 +374,14 @@ impl<FrP: FieldParams> EvaluationDomain<FrP> {
 
         for i in 0..n {
             for s in 0..4 {
-                target[(3 - s) * n + i] = Field::<FrP>::zero();
+                target[(3 - s) * n + i] = Fr::zero();
                 for j in 0..4 {
                     let index = i + j * n;
                     root_index = (index * (s + 1)) & full_mask;
                     target[(3 - s) * n + i] += (if root_index < m {
-                        Field::<FrP>::one()
+                        Fr::one()
                     } else {
-                        -Field::<FrP>::one()
+                        -Fr::one()
                     }) * coeffs[index]
                         * round_roots[root_index & half_mask];
                 }
@@ -423,9 +391,9 @@ impl<FrP: FieldParams> EvaluationDomain<FrP> {
 
     fn partial_fft_parallel_inner(
         &self,
-        coeffs: &mut [Field<FrP>],
-        root_table: &Vec<Vec<Field<FrP>>>,
-        constant: Field<FrP>,
+        coeffs: &mut [Fr],
+        root_table: &Vec<Vec<Fr>>,
+        constant: Fr,
         is_coset: bool,
     ) {
         let n = self.size >> 2;
@@ -443,10 +411,10 @@ impl<FrP: FieldParams> EvaluationDomain<FrP> {
                 coeffs[i + 2 * n],
                 coeffs[i + 3 * n],
             ];
-            coeffs[i] = Field::<FrP>::zero();
-            coeffs[i + n] = Field::<FrP>::zero();
-            coeffs[i + 2 * n] = Field::<FrP>::zero();
-            coeffs[i + 3 * n] = Field::<FrP>::zero();
+            coeffs[i] = Fr::zero();
+            coeffs[i + n] = Fr::zero();
+            coeffs[i + 2 * n] = Fr::zero();
+            coeffs[i + 3 * n] = Fr::zero();
 
             let mut index;
             let mut root_index;
@@ -475,39 +443,39 @@ impl<FrP: FieldParams> EvaluationDomain<FrP> {
         }
     }
 
-    fn partial_fft_serial(&self, coeffs: &mut [Field<FrP>], target: &mut [Field<FrP>]) {
+    fn partial_fft_serial(&self, coeffs: &mut [Fr], target: &mut [Fr]) {
         self.partial_fft_serial_inner(coeffs, target, self.get_round_roots());
     }
 
-    fn partial_fft(&self, coeffs: &mut [Field<FrP>], constant: Field<FrP>, is_coset: bool) {
+    fn partial_fft(&self, coeffs: &mut [Fr], constant: Fr, is_coset: bool) {
         self.partial_fft_parallel_inner(coeffs, self.get_round_roots(), constant, is_coset);
     }
 
-    fn fft(&self, coeffs: &mut [Field<FrP>]) {
+    fn fft(&self, coeffs: &mut [Fr]) {
         self.fft_inner_parallel_inplace(coeffs, &self.root, self.get_round_roots());
     }
 
-    fn fft_with_target(&self, coeffs: &mut [Field<FrP>], target: &mut [Field<FrP>]) {
+    fn fft_with_target(&self, coeffs: &mut [Fr], target: &mut [Fr]) {
         self.fft_inner_parallel_inplace(coeffs, target, self.get_round_roots());
     }
 
     // The remaining functions require you to create a version of `fft_inner_parallel` that accepts a Vec<&[T]> as the first parameter.
 
-    fn ifft_inplace(&self, coeffs: &mut [Field<FrP>]) {
+    fn ifft_inplace(&self, coeffs: &mut [Fr]) {
         self.fft_inner_parallel_inplace(coeffs, &self.root_inverse, self.get_inverse_round_roots());
         for i in 0..self.size {
             coeffs[i] *= self.domain_inverse;
         }
     }
 
-    fn ifft(&self, coeffs: &mut [Field<FrP>], target: &mut [Field<FrP>]) {
+    fn ifft(&self, coeffs: &mut [Fr], target: &mut [Fr]) {
         self.fft_inner_parallel(coeffs, target, &self.root_inverse, self.get_round_roots());
         for i in 0..self.size {
             target[i] *= self.domain_inverse;
         }
     }
 
-    fn fft_with_constant(&self, coeffs: &mut [Field<FrP>], value: Field<FrP>) {
+    fn fft_with_constant(&self, coeffs: &mut [Fr], value: Fr) {
         self.fft_inner_parallel_inplace(coeffs, &self.root, self.get_round_roots());
         for i in 0..self.size {
             coeffs[i] *= value;
@@ -515,20 +483,14 @@ impl<FrP: FieldParams> EvaluationDomain<FrP> {
     }
 
     // The remaining `coset_fft` functions require you to create a version of `scale_by_generator` that accepts a Vec<&[T]> as the first parameter.
-    fn coset_fft(
-        &self,
-        coeffs: &mut [Field<FrP>],
-        _: &EvaluationDomain<FrP>,
-        domain_extension: usize,
-    ) {
+    fn coset_fft(&self, coeffs: &mut [Fr], _: &EvaluationDomain<Fr>, domain_extension: usize) {
         let log2_domain_extension = domain_extension.get_msb() as usize;
-        let primitive_root =
-            Field::<FrP>::get_root_of_unity(self.log2_size + log2_domain_extension);
+        let primitive_root = Fr::get_root_of_unity(self.log2_size + log2_domain_extension);
 
         let scratch_space_len = self.size * domain_extension;
-        let mut scratch_space = vec![T::zero(); scratch_space_len];
+        let mut scratch_space = vec![Fr::zero(); scratch_space_len];
 
-        let mut coset_generators = vec![T::zero(); domain_extension];
+        let mut coset_generators = vec![Fr::zero(); domain_extension];
         coset_generators[0] = self.generator;
         for i in 1..domain_extension {
             coset_generators[i] = coset_generators[i - 1] * primitive_root;
@@ -538,7 +500,7 @@ impl<FrP: FieldParams> EvaluationDomain<FrP> {
             self.scale_by_generator(
                 &mut coeffs[i * self.size..],
                 &mut coeffs[(i * self.size)..],
-                Field::<FrP>::one(),
+                Fr::one(),
                 coset_generators[i],
                 self.size,
             );
@@ -570,7 +532,7 @@ impl<FrP: FieldParams> EvaluationDomain<FrP> {
                 }
             }
         } else {
-            for i in 0..domain.size {
+            for i in 0..self.size {
                 for j in 0..domain_extension {
                     scratch_space[i + (j << self.log2_size)] =
                         coeffs[(i << log2_domain_extension) + j];

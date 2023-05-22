@@ -1,7 +1,8 @@
+use ark_ec::AffineRepr;
+use ark_ff::Field;
 use typenum::U1;
 
 use crate::{
-    ecc::{curves::bn254::fr::Fr, fields::field::FieldParams},
     plonk::proof_system::{
         types::{polynomial_manifest::PolynomialIndex, prover_settings::Settings},
         widgets::transition_widgets::transition_widget::containers::{
@@ -10,6 +11,7 @@ use crate::{
     },
     transcript::BarretenHasher,
 };
+
 use std::{
     collections::{HashMap, HashSet},
     marker::PhantomData,
@@ -38,7 +40,7 @@ pub struct ArithmeticKernel<
 impl<H: BarretenHasher, F, Getters, S: Settings<H>, PolyContainer>
     ArithmeticKernel<H, F, S, Getters, PolyContainer, U1>
 where
-    F: FieldParams,
+    F: Field,
     Getters: BaseGetter<H, F, S, U1>,
 {
     // TODO see all these U1s they should be a named variable but they are not :( inherent associate type problem
@@ -88,7 +90,8 @@ where
 }
 
 pub type ProverArithmeticWidget<
-    F: FieldParams,
+    F: Field,
+    G1Affine: AffineRepr,
     H: BarretenHasher,
     S: Settings<H>,
     NWidgetRelations: typenum::Unsigned,
@@ -97,17 +100,18 @@ pub type ProverArithmeticWidget<
 > = TransitionWidget<
     H,
     F,
+    G1Affine,
     S,
     PolyContainer,
     Getters,
     NWidgetRelations,
-    ArithmeticKernel<H, Fr, S, Getters, PolyContainer, NWidgetRelations>,
+    ArithmeticKernel<H, F, S, Getters, PolyContainer, NWidgetRelations>,
 >;
 
 pub type VerifierArithmeticWidget<
     H: BarretenHasher,
-    F: FieldParams,
-    Group,
+    F: Field,
+    //Group,
     NWidgetRelations: typenum::Unsigned,
     Getters: BaseGetter<H, F, S, NWidgetRelations>,
     PC,
@@ -119,5 +123,5 @@ pub type VerifierArithmeticWidget<
     Getters,
     NWidgetRelations,
     S,
-    ArithmeticKernel<H, Fr, S, Getters, PC, NWidgetRelations>,
+    ArithmeticKernel<H, F, S, Getters, PC, NWidgetRelations>,
 >;
