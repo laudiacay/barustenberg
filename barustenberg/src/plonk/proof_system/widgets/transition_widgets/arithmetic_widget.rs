@@ -27,14 +27,13 @@ pub trait Getters<Field, PolyContainer> {
 
 pub struct ArithmeticKernel<
     H: BarretenHasher,
-    FieldParams,
+    F: Field,
     S: Settings<H>,
     Getters,
     PolyContainer,
     NIndependentRelations: typenum::Unsigned,
 > {
-    base_getter: Box<dyn BaseGetter<H, FieldParams, S, NIndependentRelations>>,
-    phantom: PhantomData<(FieldParams, Getters, PolyContainer)>,
+    _marker: PhantomData<(H, F, S, Getters, PolyContainer, NIndependentRelations)>,
 }
 
 impl<H: BarretenHasher, F, Getters, S: Settings<H>, PolyContainer>
@@ -94,7 +93,7 @@ pub type ProverArithmeticWidget<
     G1Affine: AffineRepr,
     H: BarretenHasher,
     S: Settings<H>,
-    NWidgetRelations: typenum::Unsigned,
+    NWidgetRelations: generic_array::ArrayLength<F>,
     PolyContainer,
     Getters: BaseGetter<H, F, S, NWidgetRelations>,
 > = TransitionWidget<
@@ -108,20 +107,42 @@ pub type ProverArithmeticWidget<
     ArithmeticKernel<H, F, S, Getters, PolyContainer, NWidgetRelations>,
 >;
 
-pub type VerifierArithmeticWidget<
+pub struct VerifierArithmeticWidget<
     H: BarretenHasher,
     F: Field,
     //Group,
-    NWidgetRelations: typenum::Unsigned,
+    NWidgetRelations: generic_array::ArrayLength<F>,
     Getters: BaseGetter<H, F, S, NWidgetRelations>,
     PC,
     S: Settings<H>,
-> = GenericVerifierWidget<
-    F,
-    H,
-    PC,
-    Getters,
-    NWidgetRelations,
-    S,
-    ArithmeticKernel<H, F, S, Getters, PC, NWidgetRelations>,
->;
+> {
+    phantom: PhantomData<(
+        H,
+        F,
+        //Group,
+        NWidgetRelations,
+        Getters,
+        PC,
+        S,
+    )>,
+}
+
+impl<
+        F: Field,
+        H: BarretenHasher,
+        PC,
+        NWidgetRelations: generic_array::ArrayLength<F>,
+        Getters: BaseGetter<H, F, S, NWidgetRelations>,
+        S: Settings<H>,
+    >
+    GenericVerifierWidget<
+        H,
+        F,
+        PC,
+        Getters,
+        NWidgetRelations,
+        S,
+        ArithmeticKernel<H, F, S, Getters, PC, NWidgetRelations>,
+    > for VerifierArithmeticWidget<H, F, NWidgetRelations, Getters, PC, S>
+{
+}

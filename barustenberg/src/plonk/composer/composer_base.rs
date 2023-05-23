@@ -1,4 +1,4 @@
-use std::{collections::HashMap, default, sync::Arc};
+use std::{collections::HashMap, sync::Arc};
 
 use ark_ec::AffineRepr;
 use rand::RngCore;
@@ -6,7 +6,10 @@ use std::default::Default;
 
 use crate::{
     plonk::proof_system::{proving_key::ProvingKey, verification_key::VerificationKey},
-    srs::reference_string::ReferenceStringFactory,
+    srs::reference_string::{
+        file_reference_string::FileReferenceStringFactory, BaseReferenceStringFactory,
+        ReferenceStringFactory,
+    },
 };
 
 use ark_ff::{FftField, Field};
@@ -92,14 +95,16 @@ impl<F: Field + FftField, G1Affine: AffineRepr, G2Affine: AffineRepr>
         size_hint: usize,
         selector_properties: Vec<SelectorProperties>,
     ) -> Self {
-        let crs_factory = Arc::new(ReferenceStringFactory::new("../srs_db/ignition"));
+        let crs_factory = Arc::new(FileReferenceStringFactory::new(
+            "../srs_db/ignition".to_string(),
+        ));
         Self::with_crs_factory(crs_factory, num_selectors, size_hint, selector_properties)
     }
 
     pub fn default() -> Self {
         Self {
             num_gates: 0,
-            crs_factory: Arc::new(Default::default()),
+            crs_factory: Arc::new(BaseReferenceStringFactory::<G1Affine, G2Affine>::default()),
             num_selectors: 0,
             selectors: Default::default(),
             selector_properties: Default::default(),
@@ -158,7 +163,9 @@ impl<F: Field + FftField, G1Affine: AffineRepr, G2Affine: AffineRepr>
         selfie.num_selectors = num_selectors;
         selfie.selector_properties = selector_properties;
         selfie.num_gates = 0;
-        selfie.crs_factory = Arc::new(ReferenceStringFactory::new("../srs_db/ignition"));
+        selfie.crs_factory = Arc::new(FileReferenceStringFactory::new(
+            "../srs_db/ignition".to_string(),
+        ));
         selfie
     }
     pub fn get_first_variable_in_class(&self, index: usize) -> usize {

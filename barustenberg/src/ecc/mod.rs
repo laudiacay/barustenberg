@@ -24,4 +24,5 @@ pub fn reduced_ate_pairing_batch_precomputed(
     todo!("see comment")
 }
 
+#[derive(Clone, Default)]
 pub struct PippengerRuntimeState {}

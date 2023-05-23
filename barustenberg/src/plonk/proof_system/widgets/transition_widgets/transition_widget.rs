@@ -73,6 +73,16 @@ pub mod containers {
         pub index_shift: usize,
     }
 
+    impl<F: Field> PolyPtrMap<F> {
+        pub fn new() -> Self {
+            Self {
+                coefficients: HashMap::new(),
+                block_mask: 0,
+                index_shift: 0,
+            }
+        }
+    }
+
     pub type CoefficientArray<Field> = [Field; PolynomialIndex::MaxNumPolynomials as usize];
 }
 
@@ -109,7 +119,6 @@ pub trait BaseGetter<
     /// # Returns
     /// A structure with an array of challenge values and powers of α
     fn get_challenges(
-        &self,
         transcript: &Transcript<H>,
         alpha_base: F,
         required_challenges: u8,
@@ -127,31 +136,31 @@ pub trait BaseGetter<
                 result.elements[tag] = F::from_random_bytes(random_bytes.as_ref());
             }
         };
-        self.add_challenge(
+        add_challenge(
             "alpha",
             ChallengeIndex::Alpha as usize,
             required_challenges & CHALLENGE_BIT_ALPHA as u8 != 0,
             0,
         );
-        self.add_challenge(
+        add_challenge(
             "beta",
             ChallengeIndex::Beta as usize,
             required_challenges & CHALLENGE_BIT_BETA as u8 != 0,
             0,
         );
-        self.add_challenge(
+        add_challenge(
             "beta",
             ChallengeIndex::Gamma as usize,
             required_challenges & CHALLENGE_BIT_GAMMA as u8 != 0,
             1,
         );
-        self.add_challenge(
+        add_challenge(
             "eta",
             ChallengeIndex::Eta as usize,
             required_challenges & CHALLENGE_BIT_ETA as u8 != 0,
             0,
         );
-        self.add_challenge(
+        add_challenge(
             "z",
             ChallengeIndex::Zeta as usize,
             required_challenges & CHALLENGE_BIT_ZETA as u8 != 0,
@@ -166,14 +175,13 @@ pub trait BaseGetter<
     }
 
     fn update_alpha(
-        &mut self,
         challenges: &ChallengeArray<F, NWidgetRelations>,
         num_independent_relations: usize,
     ) -> F {
         if num_independent_relations == 0 {
-            self.challenges.alpha_powers[0]
+            challenges.alpha_powers[0]
         } else {
-            self.challenges.alpha_powers[num_independent_relations - 1]
+            challenges.alpha_powers[num_independent_relations - 1]
                 * challenges.elements[ChallengeIndex::Alpha as usize]
         }
     }
@@ -235,7 +243,7 @@ pub trait EvaluationGetter<
             if info.requires_shifted_evaluation {
                 result[info.index].1 = transcript.get_element(&(label + "_omega"));
             } else {
-                result[info.index].1 = Field::zero();
+                result[info.index].1 = F::zero();
             }
         }
         result
@@ -364,18 +372,16 @@ impl<
         let key = self.base.key.as_ref().expect("Proving key is missing");
 
         let required_polynomial_ids = KernelBase::get_required_polynomial_ids();
-        let polynomials =
-            FFTGetter::<F, _, _, KernelBase::NUM_INDEPENDENT_RELATIONS>::get_polynomials(
-                key,
-                &required_polynomial_ids,
-            );
+        let polynomials = FFTGetter::<H, F, G1Affine, S, NIndependentRelations>::get_polynomials(
+            key,
+            &required_polynomial_ids,
+        );
 
-        let challenges =
-            FFTGetter::<F, _, _, KernelBase::NUM_INDEPENDENT_RELATIONS>::get_challenges(
-                transcript,
-                &alpha_base,
-                KernelBase::quotient_required_challenges(),
-            );
+        let challenges = FFTGetter::<H, F, G1Affine, S, NIndependentRelations>::get_challenges(
+            transcript,
+            &alpha_base,
+            KernelBase::quotient_required_challenges(),
+        );
 
         let mut quotient_term;
 
@@ -390,7 +396,7 @@ impl<
             KernelBase::compute_non_linear_terms(&polynomials, &challenges, quotient_term, i);
         }
 
-        FFTGetter::<H, F, S, KernelBase::NumIndependentRelations>::update_alpha(&challenges)
+        FFTGetter::<H, F, G1Affine, S, NIndependentRelations>::update_alpha(&challenges)
     }
 }
 
@@ -412,7 +418,7 @@ impl<
     }
 }
 
-pub struct GenericVerifierWidget<
+pub trait GenericVerifierWidget<
     F: Field,
     H: BarretenHasher,
     PC,
@@ -424,38 +430,22 @@ pub struct GenericVerifierWidget<
     NIndependentRelations: generic_array::ArrayLength<F>,
     KB: KernelBase<F, PC, G, NIndependentRelations>,
 {
-    phantom: PhantomData<(F, H, S, KB, PC, G, NIndependentRelations)>,
-}
-
-impl<
-        F: Field,
-        H: BarretenHasher,
-        PC,
-        G: Getters<F, PC>,
-        NIndependentRelations: generic_array::ArrayLength<F>,
-        S: Settings<H>,
-        KB,
-    > GenericVerifierWidget<F, H, PC, G, NIndependentRelations, S, KB>
-where
-    KB: KernelBase<F, PC, G, NIndependentRelations>,
-{
-    pub fn compute_quotient_evaluation_contribution(
+    fn compute_quotient_evaluation_contribution(
         key: &Arc<TranscriptKey>,
         alpha_base: F,
         transcript: &Transcript<H>,
         quotient_numerator_eval: &mut F,
     ) -> F {
         let polynomial_evaluations =
-            EvaluationGetter::<H, S, NIndependentRelations, F>::get_polynomial_evaluations(
+            EvaluationGetter::<F, H, S, NIndependentRelations>::get_polynomial_evaluations(
                 &key.polynomial_manifest,
                 transcript,
             );
-        let challenges =
-            EvaluationGetter::<Field, _, _, KernelBase::NumIndependentRelations>::get_challenges(
-                transcript,
-                &alpha_base,
-                KernelBase::quotient_required_challenges(),
-            );
+        let challenges = EvaluationGetter::<F, H, S, NIndependentRelations>::get_challenges(
+            transcript,
+            &alpha_base,
+            KernelBase::quotient_required_challenges(),
+        );
 
         let mut linear_terms = CoefficientArray::default();
         KernelBase::compute_linear_terms(
@@ -477,27 +467,21 @@ where
             todo!("where is the index"),
         );
 
-        EvaluationGetter::<Field, _, _, KernelBase::NIndependentRelations>::update_alpha(
-            &challenges,
-        )
+        EvaluationGetter::<F, H, S, NIndependentRelations>::update_alpha(&challenges)
     }
 
-    pub fn append_scalar_multiplication_inputs(
+    fn append_scalar_multiplication_inputs(
         key: &Arc<TranscriptKey>,
         alpha_base: F,
         transcript: &Transcript<H>,
         scalar_mult_inputs: &mut HashMap<String, F>,
     ) -> F {
-        let challenges =
-            EvaluationGetter::<F, H, S, KernelBase::NUM_INDEPENDENT_RELATIONS>::get_challenges(
-                transcript,
-                &alpha_base,
-                KernelBase::quotient_required_challenges()
-                    | KernelBase::update_required_challenges(),
-            );
+        let challenges = EvaluationGetter::<F, H, S, NIndependentRelations>::get_challenges(
+            transcript,
+            &alpha_base,
+            KernelBase::quotient_required_challenges() | KernelBase::update_required_challenges(),
+        );
 
-        EvaluationGetter::<F, H, S, KernelBase::NUM_INDEPENDENT_RELATIONS>::update_alpha(
-            &challenges,
-        )
+        EvaluationGetter::<F, H, S, NIndependentRelations>::update_alpha(&challenges)
     }
 }

@@ -1,4 +1,11 @@
+#[derive(Clone, Copy, Default)]
 pub(crate) struct PolynomialManifest {}
+
+impl PolynomialManifest {
+    fn len(&self) -> usize {
+        todo!()
+    }
+}
 
 pub(crate) enum PolynomialSource {
     WITNESS,

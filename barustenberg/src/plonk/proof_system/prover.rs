@@ -48,11 +48,8 @@ impl<Fq: Field, Fr: Field + FftField, G1Affine: AffineRepr, H: BarretenHasher, S
         input_settings: Option<S>,
     ) -> Self {
         let circuit_size = input_key.as_ref().map_or(0, |key| key.circuit_size);
-        let transcript = Transcript::StandardTranscript::new(
-            input_manifest,
-            S::HASH_TYPE,
-            S::NUM_CHALLENGE_BYTES,
-        );
+        let transcript =
+            StandardTranscript::new(input_manifest, S::HASH_TYPE, S::NUM_CHALLENGE_BYTES);
         let queue = WorkQueue::new(input_key.as_ref(), &transcript);
 
         Self {
@@ -62,7 +59,7 @@ impl<Fq: Field, Fr: Field + FftField, G1Affine: AffineRepr, H: BarretenHasher, S
             queue,
             random_widgets: Vec::new(),
             transition_widgets: Vec::new(),
-            commitment_scheme: CommitmentScheme::default(),
+            commitment_scheme: CommitmentScheme::<Fq, Fr, G1Affine, H>::default(),
             phantom: PhantomData,
         }
     }

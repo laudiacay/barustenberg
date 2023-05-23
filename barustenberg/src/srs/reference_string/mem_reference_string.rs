@@ -15,12 +15,6 @@ impl<G2Affine: AffineRepr> VerifierMemReferenceString<G2Affine> {
     }
 }
 
-impl<G2Affine: AffineRepr> Drop for VerifierMemReferenceString<G2Affine> {
-    fn drop(&mut self) {
-        // Implement the destructor logic here if necessary
-    }
-}
-
 impl<G2Affine: AffineRepr> VerifierReferenceString<G2Affine>
     for VerifierMemReferenceString<G2Affine>
 {

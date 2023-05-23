@@ -7,7 +7,7 @@ use std::{
     marker::PhantomData,
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub(crate) struct PolynomialStore<Fr: Field> {
     polynomial_map: HashMap<String, Polynomial<Fr>>,
     phantom: PhantomData<Fr>,

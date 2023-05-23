@@ -402,7 +402,7 @@ impl<Fr: Field + FftField> EvaluationDomain<Fr> {
         let half_mask = m - 1;
         let round_roots = &root_table[((m as f64).log2() as usize) - 1];
 
-        let small_domain = EvaluationDomain::new(n, None);
+        let small_domain = EvaluationDomain::<Fr>::new(n, None);
 
         for i in 0..small_domain.size {
             let mut temp = [

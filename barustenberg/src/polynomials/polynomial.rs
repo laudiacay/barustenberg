@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use ark_ff::Field;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub(crate) struct Polynomial<F: Field> {
     degree: usize,
     phantom: PhantomData<F>,

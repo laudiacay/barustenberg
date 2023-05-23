@@ -8,7 +8,8 @@ use crate::srs::reference_string::{
 
 use super::mem_reference_string::VerifierMemReferenceString;
 
-struct Pippenger {}
+#[derive(Clone, Default)]
+pub(crate) struct Pippenger {}
 
 impl Pippenger {
     pub fn get_num_points(&self) -> usize {
@@ -38,7 +39,7 @@ impl<'a, G1Affine: AffineRepr> ProverReferenceString<G1Affine>
         todo!()
     }
 
-    fn get_monomial_points(&mut self) -> &mut G1Affine {
+    fn get_monomial_points(&mut self) -> Vec<G1Affine> {
         todo!()
     }
 }

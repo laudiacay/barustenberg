@@ -12,6 +12,7 @@ use crate::plonk::composer::composer_base::ComposerType;
 use crate::polynomials::evaluation_domain::EvaluationDomain;
 use crate::polynomials::Polynomial;
 use crate::proof_system::polynomial_store::PolynomialStore;
+use crate::srs::reference_string::file_reference_string::FileReferenceString;
 use crate::srs::reference_string::ProverReferenceString;
 
 use super::types::PolynomialManifest;
@@ -50,6 +51,28 @@ pub struct ProvingKey<Fr: Field + FftField, G1Affine: AffineRepr> {
     pub polynomial_manifest: PolynomialManifest,
 }
 
+impl<Fr: Field + FftField, G1Affine: AffineRepr> Default for ProvingKey<Fr, G1Affine> {
+    fn default() -> Self {
+        Self {
+            composer_type: 0,
+            circuit_size: 0,
+            log_circuit_size: 0,
+            num_public_inputs: 0,
+            contains_recursive_proof: false,
+            recursive_proof_public_input_indices: vec![],
+            memory_read_records: vec![],
+            memory_write_records: vec![],
+            polynomial_store: PolynomialStore::new(),
+            small_domain: EvaluationDomain::new(0, None),
+            large_domain: EvaluationDomain::new(0, None),
+            reference_string: Arc::new(FileReferenceString::<G1Affine>::default()),
+            quotient_polynomial_parts: Default::default(),
+            pippenger_runtime_state: PippengerRuntimeState::default(),
+            polynomial_manifest: PolynomialManifest::default(),
+        }
+    }
+}
+
 impl<Fr: Field + FftField, G1Affine: AffineRepr> ProvingKey<Fr, G1Affine> {
     pub fn new_with_data(
         data: ProvingKeyData<Fr>,
@@ -67,14 +90,14 @@ impl<Fr: Field + FftField, G1Affine: AffineRepr> ProvingKey<Fr, G1Affine> {
         } = data;
 
         let log_circuit_size = (circuit_size as f64).log2().ceil() as usize;
-        let small_domain = EvaluationDomain::new(circuit_size, None).unwrap();
-        let large_domain = EvaluationDomain::new(1usize << log_circuit_size, None).unwrap();
+        let small_domain = EvaluationDomain::new(circuit_size as usize, None);
+        let large_domain = EvaluationDomain::new(1usize << log_circuit_size, None);
 
         let mut ret = Self {
             composer_type,
-            circuit_size,
+            circuit_size: circuit_size as usize,
             log_circuit_size,
-            num_public_inputs,
+            num_public_inputs: num_public_inputs as usize,
             contains_recursive_proof,
             recursive_proof_public_input_indices,
             memory_read_records,
@@ -99,8 +122,8 @@ impl<Fr: Field + FftField, G1Affine: AffineRepr> ProvingKey<Fr, G1Affine> {
     ) -> Self {
         let data = ProvingKeyData {
             composer_type: type_ as u32,
-            circuit_size: num_gates + num_inputs,
-            num_public_inputs: num_inputs,
+            circuit_size: (num_gates + num_inputs) as u32,
+            num_public_inputs: num_inputs as u32,
             contains_recursive_proof: false,
             recursive_proof_public_input_indices: vec![],
             memory_read_records: vec![],
@@ -149,7 +172,8 @@ impl<Fr: Field + FftField, G1Affine: AffineRepr> ProvingKey<Fr, G1Affine> {
     }
 
     pub fn from_reader<R: Read>(reader: &mut R, crs_path: &str) -> Result<Self, std::io::Error> {
-        let crs = Arc::new(ProverReferenceString::read_from_path(crs_path)?);
+        let crs = Arc::new(FileReferenceString::read_from_path(crs_path)?);
+        todo!();
     }
 }
 
