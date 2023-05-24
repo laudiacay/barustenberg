@@ -709,42 +709,36 @@ impl<Fq: Field, Fr: Field + FftField, G1Affine: AffineRepr, H: BarretenHasher, S
         todo!("implement me")
     }
     fn flush_queued_work_items(&self) {
-        self.get_queue().flush_queue()
+        self.queue.flush_queue()
     }
-    fn get_queued_work_item_info(&self) -> work_queue::WorkItemInfo {
-        self.get_queue().get_queued_work_item_info()
+    fn queued_work_item_info(&self) -> work_queue::WorkItemInfo {
+        self.queue.queued_work_item_info()
     }
     fn get_scalar_multiplication_data(&self, work_item_number: usize) -> Fr {
-        self.get_queue()
-            .get_scalar_multiplication_data(work_item_number)
+        self.queue.get_scalar_multiplication_data(work_item_number)
     }
     fn get_scalar_multiplication_size(&self, work_item_number: usize) -> usize {
-        self.get_queue()
-            .get_scalar_multiplication_size(work_item_number)
+        self.queue.get_scalar_multiplication_size(work_item_number)
     }
     fn get_ifft_data(&self, work_item_number: usize) -> &Fr {
-        self.get_queue().get_ifft_data(work_item_number)
+        self.queue.get_ifft_data(work_item_number)
     }
-    fn get_fft_data(&self, work_item_number: usize) -> &work_queue::QueuedFftInputs<Fr> {
-        self.get_queue().get_fft_data(work_item_number)
+    fn get_fft_data(&self, work_item_number: usize) -> work_queue::QueuedFftInputs<Fr> {
+        self.queue.get_fft_data(work_item_number)
     }
     fn put_scalar_multiplication_data(&self, result: G1Affine, work_item_number: usize) {
-        self.get_queue()
+        self.queue
             .put_scalar_multiplication_data(result, work_item_number);
     }
     fn put_fft_data(&self, result: Fr, work_item_number: usize) {
-        self.get_queue().put_fft_data(result, work_item_number);
+        self.queue.put_fft_data(result, work_item_number);
     }
     fn put_ifft_data(&self, result: Fr, work_item_number: usize) {
-        self.get_queue().put_ifft_data(result, work_item_number);
+        self.queue.put_ifft_data(result, work_item_number);
     }
-    fn reset(&self) {
+    fn reset(&mut self) {
         let manifest = self.transcript.get_manifest();
-        self.set_transcript(Transcript::StandardTranscript(
-            manifest,
-            S::HASH_TYPE,
-            S::NUM_CHALLENGE_BYTES,
-        ));
+        self.transcript = Transcript::<H>::new(manifest);
     }
 }
 

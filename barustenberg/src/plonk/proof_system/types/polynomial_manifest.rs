@@ -2,7 +2,7 @@
 pub(crate) struct PolynomialManifest {}
 
 impl PolynomialManifest {
-    fn len(&self) -> usize {
+    pub fn len(&self) -> usize {
         todo!()
     }
 }

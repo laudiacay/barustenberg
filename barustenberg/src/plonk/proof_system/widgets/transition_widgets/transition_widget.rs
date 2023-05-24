@@ -22,8 +22,6 @@ use crate::{
 
 use self::containers::{ChallengeArray, CoefficientArray, PolyArray, PolyPtrMap};
 
-use super::arithmetic_widget::Getters;
-
 pub enum ChallengeIndex {
     Alpha,
     Beta,
@@ -305,10 +303,12 @@ impl<F: Field + FftField, G1Affine: AffineRepr> TransitionWidgetBase<F, G1Affine
     // other methods and trait implementations
 }
 
-trait KernelBase<
+pub trait KernelBase<
+    H: BarretenHasher,
+    S: Settings<H>,
     F: Field,
     PC,
-    G: Getters<F, PC>,
+    G: BaseGetter<H, F, S, NumIndependentRelations>,
     NumIndependentRelations: generic_array::ArrayLength<F>,
 >
 {
@@ -341,9 +341,9 @@ pub struct TransitionWidget<
     G1Affine: AffineRepr,
     S: Settings<H>,
     PC,
-    G: Getters<F, PC>,
+    G: BaseGetter<H, F, S, NIndependentRelations>,
     NIndependentRelations: generic_array::ArrayLength<F>,
-    KB: KernelBase<F, PC, G, NIndependentRelations>,
+    KB: KernelBase<H, S, F, PC, G, NIndependentRelations>,
 > {
     base: TransitionWidgetBase<F, G1Affine>,
     phantom: std::marker::PhantomData<(H, S, PC, G, KB, NIndependentRelations)>,
@@ -355,9 +355,9 @@ impl<
         G1Affine: AffineRepr,
         S: Settings<H>,
         PC,
-        G: Getters<F, PC>,
+        G: BaseGetter<H, F, S, NIndependentRelations>,
         NIndependentRelations: generic_array::ArrayLength<F>,
-        KB: KernelBase<F, PC, G, NIndependentRelations>,
+        KB: KernelBase<H, S, F, PC, G, NIndependentRelations>,
     > TransitionWidget<H, F, G1Affine, S, PC, G, NIndependentRelations, KB>
 {
     pub fn new(key: Option<Arc<ProvingKey<F, G1Affine>>>) -> Self {
@@ -406,9 +406,9 @@ impl<
         H: BarretenHasher,
         G1Affine: AffineRepr,
         S: Settings<H>,
-        KB: KernelBase<F, PC, G, NIndependentRelations>,
+        KB: KernelBase<H, S, F, PC, G, NIndependentRelations>,
         PC,
-        G: Getters<F, PC>,
+        G: BaseGetter<H, F, S, NIndependentRelations>,
         NIndependentRelations: generic_array::ArrayLength<F>,
     > From<TransitionWidget<H, F, G1Affine, S, PC, G, NIndependentRelations, KB>>
     for TransitionWidgetBase<F, G1Affine>
@@ -422,13 +422,13 @@ pub trait GenericVerifierWidget<
     F: Field,
     H: BarretenHasher,
     PC,
-    G: Getters<F, PC>,
+    G: BaseGetter<H, F, S, NIndependentRelations>,
     NIndependentRelations,
     S: Settings<H>,
     KB,
 > where
     NIndependentRelations: generic_array::ArrayLength<F>,
-    KB: KernelBase<F, PC, G, NIndependentRelations>,
+    KB: KernelBase<H, S, F, PC, G, NIndependentRelations>,
 {
     fn compute_quotient_evaluation_contribution(
         key: &Arc<TranscriptKey>,

@@ -97,7 +97,7 @@ impl<H: BarretenHasher, Fr: Field + FftField, G1Affine: AffineRepr> WorkQueue<H,
         }
     }
 
-    fn get_scalar_multiplication_data(&self, work_item_number: usize) -> Option<Rc<Vec<Fr>>> {
+    pub fn get_scalar_multiplication_data(&self, work_item_number: usize) -> Option<Rc<Vec<Fr>>> {
         let mut count: usize = 0;
         for item in self.work_items.iter() {
             if item.work_type == WorkType::ScalarMultiplication {
@@ -110,7 +110,7 @@ impl<H: BarretenHasher, Fr: Field + FftField, G1Affine: AffineRepr> WorkQueue<H,
         None
     }
 
-    fn get_scalar_multiplication_size(&self, work_item_number: usize) -> usize {
+    pub fn get_scalar_multiplication_size(&self, work_item_number: usize) -> usize {
         let mut count: usize = 0;
         for item in self.work_items.iter() {
             if item.work_type == WorkType::ScalarMultiplication {
@@ -124,7 +124,7 @@ impl<H: BarretenHasher, Fr: Field + FftField, G1Affine: AffineRepr> WorkQueue<H,
         0
     }
 
-    fn get_ifft_data(&self, work_item_number: usize) -> Option<Rc<Vec<Fr>>> {
+    pub fn get_ifft_data(&self, work_item_number: usize) -> Option<Rc<Vec<Fr>>> {
         let mut count: usize = 0;
         for item in self.work_items.iter() {
             if item.work_type == WorkType::Ifft {
@@ -143,7 +143,7 @@ impl<H: BarretenHasher, Fr: Field + FftField, G1Affine: AffineRepr> WorkQueue<H,
         todo!("do it");
     }
 
-    fn get_fft_data(&self) {
+    pub fn get_fft_data(&self) -> Option<Rc<QueuedFftInputs<Fr>>> {
         todo!("do it");
     }
 
@@ -151,7 +151,7 @@ impl<H: BarretenHasher, Fr: Field + FftField, G1Affine: AffineRepr> WorkQueue<H,
         todo!("do it")
     }
 
-    fn put_scalar_multiplication_data(&self) {
+    pub fn put_scalar_multiplication_data(&self) {
         todo!("do it")
     }
 
