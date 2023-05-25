@@ -30,7 +30,7 @@ struct ProvingKeyData<F: Field> {
     polynomial_store: PolynomialStore<F>,
 }
 
-pub struct ProvingKey<Fr: Field + FftField, G1Affine: AffineRepr> {
+pub struct ProvingKey<'a, Fr: Field + FftField, G1Affine: AffineRepr> {
     pub composer_type: u32,
     pub circuit_size: usize,
     pub log_circuit_size: usize,
@@ -42,8 +42,8 @@ pub struct ProvingKey<Fr: Field + FftField, G1Affine: AffineRepr> {
     /// Used by UltraComposer only, for RAM writes.
     pub memory_write_records: Vec<u32>,
     pub polynomial_store: PolynomialStore<Fr>,
-    pub small_domain: EvaluationDomain<Fr>,
-    pub large_domain: EvaluationDomain<Fr>,
+    pub small_domain: EvaluationDomain<'a, Fr>,
+    pub large_domain: EvaluationDomain<'a, Fr>,
     /// The reference_string object contains the monomial SRS. We can access it using:
     /// Monomial SRS: reference_string->get_monomial_points()
     pub reference_string: Arc<dyn ProverReferenceString<G1Affine>>,
@@ -52,7 +52,7 @@ pub struct ProvingKey<Fr: Field + FftField, G1Affine: AffineRepr> {
     pub polynomial_manifest: PolynomialManifest,
 }
 
-impl<Fr: Field + FftField, G1Affine: AffineRepr> Default for ProvingKey<Fr, G1Affine> {
+impl<'a, Fr: Field + FftField, G1Affine: AffineRepr> Default for ProvingKey<'a, Fr, G1Affine> {
     fn default() -> Self {
         Self {
             composer_type: 0,
@@ -74,7 +74,7 @@ impl<Fr: Field + FftField, G1Affine: AffineRepr> Default for ProvingKey<Fr, G1Af
     }
 }
 
-impl<Fr: Field + FftField, G1Affine: AffineRepr> ProvingKey<Fr, G1Affine> {
+impl<'a, Fr: Field + FftField, G1Affine: AffineRepr> ProvingKey<'a, Fr, G1Affine> {
     pub fn new_with_data(
         data: ProvingKeyData<Fr>,
         crs: Arc<dyn ProverReferenceString<G1Affine>>,
@@ -159,16 +159,16 @@ impl<Fr: Field + FftField, G1Affine: AffineRepr> ProvingKey<Fr, G1Affine> {
         let size_t_fr_len = self.circuit_size + 1;
         let fr_len = self.circuit_size;
         self.quotient_polynomial_parts[0]
-            .iter_mut()
+            .into_iter()
             .for_each(|c| *c = zero_fr);
         self.quotient_polynomial_parts[1]
-            .iter_mut()
+            .into_iter()
             .for_each(|c| *c = zero_fr);
         self.quotient_polynomial_parts[2]
-            .iter_mut()
+            .into_iter()
             .for_each(|c| *c = zero_fr);
         self.quotient_polynomial_parts[3]
-            .iter_mut()
+            .into_iter()
             .for_each(|c| *c = zero_fr);
     }
 
@@ -178,7 +178,7 @@ impl<Fr: Field + FftField, G1Affine: AffineRepr> ProvingKey<Fr, G1Affine> {
     }
 }
 
-impl<Fr: Field + FftField, G1Affine: AffineRepr> Serialize for ProvingKey<Fr, G1Affine> {
+impl<'a, Fr: Field + FftField, G1Affine: AffineRepr> Serialize for ProvingKey<'a, Fr, G1Affine> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         // TODO
         /*
@@ -243,8 +243,8 @@ impl<Fr: Field + FftField, G1Affine: AffineRepr> Serialize for ProvingKey<Fr, G1
     }
 }
 
-impl<'de, Fr: Field + FftField, G1Affine: AffineRepr> Deserialize<'de>
-    for ProvingKey<Fr, G1Affine>
+impl<'a, 'de, Fr: Field + FftField, G1Affine: AffineRepr> Deserialize<'de>
+    for ProvingKey<'a, Fr, G1Affine>
 {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where

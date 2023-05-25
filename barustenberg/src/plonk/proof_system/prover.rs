@@ -739,7 +739,7 @@ impl<Fq: Field, Fr: Field + FftField, G1Affine: AffineRepr, H: BarretenHasher, S
     }
     fn reset(&mut self) {
         let manifest = self.transcript.get_manifest();
-        self.transcript = Transcript::<H>::new(manifest, self.transcript.num_challenge_bytes);
+        self.transcript = Transcript::<H>::new(Some(manifest), self.transcript.num_challenge_bytes);
     }
 }
 
