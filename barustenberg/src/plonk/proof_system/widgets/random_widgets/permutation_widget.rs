@@ -53,7 +53,7 @@ where
 }
 
 pub struct ProverPermutationWidget<
-    Fr: Field,
+    Fr: Field + FftField,
     Hash: BarretenHasher,
     G1Affine: AffineRepr,
     const PROGRAM_WIDTH: usize,

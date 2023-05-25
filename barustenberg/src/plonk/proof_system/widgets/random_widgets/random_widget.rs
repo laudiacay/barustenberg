@@ -9,8 +9,9 @@ use crate::{
     transcript::{BarretenHasher, Transcript},
 };
 
-pub struct ProverRandomWidget<H: BarretenHasher, Fr: Field, G1Affine: AffineRepr> {
-    phantom: PhantomData<(H, Fr, G1Affine)>,
+pub struct ProverRandomWidget<H: BarretenHasher, Fr: Field + FftField, G1Affine: AffineRepr> {
+    pub key: ProvingKey<Fr, G1Affine>,
+    phantom: PhantomData<H>,
 }
 
 impl<H: BarretenHasher, Fr: Field + FftField, G1Affine: AffineRepr>
@@ -34,31 +35,19 @@ impl<H: BarretenHasher, Fr: Field + FftField, G1Affine: AffineRepr>
     }
 }
 
-impl<H: BarretenHasher, Fr: Field, G1Affine: AffineRepr> Clone
+impl<H: BarretenHasher, Fr: Field + FftField, G1Affine: AffineRepr> Clone
     for Box<ProverRandomWidget<H, Fr, G1Affine>>
 {
     fn clone(&self) -> Self {
-        Box::new(self.boxed_clone())
+        Box::new(*self.as_ref().clone())
     }
 }
 
-pub trait BoxedCloneProverRandomWidget {
-    fn boxed_clone(&self) -> Self;
-}
-
-impl<H: BarretenHasher, Fr: Field, G1Affine: AffineRepr> BoxedCloneProverRandomWidget
-    for ProverRandomWidget<H, Fr, G1Affine>
-{
-    fn boxed_clone(&self) -> Box<ProverRandomWidget<H, Fr, G1Affine>> {
-        Box::new(self.clone())
-    }
-}
-
-impl<H: BarretenHasher, Fr: Field, G1Affine: AffineRepr> PartialEq
+impl<H: BarretenHasher, Fr: Field + FftField, G1Affine: AffineRepr> PartialEq
     for ProverRandomWidget<H, Fr, G1Affine>
 {
     fn eq(&self, other: &Self) -> bool {
-        self.key() == other.key()
+        std::ptr::eq(self, other)
     }
 }
 
@@ -69,7 +58,7 @@ impl<H: BarretenHasher, Fr: Field, G1Affine: AffineRepr> PartialEq
 //     }
 // }
 
-impl<H: BarretenHasher, Fr: Field, G1Affine: AffineRepr> Eq
+impl<H: BarretenHasher, Fr: Field + FftField, G1Affine: AffineRepr> Eq
     for ProverRandomWidget<H, Fr, G1Affine>
 {
 }

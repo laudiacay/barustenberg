@@ -1,7 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
-    marker::PhantomData,
-    sync::Arc,
+    sync::{Arc, Mutex},
 };
 
 use ark_ec::AffineRepr;
@@ -17,7 +16,7 @@ use crate::{
             PolynomialManifest,
         },
     },
-    transcript::{BarretenHasher, Transcript, TranscriptKey},
+    transcript::{BarretenHasher, Transcript, TranscriptKey, TranscriptWrapper},
 };
 
 use self::containers::{ChallengeArray, CoefficientArray, PolyArray, PolyPtrMap};
@@ -50,6 +49,7 @@ static _MAX_NUM_CHALLENGES_CHECK: () = {
 
 pub mod containers {
     use generic_array::GenericArray;
+    use std::ops::Index;
 
     use crate::plonk::proof_system::types::polynomial_manifest::PolynomialIndex;
 
@@ -63,7 +63,21 @@ pub mod containers {
         pub alpha_powers: GenericArray<F, NumRelations>,
     }
 
-    pub type PolyArray<Field> = [(Field, Field); PolynomialIndex::MaxNumPolynomials as usize];
+    pub struct PolyArray<Field>(pub [(Field, Field); PolynomialIndex::MaxNumPolynomials as usize]);
+
+    impl<F: Field> Index<PolynomialIndex> for PolyArray<F> {
+        type Output = (F, F);
+
+        fn index(&self, index: PolynomialIndex) -> &Self::Output {
+            &self.0[index as usize]
+        }
+    }
+
+    impl<F: Field> Default for PolyArray<F> {
+        fn default() -> Self {
+            Self([(F::zero(), F::zero()); PolynomialIndex::MaxNumPolynomials as usize])
+        }
+    }
 
     pub struct PolyPtrMap<Field> {
         pub coefficients: HashMap<PolynomialIndex, Vec<Field>>,
@@ -81,7 +95,19 @@ pub mod containers {
         }
     }
 
-    pub type CoefficientArray<Field> = [Field; PolynomialIndex::MaxNumPolynomials as usize];
+    pub struct CoefficientArray<F: Field>([F; PolynomialIndex::MaxNumPolynomials as usize]);
+    impl<F: Field> Index<PolynomialIndex> for CoefficientArray<F> {
+        type Output = F;
+
+        fn index(&self, index: PolynomialIndex) -> &Self::Output {
+            &self.0[index as usize]
+        }
+    }
+    impl<F: Field> Default for CoefficientArray<F> {
+        fn default() -> Self {
+            Self([F::zero(); PolynomialIndex::MaxNumPolynomials as usize])
+        }
+    }
 }
 
 // Getters are various structs that are used to retrieve/query various objects needed during the proof.
@@ -120,9 +146,9 @@ pub trait BaseGetter<
         transcript: &Transcript<H>,
         alpha_base: F,
         required_challenges: u8,
-        rng: &mut dyn rand::RngCore,
+        rng: Arc<Mutex<dyn rand::RngCore + Send + Sync>>,
     ) -> ChallengeArray<F, NWidgetRelations> {
-        let mut result = ChallengeArray::default();
+        let mut result: ChallengeArray<F, _> = ChallengeArray::default();
         let add_challenge = |label: &str, tag: usize, required: bool, index: usize| {
             assert!(!required || transcript.has_challenge(label));
             if transcript.has_challenge(label) {
@@ -130,8 +156,9 @@ pub trait BaseGetter<
                 result.elements[tag] = transcript.get_challenge_field_element(label, index);
             } else {
                 let mut random_bytes = vec![0u8; std::mem::size_of::<F>()];
-                rng.fill_bytes(&mut random_bytes);
-                result.elements[tag] = F::from_random_bytes(random_bytes.as_ref());
+                rng.lock()?.fill_bytes(&mut random_bytes);
+                result.elements[tag] = F::from_random_bytes(random_bytes.as_ref())
+                    .expect("random deserialization didn't work");
             }
         };
         add_challenge(
@@ -172,14 +199,11 @@ pub trait BaseGetter<
         result
     }
 
-    fn update_alpha(
-        challenges: &ChallengeArray<F, NWidgetRelations>,
-        num_independent_relations: usize,
-    ) -> F {
-        if num_independent_relations == 0 {
+    fn update_alpha(challenges: &ChallengeArray<F, NWidgetRelations>) -> F {
+        if NWidgetRelations::USIZE == 0 {
             challenges.alpha_powers[0]
         } else {
-            challenges.alpha_powers[num_independent_relations - 1]
+            challenges.alpha_powers[NWidgetRelations::USIZE - 1]
                 * challenges.elements[ChallengeIndex::Alpha as usize]
         }
     }
@@ -188,8 +212,8 @@ pub trait BaseGetter<
 /// Implements loading polynomial openings from transcript in addition to BaseGetter's
 /// loading challenges from the transcript and computing powers of α
 pub trait EvaluationGetter<
-    F: Field,
     H: BarretenHasher,
+    F: Field,
     S: Settings<H>,
     NWidgetRelations: generic_array::ArrayLength<F>,
 >: BaseGetter<H, F, S, NWidgetRelations>
@@ -212,9 +236,9 @@ pub trait EvaluationGetter<
         polynomials: &PolyArray<F>,
     ) -> &F {
         if USE_SHIFTED_EVALUATION {
-            &polynomials[ID].1
+            &polynomials.0[ID].1
         } else {
-            &polynomials[ID].0
+            &polynomials.0[ID].0
         }
     }
 
@@ -228,18 +252,25 @@ pub trait EvaluationGetter<
     /// # Returns
     ///
     /// `PolyArray`
-    fn get_polynomial_evaluations(
+    fn get_polynomial_evaluations<G1Affine: AffineRepr>(
         polynomial_manifest: &PolynomialManifest,
         transcript: &Transcript<H>,
     ) -> PolyArray<F> {
         let mut result: PolyArray<F> = Default::default();
         for i in 0..polynomial_manifest.len() {
-            let info = &polynomial_manifest[i];
+            let info = &polynomial_manifest[i.into()];
             let label = info.polynomial_label.clone();
-            result[info.index].0 = transcript.get_element(&label);
+            result[i.into()].0 =
+                <Transcript<H> as TranscriptWrapper<F, G1Affine, H>>::get_field_element(
+                    transcript, &label,
+                );
 
             if info.requires_shifted_evaluation {
-                result[info.index].1 = transcript.get_element(&(label + "_omega"));
+                result[info.index].1 =
+                    <Transcript<H> as TranscriptWrapper<F, G1Affine, H>>::get_field_element(
+                        transcript,
+                        &(label + "_omega"),
+                    );
             } else {
                 result[info.index].1 = F::zero();
             }
@@ -267,26 +298,27 @@ where
         result.block_mask = key.large_domain.size - 1;
         result.index_shift = 4;
 
-        for info in &key.polynomial_manifest {
-            if required_polynomial_ids.contains(&info.index) {
+        for info in key.polynomial_manifest.into_iter() {
+            if required_polynomial_ids.get(&info.index).is_some() {
                 let label = info.polynomial_label.clone() + label_suffix;
-                result
-                    .coefficients
-                    .insert(info.index, key.polynomial_store.get(&label));
+                let poly = key.polynomial_store.get(label).unwrap();
+                result.coefficients.insert(info.index, poly);
             }
         }
         result
     }
 
-    fn get_value<const EVALUATION_TYPE: usize, const ID: usize>(
+    fn get_value(
         polynomials: &PolyPtrMap<F>,
         index: usize,
+        evaluation_type: EvaluationType,
+        id: PolynomialIndex,
     ) -> &F {
-        if EVALUATION_TYPE == EvaluationType::Shifted {
+        if evaluation_type == EvaluationType::Shifted {
             let shifted_index = (index + polynomials.index_shift) & polynomials.block_mask;
-            &polynomials.coefficients[&ID][shifted_index]
+            &polynomials.coefficients.get(&id).unwrap()[shifted_index]
         } else {
-            &polynomials.coefficients[&ID][index]
+            &polynomials.coefficients.get(&id).unwrap()[index]
         }
     }
 }
@@ -346,7 +378,36 @@ pub struct TransitionWidget<
     KB: KernelBase<H, S, F, PC, G, NIndependentRelations>,
 > {
     base: TransitionWidgetBase<F, G1Affine>,
+    rng: Arc<Mutex<dyn rand::RngCore>>,
     phantom: std::marker::PhantomData<(H, S, PC, G, KB, NIndependentRelations)>,
+}
+
+impl<
+        H: BarretenHasher,
+        F: Field + FftField,
+        G1Affine: AffineRepr,
+        S: Settings<H>,
+        PC,
+        G: BaseGetter<H, F, S, NIndependentRelations>,
+        NIndependentRelations: generic_array::ArrayLength<F>,
+        KB: KernelBase<H, S, F, PC, G, NIndependentRelations>,
+    > BaseGetter<H, F, S, NIndependentRelations>
+    for TransitionWidget<H, F, G1Affine, S, PC, G, NIndependentRelations, KB>
+{
+}
+
+impl<
+        H: BarretenHasher,
+        F: Field + FftField,
+        G1Affine: AffineRepr,
+        S: Settings<H>,
+        PC,
+        G: BaseGetter<H, F, S, NIndependentRelations>,
+        NIndependentRelations: generic_array::ArrayLength<F>,
+        KB: KernelBase<H, S, F, PC, G, NIndependentRelations>,
+    > FFTGetter<H, F, G1Affine, S, NIndependentRelations>
+    for TransitionWidget<H, F, G1Affine, S, PC, G, NIndependentRelations, KB>
+{
 }
 
 impl<
@@ -364,6 +425,7 @@ impl<
         Self {
             base: TransitionWidgetBase::new(key),
             phantom: std::marker::PhantomData,
+            rng: None,
         }
     }
 
@@ -372,15 +434,13 @@ impl<
         let key = self.base.key.as_ref().expect("Proving key is missing");
 
         let required_polynomial_ids = KernelBase::get_required_polynomial_ids();
-        let polynomials = FFTGetter::<H, F, G1Affine, S, NIndependentRelations>::get_polynomials(
-            key,
-            &required_polynomial_ids,
-        );
+        let polynomials = Self::get_polynomials(key, &required_polynomial_ids);
 
-        let challenges = FFTGetter::<H, F, G1Affine, S, NIndependentRelations>::get_challenges(
+        let challenges = Self::get_challenges(
             transcript,
-            &alpha_base,
+            alpha_base,
             KernelBase::quotient_required_challenges(),
+            self.rng.clone(),
         );
 
         let mut quotient_term;
@@ -391,12 +451,13 @@ impl<
             let sum_of_linear_terms =
                 KernelBase::sum_linear_terms(&polynomials, &challenges, &linear_terms, i);
 
-            quotient_term = key.get_quotient_polynomial_part_mut(i);
+            quotient_term = key.quotient_polynomial_parts[i >> key.small_domain.log2_size]
+                [i & (key.circuit_size - 1)];
             *quotient_term += sum_of_linear_terms;
             KernelBase::compute_non_linear_terms(&polynomials, &challenges, quotient_term, i);
         }
 
-        FFTGetter::<H, F, G1Affine, S, NIndependentRelations>::update_alpha(&challenges)
+        Self::update_alpha(&challenges)
     }
 }
 
@@ -422,7 +483,7 @@ pub trait GenericVerifierWidget<
     F: Field,
     H: BarretenHasher,
     PC,
-    G: BaseGetter<H, F, S, NIndependentRelations>,
+    G: BaseGetter<H, F, S, NIndependentRelations> + EvaluationGetter<H, F, S, NIndependentRelations>,
     NIndependentRelations,
     S: Settings<H>,
     KB,
@@ -437,13 +498,10 @@ pub trait GenericVerifierWidget<
         quotient_numerator_eval: &mut F,
     ) -> F {
         let polynomial_evaluations =
-            EvaluationGetter::<F, H, S, NIndependentRelations>::get_polynomial_evaluations(
-                &key.polynomial_manifest,
-                transcript,
-            );
-        let challenges = EvaluationGetter::<F, H, S, NIndependentRelations>::get_challenges(
+            G::get_polynomial_evaluations(&key.as_ref().polynomial_manifest, transcript);
+        let challenges = G::get_challenges(
             transcript,
-            &alpha_base,
+            alpha_base,
             KernelBase::quotient_required_challenges(),
         );
 
@@ -467,7 +525,7 @@ pub trait GenericVerifierWidget<
             todo!("where is the index"),
         );
 
-        EvaluationGetter::<F, H, S, NIndependentRelations>::update_alpha(&challenges)
+        G::update_alpha(&challenges)
     }
 
     fn append_scalar_multiplication_inputs(
@@ -476,12 +534,12 @@ pub trait GenericVerifierWidget<
         transcript: &Transcript<H>,
         scalar_mult_inputs: &mut HashMap<String, F>,
     ) -> F {
-        let challenges = EvaluationGetter::<F, H, S, NIndependentRelations>::get_challenges(
+        let challenges = G::get_challenges(
             transcript,
             &alpha_base,
             KernelBase::quotient_required_challenges() | KernelBase::update_required_challenges(),
         );
 
-        EvaluationGetter::<F, H, S, NIndependentRelations>::update_alpha(&challenges)
+        G::update_alpha(&challenges)
     }
 }

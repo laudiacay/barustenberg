@@ -29,6 +29,7 @@ struct ProvingKeyData<F: Field> {
     memory_write_records: Vec<u32>,
     polynomial_store: PolynomialStore<F>,
 }
+
 pub struct ProvingKey<Fr: Field + FftField, G1Affine: AffineRepr> {
     pub composer_type: u32,
     pub circuit_size: usize,
@@ -172,7 +173,7 @@ impl<Fr: Field + FftField, G1Affine: AffineRepr> ProvingKey<Fr, G1Affine> {
     }
 
     pub fn from_reader<R: Read>(reader: &mut R, crs_path: &str) -> Result<Self, std::io::Error> {
-        let crs = Arc::new(FileReferenceString::read_from_path(crs_path)?);
+        let crs = Arc::new(FileReferenceString::<G1Affine>::read_from_path(crs_path)?);
         todo!();
     }
 }

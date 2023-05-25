@@ -18,7 +18,8 @@ use std::{
 };
 
 use super::transition_widget::{
-    BaseGetter, GenericVerifierWidget, KernelBase, TransitionWidget, CHALLENGE_BIT_ALPHA,
+    BaseGetter, EvaluationGetter, GenericVerifierWidget, KernelBase, TransitionWidget,
+    CHALLENGE_BIT_ALPHA,
 };
 
 pub struct ArithmeticKernel<
@@ -87,19 +88,19 @@ where
         let alpha: F = challenges.alpha_powers[0];
         scalars.insert(
             "Q_M".to_string(),
-            *scalars.get("Q_M").unwrap() + linear_terms[0] * alpha,
+            *scalars.get("Q_M").unwrap() + linear_terms[0.into()] * alpha,
         );
         scalars.insert(
             "Q_1".to_string(),
-            *scalars.get("Q_1").unwrap() + linear_terms[1] * alpha,
+            *scalars.get("Q_1").unwrap() + linear_terms[1.into()] * alpha,
         );
         scalars.insert(
             "Q_2".to_string(),
-            *scalars.get("Q_2").unwrap() + linear_terms[2] * alpha,
+            *scalars.get("Q_2").unwrap() + linear_terms[2.into()] * alpha,
         );
         scalars.insert(
             "Q_3".to_string(),
-            *scalars.get("Q_3").unwrap() + linear_terms[3] * alpha,
+            *scalars.get("Q_3").unwrap() + linear_terms[3.into()] * alpha,
         );
         scalars.insert("Q_C".to_string(), *scalars.get("Q_C").unwrap() + alpha);
     }
@@ -240,7 +241,7 @@ pub struct VerifierArithmeticWidget<
     F: Field,
     //Group,
     NWidgetRelations: generic_array::ArrayLength<F>,
-    Getters: BaseGetter<H, F, S, NWidgetRelations>,
+    Getters: BaseGetter<H, F, S, NWidgetRelations> + EvaluationGetter<H, F, S, NWidgetRelations>,
     PC,
     S: Settings<H>,
 > {
@@ -255,8 +256,13 @@ pub struct VerifierArithmeticWidget<
     )>,
 }
 
-impl<H: BarretenHasher, S: Settings<H>, F: Field, PC, Get: BaseGetter<H, F, S, U1>>
-    GenericVerifierWidget<F, H, PC, Get, U1, S, ArithmeticKernel<H, F, S, Get, PC>>
+impl<
+        H: BarretenHasher,
+        S: Settings<H>,
+        F: Field,
+        PC,
+        Get: BaseGetter<H, F, S, U1> + EvaluationGetter<H, F, S, U1>,
+    > GenericVerifierWidget<F, H, PC, Get, U1, S, ArithmeticKernel<H, F, S, Get, PC>>
     for VerifierArithmeticWidget<H, F, U1, Get, PC, S>
 {
 }

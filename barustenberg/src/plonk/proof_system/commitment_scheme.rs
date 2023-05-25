@@ -62,6 +62,7 @@ pub trait CommitmentScheme<Fq: Field, Fr: Field + FftField, G1Affine: AffineRepr
     );
 }
 
+#[derive(Default)]
 pub(crate) struct KateCommitmentScheme<H: BarretenHasher, S: Settings<H>> {
     kate_open_proof: CommitmentOpenProof,
     phantom: PhantomData<(H, S)>,

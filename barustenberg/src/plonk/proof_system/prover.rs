@@ -4,7 +4,7 @@ use ark_ec::AffineRepr;
 use ark_ff::{FftField, Field};
 
 use super::{
-    commitment_scheme::CommitmentScheme,
+    commitment_scheme::{CommitmentScheme, KateCommitmentScheme},
     proving_key::ProvingKey,
     types::{prover_settings::Settings, Proof},
     widgets::{
@@ -13,8 +13,10 @@ use super::{
     },
 };
 
+use typenum::Unsigned;
+
 use crate::{
-    proof_system::work_queue,
+    proof_system::work_queue::{self, QueuedFftInputs},
     transcript::{BarretenHasher, Manifest, Transcript},
 };
 
@@ -44,13 +46,12 @@ impl<Fq: Field, Fr: Field + FftField, G1Affine: AffineRepr, H: BarretenHasher, S
 {
     pub fn new(
         input_key: Option<Arc<ProvingKey<Fr, G1Affine>>>,
-        input_manifest: Option<&Manifest>,
+        input_manifest: Option<Manifest>,
         input_settings: Option<S>,
     ) -> Self {
         let circuit_size = input_key.as_ref().map_or(0, |key| key.circuit_size);
-        let transcript =
-            StandardTranscript::new(input_manifest, S::HASH_TYPE, S::NUM_CHALLENGE_BYTES);
-        let queue = WorkQueue::new(input_key.as_ref(), &transcript);
+        let transcript = Transcript::new(input_manifest, H::PrngOutputSize::USIZE);
+        let queue = WorkQueue::new(input_key, Some(Arc::new(transcript)));
 
         Self {
             circuit_size,
@@ -59,7 +60,7 @@ impl<Fq: Field, Fr: Field + FftField, G1Affine: AffineRepr, H: BarretenHasher, S
             queue,
             random_widgets: Vec::new(),
             transition_widgets: Vec::new(),
-            commitment_scheme: CommitmentScheme::<Fq, Fr, G1Affine, H>::default(),
+            commitment_scheme: Box::new(KateCommitmentScheme::<H, S>::default()),
             phantom: PhantomData,
         }
     }
@@ -711,34 +712,34 @@ impl<Fq: Field, Fr: Field + FftField, G1Affine: AffineRepr, H: BarretenHasher, S
     fn flush_queued_work_items(&self) {
         self.queue.flush_queue()
     }
-    fn queued_work_item_info(&self) -> work_queue::WorkItemInfo {
-        self.queue.queued_work_item_info()
+    fn get_queued_work_item_info(&self) -> work_queue::WorkItemInfo {
+        self.queue.get_queued_work_item_info()
     }
-    fn get_scalar_multiplication_data(&self, work_item_number: usize) -> Fr {
+    fn get_scalar_multiplication_data(&self, work_item_number: usize) -> Option<Arc<Vec<Fr>>> {
         self.queue.get_scalar_multiplication_data(work_item_number)
     }
     fn get_scalar_multiplication_size(&self, work_item_number: usize) -> usize {
         self.queue.get_scalar_multiplication_size(work_item_number)
     }
-    fn get_ifft_data(&self, work_item_number: usize) -> &Fr {
+    fn get_ifft_data(&self, work_item_number: usize) -> Option<Arc<Vec<Fr>>> {
         self.queue.get_ifft_data(work_item_number)
     }
-    fn get_fft_data(&self, work_item_number: usize) -> work_queue::QueuedFftInputs<Fr> {
+    fn get_fft_data(&self, work_item_number: usize) -> Option<Arc<QueuedFftInputs<Fr>>> {
         self.queue.get_fft_data(work_item_number)
     }
     fn put_scalar_multiplication_data(&self, result: G1Affine, work_item_number: usize) {
         self.queue
             .put_scalar_multiplication_data(result, work_item_number);
     }
-    fn put_fft_data(&self, result: Fr, work_item_number: usize) {
+    fn put_fft_data(&self, result: Vec<Fr>, work_item_number: usize) {
         self.queue.put_fft_data(result, work_item_number);
     }
-    fn put_ifft_data(&self, result: Fr, work_item_number: usize) {
+    fn put_ifft_data(&self, result: Vec<Fr>, work_item_number: usize) {
         self.queue.put_ifft_data(result, work_item_number);
     }
     fn reset(&mut self) {
         let manifest = self.transcript.get_manifest();
-        self.transcript = Transcript::<H>::new(manifest);
+        self.transcript = Transcript::<H>::new(manifest, self.transcript.num_challenge_bytes);
     }
 }
 

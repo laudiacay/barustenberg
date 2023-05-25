@@ -6,7 +6,7 @@ use std::vec::Vec;
 pub const MIN_GROUP_PER_THREAD: usize = 4;
 
 #[derive(Default)]
-pub struct EvaluationDomain<F: Field + FftField> {
+pub struct EvaluationDomain<'a, F: Field + FftField> {
     /// n, always a power of 2
     pub size: usize,
     /// num_threads * thread_size = size
@@ -32,8 +32,8 @@ pub struct EvaluationDomain<F: Field + FftField> {
     /// E.g. round_roots[0] = [1, ω^(n/2 - 1)],
     ///      round_roots[1] = [1, ω^(n/4 - 1), ω^(n/2 - 1), ω^(3n/4 - 1)]
     ///      ...
-    pub round_roots: Vec<Vec<F>>,
-    pub inverse_round_roots: Vec<Vec<F>>,
+    pub round_roots: &'a [&'a [F]],
+    pub inverse_round_roots: &'a [&'a [F]],
 }
 
 fn compute_num_threads(size: usize) -> usize {
@@ -103,7 +103,7 @@ fn compute_lookup_table_single<F: Field>(
     // }
 }
 
-impl<F: Field + FftField> EvaluationDomain<F> {
+impl<'a, F: Field + FftField> EvaluationDomain<'a, F> {
     pub fn new(domain_size: usize, target_generator_size: Option<usize>) -> Self {
         // TODO: implement constructor logic
 
@@ -155,14 +155,14 @@ impl<F: Field + FftField> EvaluationDomain<F> {
         // TODO: implement compute_generator_table logic
     }
 
-    pub fn get_round_roots(&self) -> &Vec<Vec<F>> {
-        &self.round_roots
+    pub fn get_round_roots(&self) -> &[&[F]] {
+        self.round_roots
     }
 
-    pub fn get_inverse_round_roots(&self) -> &Vec<Vec<F>> {
-        &self.inverse_round_roots
+    pub fn get_inverse_round_roots(&self) -> &[&[F]] {
+        self.inverse_round_roots
     }
 }
 
-pub type BarretenbergEvaluationDomain = EvaluationDomain<ark_bn254::Fr>;
-pub type GrumpkinEvaluationDomain = EvaluationDomain<grumpkin::Fr>;
+pub type BarretenbergEvaluationDomain<'a> = EvaluationDomain<'a, ark_bn254::Fr>;
+pub type GrumpkinEvaluationDomain<'a> = EvaluationDomain<'a, grumpkin::Fr>;

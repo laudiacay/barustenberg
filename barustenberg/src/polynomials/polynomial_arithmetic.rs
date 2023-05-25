@@ -94,10 +94,10 @@ fn fft_inner_serial<Fr: Copy + Default + Add<Output = Fr> + Sub<Output = Fr> + M
     }
 }
 
-impl<Fr: Field + FftField> EvaluationDomain<Fr> {
+impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
     fn scale_by_generator(
         &self,
-        coeffs: &[Fr],
+        coeffs: &mut [Fr],
         target: &mut [Fr],
         generator_start: Fr,
         generator_shift: Fr,
@@ -135,7 +135,7 @@ impl<Fr: Field + FftField> EvaluationDomain<Fr> {
         let subgroup_size = 1 << log2_subgroup_size;
 
         // Step 1: get primitive 4th root of unity
-        let subgroup_root = Fr::get_root_of_unity(log2_subgroup_size);
+        let subgroup_root = Fr::get_root_of_unity(log2_subgroup_size.try_into().unwrap()).unwrap();
 
         // Step 2: compute the cofactor term g^n
         let mut accumulator = self.generator;
@@ -153,13 +153,11 @@ impl<Fr: Field + FftField> EvaluationDomain<Fr> {
     // TODO readd pragma omp parallel
     pub fn fft_inner_parallel_inplace(
         &self,
-        coeffs: &mut RefCell<Vec<Vec<Fr>>>,
+        coeffs: &mut [&mut [Fr]],
         fr: &Fr,
-        root_table: &Vec<Vec<Fr>>,
+        root_table: &[&[Fr]],
     ) {
         let scratch_space = Self::get_scratch_space(self.size); // Implement the get_scratch_space function
-
-        let coeffs = coeffs.borrow_mut();
 
         let num_polys = coeffs.len();
         assert!(num_polys.is_power_of_two());
@@ -287,11 +285,12 @@ impl<Fr: Field + FftField> EvaluationDomain<Fr> {
         coeffs: &mut [Fr],
         target: &mut [Fr],
         fr: &Fr,
-        root_table: &[Vec<Fr>],
+        root_table: &[&[Fr]],
     ) {
+        // TODO parallelize
         // First FFT round is a special case - no need to multiply by root table, because all entries are 1.
         // We also combine the bit reversal step into the first round, to avoid a redundant round of copying data
-        (0..self.num_threads).into_par_iter().for_each(|j| {
+        (0..self.num_threads).for_each(|j| {
             let mut temp_1 = Fr::zero();
             let mut temp_2 = Fr::zero();
             let thread_start = j * self.thread_size;
@@ -359,12 +358,7 @@ impl<Fr: Field + FftField> EvaluationDomain<Fr> {
     //     }
     // }
 
-    fn partial_fft_serial_inner(
-        &self,
-        coeffs: &mut [Fr],
-        target: &mut [Fr],
-        root_table: &Vec<Vec<Fr>>,
-    ) {
+    fn partial_fft_serial_inner(&self, coeffs: &mut [Fr], target: &mut [Fr], root_table: &[&[Fr]]) {
         let n = self.size >> 2;
         let full_mask = self.size - 1;
         let m = self.size >> 1;
@@ -392,7 +386,7 @@ impl<Fr: Field + FftField> EvaluationDomain<Fr> {
     fn partial_fft_parallel_inner(
         &self,
         coeffs: &mut [Fr],
-        root_table: &Vec<Vec<Fr>>,
+        root_table: &[&[Fr]],
         constant: Fr,
         is_coset: bool,
     ) {
@@ -451,11 +445,11 @@ impl<Fr: Field + FftField> EvaluationDomain<Fr> {
         self.partial_fft_parallel_inner(coeffs, self.get_round_roots(), constant, is_coset);
     }
 
-    fn fft(&self, coeffs: &mut [Fr]) {
+    fn fft(&self, coeffs: &mut [&mut [Fr]]) {
         self.fft_inner_parallel_inplace(coeffs, &self.root, self.get_round_roots());
     }
 
-    fn fft_with_target(&self, coeffs: &mut [Fr], target: &mut [Fr]) {
+    fn fft_with_target(&self, coeffs: &mut [&mut [Fr]], target: &mut Fr) {
         self.fft_inner_parallel_inplace(coeffs, target, self.get_round_roots());
     }
 
@@ -483,9 +477,11 @@ impl<Fr: Field + FftField> EvaluationDomain<Fr> {
     }
 
     // The remaining `coset_fft` functions require you to create a version of `scale_by_generator` that accepts a Vec<&[T]> as the first parameter.
-    fn coset_fft(&self, coeffs: &mut [Fr], _: &EvaluationDomain<Fr>, domain_extension: usize) {
+    fn coset_fft(&self, coeffs: &[Fr], domain: &EvaluationDomain<Fr>, domain_extension: usize) {
         let log2_domain_extension = domain_extension.get_msb() as usize;
-        let primitive_root = Fr::get_root_of_unity(self.log2_size + log2_domain_extension);
+        let primitive_root =
+            Fr::get_root_of_unity((self.log2_size + log2_domain_extension).try_into().unwrap())
+                .unwrap();
 
         let scratch_space_len = self.size * domain_extension;
         let mut scratch_space = vec![Fr::zero(); scratch_space_len];
