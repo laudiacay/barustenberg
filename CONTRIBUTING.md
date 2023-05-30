@@ -6,6 +6,12 @@ probably something you can help out with. Check out our
 [good first issues][good-first-issues] label for in the issues tab to see a list
 of issue that good for those new to the project.
 
+# THE REST OF THIS DOC IS MOOOOSTLY TRUE, BUT READ THIS FIRST!
+This is very much a WIP of a repo. None of it works right now. 
+Right now main compiles with a ton of warnings. No tests work.
+You can start porting tests or removing TODOs and then stick it in a PR.
+I would love that.
+
 ## Where to Get Help
 
 The main way to get help is by sending an email to [c@laudiacay.cool][support-email].
