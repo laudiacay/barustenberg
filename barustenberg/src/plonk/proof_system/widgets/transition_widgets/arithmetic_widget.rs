@@ -18,8 +18,8 @@ use std::{
 };
 
 use super::transition_widget::{
-    BaseGetter, EvaluationGetter, GenericVerifierWidget, KernelBase, TransitionWidget,
-    CHALLENGE_BIT_ALPHA,
+    containers::PolyContainer, BaseGetter, EvaluationGetter, GenericVerifierWidget, KernelBase,
+    TransitionWidget, CHALLENGE_BIT_ALPHA,
 };
 
 pub struct ArithmeticKernel<
@@ -106,8 +106,13 @@ where
     }
 }
 
-impl<H: BarretenHasher, F: Field, S: Settings<H>, Get: BaseGetter<H, F, S, U1>, PC>
-    KernelBase<H, S, F, PC, Get, U1> for ArithmeticKernel<H, F, S, Get, PC>
+impl<
+        H: BarretenHasher,
+        F: Field,
+        S: Settings<H>,
+        Get: BaseGetter<H, F, S, U1>,
+        PC: PolyContainer<F>,
+    > KernelBase<H, S, F, PC, Get, U1> for ArithmeticKernel<H, F, S, Get, PC>
 {
     fn get_required_polynomial_ids() -> HashSet<PolynomialIndex> {
         // inline static std::set<PolynomialIndex> const& get_required_polynomial_ids()
@@ -131,7 +136,7 @@ impl<H: BarretenHasher, F: Field, S: Settings<H>, Get: BaseGetter<H, F, S, U1>, 
     }
 
     fn compute_linear_terms(
-        polynomials: &super::transition_widget::containers::PolyPtrMap<F>,
+        polynomials: impl PolyContainer<F>,
         challenges: &ChallengeArray<F, U1>,
         linear_terms: &mut CoefficientArray<F>,
         index: usize,
@@ -159,7 +164,7 @@ impl<H: BarretenHasher, F: Field, S: Settings<H>, Get: BaseGetter<H, F, S, U1>, 
     }
 
     fn sum_linear_terms(
-        polynomials: &super::transition_widget::containers::PolyPtrMap<F>,
+        polynomials: impl PolyContainer<F>,
         challenges: &ChallengeArray<F, U1>,
         linear_terms: &CoefficientArray<F>,
         index: usize,
@@ -207,7 +212,7 @@ impl<H: BarretenHasher, F: Field, S: Settings<H>, Get: BaseGetter<H, F, S, U1>, 
 
     /// Not being used in arithmetic_widget because there are none
     fn compute_non_linear_terms(
-        polynomials: &super::transition_widget::containers::PolyPtrMap<F>,
+        polynomials: impl PolyContainer<F>,
         challenges: &ChallengeArray<F, U1>,
         quotient_term: &mut F,
         index: usize,
@@ -259,12 +264,13 @@ pub struct VerifierArithmeticWidget<
 }
 
 impl<
+        'a,
         H: BarretenHasher,
         S: Settings<H>,
         F: Field,
-        PC,
+        PC: PolyContainer<F>,
         Get: BaseGetter<H, F, S, U1> + EvaluationGetter<H, F, S, U1>,
-    > GenericVerifierWidget<F, H, PC, Get, U1, S, ArithmeticKernel<H, F, S, Get, PC>>
+    > GenericVerifierWidget<'a, F, H, PC, Get, U1, S, ArithmeticKernel<H, F, S, Get, PC>>
     for VerifierArithmeticWidget<H, F, U1, Get, PC, S>
 {
 }

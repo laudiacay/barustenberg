@@ -159,7 +159,7 @@ struct Challenge<H: BarretenHasher> {
     data: GenericArray<u8, H::PrngOutputSize>,
 }
 
-pub type TranscriptKey = VerificationKey;
+pub type TranscriptKey<'a> = VerificationKey<'a>;
 
 pub struct Transcript<H: BarretenHasher> {
     current_round: usize,

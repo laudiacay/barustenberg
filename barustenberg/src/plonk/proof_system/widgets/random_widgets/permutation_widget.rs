@@ -31,8 +31,8 @@ where
         }
     }
 
-    pub fn compute_quotient_evaluation_contribution(
-        key: &Arc<TranscriptKey>,
+    pub fn compute_quotient_evaluation_contribution<'a>(
+        key: &Arc<TranscriptKey<'a>>,
         alpha_base: F,
         transcript: &Transcript<H>,
         quotient_numerator_eval: &mut F,
@@ -42,8 +42,8 @@ where
         // ...
     }
 
-    pub fn append_scalar_multiplication_inputs(
-        key: &Arc<TranscriptKey>,
+    pub fn append_scalar_multiplication_inputs<'a>(
+        key: &Arc<TranscriptKey<'a>>,
         alpha_base: F,
         transcript: &Transcript<H>,
     ) -> F {

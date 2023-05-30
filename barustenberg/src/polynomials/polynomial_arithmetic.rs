@@ -1,5 +1,4 @@
 use ark_ff::{FftField, Field};
-use std::cell::RefCell;
 
 use crate::numeric::bitop::Msb;
 
@@ -151,7 +150,7 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
     }
 
     // TODO readd pragma omp parallel
-    pub fn fft_inner_parallel_inplace(
+    pub fn fft_inner_parallel_vec_inplace(
         &self,
         coeffs: &mut [&mut [Fr]],
         fr: &Fr,
@@ -279,6 +278,7 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
             }
         }
     }
+
     // TODO readd pragma omp parallel
     pub fn fft_inner_parallel(
         &self,
@@ -340,23 +340,6 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
             });
         }
     }
-    // Note for claudia
-    // Should we implement these two as traits like this? or should we just have two different functions?
-
-    // pub trait FFT<T> {
-    //     fn fft_inner_parallel(coeffs: &mut [T], domain: &EvaluationDomain<T>, _: &T, root_table: &[&[T]]);
-    //     fn fft_inner_parallel_with_target(coeffs: &mut [T], target: &mut [T], domain: &EvaluationDomain<T>, _: &T, root_table: &[&[T]]);
-    // }
-
-    // impl<T: FieldElement> FFT<T> for T {
-    //     fn fft_inner_parallel(coeffs: &mut [T], domain: &EvaluationDomain<T>, _: &T, root_table: &[&[T]]) {
-    //         // First implementation here
-    //     }
-
-    //     fn fft_inner_parallel_with_target(coeffs: &mut [T], target: &mut [T], domain: &EvaluationDomain<T>, _: &T, root_table: &[&[T]]) {
-    //         // Second implementation here
-    //     }
-    // }
 
     fn partial_fft_serial_inner(&self, coeffs: &mut [Fr], target: &mut [Fr], root_table: &[&[Fr]]) {
         let n = self.size >> 2;
@@ -445,95 +428,143 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
         self.partial_fft_parallel_inner(coeffs, self.get_round_roots(), constant, is_coset);
     }
 
-    fn fft(&self, coeffs: &mut [&mut [Fr]]) {
-        self.fft_inner_parallel_inplace(coeffs, &self.root, self.get_round_roots());
+    fn fft_inplace(&self, coeffs: &mut [Fr]) {
+        self.fft_inner_parallel_vec_inplace(&mut [coeffs], &self.root, self.get_round_roots());
     }
 
-    fn fft_with_target(&self, coeffs: &mut [&mut [Fr]], target: &mut Fr) {
-        self.fft_inner_parallel_inplace(coeffs, target, self.get_round_roots());
+    fn fft(&self, coeffs: &mut [Fr], target: &mut [Fr]) {
+        self.fft_inner_parallel(coeffs, target, &self.root, self.get_round_roots());
+    }
+
+    fn fft_vec_inplace(&self, coeffs: &mut [&mut [Fr]]) {
+        todo!();
     }
 
     // The remaining functions require you to create a version of `fft_inner_parallel` that accepts a Vec<&[T]> as the first parameter.
 
     fn ifft_inplace(&self, coeffs: &mut [Fr]) {
-        self.fft_inner_parallel_inplace(coeffs, &self.root_inverse, self.get_inverse_round_roots());
-        for i in 0..self.size {
-            coeffs[i] *= self.domain_inverse;
-        }
+        self.fft_inner_parallel_vec_inplace(
+            &mut [coeffs],
+            &self.root_inverse,
+            self.get_inverse_round_roots(),
+        );
+        todo!("parallelize")
+        // for i in 0..self.size {
+        //     coeffs[i] *= self.domain_inverse;
+        // }
     }
 
     fn ifft(&self, coeffs: &mut [Fr], target: &mut [Fr]) {
         self.fft_inner_parallel(coeffs, target, &self.root_inverse, self.get_round_roots());
-        for i in 0..self.size {
-            target[i] *= self.domain_inverse;
-        }
+        // TODO parallelize me
+        todo!("parallelize here")
+        // for i in 0..self.size {
+        //     target[i] *= self.domain_inverse;
+        // }
+    }
+
+    fn ifft_vec_inplace(&self, coeffs: &mut [&mut [Fr]]) {
+        todo!();
+    }
+    fn ifft_with_constant(&self, coeffs: &mut [Fr], value: Fr) {
+        todo!();
+    }
+
+    fn coset_ifft(&self, coeffs: &mut [Fr]) {
+        todo!()
+    }
+    fn coset_ifft_vec(&self, coeffs: &mut [&mut [Fr]]) {
+        todo!()
     }
 
     fn fft_with_constant(&self, coeffs: &mut [Fr], value: Fr) {
-        self.fft_inner_parallel_inplace(coeffs, &self.root, self.get_round_roots());
-        for i in 0..self.size {
-            coeffs[i] *= value;
-        }
+        // self.fft_inner_parallel(coeffs, &self.root, self.get_round_roots());
+        // for i in 0..self.size {
+        //     coeffs[i] *= value;
+        // }
+        todo!()
     }
 
     // The remaining `coset_fft` functions require you to create a version of `scale_by_generator` that accepts a Vec<&[T]> as the first parameter.
-    fn coset_fft(&self, coeffs: &[Fr], domain: &EvaluationDomain<'a, Fr>, domain_extension: usize) {
+    fn coset_fft_inplace_extension(
+        coeffs: &mut [Fr],
+        small_domain: Self,
+        large_domain: Self,
+        domain_extension: usize,
+    ) {
         let log2_domain_extension = domain_extension.get_msb() as usize;
-        let primitive_root =
-            Fr::get_root_of_unity((self.log2_size + log2_domain_extension).try_into().unwrap())
-                .unwrap();
+        let primitive_root = Fr::get_root_of_unity(
+            (small_domain.log2_size + log2_domain_extension)
+                .try_into()
+                .unwrap(),
+        )
+        .unwrap();
 
-        let scratch_space_len = self.size * domain_extension;
+        let scratch_space_len = small_domain.size * domain_extension;
         let mut scratch_space = vec![Fr::zero(); scratch_space_len];
 
         let mut coset_generators = vec![Fr::zero(); domain_extension];
-        coset_generators[0] = self.generator;
+        coset_generators[0] = small_domain.generator;
         for i in 1..domain_extension {
             coset_generators[i] = coset_generators[i - 1] * primitive_root;
         }
 
         for i in (0..domain_extension).rev() {
-            self.scale_by_generator(
-                &mut coeffs[i * self.size..],
-                &mut coeffs[(i * self.size)..],
+            small_domain.scale_by_generator(
+                coeffs,
+                &mut coeffs[(i * small_domain.size)..],
                 Fr::one(),
                 coset_generators[i],
-                self.size,
+                small_domain.size,
             );
         }
 
         for i in 0..domain_extension {
-            self.fft_inner_parallel_inplace(
-                &mut coeffs[(i * self.size)..],
-                &mut scratch_space[(i * self.size)..],
-                self.get_round_roots(),
+            small_domain.fft_inner_parallel(
+                &mut coeffs[(i * small_domain.size)..],
+                &mut scratch_space[(i * small_domain.size)..],
+                &small_domain.root,
+                small_domain.get_round_roots(),
             );
         }
 
         if domain_extension == 4 {
-            for j in 0..self.num_threads {
-                let start = j * self.thread_size;
-                let end = (j + 1) * self.thread_size;
+            todo!("there is parallelism afoot here");
+            for j in 0..small_domain.num_threads {
+                let start = j * small_domain.thread_size;
+                let end = (j + 1) * small_domain.thread_size;
                 for i in start..end {
                     scratch_space[i] = coeffs[i << 2];
-                    scratch_space[i + (1 << self.log2_size)] = coeffs[(i << 2) + 1];
-                    scratch_space[i + (2 << self.log2_size)] = coeffs[(i << 2) + 2];
-                    scratch_space[i + (3 << self.log2_size)] = coeffs[(i << 2) + 3];
+                    scratch_space[i + (1 << small_domain.log2_size)] = coeffs[(i << 2) + 1];
+                    scratch_space[i + (2 << small_domain.log2_size)] = coeffs[(i << 2) + 2];
+                    scratch_space[i + (3 << small_domain.log2_size)] = coeffs[(i << 2) + 3];
                 }
             }
-            for i in 0..self.size {
+            for i in 0..small_domain.size {
                 for j in 0..domain_extension {
-                    scratch_space[i + (j << self.log2_size)] =
+                    scratch_space[i + (j << small_domain.log2_size)] =
                         coeffs[(i << log2_domain_extension) + j];
                 }
             }
         } else {
-            for i in 0..self.size {
+            for i in 0..small_domain.size {
                 for j in 0..domain_extension {
-                    scratch_space[i + (j << self.log2_size)] =
+                    scratch_space[i + (j << small_domain.log2_size)] =
                         coeffs[(i << log2_domain_extension) + j];
                 }
             }
         }
+    }
+    fn coset_fft_inplace(&self, coeffs: &mut [Fr]) {
+        unimplemented!()
+    }
+    fn coset_fft_vec_inplace(&self, coeffs: &mut [&mut [Fr]]) {
+        unimplemented!()
+    }
+    fn coset_fft(&self, coeffs: &[Fr], target: &mut [Fr]) {
+        unimplemented!()
+    }
+    fn coset_fft_with_generator_shift(&self, coeffs: &mut [Fr], constant: Fr) {
+        unimplemented!()
     }
 }

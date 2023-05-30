@@ -46,12 +46,12 @@ pub trait CommitmentScheme<Fq: Field, Fr: Field + FftField, G1Affine: AffineRepr
         input_key: Option<Arc<ProvingKey<'a, Fr, G1Affine>>>,
     );
 
-    fn batch_verify(
+    fn batch_verify<'a>(
         &self,
         transcript: &Transcript<H>,
         kate_g1_elements: &mut HashMap<String, G1Affine>,
         kate_fr_elements: &mut HashMap<String, Fr>,
-        input_key: Option<Arc<VerificationKey>>,
+        input_key: Option<Arc<VerificationKey<'a>>>,
     );
 
     fn add_opening_evaluations_to_transcript<'a>(
@@ -119,12 +119,12 @@ impl<Fq: Field, Fr: Field + FftField, G1Affine: AffineRepr, H: BarretenHasher, S
         todo!()
     }
 
-    fn batch_verify(
+    fn batch_verify<'a>(
         &self,
         transcript: &Transcript<H>,
         kate_g1_elements: &mut HashMap<String, G1Affine>,
         kate_fr_elements: &mut HashMap<String, Fr>,
-        input_key: Option<Arc<VerificationKey>>,
+        input_key: Option<Arc<VerificationKey<'a>>>,
     ) {
         todo!()
     }

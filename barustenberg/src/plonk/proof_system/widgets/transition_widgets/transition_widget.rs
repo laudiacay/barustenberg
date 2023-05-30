@@ -19,7 +19,7 @@ use crate::{
     transcript::{BarretenHasher, Transcript, TranscriptKey, TranscriptWrapper},
 };
 
-use self::containers::{ChallengeArray, CoefficientArray, PolyArray, PolyPtrMap};
+use self::containers::{ChallengeArray, CoefficientArray, PolyArray, PolyContainer, PolyPtrMap};
 
 pub enum ChallengeIndex {
     Alpha,
@@ -51,11 +51,15 @@ pub mod containers {
     use generic_array::GenericArray;
     use std::ops::Index;
 
-    use crate::plonk::proof_system::types::polynomial_manifest::PolynomialIndex;
+    use crate::{
+        plonk::proof_system::types::polynomial_manifest::PolynomialIndex, polynomials::Polynomial,
+    };
 
     use super::MaxNumChallengesTN;
     use ark_ff::Field;
     use std::collections::HashMap;
+
+    pub trait PolyContainer<F: Field> {}
 
     #[derive(Default)]
     pub struct ChallengeArray<F: Field, NumRelations: generic_array::ArrayLength<F>> {
@@ -79,8 +83,10 @@ pub mod containers {
         }
     }
 
-    pub struct PolyPtrMap<Field> {
-        pub coefficients: HashMap<PolynomialIndex, Vec<Field>>,
+    impl<F: Field> PolyContainer<F> for PolyArray<F> {}
+
+    pub struct PolyPtrMap<F: Field> {
+        pub coefficients: HashMap<PolynomialIndex, Polynomial<F>>,
         pub block_mask: usize,
         pub index_shift: usize,
     }
@@ -94,6 +100,8 @@ pub mod containers {
             }
         }
     }
+
+    impl<F: Field> PolyContainer<F> for PolyPtrMap<F> {}
 
     pub struct CoefficientArray<F: Field>([F; PolynomialIndex::MaxNumPolynomials as usize]);
     impl<F: Field> Index<PolynomialIndex> for CoefficientArray<F> {
@@ -281,15 +289,20 @@ pub trait EvaluationGetter<
 
 /// Provides access to polynomials (monomial or coset FFT) for use in widgets
 /// Coset FFT access is needed in quotient construction.
-pub trait FFTGetter<H, F, G1Affine: AffineRepr, S, NWidgetRelations: generic_array::ArrayLength<F>>:
-    BaseGetter<H, F, S, NWidgetRelations>
-where
+pub trait FFTGetter<
+    'a,
+    H,
+    F,
+    G1Affine: AffineRepr,
+    S,
+    NWidgetRelations: generic_array::ArrayLength<F>,
+>: BaseGetter<H, F, S, NWidgetRelations> where
     F: Field + FftField,
     H: BarretenHasher,
     S: Settings<H>,
 {
     fn get_polynomials(
-        key: &ProvingKey<F, G1Affine>,
+        key: &ProvingKey<'a, F, G1Affine>,
         required_polynomial_ids: &HashSet<PolynomialIndex>,
     ) -> PolyPtrMap<F> {
         let mut result = PolyPtrMap::new();
@@ -339,7 +352,7 @@ pub trait KernelBase<
     H: BarretenHasher,
     S: Settings<H>,
     F: Field,
-    PC,
+    PC: PolyContainer<F>,
     G: BaseGetter<H, F, S, NumIndependentRelations>,
     NumIndependentRelations: generic_array::ArrayLength<F>,
 >
@@ -348,19 +361,19 @@ pub trait KernelBase<
     fn quotient_required_challenges() -> u8;
     fn update_required_challenges() -> u8;
     fn compute_linear_terms(
-        polynomials: &PolyPtrMap<F>,
+        polynomials: impl PolyContainer<F>,
         challenges: &ChallengeArray<F, NumIndependentRelations>,
         linear_terms: &mut CoefficientArray<F>,
         index: usize,
     );
     fn sum_linear_terms(
-        polynomials: &PolyPtrMap<F>,
+        polynomials: impl PolyContainer<F>,
         challenges: &ChallengeArray<F, NumIndependentRelations>,
         linear_terms: &CoefficientArray<F>,
         index: usize,
     ) -> F;
     fn compute_non_linear_terms(
-        polynomials: &PolyPtrMap<F>,
+        polynomials: impl PolyContainer<F>,
         challenges: &ChallengeArray<F, NumIndependentRelations>,
         quotient_term: &mut F,
         index: usize,
@@ -373,7 +386,7 @@ pub struct TransitionWidget<
     F: Field + FftField,
     G1Affine: AffineRepr,
     S: Settings<H>,
-    PC,
+    PC: PolyContainer<F>,
     G: BaseGetter<H, F, S, NIndependentRelations>,
     NIndependentRelations: generic_array::ArrayLength<F>,
     KB: KernelBase<H, S, F, PC, G, NIndependentRelations>,
@@ -387,25 +400,11 @@ impl<
         F: Field + FftField,
         G1Affine: AffineRepr,
         S: Settings<H>,
-        PC,
+        PC: PolyContainer<F>,
         G: BaseGetter<H, F, S, NIndependentRelations>,
         NIndependentRelations: generic_array::ArrayLength<F>,
         KB: KernelBase<H, S, F, PC, G, NIndependentRelations>,
     > BaseGetter<H, F, S, NIndependentRelations>
-    for TransitionWidget<'_, H, F, G1Affine, S, PC, G, NIndependentRelations, KB>
-{
-}
-
-impl<
-        H: BarretenHasher,
-        F: Field + FftField,
-        G1Affine: AffineRepr,
-        S: Settings<H>,
-        PC,
-        G: BaseGetter<H, F, S, NIndependentRelations>,
-        NIndependentRelations: generic_array::ArrayLength<F>,
-        KB: KernelBase<H, S, F, PC, G, NIndependentRelations>,
-    > FFTGetter<H, F, G1Affine, S, NIndependentRelations>
     for TransitionWidget<'_, H, F, G1Affine, S, PC, G, NIndependentRelations, KB>
 {
 }
@@ -416,7 +415,22 @@ impl<
         F: Field + FftField,
         G1Affine: AffineRepr,
         S: Settings<H>,
-        PC,
+        PC: PolyContainer<F>,
+        G: BaseGetter<H, F, S, NIndependentRelations>,
+        NIndependentRelations: generic_array::ArrayLength<F>,
+        KB: KernelBase<H, S, F, PC, G, NIndependentRelations>,
+    > FFTGetter<'a, H, F, G1Affine, S, NIndependentRelations>
+    for TransitionWidget<'a, H, F, G1Affine, S, PC, G, NIndependentRelations, KB>
+{
+}
+
+impl<
+        'a,
+        H: BarretenHasher,
+        F: Field + FftField,
+        G1Affine: AffineRepr,
+        S: Settings<H>,
+        PC: PolyContainer<F>,
         G: BaseGetter<H, F, S, NIndependentRelations>,
         NIndependentRelations: generic_array::ArrayLength<F>,
         KB: KernelBase<H, S, F, PC, G, NIndependentRelations>,
@@ -438,13 +452,13 @@ impl<
     ) -> F {
         let key = self.base.key.as_ref().expect("Proving key is missing");
 
-        let required_polynomial_ids = KernelBase::get_required_polynomial_ids();
+        let required_polynomial_ids = KB::get_required_polynomial_ids();
         let polynomials = Self::get_polynomials(key, &required_polynomial_ids);
 
         let challenges = Self::get_challenges(
             transcript,
             alpha_base,
-            KernelBase::quotient_required_challenges(),
+            KB::quotient_required_challenges(),
             rng,
         );
 
@@ -452,14 +466,14 @@ impl<
 
         for i in key.large_domain.iter() {
             let mut linear_terms = CoefficientArray::default();
-            KernelBase::compute_linear_terms(&polynomials, &challenges, &mut linear_terms, i);
+            KB::compute_linear_terms(polynomials, &challenges, &mut linear_terms, i);
             let sum_of_linear_terms =
-                KernelBase::sum_linear_terms(&polynomials, &challenges, &linear_terms, i);
+                KB::sum_linear_terms(polynomials, &challenges, &linear_terms, i);
 
             quotient_term = key.quotient_polynomial_parts[i >> key.small_domain.log2_size]
                 [i & (key.circuit_size - 1)];
             quotient_term += sum_of_linear_terms;
-            KernelBase::compute_non_linear_terms(&polynomials, &challenges, &mut quotient_term, i);
+            KB::compute_non_linear_terms(polynomials, &challenges, &mut quotient_term, i);
         }
 
         Self::update_alpha(&challenges)
@@ -473,7 +487,7 @@ impl<
         G1Affine: AffineRepr,
         S: Settings<H>,
         KB: KernelBase<H, S, F, PC, G, NIndependentRelations>,
-        PC,
+        PC: PolyContainer<F>,
         G: BaseGetter<H, F, S, NIndependentRelations>,
         NIndependentRelations: generic_array::ArrayLength<F>,
     > From<TransitionWidget<'_, H, F, G1Affine, S, PC, G, NIndependentRelations, KB>>
@@ -487,9 +501,10 @@ impl<
 }
 
 pub trait GenericVerifierWidget<
+    'a,
     F: Field,
     H: BarretenHasher,
-    PC,
+    PC: PolyContainer<F>,
     G: BaseGetter<H, F, S, NIndependentRelations> + EvaluationGetter<H, F, S, NIndependentRelations>,
     NIndependentRelations,
     S: Settings<H>,
@@ -499,7 +514,7 @@ pub trait GenericVerifierWidget<
     KB: KernelBase<H, S, F, PC, G, NIndependentRelations>,
 {
     fn compute_quotient_evaluation_contribution(
-        key: &Arc<TranscriptKey>,
+        key: &Arc<TranscriptKey<'a>>,
         alpha_base: F,
         transcript: &Transcript<H>,
         quotient_numerator_eval: &mut F,
@@ -516,19 +531,19 @@ pub trait GenericVerifierWidget<
 
         let mut linear_terms = CoefficientArray::default();
         KB::compute_linear_terms(
-            &polynomial_evaluations,
+            polynomial_evaluations,
             &challenges,
             &mut linear_terms,
             todo!("where is index"),
         );
         *quotient_numerator_eval += KB::sum_linear_terms(
-            &polynomial_evaluations,
+            polynomial_evaluations,
             &challenges,
             &linear_terms,
             todo!("where is index"),
         );
         KB::compute_non_linear_terms(
-            &polynomial_evaluations,
+            polynomial_evaluations,
             &challenges,
             quotient_numerator_eval,
             todo!("where is the index"),
@@ -538,7 +553,7 @@ pub trait GenericVerifierWidget<
     }
 
     fn append_scalar_multiplication_inputs(
-        key: &Arc<TranscriptKey>,
+        key: &Arc<TranscriptKey<'_>>,
         alpha_base: F,
         transcript: &Transcript<H>,
         scalar_mult_inputs: &mut HashMap<String, F>,
