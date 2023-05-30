@@ -1,4 +1,7 @@
+use ark_ec::AffineRepr;
+use ark_ff::Field;
 use generic_array::{ArrayLength, GenericArray};
+
 use std::collections::HashMap;
 use tracing::info;
 use typenum::{Unsigned, U16, U32};
@@ -158,15 +161,30 @@ struct Challenge<H: BarretenHasher> {
 
 pub type TranscriptKey = VerificationKey;
 
-#[derive(Default)]
 pub struct Transcript<H: BarretenHasher> {
     current_round: usize,
-    num_challenge_bytes: usize,
+    pub num_challenge_bytes: usize,
     elements: HashMap<String, Vec<u8>>,
     challenges: HashMap<String, Vec<Challenge<H>>>,
     current_challenge: Challenge<H>,
     manifest: Manifest,
     challenge_map: HashMap<String, i32>,
+}
+
+impl<H: BarretenHasher> Default for Transcript<H> {
+    fn default() -> Self {
+        Self {
+            current_round: 0,
+            num_challenge_bytes: 0,
+            elements: HashMap::new(),
+            challenges: HashMap::new(),
+            current_challenge: Challenge {
+                data: GenericArray::default(),
+            },
+            manifest: Manifest::default(),
+            challenge_map: HashMap::new(),
+        }
+    }
 }
 
 impl<H: BarretenHasher> Transcript<H> {
@@ -176,6 +194,18 @@ impl<H: BarretenHasher> Transcript<H> {
         self.elements.insert(element_name.to_string(), buffer);
     }
 
+    /// Create a new transcript based on the manifest
+    /// # Arguments
+    /// input_manifest:  The manifest with round descriptions.
+    /// hash_type: The hash used for Fiat-Shamir.
+    /// challenge_bytes: The number of bytes per challenge to generate.
+    pub fn new(input_manifest: Option<Manifest>, num_challenge_bytes: usize) -> Self {
+        let mut ret: Transcript<H> = Default::default();
+        ret.num_challenge_bytes = num_challenge_bytes;
+        ret.manifest = input_manifest.unwrap_or_default();
+        ret.compute_challenge_map();
+        ret
+    }
     /// Constructs a new `Transcript` from a serialized transcript, a `Manifest`, a `HashType` and a challenge byte size.
     ///
     /// # Arguments
@@ -189,10 +219,9 @@ impl<H: BarretenHasher> Transcript<H> {
     ///
     /// If the serialized transcript does not contain the required number of bytes, a panic occurs.
     ///
-    pub fn new(
+    pub fn new_from_transcript(
         input_transcript: &[u8],
         input_manifest: Manifest,
-        hash_type: H,
         num_challenge_bytes: usize,
     ) -> Self {
         let num_rounds = input_manifest.get_num_rounds();
@@ -600,5 +629,92 @@ impl<H: BarretenHasher> Transcript<H> {
 
     pub fn print(&self) {
         // implementation
+    }
+
+    /*
+        void StandardTranscript::add_field_element(const std::string& element_name, const barretenberg::fr& element)
+    {
+        add_element(element_name, element.to_buffer());
+    }
+
+    barretenberg::fr StandardTranscript::get_field_element(const std::string& element_name) const
+    {
+        return barretenberg::fr::serialize_from_buffer(&(get_element(element_name))[0]);
+    }
+
+    barretenberg::g1::affine_element StandardTranscript::get_group_element(const std::string& element_name) const
+    {
+        return barretenberg::g1::affine_element::serialize_from_buffer(&(get_element(element_name))[0]);
+    }
+
+    std::vector<barretenberg::fr> StandardTranscript::get_field_element_vector(const std::string& element_name) const
+    {
+        return many_from_buffer<barretenberg::fr>(get_element(element_name));
+    }
+
+    barretenberg::fr StandardTranscript::get_challenge_field_element(const std::string& challenge_name,
+                                                                     const size_t idx) const
+    {
+        return barretenberg::fr::serialize_from_buffer(&(get_challenge(challenge_name, idx))[0]);
+    }
+
+    barretenberg::fr StandardTranscript::get_challenge_field_element_from_map(const std::string& challenge_name,
+                                                                              const std::string& challenge_map_name) const
+    {
+        return barretenberg::fr::serialize_from_buffer(&(get_challenge_from_map(challenge_name, challenge_map_name))[0]);
+    }
+
+         */
+}
+
+pub trait TranscriptWrapper<Fr: Field, G1Affine: AffineRepr, H: BarretenHasher> {
+    fn get_transcript(&self) -> &Transcript<H>;
+    fn add_field_element(&self, element_name: &str, element: &Fr) {
+        let mut buf = vec![0u8; Fr::serialized_size(element, ark_serialize::Compress::No)];
+        Fr::serialize_uncompressed(element, &mut buf).unwrap();
+        self.get_transcript().add_element(element_name, buf);
+    }
+    fn get_field_element(&self, element_name: &str) -> Fr {
+        let buf = self.get_transcript().get_element(element_name);
+        Fr::deserialize_uncompressed(buf.as_slice()).unwrap()
+    }
+    fn get_group_element(&self, element_name: &str) -> G1Affine {
+        let buf = self.get_transcript().get_element(element_name);
+        G1Affine::deserialize_uncompressed(buf.as_slice()).unwrap()
+    }
+    fn get_field_element_vector(&self, element_name: &str) -> Vec<Fr> {
+        // TODO is this right
+        let serialized_size = Fr::serialized_size(&Fr::ONE, ark_serialize::Compress::No);
+        let buf = self.get_transcript().get_element(element_name);
+        let mut res = Vec::new();
+        for i in 0..buf.len() / serialized_size {
+            res.push(
+                Fr::deserialize_uncompressed(&buf[i * serialized_size..(i + 1) * serialized_size])
+                    .unwrap(),
+            );
+        }
+        res
+    }
+    fn get_challenge_field_element(&self, challenge_name: &str, idx: usize) -> Fr {
+        let buf = self.get_transcript().get_challenge(challenge_name, idx);
+        Fr::deserialize_uncompressed(buf.as_slice()).unwrap()
+    }
+    fn get_challenge_field_element_from_map(
+        &self,
+        challenge_name: &str,
+        challenge_map_name: &str,
+    ) -> Fr {
+        let buf = self
+            .get_transcript()
+            .get_challenge_from_map(challenge_name, challenge_map_name);
+        Fr::deserialize_uncompressed(buf.as_slice()).unwrap()
+    }
+}
+
+impl<Fr: Field, G1Affine: AffineRepr, H: BarretenHasher> TranscriptWrapper<Fr, G1Affine, H>
+    for Transcript<H>
+{
+    fn get_transcript(&self) -> &Transcript<H> {
+        self
     }
 }

@@ -1,7 +1,10 @@
 use std::{marker::PhantomData, sync::Arc};
 
+use ark_ec::AffineRepr;
+use ark_ff::{FftField, Field};
+
 use super::{
-    commitment_scheme::CommitmentScheme,
+    commitment_scheme::{CommitmentScheme, KateCommitmentScheme},
     proving_key::ProvingKey,
     types::{prover_settings::Settings, Proof},
     widgets::{
@@ -10,13 +13,10 @@ use super::{
     },
 };
 
+use typenum::Unsigned;
+
 use crate::{
-    ecc::{
-        curves::bn254::g1::G1Affine,
-        fields::field::{Field, FieldParams},
-        groups::GroupParams,
-    },
-    proof_system::work_queue,
+    proof_system::work_queue::{self, QueuedFftInputs},
     transcript::{BarretenHasher, Manifest, Transcript},
 };
 
@@ -25,42 +25,33 @@ use crate::proof_system::work_queue::WorkQueue;
 // todo https://doc.rust-lang.org/reference/const_eval.html
 
 pub struct Prover<
-    FqP: FieldParams,
-    FrP: FieldParams,
-    G1AffineP: GroupParams<FqP, FrP>,
+    Fq: Field,
+    Fr: Field + FftField,
+    G1Affine: AffineRepr,
     H: BarretenHasher,
     S: Settings<H>,
 > {
     pub circuit_size: usize,
     pub transcript: Transcript<H>,
-    pub key: Arc<ProvingKey<FrP>>,
-    pub queue: WorkQueue<H, FrP>,
-    pub random_widgets: Vec<ProverRandomWidget<H, FrP>>,
-    pub transition_widgets: Vec<TransitionWidgetBase<FrP>>,
-    pub commitment_scheme: Box<dyn CommitmentScheme<FqP, FrP, G1AffineP, H>>,
+    pub key: Arc<ProvingKey<Fr, G1Affine>>,
+    pub queue: WorkQueue<H, Fr, G1Affine>,
+    pub random_widgets: Vec<ProverRandomWidget<H, Fr, G1Affine>>,
+    pub transition_widgets: Vec<TransitionWidgetBase<Fr, G1Affine>>,
+    pub commitment_scheme: Box<dyn CommitmentScheme<Fq, Fr, G1Affine, H>>,
     phantom: PhantomData<S>,
 }
 
-impl<
-        FqP: FieldParams,
-        FrP: FieldParams,
-        G1AffineP: GroupParams<FqP, FrP>,
-        H: BarretenHasher,
-        S: Settings<H>,
-    > Prover<FqP, FrP, G1AffineP, H, S>
+impl<Fq: Field, Fr: Field + FftField, G1Affine: AffineRepr, H: BarretenHasher, S: Settings<H>>
+    Prover<Fq, Fr, G1Affine, H, S>
 {
     pub fn new(
-        input_key: Option<Arc<ProvingKey<FrP>>>,
-        input_manifest: Option<&Manifest>,
+        input_key: Option<Arc<ProvingKey<Fr, G1Affine>>>,
+        input_manifest: Option<Manifest>,
         input_settings: Option<S>,
     ) -> Self {
         let circuit_size = input_key.as_ref().map_or(0, |key| key.circuit_size);
-        let transcript = Transcript::StandardTranscript::new(
-            input_manifest,
-            S::HASH_TYPE,
-            S::NUM_CHALLENGE_BYTES,
-        );
-        let queue = WorkQueue::new(input_key.as_ref(), &transcript);
+        let transcript = Transcript::new(input_manifest, H::PrngOutputSize::USIZE);
+        let queue = WorkQueue::new(input_key, Some(Arc::new(transcript)));
 
         Self {
             circuit_size,
@@ -69,7 +60,7 @@ impl<
             queue,
             random_widgets: Vec::new(),
             transition_widgets: Vec::new(),
-            commitment_scheme: CommitmentScheme::default(),
+            commitment_scheme: Box::new(KateCommitmentScheme::<H, S>::default()),
             phantom: PhantomData,
         }
     }
@@ -719,42 +710,36 @@ impl<
         todo!("implement me")
     }
     fn flush_queued_work_items(&self) {
-        self.get_queue().flush_queue()
+        self.queue.flush_queue()
     }
     fn get_queued_work_item_info(&self) -> work_queue::WorkItemInfo {
-        self.get_queue().get_queued_work_item_info()
+        self.queue.get_queued_work_item_info()
     }
-    fn get_scalar_multiplication_data(&self, work_item_number: usize) -> Field<FrP> {
-        self.get_queue()
-            .get_scalar_multiplication_data(work_item_number)
+    fn get_scalar_multiplication_data(&self, work_item_number: usize) -> Option<Arc<Vec<Fr>>> {
+        self.queue.get_scalar_multiplication_data(work_item_number)
     }
     fn get_scalar_multiplication_size(&self, work_item_number: usize) -> usize {
-        self.get_queue()
-            .get_scalar_multiplication_size(work_item_number)
+        self.queue.get_scalar_multiplication_size(work_item_number)
     }
-    fn get_ifft_data(&self, work_item_number: usize) -> &Field<FrP> {
-        self.get_queue().get_ifft_data(work_item_number)
+    fn get_ifft_data(&self, work_item_number: usize) -> Option<Arc<Vec<Fr>>> {
+        self.queue.get_ifft_data(work_item_number)
     }
-    fn get_fft_data(&self, work_item_number: usize) -> &work_queue::QueuedFftInputs<FrP> {
-        self.get_queue().get_fft_data(work_item_number)
+    fn get_fft_data(&self, work_item_number: usize) -> Option<Arc<QueuedFftInputs<Fr>>> {
+        self.queue.get_fft_data(work_item_number)
     }
     fn put_scalar_multiplication_data(&self, result: G1Affine, work_item_number: usize) {
-        self.get_queue()
+        self.queue
             .put_scalar_multiplication_data(result, work_item_number);
     }
-    fn put_fft_data(&self, result: Field<FrP>, work_item_number: usize) {
-        self.get_queue().put_fft_data(result, work_item_number);
+    fn put_fft_data(&self, result: Vec<Fr>, work_item_number: usize) {
+        self.queue.put_fft_data(result, work_item_number);
     }
-    fn put_ifft_data(&self, result: Field<FrP>, work_item_number: usize) {
-        self.get_queue().put_ifft_data(result, work_item_number);
+    fn put_ifft_data(&self, result: Vec<Fr>, work_item_number: usize) {
+        self.queue.put_ifft_data(result, work_item_number);
     }
-    fn reset(&self) {
+    fn reset(&mut self) {
         let manifest = self.transcript.get_manifest();
-        self.set_transcript(Transcript::StandardTranscript(
-            manifest,
-            S::HASH_TYPE,
-            S::NUM_CHALLENGE_BYTES,
-        ));
+        self.transcript = Transcript::<H>::new(Some(manifest), self.transcript.num_challenge_bytes);
     }
 }
 

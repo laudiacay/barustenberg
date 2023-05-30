@@ -1,6 +1,8 @@
-use std::rc::Rc;
+use std::sync::Arc;
 
-use crate::ecc::fields::field::FieldParams;
+use ark_ec::AffineRepr;
+use ark_ff::{FftField, Field};
+
 use crate::plonk::proof_system::proving_key::ProvingKey;
 use crate::transcript::{BarretenHasher, Transcript};
 
@@ -18,26 +20,26 @@ pub(crate) struct WorkItemInfo {
     num_iffts: usize,
 }
 
-struct WorkItem<Fr: FieldParams> {
+struct WorkItem<Fr: Field> {
     work_type: WorkType,
-    mul_scalars: Rc<Vec<Fr>>,
+    mul_scalars: Arc<Vec<Fr>>,
     tag: String,
     constant: Fr,
     index: usize,
 }
 
-pub(crate) struct QueuedFftInputs<Fr: FieldParams> {
+pub(crate) struct QueuedFftInputs<Fr: Field> {
     data: Vec<Fr>,
     shift_factor: Fr,
 }
 
-pub(crate) struct WorkQueue<H: BarretenHasher, Fr: FieldParams> {
-    key: Option<Rc<ProvingKey<Fr>>>,
-    transcript: Option<Rc<Transcript<H>>>,
+pub(crate) struct WorkQueue<H: BarretenHasher, Fr: Field + FftField, G1Affine: AffineRepr> {
+    key: Option<Arc<ProvingKey<Fr, G1Affine>>>,
+    transcript: Option<Arc<Transcript<H>>>,
     work_items: Vec<WorkItem<Fr>>,
 }
 
-impl<H: BarretenHasher, Fr: FieldParams> WorkQueue<H, Fr> {
+impl<H: BarretenHasher, Fr: Field + FftField, G1Affine: AffineRepr> WorkQueue<H, Fr, G1Affine> {
     /*
     work_item_info get_queued_work_item_info() const;
 
@@ -65,8 +67,8 @@ impl<H: BarretenHasher, Fr: FieldParams> WorkQueue<H, Fr> {
      */
 
     pub fn new(
-        prover_key: Option<Rc<ProvingKey<Fr>>>,
-        prover_transcript: Option<Rc<Transcript<H>>>,
+        prover_key: Option<Arc<ProvingKey<Fr, G1Affine>>>,
+        prover_transcript: Option<Arc<Transcript<H>>>,
     ) -> Self {
         WorkQueue {
             key: prover_key,
@@ -75,7 +77,7 @@ impl<H: BarretenHasher, Fr: FieldParams> WorkQueue<H, Fr> {
         }
     }
 
-    fn get_queued_work_item_info(&self) -> WorkItemInfo {
+    pub fn get_queued_work_item_info(&self) -> WorkItemInfo {
         let mut num_scalar_multiplications = 0;
         let mut num_ffts = 0;
         let mut num_iffts = 0;
@@ -95,7 +97,7 @@ impl<H: BarretenHasher, Fr: FieldParams> WorkQueue<H, Fr> {
         }
     }
 
-    fn get_scalar_multiplication_data(&self, work_item_number: usize) -> Option<Rc<Vec<Fr>>> {
+    pub fn get_scalar_multiplication_data(&self, work_item_number: usize) -> Option<Arc<Vec<Fr>>> {
         let mut count: usize = 0;
         for item in self.work_items.iter() {
             if item.work_type == WorkType::ScalarMultiplication {
@@ -108,7 +110,7 @@ impl<H: BarretenHasher, Fr: FieldParams> WorkQueue<H, Fr> {
         None
     }
 
-    fn get_scalar_multiplication_size(&self, work_item_number: usize) -> usize {
+    pub fn get_scalar_multiplication_size(&self, work_item_number: usize) -> usize {
         let mut count: usize = 0;
         for item in self.work_items.iter() {
             if item.work_type == WorkType::ScalarMultiplication {
@@ -122,7 +124,7 @@ impl<H: BarretenHasher, Fr: FieldParams> WorkQueue<H, Fr> {
         0
     }
 
-    fn get_ifft_data(&self, work_item_number: usize) -> Option<Rc<Vec<Fr>>> {
+    pub fn get_ifft_data(&self, work_item_number: usize) -> Option<Arc<Vec<Fr>>> {
         let mut count: usize = 0;
         for item in self.work_items.iter() {
             if item.work_type == WorkType::Ifft {
@@ -137,19 +139,19 @@ impl<H: BarretenHasher, Fr: FieldParams> WorkQueue<H, Fr> {
         None
     }
 
-    fn put_ifft_data(&self) {
+    pub fn put_ifft_data(&self, result: Vec<Fr>, work_item_number: usize) {
         todo!("do it");
     }
 
-    fn get_fft_data(&self) {
+    pub fn get_fft_data(&self, work_item_number: usize) -> Option<Arc<QueuedFftInputs<Fr>>> {
         todo!("do it");
     }
 
-    fn put_fft_data(&self) {
+    pub fn put_fft_data(&self, result: Vec<Fr>, work_item_number: usize) {
         todo!("do it")
     }
 
-    fn put_scalar_multiplication_data(&self) {
+    pub fn put_scalar_multiplication_data(&self, result: G1Affine, work_item_number: usize) {
         todo!("do it")
     }
 
@@ -157,7 +159,7 @@ impl<H: BarretenHasher, Fr: FieldParams> WorkQueue<H, Fr> {
         self.work_items = vec![];
     }
     fn add_to_queue(&mut self) {
-        todo!("whole fucking wasm thing")
+        todo!("whole wasm thing")
     }
     pub fn process_queue(&self) {
         todo!("aaaaagh")
