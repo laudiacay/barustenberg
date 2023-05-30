@@ -18,7 +18,7 @@ use crate::{
             PolynomialManifest,
         },
     },
-    transcript::{BarretenHasher, Transcript, TranscriptKey, TranscriptWrapper},
+    transcript::{BarretenHasher, Transcript, TranscriptKey},
 };
 
 use self::containers::{ChallengeArray, CoefficientArray, PolyArray, PolyContainer, PolyPtrMap};
@@ -161,7 +161,7 @@ pub(crate) trait BaseGetter<
     /// # Returns
     /// A structure with an array of challenge values and powers of α
     fn get_challenges<G1Affine: AffineRepr>(
-        transcript: &Transcript<H>,
+        transcript: &Transcript<H, F, G1Affine>,
         alpha_base: F,
         required_challenges: u8,
         rng: Arc<Mutex<dyn rand::RngCore + Send + Sync>>,
@@ -171,7 +171,7 @@ pub(crate) trait BaseGetter<
             assert!(!required || transcript.has_challenge(label));
             if transcript.has_challenge(label) {
                 assert!(index < transcript.get_num_challenges(label));
-                result.elements[tag] = <Transcript<H> as TranscriptWrapper<F, G1Affine, H>>::get_challenge_field_element(transcript, label, index);
+                result.elements[tag] = transcript.get_challenge_field_element(label, Some(index));
             } else {
                 let mut random_bytes = vec![0u8; std::mem::size_of::<F>()];
                 // TODO should you really have an unwrap here?
@@ -273,23 +273,16 @@ pub(crate) trait EvaluationGetter<
     /// `PolyArray`
     fn get_polynomial_evaluations<G1Affine: AffineRepr>(
         polynomial_manifest: &PolynomialManifest,
-        transcript: &Transcript<H>,
+        transcript: &Transcript<H, F, G1Affine>,
     ) -> PolyArray<F> {
         let mut result: PolyArray<F> = Default::default();
         for i in 0..polynomial_manifest.len() {
             let info = &polynomial_manifest[i.into()];
             let label = info.polynomial_label.clone();
-            result[i.into()].0 =
-                <Transcript<H> as TranscriptWrapper<F, G1Affine, H>>::get_field_element(
-                    transcript, &label,
-                );
+            result[i.into()].0 = transcript.get_field_element(&label);
 
             if info.requires_shifted_evaluation {
-                result[info.index].1 =
-                    <Transcript<H> as TranscriptWrapper<F, G1Affine, H>>::get_field_element(
-                        transcript,
-                        &(label + "_omega"),
-                    );
+                result[info.index].1 = transcript.get_field_element(&(label + "_omega"));
             } else {
                 result[info.index].1 = F::zero();
             }
@@ -459,7 +452,7 @@ impl<
     pub(crate) fn compute_quotient_contribution(
         &self,
         alpha_base: F,
-        transcript: &Transcript<H>,
+        transcript: &Transcript<H, F, G1Affine>,
         rng: Arc<Mutex<dyn rand::RngCore + Send + Sync>>,
     ) -> F {
         let key = self.base.key.as_ref().expect("Proving key is missing");
@@ -516,7 +509,7 @@ impl<
 
 pub(crate) trait GenericVerifierWidget<
     'a,
-    F: Field,
+    F: Field + FftField,
     H: BarretenHasher,
     PC: PolyContainer<F>,
     G: BaseGetter<H, F, S, NIndependentRelations> + EvaluationGetter<H, F, S, NIndependentRelations>,
@@ -528,9 +521,9 @@ pub(crate) trait GenericVerifierWidget<
     KB: KernelBase<H, S, F, PC, G, NIndependentRelations>,
 {
     fn compute_quotient_evaluation_contribution<G1Affine: AffineRepr>(
-        key: &Arc<TranscriptKey<'a>>,
+        key: &Arc<TranscriptKey<'a, F>>,
         alpha_base: F,
-        transcript: &Transcript<H>,
+        transcript: &Transcript<H, F, G1Affine>,
         quotient_numerator_eval: &mut F,
         rng: Arc<Mutex<dyn rand::RngCore + Send + Sync>>,
     ) -> F {
@@ -560,9 +553,9 @@ pub(crate) trait GenericVerifierWidget<
     }
 
     fn append_scalar_multiplication_inputs(
-        _key: &Arc<TranscriptKey<'_>>,
+        _key: &Arc<TranscriptKey<'_, F>>,
         alpha_base: F,
-        transcript: &Transcript<H>,
+        transcript: &Transcript<H, F, G1Affine>,
         _scalar_mult_inputs: &mut HashMap<String, F>,
         rng: Arc<Mutex<dyn rand::RngCore + Send + Sync>>,
     ) -> F {

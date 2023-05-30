@@ -1,4 +1,4 @@
-use ark_ff::Field;
+use ark_ff::{FftField, Field};
 use typenum::U1;
 
 use crate::{
@@ -259,7 +259,7 @@ impl<
         'a,
         H: BarretenHasher,
         S: Settings<H>,
-        F: Field,
+        F: Field + FftField,
         PC: PolyContainer<F>,
         Get: BaseGetter<H, F, S, U1> + EvaluationGetter<H, F, S, U1>,
     > GenericVerifierWidget<'a, F, H, PC, Get, U1, S, ArithmeticKernel<H, F, S, Get, PC>>

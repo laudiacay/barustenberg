@@ -46,22 +46,22 @@ pub(crate) trait CommitmentScheme<
 
     fn batch_open<'a>(
         &mut self,
-        transcript: &Transcript<H>,
+        transcript: &Transcript<H, Fr, G1Affine>,
         queue: &mut WorkQueue<'a, H, Fr, G1Affine>,
         input_key: Option<Arc<ProvingKey<'a, Fr, G1Affine>>>,
     );
 
     fn batch_verify<'a>(
         &self,
-        transcript: &Transcript<H>,
+        transcript: &Transcript<H, Fr, G1Affine>,
         kate_g1_elements: &mut HashMap<String, G1Affine>,
         kate_fr_elements: &mut HashMap<String, Fr>,
-        input_key: Option<Arc<VerificationKey<'a>>>,
+        input_key: Option<Arc<VerificationKey<'a, Fr>>>,
     );
 
     fn add_opening_evaluations_to_transcript<'a>(
         &self,
-        transcript: &mut Transcript<H>,
+        transcript: &mut Transcript<H, Fr, G1Affine>,
         input_key: Option<Arc<ProvingKey<'a, Fr, G1Affine>>>,
         in_lagrange_form: bool,
     );
@@ -88,7 +88,7 @@ impl<Fq: Field, Fr: Field + FftField, G1Affine: AffineRepr, H: BarretenHasher, S
 
     fn add_opening_evaluations_to_transcript(
         &self,
-        _transcript: &mut Transcript<H>,
+        _transcript: &mut Transcript<H, Fr, G1Affine>,
         _input_key: Option<Arc<ProvingKey<'_, Fr, G1Affine>>>,
         _in_lagrange_form: bool,
     ) {
@@ -117,7 +117,7 @@ impl<Fq: Field, Fr: Field + FftField, G1Affine: AffineRepr, H: BarretenHasher, S
 
     fn batch_open<'a>(
         &mut self,
-        _transcript: &Transcript<H>,
+        _transcript: &Transcript<H, Fr, G1Affine>,
         _queue: &mut WorkQueue<'a, H, Fr, G1Affine>,
         _input_key: Option<Arc<ProvingKey<'a, Fr, G1Affine>>>,
     ) {
@@ -126,10 +126,10 @@ impl<Fq: Field, Fr: Field + FftField, G1Affine: AffineRepr, H: BarretenHasher, S
 
     fn batch_verify<'a>(
         &self,
-        _transcript: &Transcript<H>,
+        _transcript: &Transcript<H, Fr, G1Affine>,
         _kate_g1_elements: &mut HashMap<String, G1Affine>,
         _kate_fr_elements: &mut HashMap<String, Fr>,
-        _input_key: Option<Arc<VerificationKey<'a>>>,
+        _input_key: Option<Arc<VerificationKey<'a, Fr>>>,
     ) {
         todo!()
     }
