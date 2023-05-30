@@ -30,14 +30,14 @@ use super::verification_key::VerificationKey;
 #[cfg(test)]
 mod test;
 
-pub trait VerifierBase<'a, H: BarretenHasher, PS: Settings<H>> {
+pub(crate) trait VerifierBase<'a, H: BarretenHasher, PS: Settings<H>> {
     fn new(verifier_key: Option<Arc<VerificationKey<'a>>>, manifest: Manifest) -> Self;
     fn validate_commitments(&self) -> bool;
     fn validate_scalars(&self) -> bool;
     fn verify_proof(&self, proof: &Proof) -> bool;
 }
 
-pub struct Verifier<
+pub(crate) struct Verifier<
     'a,
     Fq: Field,
     Fr: Field,
@@ -56,7 +56,7 @@ pub struct Verifier<
 impl<'a, Fq: Field, Fr: Field, G1Affine: AffineRepr, H: BarretenHasher, PS: Settings<H>>
     VerifierBase<'a, H, PS> for Verifier<'a, Fq, Fr, G1Affine, H, PS>
 {
-    fn new(verifier_key: Option<Arc<VerificationKey<'a>>>, manifest: Manifest) -> Self {
+    fn new(_verifier_key: Option<Arc<VerificationKey<'a>>>, _manifest: Manifest) -> Self {
         // Implement constructor logic here.
         todo!("Verifier::new")
     }
@@ -71,7 +71,7 @@ impl<'a, Fq: Field, Fr: Field, G1Affine: AffineRepr, H: BarretenHasher, PS: Sett
         todo!("Verifier::validate_scalars")
     }
 
-    fn verify_proof(&self, proof: &Proof) -> bool {
+    fn verify_proof(&self, _proof: &Proof) -> bool {
         // Implement verify_proof logic here.
         todo!("Verifier::verify_proof")
     }

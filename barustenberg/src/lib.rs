@@ -23,6 +23,7 @@ pub mod transcript;
 // macros and consts and inlining for maxfast
 // remove all the extra trait bounds if you don't need them. sometimes you don't need them.
 // there are some things that should be parallel that aren't. do a pass.
+// pon de inlining
 
 /// Test utilities.
 #[cfg(any(test, feature = "test_utils"))]

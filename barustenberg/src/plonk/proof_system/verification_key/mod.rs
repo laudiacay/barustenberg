@@ -9,7 +9,7 @@ use crate::{
 
 use super::types::PolynomialManifest;
 
-pub struct VerificationKey<'a> {
+pub(crate) struct VerificationKey<'a> {
     composer_type: u32,
     circuit_size: usize,
     log_circuit_size: usize,
@@ -17,7 +17,7 @@ pub struct VerificationKey<'a> {
     domain: EvaluationDomain<'a, Fr>,
     reference_string: Arc<dyn VerifierReferenceString<G2Affine>>,
     commitments: HashMap<String, G1Affine>,
-    pub polynomial_manifest: PolynomialManifest,
+    pub(crate) polynomial_manifest: PolynomialManifest,
     /// This is a member variable so as to avoid recomputing it in the different places of the verifier algorithm.
     /// Note that recomputing would also have added constraints to the recursive verifier circuit.
     /// ʓ^n (ʓ being the 'evaluation challenge')

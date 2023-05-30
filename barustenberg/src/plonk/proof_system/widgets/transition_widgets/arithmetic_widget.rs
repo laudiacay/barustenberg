@@ -1,4 +1,3 @@
-use ark_ec::AffineRepr;
 use ark_ff::Field;
 use typenum::U1;
 
@@ -22,7 +21,7 @@ use super::transition_widget::{
     TransitionWidget, CHALLENGE_BIT_ALPHA,
 };
 
-pub struct ArithmeticKernel<
+pub(crate) struct ArithmeticKernel<
     H: BarretenHasher,
     F: Field,
     S: Settings<H>,
@@ -38,37 +37,37 @@ where
     F: Field,
 {
     // TODO see all these U1s they should be a named variable but they are not :( inherent associate type problem
-    pub const QUOTIENT_REQUIRED_CHALLENGES: u8 = CHALLENGE_BIT_ALPHA as u8;
-    pub const UPDATE_REQUIRED_CHALLENGES: u8 = CHALLENGE_BIT_ALPHA as u8;
+    pub(crate) const QUOTIENT_REQUIRED_CHALLENGES: u8 = CHALLENGE_BIT_ALPHA as u8;
+    pub(crate) const UPDATE_REQUIRED_CHALLENGES: u8 = CHALLENGE_BIT_ALPHA as u8;
 
-    pub fn get_required_polynomial_ids() -> &'static HashSet<PolynomialIndex> {
+    pub(crate) fn get_required_polynomial_ids() -> &'static HashSet<PolynomialIndex> {
         // ...
         todo!("ArithmeticKernel::get_required_polynomial_ids")
     }
 
-    pub fn compute_linear_terms(
-        polynomials: &PolyContainer,
-        challenges: &ChallengeArray<F, U1>,
-        linear_terms: &mut CoefficientArray<F>,
-        i: usize,
+    pub(crate) fn compute_linear_terms(
+        _polynomials: &PolyContainer,
+        _challenges: &ChallengeArray<F, U1>,
+        _linear_terms: &mut CoefficientArray<F>,
+        _i: usize,
     ) {
         // ...
     }
 
-    pub fn compute_non_linear_terms(
-        polynomials: &PolyContainer,
-        challenges: &ChallengeArray<F, U1>,
-        field: &mut F,
-        i: usize,
+    pub(crate) fn compute_non_linear_terms(
+        _polynomials: &PolyContainer,
+        _challenges: &ChallengeArray<F, U1>,
+        _field: &mut F,
+        _i: usize,
     ) {
         // ...
     }
 
-    pub fn sum_linear_terms(
-        polynomials: &PolyContainer,
-        challenges: &ChallengeArray<F, U1>,
-        linear_terms: &mut CoefficientArray<F>,
-        i: usize,
+    pub(crate) fn sum_linear_terms(
+        _polynomials: &PolyContainer,
+        _challenges: &ChallengeArray<F, U1>,
+        _linear_terms: &mut CoefficientArray<F>,
+        _i: usize,
     ) -> F {
         // ...
         todo!("ArithmeticKernel::sum_linear_terms")
@@ -80,7 +79,7 @@ where
     /// - `linear_terms` - The original computed linear terms of the product and wires
     /// - `scalars` - A map where we put the values
     /// - `challenges` - Challenges where we get the alpha
-    pub fn update_kate_opening_scalars(
+    pub(crate) fn update_kate_opening_scalars(
         linear_terms: &CoefficientArray<F>,
         scalars: &mut HashMap<String, F>,
         challenges: &ChallengeArray<F, U1>,
@@ -136,10 +135,10 @@ impl<
     }
 
     fn compute_linear_terms(
-        polynomials: impl PolyContainer<F>,
-        challenges: &ChallengeArray<F, U1>,
-        linear_terms: &mut CoefficientArray<F>,
-        index: usize,
+        _polynomials: &impl PolyContainer<F>,
+        _challenges: &ChallengeArray<F, U1>,
+        _linear_terms: &mut CoefficientArray<F>,
+        _index: usize,
     ) {
         /*
                 inline static void compute_linear_terms(PolyContainer& polynomials,
@@ -164,10 +163,10 @@ impl<
     }
 
     fn sum_linear_terms(
-        polynomials: impl PolyContainer<F>,
-        challenges: &ChallengeArray<F, U1>,
-        linear_terms: &CoefficientArray<F>,
-        index: usize,
+        _polynomials: &impl PolyContainer<F>,
+        _challenges: &ChallengeArray<F, U1>,
+        _linear_terms: &CoefficientArray<F>,
+        _index: usize,
     ) -> F {
         /*
                 /**
@@ -212,10 +211,10 @@ impl<
 
     /// Not being used in arithmetic_widget because there are none
     fn compute_non_linear_terms(
-        polynomials: impl PolyContainer<F>,
-        challenges: &ChallengeArray<F, U1>,
-        quotient_term: &mut F,
-        index: usize,
+        _polynomials: &impl PolyContainer<F>,
+        _challenges: &ChallengeArray<F, U1>,
+        _quotient_term: &mut F,
+        _index: usize,
     ) {
         unimplemented!(
             "ArithmeticKernel::compute_non_linear_terms- there are no non-linear terms..."
@@ -223,27 +222,20 @@ impl<
     }
 }
 
-pub type ProverArithmeticWidget<
-    'a,
-    F: Field,
-    G1Affine: AffineRepr,
-    H: BarretenHasher,
-    S: Settings<H>,
-    PolyContainer,
-    Getters: BaseGetter<H, F, S, U1>,
-> = TransitionWidget<
-    'a,
-    H,
-    F,
-    G1Affine,
-    S,
-    PolyContainer,
-    Getters,
-    U1,
-    ArithmeticKernel<H, F, S, Getters, PolyContainer>,
->;
+pub(crate) type ProverArithmeticWidget<'a, F, G1Affine, H, S, PolyContainer, Getters> =
+    TransitionWidget<
+        'a,
+        H,
+        F,
+        G1Affine,
+        S,
+        PolyContainer,
+        Getters,
+        U1,
+        ArithmeticKernel<H, F, S, Getters, PolyContainer>,
+    >;
 
-pub struct VerifierArithmeticWidget<
+pub(crate) struct VerifierArithmeticWidget<
     H: BarretenHasher,
     F: Field,
     //Group,

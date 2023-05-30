@@ -1,1 +1,1 @@
-pub mod composer_base;
+pub(crate) mod composer_base;

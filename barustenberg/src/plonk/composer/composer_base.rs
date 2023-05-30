@@ -14,19 +14,19 @@ use crate::{
 
 use ark_ff::{FftField, Field};
 
-pub const DUMMY_TAG: u32 = 0;
-pub const REAL_VARIABLE: u32 = u32::MAX - 1;
-pub const FIRST_VARIABLE_IN_CLASS: u32 = u32::MAX - 2;
-pub const NUM_RESERVED_GATES: usize = 4;
+pub(crate) const DUMMY_TAG: u32 = 0;
+pub(crate) const REAL_VARIABLE: u32 = u32::MAX - 1;
+pub(crate) const FIRST_VARIABLE_IN_CLASS: u32 = u32::MAX - 2;
+pub(crate) const NUM_RESERVED_GATES: usize = 4;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub enum WireType {
+pub(crate) enum WireType {
     Left = 0,
     Right = 1 << 30,
     Output = 1 << 31,
     Fourth = 0xc0000000,
 }
-pub enum ComposerType {
+pub(crate) enum ComposerType {
     Standard,
     Turbo,
     Plookup,
@@ -34,18 +34,18 @@ pub enum ComposerType {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub struct CycleNode {
-    pub gate_index: u32,
-    pub wire_type: WireType,
+pub(crate) struct CycleNode {
+    pub(crate) gate_index: u32,
+    pub(crate) wire_type: WireType,
 }
 
-pub struct SelectorProperties {
-    pub name: String,
-    pub requires_lagrange_base_polynomial: bool,
+pub(crate) struct SelectorProperties {
+    pub(crate) name: String,
+    pub(crate) requires_lagrange_base_polynomial: bool,
 }
 
 impl CycleNode {
-    pub fn new(gate_index: u32, wire_type: WireType) -> Self {
+    pub(crate) fn new(gate_index: u32, wire_type: WireType) -> Self {
         Self {
             gate_index,
             wire_type,
@@ -53,8 +53,9 @@ impl CycleNode {
     }
 }
 
-pub struct ComposerBase<'a, F: Field + FftField, G1Affine: AffineRepr, G2Affine: AffineRepr> {
-    pub num_gates: usize,
+pub(crate) struct ComposerBase<'a, F: Field + FftField, G1Affine: AffineRepr, G2Affine: AffineRepr>
+{
+    pub(crate) num_gates: usize,
     crs_factory: Arc<dyn ReferenceStringFactory<G1Affine, G2Affine>>,
     num_selectors: usize,
     selectors: Vec<Vec<F>>,
@@ -90,7 +91,7 @@ pub struct ComposerBase<'a, F: Field + FftField, G1Affine: AffineRepr, G2Affine:
 impl<'a, F: Field + FftField, G1Affine: AffineRepr, G2Affine: AffineRepr>
     ComposerBase<'a, F, G1Affine, G2Affine>
 {
-    pub fn new(
+    pub(crate) fn new(
         num_selectors: usize,
         size_hint: usize,
         selector_properties: Vec<SelectorProperties>,
@@ -101,7 +102,7 @@ impl<'a, F: Field + FftField, G1Affine: AffineRepr, G2Affine: AffineRepr>
         Self::with_crs_factory(crs_factory, num_selectors, size_hint, selector_properties)
     }
 
-    pub fn default() -> Self {
+    pub(crate) fn default() -> Self {
         Self {
             num_gates: 0,
             crs_factory: Arc::new(BaseReferenceStringFactory::<G1Affine, G2Affine>::default()),
@@ -131,7 +132,7 @@ impl<'a, F: Field + FftField, G1Affine: AffineRepr, G2Affine: AffineRepr>
         }
     }
 
-    pub fn with_crs_factory(
+    pub(crate) fn with_crs_factory(
         crs_factory: Arc<dyn ReferenceStringFactory<G1Affine, G2Affine>>,
         num_selectors: usize,
         size_hint: usize,
@@ -148,7 +149,7 @@ impl<'a, F: Field + FftField, G1Affine: AffineRepr, G2Affine: AffineRepr>
         selfie.num_gates = 0;
         selfie
     }
-    pub fn with_keys(
+    pub(crate) fn with_keys(
         p_key: Arc<ProvingKey<'a, F, G1Affine>>,
         v_key: Arc<VerificationKey<'a>>,
         num_selectors: usize,
@@ -168,7 +169,7 @@ impl<'a, F: Field + FftField, G1Affine: AffineRepr, G2Affine: AffineRepr>
         ));
         selfie
     }
-    pub fn get_first_variable_in_class(&self, index: usize) -> usize {
+    pub(crate) fn get_first_variable_in_class(&self, index: usize) -> usize {
         let mut idx = index as u32;
         while self.prev_var_index[idx as usize] != FIRST_VARIABLE_IN_CLASS {
             idx = self.prev_var_index[idx as usize];

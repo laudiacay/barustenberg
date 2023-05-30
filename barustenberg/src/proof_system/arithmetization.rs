@@ -7,7 +7,7 @@ use typenum::{U11, U3, U4, U5};
 ///
 /// It may make sense to say this is only partial arithmetization data, with the full data being
 /// contained in the circuit constructor. We could change the name of this class if it conflicts with common usage.
-trait Arithmetization {
+pub(crate) trait Arithmetization {
     type NumWires: typenum::Unsigned;
     type NumSelectors: typenum::Unsigned;
     // Note: For even greater modularity, in each instantiation we could specify a list of components here, where a
@@ -30,7 +30,7 @@ pub(crate) trait Standard: Arithmetization<NumWires = U3, NumSelectors = U5> {}
 trait Turbo: Arithmetization<NumWires = U4, NumSelectors = U11> {}
 trait Ultra: Arithmetization<NumWires = U4, NumSelectors = U11> {}
 
-pub mod gate_data {
+pub(crate) mod gate_data {
     use ark_ff::Field;
     use serde::{Deserialize, Serialize};
 

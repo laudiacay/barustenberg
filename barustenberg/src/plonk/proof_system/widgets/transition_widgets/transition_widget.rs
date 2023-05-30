@@ -6,6 +6,7 @@ use std::{
 use ark_bn254::G1Affine;
 use ark_ec::AffineRepr;
 use ark_ff::{FftField, Field};
+use once_cell::sync::Lazy;
 use typenum::Unsigned;
 
 use crate::{
@@ -22,7 +23,7 @@ use crate::{
 
 use self::containers::{ChallengeArray, CoefficientArray, PolyArray, PolyContainer, PolyPtrMap};
 
-pub enum ChallengeIndex {
+pub(crate) enum ChallengeIndex {
     Alpha,
     Beta,
     Gamma,
@@ -31,26 +32,26 @@ pub enum ChallengeIndex {
     MaxNumChallenges,
 }
 
-pub const CHALLENGE_BIT_ALPHA: usize = 1 << (ChallengeIndex::Alpha as usize);
-pub const CHALLENGE_BIT_BETA: usize = 1 << (ChallengeIndex::Beta as usize);
-pub const CHALLENGE_BIT_GAMMA: usize = 1 << (ChallengeIndex::Gamma as usize);
-pub const CHALLENGE_BIT_ETA: usize = 1 << (ChallengeIndex::Eta as usize);
-pub const CHALLENGE_BIT_ZETA: usize = 1 << (ChallengeIndex::Zeta as usize);
+pub(crate) const CHALLENGE_BIT_ALPHA: usize = 1 << (ChallengeIndex::Alpha as usize);
+pub(crate) const CHALLENGE_BIT_BETA: usize = 1 << (ChallengeIndex::Beta as usize);
+pub(crate) const CHALLENGE_BIT_GAMMA: usize = 1 << (ChallengeIndex::Gamma as usize);
+pub(crate) const CHALLENGE_BIT_ETA: usize = 1 << (ChallengeIndex::Eta as usize);
+pub(crate) const CHALLENGE_BIT_ZETA: usize = 1 << (ChallengeIndex::Zeta as usize);
 
 // need maxnumchallenges as a typenum, not just as an enum
-pub type MaxNumChallengesTN = typenum::consts::U5;
+pub(crate) type MaxNumChallengesTN = typenum::consts::U5;
 
 // and check its correspondance with the enum before we continue...
-static _MAX_NUM_CHALLENGES_CHECK: () = {
+static _MAX_NUM_CHALLENGES_CHECK: Lazy<()> = Lazy::new(|| {
     assert_eq!(
         MaxNumChallengesTN::to_usize(),
         ChallengeIndex::MaxNumChallenges as usize
     );
-};
+});
 
-pub mod containers {
+pub(crate) mod containers {
     use generic_array::GenericArray;
-    use std::ops::Index;
+    use std::ops::{Index, IndexMut};
 
     use crate::{
         plonk::proof_system::types::polynomial_manifest::PolynomialIndex, polynomials::Polynomial,
@@ -60,21 +61,29 @@ pub mod containers {
     use ark_ff::Field;
     use std::collections::HashMap;
 
-    pub trait PolyContainer<F: Field> {}
+    pub(crate) trait PolyContainer<F: Field> {}
 
     #[derive(Default)]
-    pub struct ChallengeArray<F: Field, NumRelations: generic_array::ArrayLength<F>> {
-        pub elements: GenericArray<F, MaxNumChallengesTN>,
-        pub alpha_powers: GenericArray<F, NumRelations>,
+    pub(crate) struct ChallengeArray<F: Field, NumRelations: generic_array::ArrayLength<F>> {
+        pub(crate) elements: GenericArray<F, MaxNumChallengesTN>,
+        pub(crate) alpha_powers: GenericArray<F, NumRelations>,
     }
 
-    pub struct PolyArray<Field>(pub [(Field, Field); PolynomialIndex::MaxNumPolynomials as usize]);
+    pub(crate) struct PolyArray<Field>(
+        pub(crate) [(Field, Field); PolynomialIndex::MaxNumPolynomials as usize],
+    );
 
     impl<F: Field> Index<PolynomialIndex> for PolyArray<F> {
         type Output = (F, F);
 
         fn index(&self, index: PolynomialIndex) -> &Self::Output {
             &self.0[index as usize]
+        }
+    }
+
+    impl<F: Field> IndexMut<PolynomialIndex> for PolyArray<F> {
+        fn index_mut(&mut self, index: PolynomialIndex) -> &mut Self::Output {
+            &mut self.0[index as usize]
         }
     }
 
@@ -86,14 +95,14 @@ pub mod containers {
 
     impl<F: Field> PolyContainer<F> for PolyArray<F> {}
 
-    pub struct PolyPtrMap<F: Field> {
-        pub coefficients: HashMap<PolynomialIndex, Polynomial<F>>,
-        pub block_mask: usize,
-        pub index_shift: usize,
+    pub(crate) struct PolyPtrMap<F: Field> {
+        pub(crate) coefficients: HashMap<PolynomialIndex, Polynomial<F>>,
+        pub(crate) block_mask: usize,
+        pub(crate) index_shift: usize,
     }
 
     impl<F: Field> PolyPtrMap<F> {
-        pub fn new() -> Self {
+        pub(crate) fn new() -> Self {
             Self {
                 coefficients: HashMap::new(),
                 block_mask: 0,
@@ -104,7 +113,7 @@ pub mod containers {
 
     impl<F: Field> PolyContainer<F> for PolyPtrMap<F> {}
 
-    pub struct CoefficientArray<F: Field>([F; PolynomialIndex::MaxNumPolynomials as usize]);
+    pub(crate) struct CoefficientArray<F: Field>([F; PolynomialIndex::MaxNumPolynomials as usize]);
     impl<F: Field> Index<PolynomialIndex> for CoefficientArray<F> {
         type Output = F;
 
@@ -134,7 +143,7 @@ pub mod containers {
 /// - `Transcript`: Transcript struct
 /// - `Settings`: Configuration
 /// - `NUM_WIDGET_RELATIONS`: How many powers of α are needed
-pub trait BaseGetter<
+pub(crate) trait BaseGetter<
     H: BarretenHasher,
     F: Field,
     S: Settings<H>,
@@ -158,7 +167,7 @@ pub trait BaseGetter<
         rng: Arc<Mutex<dyn rand::RngCore + Send + Sync>>,
     ) -> ChallengeArray<F, NWidgetRelations> {
         let mut result: ChallengeArray<F, _> = ChallengeArray::default();
-        let add_challenge = |label: &str, tag: usize, required: bool, index: usize| {
+        let mut add_challenge = |label: &str, tag: usize, required: bool, index: usize| {
             assert!(!required || transcript.has_challenge(label));
             if transcript.has_challenge(label) {
                 assert!(index < transcript.get_num_challenges(label));
@@ -221,7 +230,7 @@ pub trait BaseGetter<
 
 /// Implements loading polynomial openings from transcript in addition to BaseGetter's
 /// loading challenges from the transcript and computing powers of α
-pub trait EvaluationGetter<
+pub(crate) trait EvaluationGetter<
     H: BarretenHasher,
     F: Field,
     S: Settings<H>,
@@ -291,7 +300,7 @@ pub trait EvaluationGetter<
 
 /// Provides access to polynomials (monomial or coset FFT) for use in widgets
 /// Coset FFT access is needed in quotient construction.
-pub trait FFTGetter<
+pub(crate) trait FFTGetter<
     'a,
     H,
     F,
@@ -313,7 +322,8 @@ pub trait FFTGetter<
         result.block_mask = key.large_domain.size - 1;
         result.index_shift = 4;
 
-        for info in key.polynomial_manifest.into_iter() {
+        // TODO sus clone
+        for info in key.polynomial_manifest.clone() {
             if required_polynomial_ids.get(&info.index).is_some() {
                 let label = info.polynomial_label.clone() + label_suffix;
                 let poly = key.polynomial_store.get(label).unwrap();
@@ -338,19 +348,19 @@ pub trait FFTGetter<
     }
 }
 
-pub struct TransitionWidgetBase<'a, F: Field + FftField, G1Affine: AffineRepr> {
-    pub key: Option<Arc<ProvingKey<'a, F, G1Affine>>>,
+pub(crate) struct TransitionWidgetBase<'a, F: Field + FftField, G1Affine: AffineRepr> {
+    pub(crate) key: Option<Arc<ProvingKey<'a, F, G1Affine>>>,
 }
 
 impl<'a, F: Field + FftField, G1Affine: AffineRepr> TransitionWidgetBase<'a, F, G1Affine> {
-    pub fn new(key: Option<Arc<ProvingKey<'a, F, G1Affine>>>) -> Self {
+    pub(crate) fn new(key: Option<Arc<ProvingKey<'a, F, G1Affine>>>) -> Self {
         Self { key }
     }
 
     // other methods and trait implementations
 }
 
-pub trait KernelBase<
+pub(crate) trait KernelBase<
     H: BarretenHasher,
     S: Settings<H>,
     F: Field,
@@ -363,26 +373,26 @@ pub trait KernelBase<
     fn quotient_required_challenges() -> u8;
     fn update_required_challenges() -> u8;
     fn compute_linear_terms(
-        polynomials: impl PolyContainer<F>,
+        polynomials: &impl PolyContainer<F>,
         challenges: &ChallengeArray<F, NumIndependentRelations>,
         linear_terms: &mut CoefficientArray<F>,
         index: usize,
     );
     fn sum_linear_terms(
-        polynomials: impl PolyContainer<F>,
+        polynomials: &impl PolyContainer<F>,
         challenges: &ChallengeArray<F, NumIndependentRelations>,
         linear_terms: &CoefficientArray<F>,
         index: usize,
     ) -> F;
     fn compute_non_linear_terms(
-        polynomials: impl PolyContainer<F>,
+        polynomials: &impl PolyContainer<F>,
         challenges: &ChallengeArray<F, NumIndependentRelations>,
         quotient_term: &mut F,
         index: usize,
     );
 }
 
-pub struct TransitionWidget<
+pub(crate) struct TransitionWidget<
     'a,
     H: BarretenHasher,
     F: Field + FftField,
@@ -438,7 +448,7 @@ impl<
         KB: KernelBase<H, S, F, PC, G, NIndependentRelations>,
     > TransitionWidget<'a, H, F, G1Affine, S, PC, G, NIndependentRelations, KB>
 {
-    pub fn new(key: Option<Arc<ProvingKey<'a, F, G1Affine>>>) -> Self {
+    pub(crate) fn new(key: Option<Arc<ProvingKey<'a, F, G1Affine>>>) -> Self {
         Self {
             base: TransitionWidgetBase::new(key),
             phantom: std::marker::PhantomData,
@@ -446,7 +456,7 @@ impl<
     }
 
     // other methods and trait implementations
-    pub fn compute_quotient_contribution(
+    pub(crate) fn compute_quotient_contribution(
         &self,
         alpha_base: F,
         transcript: &Transcript<H>,
@@ -469,14 +479,14 @@ impl<
         // TODO: hidden missing multithreading here
         for i in 0..key.large_domain.size {
             let mut linear_terms = CoefficientArray::default();
-            KB::compute_linear_terms(polynomials, &challenges, &mut linear_terms, i);
+            KB::compute_linear_terms(&polynomials, &challenges, &mut linear_terms, i);
             let sum_of_linear_terms =
-                KB::sum_linear_terms(polynomials, &challenges, &linear_terms, i);
+                KB::sum_linear_terms(&polynomials, &challenges, &linear_terms, i);
 
             quotient_term = key.quotient_polynomial_parts[i >> key.small_domain.log2_size]
                 [i & (key.circuit_size - 1)];
             quotient_term += sum_of_linear_terms;
-            KB::compute_non_linear_terms(polynomials, &challenges, &mut quotient_term, i);
+            KB::compute_non_linear_terms(&polynomials, &challenges, &mut quotient_term, i);
         }
 
         Self::update_alpha(&challenges)
@@ -485,6 +495,7 @@ impl<
 
 // Implementations for the derived classes
 impl<
+        'a,
         F: Field + FftField,
         H: BarretenHasher,
         G1Affine: AffineRepr,
@@ -493,17 +504,17 @@ impl<
         PC: PolyContainer<F>,
         G: BaseGetter<H, F, S, NIndependentRelations>,
         NIndependentRelations: generic_array::ArrayLength<F>,
-    > From<TransitionWidget<'_, H, F, G1Affine, S, PC, G, NIndependentRelations, KB>>
-    for TransitionWidgetBase<'_, F, G1Affine>
+    > From<TransitionWidget<'a, H, F, G1Affine, S, PC, G, NIndependentRelations, KB>>
+    for TransitionWidgetBase<'a, F, G1Affine>
 {
     fn from(
-        widget: TransitionWidget<'_, H, F, G1Affine, S, PC, G, NIndependentRelations, KB>,
+        widget: TransitionWidget<'a, H, F, G1Affine, S, PC, G, NIndependentRelations, KB>,
     ) -> Self {
         widget.base
     }
 }
 
-pub trait GenericVerifierWidget<
+pub(crate) trait GenericVerifierWidget<
     'a,
     F: Field,
     H: BarretenHasher,
@@ -535,11 +546,11 @@ pub trait GenericVerifierWidget<
         );
 
         let mut linear_terms = CoefficientArray::default();
-        KB::compute_linear_terms(polynomial_evaluations, &challenges, &mut linear_terms, 0);
+        KB::compute_linear_terms(&polynomial_evaluations, &challenges, &mut linear_terms, 0);
         *quotient_numerator_eval +=
-            KB::sum_linear_terms(polynomial_evaluations, &challenges, &linear_terms, 0);
+            KB::sum_linear_terms(&polynomial_evaluations, &challenges, &linear_terms, 0);
         KB::compute_non_linear_terms(
-            polynomial_evaluations,
+            &polynomial_evaluations,
             &challenges,
             quotient_numerator_eval,
             0,
@@ -549,10 +560,10 @@ pub trait GenericVerifierWidget<
     }
 
     fn append_scalar_multiplication_inputs(
-        key: &Arc<TranscriptKey<'_>>,
+        _key: &Arc<TranscriptKey<'_>>,
         alpha_base: F,
         transcript: &Transcript<H>,
-        scalar_mult_inputs: &mut HashMap<String, F>,
+        _scalar_mult_inputs: &mut HashMap<String, F>,
         rng: Arc<Mutex<dyn rand::RngCore + Send + Sync>>,
     ) -> F {
         let challenges = G::get_challenges::<G1Affine>(

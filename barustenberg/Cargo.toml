@@ -35,6 +35,7 @@ ark-bn254 = "0.4.0"
 ark-serialize = "0.4.2"
 rand = "0.8.5"
 primitive-types = "0.12.1"
+once_cell = "1.17.2"
 [dev-dependencies]
 proptest = "1.1"
 

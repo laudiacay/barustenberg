@@ -13,7 +13,7 @@ pub(crate) struct PolynomialStore<Fr: Field> {
     phantom: PhantomData<Fr>,
 }
 impl<Fr: Field> PolynomialStore<Fr> {
-    pub(crate) const fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             polynomial_map: HashMap::new(),
             phantom: PhantomData,
@@ -25,7 +25,7 @@ impl<Fr: Field> PolynomialStore<Fr> {
     /// # Arguments
     /// - `name` - string ID of the polynomial
     /// - `polynomial` - the polynomial to be stored
-    pub(crate) const fn put(&mut self, name: String, polynomial: Polynomial<Fr>) {
+    pub(crate) fn put(&mut self, name: String, polynomial: Polynomial<Fr>) {
         self.polynomial_map.insert(name, polynomial);
     }
 
@@ -74,7 +74,7 @@ impl<Fr: Field> PolynomialStore<Fr> {
     }
 
     fn len(&self) -> usize {
-        self.len()
+        self.polynomial_map.len()
     }
 
     // TODO: "allow for const range based for loop"

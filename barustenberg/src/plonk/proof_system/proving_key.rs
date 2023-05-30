@@ -19,7 +19,7 @@ use super::types::PolynomialManifest;
 
 const MIN_THREAD_BLOCK: usize = 4;
 
-struct ProvingKeyData<F: Field> {
+pub(crate) struct ProvingKeyData<F: Field> {
     composer_type: u32,
     circuit_size: u32,
     num_public_inputs: u32,
@@ -30,26 +30,26 @@ struct ProvingKeyData<F: Field> {
     polynomial_store: PolynomialStore<F>,
 }
 
-pub struct ProvingKey<'a, Fr: Field + FftField, G1Affine: AffineRepr> {
-    pub composer_type: u32,
-    pub circuit_size: usize,
-    pub log_circuit_size: usize,
-    pub num_public_inputs: usize,
-    pub contains_recursive_proof: bool,
-    pub recursive_proof_public_input_indices: Vec<u32>,
+pub(crate) struct ProvingKey<'a, Fr: Field + FftField, G1Affine: AffineRepr> {
+    pub(crate) composer_type: u32,
+    pub(crate) circuit_size: usize,
+    pub(crate) log_circuit_size: usize,
+    pub(crate) num_public_inputs: usize,
+    pub(crate) contains_recursive_proof: bool,
+    pub(crate) recursive_proof_public_input_indices: Vec<u32>,
     /// Used by UltraComposer only; for ROM, RAM reads.
-    pub memory_read_records: Vec<u32>,
+    pub(crate) memory_read_records: Vec<u32>,
     /// Used by UltraComposer only, for RAM writes.
-    pub memory_write_records: Vec<u32>,
-    pub polynomial_store: PolynomialStore<Fr>,
-    pub small_domain: EvaluationDomain<'a, Fr>,
-    pub large_domain: EvaluationDomain<'a, Fr>,
+    pub(crate) memory_write_records: Vec<u32>,
+    pub(crate) polynomial_store: PolynomialStore<Fr>,
+    pub(crate) small_domain: EvaluationDomain<'a, Fr>,
+    pub(crate) large_domain: EvaluationDomain<'a, Fr>,
     /// The reference_string object contains the monomial SRS. We can access it using:
     /// Monomial SRS: reference_string->get_monomial_points()
-    pub reference_string: Arc<dyn ProverReferenceString<G1Affine>>,
-    pub quotient_polynomial_parts: [Polynomial<Fr>; NUM_QUOTIENT_PARTS as usize],
-    pub pippenger_runtime_state: PippengerRuntimeState,
-    pub polynomial_manifest: PolynomialManifest,
+    pub(crate) reference_string: Arc<dyn ProverReferenceString<G1Affine>>,
+    pub(crate) quotient_polynomial_parts: [Polynomial<Fr>; NUM_QUOTIENT_PARTS as usize],
+    pub(crate) pippenger_runtime_state: PippengerRuntimeState,
+    pub(crate) polynomial_manifest: PolynomialManifest,
 }
 
 impl<'a, Fr: Field + FftField, G1Affine: AffineRepr> Default for ProvingKey<'a, Fr, G1Affine> {
@@ -75,7 +75,7 @@ impl<'a, Fr: Field + FftField, G1Affine: AffineRepr> Default for ProvingKey<'a, 
 }
 
 impl<'a, Fr: Field + FftField, G1Affine: AffineRepr> ProvingKey<'a, Fr, G1Affine> {
-    pub fn new_with_data(
+    pub(crate) fn new_with_data(
         data: ProvingKeyData<Fr>,
         crs: Arc<dyn ProverReferenceString<G1Affine>>,
     ) -> Self {
@@ -115,7 +115,7 @@ impl<'a, Fr: Field + FftField, G1Affine: AffineRepr> ProvingKey<'a, Fr, G1Affine
         ret
     }
 
-    pub fn new(
+    pub(crate) fn new(
         num_gates: usize,
         num_inputs: usize,
         crs: Arc<dyn ProverReferenceString<G1Affine>>,
@@ -142,7 +142,7 @@ impl<'a, Fr: Field + FftField, G1Affine: AffineRepr> ProvingKey<'a, Fr, G1Affine
     /// 2. Set capacity for polynomial store cache.
     /// 3. Initialize quotient_polynomial_parts(n+1) to zeroes.
 
-    pub fn init(&mut self) {
+    pub(crate) fn init(&mut self) {
         if self.circuit_size != 0 {
             self.small_domain.compute_lookup_table();
             self.large_domain.compute_lookup_table();
@@ -156,14 +156,17 @@ impl<'a, Fr: Field + FftField, G1Affine: AffineRepr> ProvingKey<'a, Fr, G1Affine
         self.quotient_polynomial_parts[3] = Polynomial::new(self.circuit_size);
     }
 
-    pub fn from_reader<R: Read>(reader: &mut R, crs_path: &str) -> Result<Self, std::io::Error> {
-        let crs = Arc::new(FileReferenceString::<G1Affine>::read_from_path(crs_path)?);
+    pub(crate) fn from_reader<R: Read>(
+        _reader: &mut R,
+        crs_path: &str,
+    ) -> Result<Self, std::io::Error> {
+        let _crs = Arc::new(FileReferenceString::<G1Affine>::read_from_path(crs_path)?);
         todo!();
     }
 }
 
 impl<'a, Fr: Field + FftField, G1Affine: AffineRepr> Serialize for ProvingKey<'a, Fr, G1Affine> {
-    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+    fn serialize<S: Serializer>(&self, _serializer: S) -> Result<S::Ok, S::Error> {
         // TODO
         /*
                 // Write the pre-computed polynomials
@@ -230,7 +233,7 @@ impl<'a, Fr: Field + FftField, G1Affine: AffineRepr> Serialize for ProvingKey<'a
 impl<'a, 'de, Fr: Field + FftField, G1Affine: AffineRepr> Deserialize<'de>
     for ProvingKey<'a, Fr, G1Affine>
 {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    fn deserialize<D>(_deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {

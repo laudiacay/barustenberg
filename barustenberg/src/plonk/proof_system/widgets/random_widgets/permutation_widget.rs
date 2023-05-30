@@ -8,7 +8,7 @@ use std::sync::Arc;
 use ark_ec::AffineRepr;
 use ark_ff::{FftField, Field};
 
-pub struct VerifierPermutationWidget<
+pub(crate) struct VerifierPermutationWidget<
     H: BarretenHasher,
     F: Field,
     Group,
@@ -24,35 +24,35 @@ where
     H: BarretenHasher,
     F: Field,
 {
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             transcript: Transcript::<H>::default(),
             phantom: PhantomData,
         }
     }
 
-    pub fn compute_quotient_evaluation_contribution<'a>(
-        key: &Arc<TranscriptKey<'a>>,
-        alpha_base: F,
-        transcript: &Transcript<H>,
-        quotient_numerator_eval: &mut F,
-        idpolys: bool,
+    pub(crate) fn compute_quotient_evaluation_contribution<'a>(
+        _key: &Arc<TranscriptKey<'a>>,
+        _alpha_base: F,
+        _transcript: &Transcript<H>,
+        _quotient_numerator_eval: &mut F,
+        _idpolys: bool,
     ) -> F {
         todo!("VerifierPermutationWidget::compute_quotient_evaluation_contribution")
         // ...
     }
 
-    pub fn append_scalar_multiplication_inputs<'a>(
-        key: &Arc<TranscriptKey<'a>>,
-        alpha_base: F,
-        transcript: &Transcript<H>,
+    pub(crate) fn append_scalar_multiplication_inputs<'a>(
+        _key: &Arc<TranscriptKey<'a>>,
+        _alpha_base: F,
+        _transcript: &Transcript<H>,
     ) -> F {
         // ...
         todo!("VerifierPermutationWidget::append_scalar_multiplication_inputs")
     }
 }
 
-pub struct ProverPermutationWidget<
+pub(crate) struct ProverPermutationWidget<
     'a,
     Fr: Field + FftField,
     Hash: BarretenHasher,
@@ -83,25 +83,25 @@ impl<
         NUM_ROOTS_CUT_OUT_OF_VANISHING_POLYNOMIAL,
     >
 {
-    pub fn new(proving_key: Arc<ProvingKey<'_, Fr, G1Affine>>) -> Self {
+    pub(crate) fn new(proving_key: Arc<ProvingKey<'a, Fr, G1Affine>>) -> Self {
         Self {
             prover_random_widget: ProverRandomWidget::new(&proving_key),
         }
     }
 
-    pub fn compute_round_commitments(
+    pub(crate) fn compute_round_commitments(
         &mut self,
-        transcript: &mut Transcript<Hash>,
-        round_number: usize,
-        queue: &mut WorkQueue<'a, Hash, Fr, G1Affine>,
+        _transcript: &mut Transcript<Hash>,
+        _round_number: usize,
+        _queue: &mut WorkQueue<'a, Hash, Fr, G1Affine>,
     ) {
         // ...
     }
 
-    pub fn compute_quotient_contribution(
+    pub(crate) fn compute_quotient_contribution(
         &self,
-        alpha_base: Fr,
-        transcript: &Transcript<Hash>,
+        _alpha_base: Fr,
+        _transcript: &Transcript<Hash>,
     ) -> Fr {
         // ...
         todo!("ProverPermutationWidget::compute_quotient_contribution")
