@@ -1,8 +1,9 @@
 use ark_ec::AffineRepr;
 use ark_ff::Field;
 use generic_array::{ArrayLength, GenericArray};
+use sha3::{Sha3_256, Digest};
 
-use std::collections::HashMap;
+use std::{collections::HashMap, ptr::hash};
 use tracing::info;
 use typenum::{Unsigned, U16, U32};
 
@@ -27,24 +28,8 @@ impl BarretenHasher for Keccak256 {
     type SecurityParameterSize = U32;
     type PrngOutputSize = U32;
 
-    fn hash(_buffer: &[u8]) -> GenericArray<u8, Self::PrngOutputSize> {
-        // TODO from gpt
-        // let hash_result = keccak256::hash(&buffer);
-        // let mut result = [0u8; Self::PRNG_OUTPUT_SIZE];
-
-        // for (i, word) in hash_result.word64s.iter().enumerate() {
-        //     let bytes = if cfg!(target_endian = "little") {
-        //         word.to_be_bytes()
-        //     } else {
-        //         word.to_le_bytes()
-        //     };
-        //     for (j, &byte) in bytes.iter().enumerate() {
-        //         result[i * 8 + j] = byte;
-        //     }
-        // }
-
-        // result
-        todo!("check comment to see gpt fuckup result")
+    fn hash(buffer: &[u8]) -> GenericArray<u8, Self::PrngOutputSize> {
+        Sha3_256::digest(buffer)
     }
 }
 
