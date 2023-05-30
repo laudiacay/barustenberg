@@ -1,6 +1,6 @@
 <div align="center">
   <a href="https://github.com/laudiacay/barustenberg" target="_blank">
-    <img src="https://raw.githubusercontent.com/laudiacay/barustenberg/main/assets/a_logo.png" alt="barustenberg Logo" width="100"></img>
+    <img src="https://raw.githubusercontent.com/laudiacay/barustenberg/main/assets/aztec.jpeg" alt="barustenberg Logo" width="100"></img>
   </a>
 
   <h1 align="center">barustenberg</h1>
