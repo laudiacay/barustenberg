@@ -1,12 +1,12 @@
 use std::ops::Index;
 
 #[derive(Debug, Clone)]
-struct PolynomialDescriptor {
+pub(crate) struct PolynomialDescriptor {
     commitment_label: String,
-    pub polynomial_label: String,
-    pub requires_shifted_evaluation: bool,
+    pub(crate) polynomial_label: String,
+    pub(crate) requires_shifted_evaluation: bool,
     source: PolynomialSource,
-    pub index: PolynomialIndex,
+    pub(crate) index: PolynomialIndex,
 }
 
 impl PolynomialDescriptor {
@@ -32,11 +32,11 @@ pub(crate) struct PolynomialManifest {
 }
 
 impl PolynomialManifest {
-    pub fn len(&self) -> usize {
+    pub(crate) fn len(&self) -> usize {
         todo!()
     }
-    pub fn get(&self, index: PolynomialIndex) -> Vec<PolynomialDescriptor> {
-        self.manifest
+    pub(crate) fn get(&self, index: PolynomialIndex) -> &PolynomialDescriptor {
+        &self.manifest[index as usize]
     }
 }
 

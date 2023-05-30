@@ -24,34 +24,45 @@ use crate::proof_system::work_queue::WorkQueue;
 
 // todo https://doc.rust-lang.org/reference/const_eval.html
 
-pub struct Prover<
+pub(crate) struct Prover<
+    'a,
     Fq: Field,
     Fr: Field + FftField,
     G1Affine: AffineRepr,
     H: BarretenHasher,
     S: Settings<H>,
+    CS: CommitmentScheme<Fq, Fr, G1Affine, H>,
 > {
-    pub circuit_size: usize,
-    pub transcript: Transcript<H>,
-    pub key: Arc<ProvingKey<Fr, G1Affine>>,
-    pub queue: WorkQueue<H, Fr, G1Affine>,
-    pub random_widgets: Vec<ProverRandomWidget<H, Fr, G1Affine>>,
-    pub transition_widgets: Vec<TransitionWidgetBase<Fr, G1Affine>>,
-    pub commitment_scheme: Box<dyn CommitmentScheme<Fq, Fr, G1Affine, H>>,
-    phantom: PhantomData<S>,
+    pub(crate) circuit_size: usize,
+    pub(crate) transcript: Arc<Transcript<H>>,
+    pub(crate) key: Arc<ProvingKey<'a, Fr, G1Affine>>,
+    pub(crate) queue: WorkQueue<'a, H, Fr, G1Affine>,
+    pub(crate) random_widgets: Vec<ProverRandomWidget<'a, H, Fr, G1Affine>>,
+    pub(crate) transition_widgets: Vec<TransitionWidgetBase<'a, Fr, G1Affine>>,
+    pub(crate) commitment_scheme: CS,
+    phantom: PhantomData<(Fq, S)>,
 }
 
-impl<Fq: Field, Fr: Field + FftField, G1Affine: AffineRepr, H: BarretenHasher, S: Settings<H>>
-    Prover<Fq, Fr, G1Affine, H, S>
+impl<
+        'a,
+        Fq: Field,
+        Fr: Field + FftField,
+        G1Affine: AffineRepr,
+        H: BarretenHasher + Default,
+        S: Settings<H> + Default,
+    > Prover<'a, Fq, Fr, G1Affine, H, S, KateCommitmentScheme<H, S>>
 {
-    pub fn new(
-        input_key: Option<Arc<ProvingKey<Fr, G1Affine>>>,
+    pub(crate) fn new(
+        input_key: Option<Arc<ProvingKey<'a, Fr, G1Affine>>>,
         input_manifest: Option<Manifest>,
-        input_settings: Option<S>,
+        _input_settings: Option<S>,
     ) -> Self {
         let circuit_size = input_key.as_ref().map_or(0, |key| key.circuit_size);
-        let transcript = Transcript::new(input_manifest, H::PrngOutputSize::USIZE);
-        let queue = WorkQueue::new(input_key, Some(Arc::new(transcript)));
+        let transcript = Arc::new(Transcript::new(input_manifest, H::PrngOutputSize::USIZE));
+        let queue = WorkQueue::new(
+            input_key.as_ref().map(|a| a.clone()),
+            Some(transcript.clone()),
+        );
 
         Self {
             circuit_size,
@@ -60,11 +71,22 @@ impl<Fq: Field, Fr: Field + FftField, G1Affine: AffineRepr, H: BarretenHasher, S
             queue,
             random_widgets: Vec::new(),
             transition_widgets: Vec::new(),
-            commitment_scheme: Box::new(KateCommitmentScheme::<H, S>::default()),
+            commitment_scheme: KateCommitmentScheme::<H, S>::default(),
             phantom: PhantomData,
         }
     }
+}
 
+impl<
+        'a,
+        Fq: Field,
+        Fr: Field + FftField,
+        G1Affine: AffineRepr,
+        H: BarretenHasher + Default,
+        S: Settings<H> + Default,
+        CS: CommitmentScheme<Fq, Fr, G1Affine, H>,
+    > Prover<'a, Fq, Fr, G1Affine, H, S, CS>
+{
     fn copy_placeholder(&self) {
         todo!("LOOK AT THE COMMENTS IN PROVERBASE");
     }
@@ -674,7 +696,7 @@ impl<Fq: Field, Fr: Field + FftField, G1Affine: AffineRepr, H: BarretenHasher, S
         }
     }
 
-    pub fn construct_proof(&self) -> Proof {
+    pub(crate) fn construct_proof(&mut self) -> Proof {
         // Execute init round. Randomize witness polynomials.
         self.execute_preamble_round();
         self.queue.process_queue();
@@ -709,7 +731,7 @@ impl<Fq: Field, Fr: Field + FftField, G1Affine: AffineRepr, H: BarretenHasher, S
     fn get_circuit_size(&self) -> usize {
         todo!("implement me")
     }
-    fn flush_queued_work_items(&self) {
+    fn flush_queued_work_items(&mut self) {
         self.queue.flush_queue()
     }
     fn get_queued_work_item_info(&self) -> work_queue::WorkItemInfo {
@@ -739,7 +761,10 @@ impl<Fq: Field, Fr: Field + FftField, G1Affine: AffineRepr, H: BarretenHasher, S
     }
     fn reset(&mut self) {
         let manifest = self.transcript.get_manifest();
-        self.transcript = Transcript::<H>::new(Some(manifest), self.transcript.num_challenge_bytes);
+        self.transcript = Arc::new(Transcript::<H>::new(
+            Some(manifest),
+            self.transcript.num_challenge_bytes,
+        ));
     }
 }
 

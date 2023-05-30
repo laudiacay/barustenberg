@@ -4,18 +4,18 @@ use ark_ec::AffineRepr;
 
 // TODO do this later properly
 #[derive(Clone, Default)]
-pub struct MillerLines {}
+pub(crate) struct MillerLines {}
 
-pub trait VerifierReferenceString<G2Affine: AffineRepr> {
+pub(crate) trait VerifierReferenceString<G2Affine: AffineRepr> {
     fn get_g2x(&self) -> G2Affine;
-    fn get_precomputed_g2_lines(&self) -> &MillerLines;
+    fn get_precomputed_g2_lines(&self) -> &Vec<MillerLines>;
 }
 
-pub trait ProverReferenceString<G1Affine: AffineRepr> {
-    fn get_monomial_points(&mut self) -> Vec<G1Affine>;
+pub(crate) trait ProverReferenceString<G1Affine: AffineRepr> {
+    fn get_monomial_points(&mut self) -> &Vec<G1Affine>;
     fn get_monomial_size(&self) -> usize;
 }
-pub trait ReferenceStringFactory<G1Affine: AffineRepr, G2Affine: AffineRepr> {
+pub(crate) trait ReferenceStringFactory<G1Affine: AffineRepr, G2Affine: AffineRepr> {
     fn get_prover_crs(&self, _size: usize) -> Option<Arc<dyn ProverReferenceString<G1Affine>>> {
         todo!()
     }
@@ -26,7 +26,7 @@ pub trait ReferenceStringFactory<G1Affine: AffineRepr, G2Affine: AffineRepr> {
 }
 
 #[derive(Clone, Default)]
-pub struct BaseReferenceStringFactory<G1Affine: AffineRepr, G2Affine: AffineRepr> {
+pub(crate) struct BaseReferenceStringFactory<G1Affine: AffineRepr, G2Affine: AffineRepr> {
     phantom: PhantomData<(G1Affine, G2Affine)>,
 }
 

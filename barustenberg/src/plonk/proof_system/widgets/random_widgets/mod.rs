@@ -1,2 +1,2 @@
-pub mod permutation_widget;
-pub mod random_widget;
+pub(crate) mod permutation_widget;
+pub(crate) mod random_widget;

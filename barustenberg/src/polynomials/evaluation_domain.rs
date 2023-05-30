@@ -3,37 +3,37 @@ use ark_ff::{FftField, Field};
 use crate::numeric::bitop::Msb;
 use std::vec::Vec;
 
-pub const MIN_GROUP_PER_THREAD: usize = 4;
+pub(crate) const MIN_GROUP_PER_THREAD: usize = 4;
 
 #[derive(Default)]
-pub struct EvaluationDomain<'a, F: Field + FftField> {
+pub(crate) struct EvaluationDomain<'a, F: Field + FftField> {
     /// n, always a power of 2
-    pub size: usize,
+    pub(crate) size: usize,
     /// num_threads * thread_size = size
-    pub num_threads: usize,
-    pub thread_size: usize,
-    pub log2_size: usize,
-    pub log2_thread_size: usize,
-    pub log2_num_threads: usize,
-    pub generator_size: usize,
+    pub(crate) num_threads: usize,
+    pub(crate) thread_size: usize,
+    pub(crate) log2_size: usize,
+    pub(crate) log2_thread_size: usize,
+    pub(crate) log2_num_threads: usize,
+    pub(crate) generator_size: usize,
     /// omega; the nth root of unity
-    pub root: F,
+    pub(crate) root: F,
     /// omega^{-1}
-    pub root_inverse: F,
+    pub(crate) root_inverse: F,
     /// n; same as size
-    pub domain: F,
+    pub(crate) domain: F,
     /// n^{-1}
-    pub domain_inverse: F,
-    pub generator: F,
-    pub generator_inverse: F,
-    pub four_inverse: F,
+    pub(crate) domain_inverse: F,
+    pub(crate) generator: F,
+    pub(crate) generator_inverse: F,
+    pub(crate) four_inverse: F,
     /// An entry for each of the log(n) rounds: each entry is a pointer to
     /// the subset of the roots of unity required for that fft round.
     /// E.g. round_roots[0] = [1, ω^(n/2 - 1)],
     ///      round_roots[1] = [1, ω^(n/4 - 1), ω^(n/2 - 1), ω^(3n/4 - 1)]
     ///      ...
-    pub round_roots: &'a [&'a [F]],
-    pub inverse_round_roots: &'a [&'a [F]],
+    pub(crate) round_roots: &'a [&'a [F]],
+    pub(crate) inverse_round_roots: &'a [&'a [F]],
 }
 
 fn compute_num_threads(size: usize) -> usize {
@@ -48,10 +48,10 @@ fn compute_num_threads(size: usize) -> usize {
 }
 
 fn compute_lookup_table_single<F: Field>(
-    input_root: &F,
-    size: usize,
-    roots: &[F],
-    round_roots: &mut Vec<&mut [F]>,
+    _input_root: &F,
+    _size: usize,
+    _roots: &[F],
+    _round_roots: &mut Vec<&mut [F]>,
 ) {
     todo!("unimplemented, see comment below");
     // ORIGINAL CODE:
@@ -104,15 +104,15 @@ fn compute_lookup_table_single<F: Field>(
 }
 
 impl<'a, F: Field + FftField> EvaluationDomain<'a, F> {
-    pub fn new(domain_size: usize, target_generator_size: Option<usize>) -> Self {
+    pub(crate) fn new(domain_size: usize, _target_generator_size: Option<usize>) -> Self {
         // TODO: implement constructor logic
 
         let size = domain_size;
         let num_threads = compute_num_threads(size);
         let thread_size = size / num_threads;
-        let log2_size = size.get_msb();
-        let log2_thread_size = thread_size.get_msb();
-        let log2_num_threads = num_threads.get_msb();
+        let _log2_size = size.get_msb();
+        let _log2_thread_size = thread_size.get_msb();
+        let _log2_num_threads = num_threads.get_msb();
         // let root = F::get_root_of_unity(log2_size);
         // let domain = F::new(size, 0,0,0).to_montgomery_form();
         // let domain_inverse = domain.inverse().unwrap();
@@ -147,22 +147,22 @@ impl<'a, F: Field + FftField> EvaluationDomain<'a, F> {
         // }
     }
 
-    pub fn compute_lookup_table(&mut self) {
+    pub(crate) fn compute_lookup_table(&mut self) {
         // TODO: implement compute_lookup_table logic
     }
 
-    pub fn compute_generator_table(&mut self, target_generator_size: usize) {
+    pub(crate) fn compute_generator_table(&mut self, _target_generator_size: usize) {
         // TODO: implement compute_generator_table logic
     }
 
-    pub fn get_round_roots(&self) -> &[&[F]] {
+    pub(crate) fn get_round_roots(&self) -> &[&[F]] {
         self.round_roots
     }
 
-    pub fn get_inverse_round_roots(&self) -> &[&[F]] {
+    pub(crate) fn get_inverse_round_roots(&self) -> &[&[F]] {
         self.inverse_round_roots
     }
 }
 
-pub type BarretenbergEvaluationDomain<'a> = EvaluationDomain<'a, ark_bn254::Fr>;
-pub type GrumpkinEvaluationDomain<'a> = EvaluationDomain<'a, grumpkin::Fr>;
+pub(crate) type BarretenbergEvaluationDomain<'a> = EvaluationDomain<'a, ark_bn254::Fr>;
+pub(crate) type GrumpkinEvaluationDomain<'a> = EvaluationDomain<'a, grumpkin::Fr>;

@@ -13,7 +13,7 @@ pub(crate) struct PolynomialStore<Fr: Field> {
     phantom: PhantomData<Fr>,
 }
 impl<Fr: Field> PolynomialStore<Fr> {
-    pub(crate) const fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             polynomial_map: HashMap::new(),
             phantom: PhantomData,
@@ -25,7 +25,7 @@ impl<Fr: Field> PolynomialStore<Fr> {
     /// # Arguments
     /// - `name` - string ID of the polynomial
     /// - `polynomial` - the polynomial to be stored
-    pub(crate) const fn put(&mut self, name: String, polynomial: Polynomial<Fr>) {
+    pub(crate) fn put(&mut self, name: String, polynomial: Polynomial<Fr>) {
         self.polynomial_map.insert(name, polynomial);
     }
 
@@ -37,10 +37,10 @@ impl<Fr: Field> PolynomialStore<Fr> {
     ///
     /// # Returns
     /// - `Result<Polynomial>` - a reference to the polynomial associated with the given key
-    pub(crate) const fn get(&self, key: String) -> Result<Polynomial<Fr>> {
+    pub(crate) fn get(&self, key: String) -> Result<Polynomial<Fr>> {
         self.polynomial_map
             .get(&key)
-            .ok_or(anyhow!("didn't find polynomial..."))
+            .ok_or_else(|| anyhow!("didn't find polynomial..."))
             .cloned()
     }
 
@@ -51,10 +51,10 @@ impl<Fr: Field> PolynomialStore<Fr> {
     ///
     /// # Returns
     /// - `Result<Polynomial>` - the polynomial associated with the given key
-    pub(crate) const fn remove(&mut self, key: String) -> Result<Polynomial<Fr>> {
+    pub(crate) fn remove(&mut self, key: String) -> Result<Polynomial<Fr>> {
         self.polynomial_map
             .remove(&key)
-            .ok_or(Err("didn't find polynomial..."))
+            .ok_or_else(|| anyhow!("didn't find polynomial..."))
     }
 
     /// Get the current size (bytes) of all polynomials in the PolynomialStore
@@ -74,7 +74,7 @@ impl<Fr: Field> PolynomialStore<Fr> {
     }
 
     fn len(&self) -> usize {
-        self.len()
+        self.polynomial_map.len()
     }
 
     // TODO: "allow for const range based for loop"

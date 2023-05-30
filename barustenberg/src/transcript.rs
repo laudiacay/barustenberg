@@ -27,7 +27,7 @@ impl BarretenHasher for Keccak256 {
     // const SECURITY_PARAMETER_SIZE: usize = 32;
     // const PRNG_OUTPUT_SIZE: usize = 32;
 
-    fn hash(buffer: &[u8]) -> GenericArray<u8, Self::PrngOutputSize> {
+    fn hash(_buffer: &[u8]) -> GenericArray<u8, Self::PrngOutputSize> {
         // TODO from gpt
         // let hash_result = keccak256::hash(&buffer);
         // let mut result = [0u8; Self::PRNG_OUTPUT_SIZE];
@@ -57,7 +57,7 @@ impl BarretenHasher for PedersenBlake3s {
     // const SECURITY_PARAMETER_SIZE: usize = 16;
     // const PRNG_OUTPUT_SIZE: usize = 32;
 
-    fn hash(input: &[u8]) -> GenericArray<u8, Self::PrngOutputSize> {
+    fn hash(_input: &[u8]) -> GenericArray<u8, Self::PrngOutputSize> {
         // TODO from original codebase
         /*
                 std::vector<uint8_t> hash_result = blake3::blake3s(buffer);
@@ -76,7 +76,7 @@ pub struct PlookupPedersenBlake3s {}
 impl BarretenHasher for PlookupPedersenBlake3s {
     type SecurityParameterSize = U16;
     type PrngOutputSize = U32;
-    fn hash(buffer: &[u8]) -> GenericArray<u8, Self::PrngOutputSize> {
+    fn hash(_buffer: &[u8]) -> GenericArray<u8, Self::PrngOutputSize> {
         // TODO from original codebase
         /*
                std::vector<uint8_t> compressed_buffer = crypto::pedersen_commitment::lookup::compress_native(buffer);
@@ -149,9 +149,6 @@ impl Manifest {
     fn get_round_manifest(&self, round: usize) -> &RoundManifest {
         &self.round_manifests[round]
     }
-    fn get_round_manifests(&self) -> &Vec<RoundManifest> {
-        &self.round_manifests
-    }
 }
 
 #[derive(Clone, Default)]
@@ -159,7 +156,7 @@ struct Challenge<H: BarretenHasher> {
     data: GenericArray<u8, H::PrngOutputSize>,
 }
 
-pub type TranscriptKey = VerificationKey;
+pub(crate) type TranscriptKey<'a> = VerificationKey<'a>;
 
 pub struct Transcript<H: BarretenHasher> {
     current_round: usize,
@@ -229,7 +226,7 @@ impl<H: BarretenHasher> Transcript<H> {
         // Compute how much data we need according to the manifest
         let mut total_required_size = 0;
         for i in 0..num_rounds {
-            for manifest_element in input_manifest.get_round_manifest(i).elements {
+            for manifest_element in &input_manifest.get_round_manifest(i).elements {
                 if !manifest_element.derived_by_verifier {
                     total_required_size += manifest_element.num_bytes;
                 }
@@ -242,11 +239,11 @@ impl<H: BarretenHasher> Transcript<H> {
 
         let mut elements = std::collections::HashMap::new();
         for i in 0..num_rounds {
-            for manifest_element in input_manifest.get_round_manifest(i).elements {
+            for manifest_element in &input_manifest.get_round_manifest(i).elements {
                 if !manifest_element.derived_by_verifier {
                     let end = count + manifest_element.num_bytes;
                     let element_data = input_transcript[count..end].to_vec();
-                    elements.insert(manifest_element.name, element_data);
+                    elements.insert(manifest_element.name.clone(), element_data);
                     count += manifest_element.num_bytes;
                 }
             }
@@ -267,7 +264,7 @@ impl<H: BarretenHasher> Transcript<H> {
         transcript
     }
 
-    fn parse(input_transcript: Vec<u8>, manifest: Manifest, challenge_bytes: usize) -> Self {
+    fn parse(_input_transcript: Vec<u8>, _manifest: Manifest, _challenge_bytes: usize) -> Self {
         // implementation
         todo!("Transcript::parse")
     }
@@ -283,7 +280,7 @@ impl<H: BarretenHasher> Transcript<H> {
     ///
     /// * `challenge_name` - Challenge name (needed to check if the challenge fits the current round).
     ///
-    pub fn apply_fiat_shamir(&mut self, challenge_name: &str) {
+    pub fn apply_fiat_shamir(&mut self, _challenge_name: &str) {
         // implementation
 
         // TODO
@@ -436,10 +433,10 @@ impl<H: BarretenHasher> Transcript<H> {
         &self,
         challenge_name: &str,
         idx: usize,
-    ) -> GenericArray<u8, H::PrngOutputSize> {
+    ) -> &GenericArray<u8, H::PrngOutputSize> {
         info!("get_challenge(): {}", challenge_name);
         assert!(self.challenges.contains_key(challenge_name));
-        self.challenges.get(challenge_name).unwrap()[idx].data
+        &self.challenges.get(challenge_name).unwrap()[idx].data
     }
 
     /// Get the challenge index from map (needed when we name subchallenges).
@@ -491,8 +488,8 @@ impl<H: BarretenHasher> Transcript<H> {
             result[<H::PrngOutputSize as Unsigned>::USIZE - 1] = 1;
             return result;
         }
-        let value = self.challenges[challenge_name][key as usize];
-        value.data
+        let value = &self.challenges[challenge_name][key as usize];
+        value.data.clone()
     }
 
     /// Get the number of challenges in the transcript.
@@ -533,8 +530,8 @@ impl<H: BarretenHasher> Transcript<H> {
     ///
     /// The size of the element. otherwise -1
     pub fn get_element_size(&self, element_name: &str) -> usize {
-        for manifest in self.manifest.get_round_manifests() {
-            for element in manifest.elements {
+        for manifest in &self.manifest.round_manifests {
+            for element in &manifest.elements {
                 if element.name == element_name {
                     return element.num_bytes;
                 }
@@ -551,8 +548,8 @@ impl<H: BarretenHasher> Transcript<H> {
     /// The serialized transcript.
     pub fn export_transcript(&self) -> Vec<u8> {
         let buf: Vec<u8> = vec![];
-        for manifest in self.manifest.get_round_manifests() {
-            for element in manifest.elements {
+        for manifest in &self.manifest.round_manifests {
+            for _element in &manifest.elements {
                 /*
                     ASSERT(elements.count(manifest_element.name) == 1);
                 const std::vector<uint8_t>& element_data = elements.at(manifest_element.name);
@@ -578,11 +575,11 @@ impl<H: BarretenHasher> Transcript<H> {
     /// into the challenge_map.
     pub fn compute_challenge_map(&mut self) {
         self.challenge_map.clear();
-        for manifest in self.manifest.get_round_manifests() {
+        for manifest in &self.manifest.round_manifests {
             if manifest.map_challenges {
-                for element in manifest.elements {
+                for element in &manifest.elements {
                     self.challenge_map
-                        .insert(element.name, element.challenge_map_index);
+                        .insert(element.name.clone(), element.challenge_map_index);
                 }
             }
         }
@@ -600,9 +597,10 @@ impl<H: BarretenHasher> Transcript<H> {
     /// * `challenge_in` - The challenge name up to which to mock the transcript interactions.
     pub fn mock_inputs_prior_to_challenge(&mut self, challenge_in: &str, circuit_size: usize) {
         // Perform operations only up to fiat-shamir of challenge_in
-        for manifest in self.manifest.get_round_manifests() {
+        // TODO this clone isn't great but it satisfies the borrow checker
+        for manifest in &self.manifest.round_manifests.clone() {
             // loop over RoundManifests
-            for mut entry in manifest.elements {
+            for entry in &manifest.elements {
                 // loop over ManifestEntrys
                 if entry.name == "circuit_size" {
                     self.add_element(
@@ -669,10 +667,11 @@ impl<H: BarretenHasher> Transcript<H> {
 
 pub trait TranscriptWrapper<Fr: Field, G1Affine: AffineRepr, H: BarretenHasher> {
     fn get_transcript(&self) -> &Transcript<H>;
-    fn add_field_element(&self, element_name: &str, element: &Fr) {
+    fn get_mut_transcript(&mut self) -> &mut Transcript<H>;
+    fn add_field_element(&mut self, element_name: &str, element: &Fr) {
         let mut buf = vec![0u8; Fr::serialized_size(element, ark_serialize::Compress::No)];
         Fr::serialize_uncompressed(element, &mut buf).unwrap();
-        self.get_transcript().add_element(element_name, buf);
+        self.get_mut_transcript().add_element(element_name, buf);
     }
     fn get_field_element(&self, element_name: &str) -> Fr {
         let buf = self.get_transcript().get_element(element_name);
@@ -715,6 +714,10 @@ impl<Fr: Field, G1Affine: AffineRepr, H: BarretenHasher> TranscriptWrapper<Fr, G
     for Transcript<H>
 {
     fn get_transcript(&self) -> &Transcript<H> {
+        self
+    }
+
+    fn get_mut_transcript(&mut self) -> &mut Transcript<H> {
         self
     }
 }

@@ -1,4 +1,7 @@
-use std::{marker::PhantomData, ops::{AddAssign, SubAssign}};
+use std::{
+    marker::PhantomData,
+    ops::{AddAssign, Index, SubAssign},
+};
 
 use ark_ff::Field;
 
@@ -10,48 +13,59 @@ pub(crate) struct Polynomial<F: Field> {
 }
 
 impl<F: Field> Polynomial<F> {
-    pub fn from_interpolations(interpolation_points: &[F], values: &[F]) -> Self {
+    pub(crate) fn from_interpolations(_interpolation_points: &[F], _values: &[F]) -> Self {
         todo!("unimplemented, see comment below");
     }
 
-    pub(crate) const fn new(size: usize) -> Self {
+    #[inline]
+    pub(crate) fn new(size: usize) -> Self {
         Self {
             size,
             coefficients: vec![F::zero(); size],
             phantom: PhantomData,
         }
     }
-    pub(crate) const fn get_degree(&self) -> usize {
+    #[inline]
+    pub(crate) fn get_degree(&self) -> usize {
         todo!("unimplemented, see comment below");
     }
-    pub(crate) const fn size(&self) -> usize {
-        todo!("unimplemented, see comment below");
-    }
-}
-
-impl<F:Field> AddAssign for Polynomial<F> {
-    fn add_assign(&mut self, rhs: Self) {
+    #[inline]
+    pub(crate) fn size(&self) -> usize {
         todo!("unimplemented, see comment below");
     }
 }
 
-impl<F:Field> SubAssign for Polynomial<F> {
-    fn sub_assign(&mut self, rhs: Self) {
+impl<F: Field> AddAssign for Polynomial<F> {
+    fn add_assign(&mut self, _rhs: Self) {
+        todo!("unimplemented, see comment below");
+    }
+}
+
+impl<F: Field> SubAssign for Polynomial<F> {
+    fn sub_assign(&mut self, _rhs: Self) {
         todo!("unimplemented, see comment below");
     }
 }
 
 impl<F: Field> std::ops::MulAssign<F> for Polynomial<F> {
-    fn mul_assign(&mut self, rhs: F) {
+    fn mul_assign(&mut self, _rhs: F) {
         todo!("unimplemented, see comment below");
     }
 }
 
-impl<F:Field> IntoIterator for Polynomial<F> {
+impl<F: Field> IntoIterator for Polynomial<F> {
     type Item = F;
     type IntoIter = std::vec::IntoIter<Self::Item>;
 
     fn into_iter(self) -> Self::IntoIter {
         todo!("unimplemented, see comment below");
+    }
+}
+
+impl<F: Field> Index<usize> for Polynomial<F> {
+    type Output = F;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.coefficients[index]
     }
 }

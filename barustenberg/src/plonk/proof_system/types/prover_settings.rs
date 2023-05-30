@@ -1,6 +1,7 @@
 use crate::transcript::{BarretenHasher, Keccak256, PedersenBlake3s, PlookupPedersenBlake3s};
 
-pub trait Settings<H: BarretenHasher> {
+// TODO bevy_reflect? or what
+pub(crate) trait Settings<H: BarretenHasher> {
     fn requires_shifted_wire(wire_shift_settings: u64, wire_index: u64) -> bool {
         ((wire_shift_settings >> wire_index) & 1u64) == 1u64
     }
@@ -12,15 +13,15 @@ pub trait Settings<H: BarretenHasher> {
     fn permutation_mask(&self) -> u32;
     fn num_roots_cut_out_of_vanishing_polynomial(&self) -> usize;
     fn is_plookup(&self) -> bool;
-    fn hasher(&self) -> H;
+    fn hasher(&self) -> &H;
 }
 
-pub struct StandardSettings<H: BarretenHasher> {
+pub(crate) struct StandardSettings<H: BarretenHasher> {
     hasher: H,
 }
 
 impl<H: BarretenHasher> StandardSettings<H> {
-    pub fn new(h: H) -> Self {
+    pub(crate) fn new(h: H) -> Self {
         Self { hasher: h }
     }
 }
@@ -50,8 +51,8 @@ impl<H: BarretenHasher> Settings<H> for StandardSettings<H> {
     fn is_plookup(&self) -> bool {
         false
     }
-    fn hasher(&self) -> H {
-        self.hasher
+    fn hasher(&self) -> &H {
+        &self.hasher
     }
 
     fn requires_shifted_wire(wire_shift_settings: u64, wire_index: u64) -> bool {
@@ -59,10 +60,10 @@ impl<H: BarretenHasher> Settings<H> for StandardSettings<H> {
     }
 }
 
-pub struct TurboSettings {}
+pub(crate) struct TurboSettings {}
 
 impl TurboSettings {
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {}
     }
 }
@@ -92,12 +93,12 @@ impl Settings<PedersenBlake3s> for TurboSettings {
     fn is_plookup(&self) -> bool {
         false
     }
-    fn hasher(&self) -> PedersenBlake3s {
-        PedersenBlake3s {}
+    fn hasher(&self) -> &PedersenBlake3s {
+        &PedersenBlake3s {}
     }
 }
 
-pub trait UltraSettingsBase {
+pub(crate) trait UltraSettingsBase {
     fn program_width(&self) -> usize;
     fn num_shifted_wire_evaluations(&self) -> usize;
     fn wire_shift_settings(&self) -> u64;
@@ -107,7 +108,7 @@ pub trait UltraSettingsBase {
     fn is_plookup(&self) -> bool;
 }
 
-pub struct UltraSettings {}
+pub(crate) struct UltraSettings {}
 
 impl Settings<PlookupPedersenBlake3s> for UltraSettings {
     fn num_challenge_bytes(&self) -> usize {
@@ -134,12 +135,12 @@ impl Settings<PlookupPedersenBlake3s> for UltraSettings {
     fn is_plookup(&self) -> bool {
         false
     }
-    fn hasher(&self) -> PlookupPedersenBlake3s {
-        PlookupPedersenBlake3s {}
+    fn hasher(&self) -> &PlookupPedersenBlake3s {
+        &PlookupPedersenBlake3s {}
     }
 }
 
-pub struct UltraToStandardSettings {}
+pub(crate) struct UltraToStandardSettings {}
 
 impl Settings<PedersenBlake3s> for UltraToStandardSettings {
     fn num_challenge_bytes(&self) -> usize {
@@ -166,12 +167,12 @@ impl Settings<PedersenBlake3s> for UltraToStandardSettings {
     fn is_plookup(&self) -> bool {
         false
     }
-    fn hasher(&self) -> PedersenBlake3s {
-        PedersenBlake3s {}
+    fn hasher(&self) -> &PedersenBlake3s {
+        &PedersenBlake3s {}
     }
 }
 
-pub struct UltraWithKeccakSettings {}
+pub(crate) struct UltraWithKeccakSettings {}
 
 impl Settings<Keccak256> for UltraWithKeccakSettings {
     fn num_challenge_bytes(&self) -> usize {
@@ -198,7 +199,7 @@ impl Settings<Keccak256> for UltraWithKeccakSettings {
     fn is_plookup(&self) -> bool {
         false
     }
-    fn hasher(&self) -> Keccak256 {
-        Keccak256 {}
+    fn hasher(&self) -> &Keccak256 {
+        &Keccak256 {}
     }
 }
