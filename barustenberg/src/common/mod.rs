@@ -1,1 +1,1 @@
-pub mod max_threads;
+pub(crate) mod max_threads;

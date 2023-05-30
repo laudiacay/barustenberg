@@ -40,7 +40,7 @@ fn get_msb64(in_val: u64) -> u64 {
     DE_BRUIJN_SEQUENCE[((t * 0x03F79D71B4CB0A89u64) >> 58) as usize] as u64
 }
 
-pub trait Msb {
+pub(crate) trait Msb {
     fn get_msb(self) -> Self;
 }
 

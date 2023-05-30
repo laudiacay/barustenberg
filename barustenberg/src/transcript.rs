@@ -8,24 +8,24 @@ use typenum::{Unsigned, U16, U32};
 
 use crate::plonk::proof_system::verification_key::VerificationKey;
 
-pub trait BarretenHasher {
+/// BarretenHasher is a trait that defines the hash function used for Fiat-Shamir.
+pub(crate) trait BarretenHasher {
+    /// The size of the security parameter in bytes.
     type SecurityParameterSize: ArrayLength<u8>;
+    /// The size of the PRNG output in bytes.
     type PrngOutputSize: ArrayLength<u8>;
 
+    /// Hashes the given buffer.
     fn hash(buffer: &[u8]) -> GenericArray<u8, Self::PrngOutputSize>;
-
-    // const SECURITY_PARAMETER_SIZE: usize;
-    // const PRNG_OUTPUT_SIZE: usize;
 }
 
-pub struct Keccak256 {}
+/// Keccak256 hasher.
+#[derive(Debug)]
+pub(crate) struct Keccak256 {}
 
 impl BarretenHasher for Keccak256 {
     type SecurityParameterSize = U32;
     type PrngOutputSize = U32;
-
-    // const SECURITY_PARAMETER_SIZE: usize = 32;
-    // const PRNG_OUTPUT_SIZE: usize = 32;
 
     fn hash(_buffer: &[u8]) -> GenericArray<u8, Self::PrngOutputSize> {
         // TODO from gpt
@@ -48,7 +48,9 @@ impl BarretenHasher for Keccak256 {
     }
 }
 
-pub struct PedersenBlake3s {}
+/// Pedersen with blake3s.
+#[derive(Debug)]
+pub(crate) struct PedersenBlake3s {}
 
 impl BarretenHasher for PedersenBlake3s {
     type SecurityParameterSize = U16;
@@ -71,7 +73,9 @@ impl BarretenHasher for PedersenBlake3s {
     }
 }
 
-pub struct PlookupPedersenBlake3s {}
+/// PlookupPedersenBlake3s
+#[derive(Debug)]
+pub(crate) struct PlookupPedersenBlake3s {}
 
 impl BarretenHasher for PlookupPedersenBlake3s {
     type SecurityParameterSize = U16;
@@ -91,37 +95,41 @@ impl BarretenHasher for PlookupPedersenBlake3s {
 }
 
 /// ManifestEntry describes one piece of data that is used in a particular round of the protocol.
-#[derive(Clone, Default)]
-pub struct ManifestEntry {
-    pub name: String,
-    pub num_bytes: usize,
-    pub derived_by_verifier: bool,
-    pub challenge_map_index: i32,
+#[derive(Clone, Default, Debug)]
+pub(crate) struct ManifestEntry {
+    /// The name of the element for fiat-shamir.
+    pub(crate) name: String,
+    /// The number of bytes in the element.
+    pub(crate) num_bytes: usize,
+    /// Whether the element is derived by the verifier.
+    pub(crate) derived_by_verifier: bool,
+    /// The index of the element in the challenge map.
+    pub(crate) challenge_map_index: i32,
 }
 
 /// The RoundManifest struct describes the data used in one round of the protocol
 /// and the challenge(s) created from that data.
-#[derive(Clone, Default)]
-pub struct RoundManifest {
+#[derive(Clone, Default, Debug)]
+pub(crate) struct RoundManifest {
     /// Data used in the round.
-    pub elements: Vec<ManifestEntry>,
+    pub(crate) elements: Vec<ManifestEntry>,
     /// The name of the challenge (alpha, beta, etc.).
-    pub challenge: String,
+    pub(crate) challenge: String,
     /// The number of challenges to generate (sometimes we need more than one, e.g in permutation_widget).
-    pub num_challenges: usize,
+    pub(crate) num_challenges: usize,
     /// Whether to put elements in a challenge_map in the transcript.
-    pub map_challenges: bool,
+    pub(crate) map_challenges: bool,
 }
 
-/// Checks if there is an element in the list with the given name.
-///
-/// # Arguments
-/// * `element_name` - The name to search for.
-///
-/// # Returns
-/// * `true` if the name is found in the list, `false` otherwise.
 impl RoundManifest {
-    pub fn includes_element(&self, element_name: &str) -> bool {
+    /// Checks if there is an element in the list with the given name.
+    ///
+    /// # Arguments
+    /// * `element_name` - The name to search for.
+    ///
+    /// # Returns
+    /// * `true` if the name is found in the list, `false` otherwise.
+    pub(crate) fn includes_element(&self, element_name: &str) -> bool {
         self.elements.iter().any(|e| e.name == element_name)
     }
 }
@@ -129,10 +137,12 @@ impl RoundManifest {
 /// Manifest is used by composers to define the structure of the protocol. It specifies:
 /// 1. What data is used in each round of the protocols.
 /// 2. Which information is used to create challenges.
-#[derive(Clone, Default)]
-pub struct Manifest {
-    pub round_manifests: Vec<RoundManifest>,
-    pub num_rounds: usize,
+#[derive(Clone, Default, Debug)]
+pub(crate) struct Manifest {
+    /// The list of round manifests.
+    pub(crate) round_manifests: Vec<RoundManifest>,
+    /// The number of rounds in the protocol.
+    pub(crate) num_rounds: usize,
 }
 
 impl Manifest {
@@ -158,9 +168,9 @@ struct Challenge<H: BarretenHasher> {
 
 pub(crate) type TranscriptKey<'a> = VerificationKey<'a>;
 
-pub struct Transcript<H: BarretenHasher> {
+pub(crate) struct Transcript<H: BarretenHasher> {
     current_round: usize,
-    pub num_challenge_bytes: usize,
+    pub(crate) num_challenge_bytes: usize,
     elements: HashMap<String, Vec<u8>>,
     challenges: HashMap<String, Vec<Challenge<H>>>,
     current_challenge: Challenge<H>,
@@ -185,7 +195,7 @@ impl<H: BarretenHasher> Default for Transcript<H> {
 }
 
 impl<H: BarretenHasher> Transcript<H> {
-    pub fn add_element(&mut self, element_name: &str, buffer: Vec<u8>) {
+    pub(crate) fn add_element(&mut self, element_name: &str, buffer: Vec<u8>) {
         info!("Adding element {} to transcript", element_name);
         // from elements.insert({ element_name, buffer });
         self.elements.insert(element_name.to_string(), buffer);
@@ -196,7 +206,7 @@ impl<H: BarretenHasher> Transcript<H> {
     /// input_manifest:  The manifest with round descriptions.
     /// hash_type: The hash used for Fiat-Shamir.
     /// challenge_bytes: The number of bytes per challenge to generate.
-    pub fn new(input_manifest: Option<Manifest>, num_challenge_bytes: usize) -> Self {
+    pub(crate) fn new(input_manifest: Option<Manifest>, num_challenge_bytes: usize) -> Self {
         let mut ret: Transcript<H> = Default::default();
         ret.num_challenge_bytes = num_challenge_bytes;
         ret.manifest = input_manifest.unwrap_or_default();
@@ -216,7 +226,7 @@ impl<H: BarretenHasher> Transcript<H> {
     ///
     /// If the serialized transcript does not contain the required number of bytes, a panic occurs.
     ///
-    pub fn new_from_transcript(
+    pub(crate) fn new_from_transcript(
         input_transcript: &[u8],
         input_manifest: Manifest,
         num_challenge_bytes: usize,
@@ -269,7 +279,7 @@ impl<H: BarretenHasher> Transcript<H> {
         todo!("Transcript::parse")
     }
 
-    pub fn get_manifest(&self) -> Manifest {
+    pub(crate) fn get_manifest(&self) -> Manifest {
         self.manifest.clone()
     }
 
@@ -280,7 +290,7 @@ impl<H: BarretenHasher> Transcript<H> {
     ///
     /// * `challenge_name` - Challenge name (needed to check if the challenge fits the current round).
     ///
-    pub fn apply_fiat_shamir(&mut self, _challenge_name: &str) {
+    pub(crate) fn apply_fiat_shamir(&mut self, _challenge_name: &str) {
         // implementation
 
         // TODO
@@ -429,7 +439,7 @@ impl<H: BarretenHasher> Transcript<H> {
     /// # Returns
     ///
     /// The challenge value.
-    pub fn get_challenge(
+    pub(crate) fn get_challenge(
         &self,
         challenge_name: &str,
         idx: usize,
@@ -448,7 +458,7 @@ impl<H: BarretenHasher> Transcript<H> {
     /// # Returns
     ///
     /// The index of the subchallenge in the vector corresponding to the challenge.
-    pub fn get_challenge_index_from_map(&self, challenge_map_name: &str) -> isize {
+    pub(crate) fn get_challenge_index_from_map(&self, challenge_map_name: &str) -> isize {
         // TODO bad unwrap
         self.challenge_map[challenge_map_name].try_into().unwrap()
     }
@@ -462,7 +472,7 @@ impl<H: BarretenHasher> Transcript<H> {
     /// # Returns
     ///
     /// true if exists, false if not.
-    pub fn has_challenge(&self, challenge_name: &str) -> bool {
+    pub(crate) fn has_challenge(&self, challenge_name: &str) -> bool {
         self.challenges.contains_key(challenge_name)
     }
 
@@ -477,7 +487,7 @@ impl<H: BarretenHasher> Transcript<H> {
     /// # Returns
     ///
     /// The value of the subchallenge.
-    pub fn get_challenge_from_map(
+    pub(crate) fn get_challenge_from_map(
         &self,
         challenge_name: &str,
         challenge_map_name: &str,
@@ -502,7 +512,7 @@ impl<H: BarretenHasher> Transcript<H> {
     /// # Returns
     ///
     /// The number of challenges.
-    pub fn get_num_challenges(&self, challenge_name: &str) -> usize {
+    pub(crate) fn get_num_challenges(&self, challenge_name: &str) -> usize {
         assert!(self.challenges.contains_key(challenge_name));
         self.challenges.get(challenge_name).unwrap().len()
     }
@@ -516,7 +526,7 @@ impl<H: BarretenHasher> Transcript<H> {
     /// # Returns
     ///
     /// The value of the element.
-    pub fn get_element(&self, element_name: &str) -> Vec<u8> {
+    pub(crate) fn get_element(&self, element_name: &str) -> Vec<u8> {
         assert!(self.elements.contains_key(element_name));
         self.elements.get(element_name).unwrap().clone()
     }
@@ -529,7 +539,7 @@ impl<H: BarretenHasher> Transcript<H> {
     /// # Returns
     ///
     /// The size of the element. otherwise -1
-    pub fn get_element_size(&self, element_name: &str) -> usize {
+    pub(crate) fn get_element_size(&self, element_name: &str) -> usize {
         for manifest in &self.manifest.round_manifests {
             for element in &manifest.elements {
                 if element.name == element_name {
@@ -546,7 +556,7 @@ impl<H: BarretenHasher> Transcript<H> {
     /// # Returns
     ///
     /// The serialized transcript.
-    pub fn export_transcript(&self) -> Vec<u8> {
+    pub(crate) fn export_transcript(&self) -> Vec<u8> {
         let buf: Vec<u8> = vec![];
         for manifest in &self.manifest.round_manifests {
             for _element in &manifest.elements {
@@ -568,12 +578,12 @@ impl<H: BarretenHasher> Transcript<H> {
                 todo!("check comment");
             }
         }
-        return buf;
+        buf
     }
 
     /// Insert element names from all rounds of the manifest
     /// into the challenge_map.
-    pub fn compute_challenge_map(&mut self) {
+    pub(crate) fn compute_challenge_map(&mut self) {
         self.challenge_map.clear();
         for manifest in &self.manifest.round_manifests {
             if manifest.map_challenges {
@@ -595,7 +605,11 @@ impl<H: BarretenHasher> Transcript<H> {
     /// # Arguments
     ///
     /// * `challenge_in` - The challenge name up to which to mock the transcript interactions.
-    pub fn mock_inputs_prior_to_challenge(&mut self, challenge_in: &str, circuit_size: usize) {
+    pub(crate) fn mock_inputs_prior_to_challenge(
+        &mut self,
+        challenge_in: &str,
+        circuit_size: usize,
+    ) {
         // Perform operations only up to fiat-shamir of challenge_in
         // TODO this clone isn't great but it satisfies the borrow checker
         for manifest in &self.manifest.round_manifests.clone() {
@@ -623,10 +637,6 @@ impl<H: BarretenHasher> Transcript<H> {
                 self.apply_fiat_shamir(&manifest.challenge);
             }
         }
-    }
-
-    pub fn print(&self) {
-        // implementation
     }
 
     /*
@@ -665,7 +675,7 @@ impl<H: BarretenHasher> Transcript<H> {
          */
 }
 
-pub trait TranscriptWrapper<Fr: Field, G1Affine: AffineRepr, H: BarretenHasher> {
+pub(crate) trait TranscriptWrapper<Fr: Field, G1Affine: AffineRepr, H: BarretenHasher> {
     fn get_transcript(&self) -> &Transcript<H>;
     fn get_mut_transcript(&mut self) -> &mut Transcript<H>;
     fn add_field_element(&mut self, element_name: &str, element: &Fr) {
