@@ -15,17 +15,17 @@ use super::verification_key::VerificationKey;
 
 pub trait CommitmentScheme<Fq: Field, Fr: Field + FftField, G1Affine: AffineRepr, H: BarretenHasher>
 {
-    fn commit(
+    fn commit<'a>(
         &mut self,
         coefficients: &mut [Fr],
         tag: &str,
         item_constant: Fr,
-        queue: &mut WorkQueue<H, Fr, G1Affine>,
+        queue: &mut WorkQueue<'a, H, Fr, G1Affine>,
     );
 
     fn compute_opening_polynomial(&self, src: &[Fr], dest: &mut [Fr], z: &Fr, n: usize);
 
-    fn generic_batch_open(
+    fn generic_batch_open<'a>(
         &self,
         src: &[Fr],
         dest: &mut [Fr],
@@ -36,14 +36,14 @@ pub trait CommitmentScheme<Fq: Field, Fr: Field + FftField, G1Affine: AffineRepr
         n: usize,
         tags: &[String],
         item_constants: &[Fr],
-        queue: &mut WorkQueue<H, Fr, G1Affine>,
+        queue: &mut WorkQueue<'a, H, Fr, G1Affine>,
     );
 
-    fn batch_open(
+    fn batch_open<'a>(
         &mut self,
         transcript: &Transcript<H>,
-        queue: &mut WorkQueue<H, Fr, G1Affine>,
-        input_key: Option<Arc<ProvingKey<Fr, G1Affine>>>,
+        queue: &mut WorkQueue<'a, H, Fr, G1Affine>,
+        input_key: Option<Arc<ProvingKey<'a, Fr, G1Affine>>>,
     );
 
     fn batch_verify(
@@ -54,10 +54,10 @@ pub trait CommitmentScheme<Fq: Field, Fr: Field + FftField, G1Affine: AffineRepr
         input_key: Option<Arc<VerificationKey>>,
     );
 
-    fn add_opening_evaluations_to_transcript(
+    fn add_opening_evaluations_to_transcript<'a>(
         &self,
         transcript: &mut Transcript<H>,
-        input_key: Option<Arc<ProvingKey<Fr, G1Affine>>>,
+        input_key: Option<Arc<ProvingKey<'a, Fr, G1Affine>>>,
         in_lagrange_form: bool,
     );
 }
@@ -71,12 +71,12 @@ pub(crate) struct KateCommitmentScheme<H: BarretenHasher, S: Settings<H>> {
 impl<Fq: Field, Fr: Field + FftField, G1Affine: AffineRepr, H: BarretenHasher, S: Settings<H>>
     CommitmentScheme<Fq, Fr, G1Affine, H> for KateCommitmentScheme<H, S>
 {
-    fn commit(
+    fn commit<'a>(
         &mut self,
         coefficients: &mut [Fr],
         tag: &str,
         item_constant: Fr,
-        queue: &mut WorkQueue<H, Fr, G1Affine>,
+        queue: &mut WorkQueue<'a, H, Fr, G1Affine>,
     ) {
         todo!()
     }
@@ -84,7 +84,7 @@ impl<Fq: Field, Fr: Field + FftField, G1Affine: AffineRepr, H: BarretenHasher, S
     fn add_opening_evaluations_to_transcript(
         &self,
         transcript: &mut Transcript<H>,
-        input_key: Option<Arc<ProvingKey<Fr, G1Affine>>>,
+        input_key: Option<Arc<ProvingKey<'_, Fr, G1Affine>>>,
         in_lagrange_form: bool,
     ) {
         todo!()
@@ -94,7 +94,7 @@ impl<Fq: Field, Fr: Field + FftField, G1Affine: AffineRepr, H: BarretenHasher, S
         todo!()
     }
 
-    fn generic_batch_open(
+    fn generic_batch_open<'a>(
         &self,
         src: &[Fr],
         dest: &mut [Fr],
@@ -105,16 +105,16 @@ impl<Fq: Field, Fr: Field + FftField, G1Affine: AffineRepr, H: BarretenHasher, S
         n: usize,
         tags: &[String],
         item_constants: &[Fr],
-        queue: &mut WorkQueue<H, Fr, G1Affine>,
+        queue: &mut WorkQueue<'a, H, Fr, G1Affine>,
     ) {
         todo!()
     }
 
-    fn batch_open(
+    fn batch_open<'a>(
         &mut self,
         transcript: &Transcript<H>,
-        queue: &mut WorkQueue<H, Fr, G1Affine>,
-        input_key: Option<Arc<ProvingKey<Fr, G1Affine>>>,
+        queue: &mut WorkQueue<'a, H, Fr, G1Affine>,
+        input_key: Option<Arc<ProvingKey<'a, Fr, G1Affine>>>,
     ) {
         todo!()
     }

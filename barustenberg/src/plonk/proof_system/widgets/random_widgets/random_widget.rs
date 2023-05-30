@@ -9,15 +9,15 @@ use crate::{
     transcript::{BarretenHasher, Transcript},
 };
 
-pub struct ProverRandomWidget<H: BarretenHasher, Fr: Field + FftField, G1Affine: AffineRepr> {
-    pub key: ProvingKey<Fr, G1Affine>,
+pub struct ProverRandomWidget<'a, H: BarretenHasher, Fr: Field + FftField, G1Affine: AffineRepr> {
+    pub key: ProvingKey<'a, Fr, G1Affine>,
     phantom: PhantomData<H>,
 }
 
-impl<H: BarretenHasher, Fr: Field + FftField, G1Affine: AffineRepr>
-    ProverRandomWidget<H, Fr, G1Affine>
+impl<'a, H: BarretenHasher, Fr: Field + FftField, G1Affine: AffineRepr>
+    ProverRandomWidget<'a, H, Fr, G1Affine>
 {
-    pub fn new(input_key: &ProvingKey<Fr, G1Affine>) -> Self {
+    pub fn new(input_key: &ProvingKey<'a, Fr, G1Affine>) -> Self {
         todo!("ProverRandomWidget::new")
     }
 
@@ -25,7 +25,7 @@ impl<H: BarretenHasher, Fr: Field + FftField, G1Affine: AffineRepr>
         &self,
         transcript: &mut Transcript<H>,
         size: usize,
-        work_queue: &mut WorkQueue<H, Fr, G1Affine>,
+        work_queue: &mut WorkQueue<'a, H, Fr, G1Affine>,
     ) {
         todo!("ProverRandomWidget::compute_round_commitments")
     }
@@ -36,15 +36,15 @@ impl<H: BarretenHasher, Fr: Field + FftField, G1Affine: AffineRepr>
 }
 
 impl<H: BarretenHasher, Fr: Field + FftField, G1Affine: AffineRepr> Clone
-    for Box<ProverRandomWidget<H, Fr, G1Affine>>
+    for Box<ProverRandomWidget<'_, H, Fr, G1Affine>>
 {
     fn clone(&self) -> Self {
         Box::new(*self.as_ref().clone())
     }
 }
 
-impl<H: BarretenHasher, Fr: Field + FftField, G1Affine: AffineRepr> PartialEq
-    for ProverRandomWidget<H, Fr, G1Affine>
+impl<'a, H: BarretenHasher, Fr: Field + FftField, G1Affine: AffineRepr> PartialEq
+    for ProverRandomWidget<'_, H, Fr, G1Affine>
 {
     fn eq(&self, other: &Self) -> bool {
         std::ptr::eq(self, other)
@@ -59,6 +59,6 @@ impl<H: BarretenHasher, Fr: Field + FftField, G1Affine: AffineRepr> PartialEq
 // }
 
 impl<H: BarretenHasher, Fr: Field + FftField, G1Affine: AffineRepr> Eq
-    for ProverRandomWidget<H, Fr, G1Affine>
+    for ProverRandomWidget<'_, H, Fr, G1Affine>
 {
 }

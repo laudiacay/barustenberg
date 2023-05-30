@@ -477,7 +477,7 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
     }
 
     // The remaining `coset_fft` functions require you to create a version of `scale_by_generator` that accepts a Vec<&[T]> as the first parameter.
-    fn coset_fft(&self, coeffs: &[Fr], domain: &EvaluationDomain<Fr>, domain_extension: usize) {
+    fn coset_fft(&self, coeffs: &[Fr], domain: &EvaluationDomain<'a, Fr>, domain_extension: usize) {
         let log2_domain_extension = domain_extension.get_msb() as usize;
         let primitive_root =
             Fr::get_root_of_unity((self.log2_size + log2_domain_extension).try_into().unwrap())

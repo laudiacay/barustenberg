@@ -219,6 +219,7 @@ impl<H: BarretenHasher, F: Field, S: Settings<H>, Get: BaseGetter<H, F, S, U1>, 
 }
 
 pub type ProverArithmeticWidget<
+    'a,
     F: Field,
     G1Affine: AffineRepr,
     H: BarretenHasher,
@@ -226,6 +227,7 @@ pub type ProverArithmeticWidget<
     PolyContainer,
     Getters: BaseGetter<H, F, S, U1>,
 > = TransitionWidget<
+    'a,
     H,
     F,
     G1Affine,

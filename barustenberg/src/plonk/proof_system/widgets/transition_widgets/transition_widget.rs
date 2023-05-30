@@ -156,7 +156,7 @@ pub trait BaseGetter<
                 result.elements[tag] = transcript.get_challenge_field_element(label, index);
             } else {
                 let mut random_bytes = vec![0u8; std::mem::size_of::<F>()];
-                rng.lock()?.fill_bytes(&mut random_bytes);
+                rng.lock().fill_bytes(&mut random_bytes);
                 result.elements[tag] = F::from_random_bytes(random_bytes.as_ref())
                     .expect("random deserialization didn't work");
             }
@@ -323,12 +323,12 @@ where
     }
 }
 
-pub struct TransitionWidgetBase<F: Field + FftField, G1Affine: AffineRepr> {
-    pub key: Option<Arc<ProvingKey<F, G1Affine>>>,
+pub struct TransitionWidgetBase<'a, F: Field + FftField, G1Affine: AffineRepr> {
+    pub key: Option<Arc<ProvingKey<'a, F, G1Affine>>>,
 }
 
-impl<F: Field + FftField, G1Affine: AffineRepr> TransitionWidgetBase<F, G1Affine> {
-    pub fn new(key: Option<Arc<ProvingKey<F, G1Affine>>>) -> Self {
+impl<'a, F: Field + FftField, G1Affine: AffineRepr> TransitionWidgetBase<'a, F, G1Affine> {
+    pub fn new(key: Option<Arc<ProvingKey<'a, F, G1Affine>>>) -> Self {
         Self { key }
     }
 
@@ -368,6 +368,7 @@ pub trait KernelBase<
 }
 
 pub struct TransitionWidget<
+    'a,
     H: BarretenHasher,
     F: Field + FftField,
     G1Affine: AffineRepr,
@@ -377,8 +378,7 @@ pub struct TransitionWidget<
     NIndependentRelations: generic_array::ArrayLength<F>,
     KB: KernelBase<H, S, F, PC, G, NIndependentRelations>,
 > {
-    base: TransitionWidgetBase<F, G1Affine>,
-    rng: Arc<Mutex<dyn rand::RngCore>>,
+    base: TransitionWidgetBase<'a, F, G1Affine>,
     phantom: std::marker::PhantomData<(H, S, PC, G, KB, NIndependentRelations)>,
 }
 
@@ -392,7 +392,7 @@ impl<
         NIndependentRelations: generic_array::ArrayLength<F>,
         KB: KernelBase<H, S, F, PC, G, NIndependentRelations>,
     > BaseGetter<H, F, S, NIndependentRelations>
-    for TransitionWidget<H, F, G1Affine, S, PC, G, NIndependentRelations, KB>
+    for TransitionWidget<'_, H, F, G1Affine, S, PC, G, NIndependentRelations, KB>
 {
 }
 
@@ -406,11 +406,12 @@ impl<
         NIndependentRelations: generic_array::ArrayLength<F>,
         KB: KernelBase<H, S, F, PC, G, NIndependentRelations>,
     > FFTGetter<H, F, G1Affine, S, NIndependentRelations>
-    for TransitionWidget<H, F, G1Affine, S, PC, G, NIndependentRelations, KB>
+    for TransitionWidget<'_, H, F, G1Affine, S, PC, G, NIndependentRelations, KB>
 {
 }
 
 impl<
+        'a,
         H: BarretenHasher,
         F: Field + FftField,
         G1Affine: AffineRepr,
@@ -419,18 +420,22 @@ impl<
         G: BaseGetter<H, F, S, NIndependentRelations>,
         NIndependentRelations: generic_array::ArrayLength<F>,
         KB: KernelBase<H, S, F, PC, G, NIndependentRelations>,
-    > TransitionWidget<H, F, G1Affine, S, PC, G, NIndependentRelations, KB>
+    > TransitionWidget<'a, H, F, G1Affine, S, PC, G, NIndependentRelations, KB>
 {
-    pub fn new(key: Option<Arc<ProvingKey<F, G1Affine>>>) -> Self {
+    pub fn new(key: Option<Arc<ProvingKey<'a, F, G1Affine>>>) -> Self {
         Self {
             base: TransitionWidgetBase::new(key),
             phantom: std::marker::PhantomData,
-            rng: None,
         }
     }
 
     // other methods and trait implementations
-    pub fn compute_quotient_contribution(&self, alpha_base: F, transcript: &Transcript<H>) -> F {
+    pub fn compute_quotient_contribution(
+        &self,
+        alpha_base: F,
+        transcript: &Transcript<H>,
+        rng: Arc<Mutex<dyn rand::RngCore + Send + Sync>>,
+    ) -> F {
         let key = self.base.key.as_ref().expect("Proving key is missing");
 
         let required_polynomial_ids = KernelBase::get_required_polynomial_ids();
@@ -440,7 +445,7 @@ impl<
             transcript,
             alpha_base,
             KernelBase::quotient_required_challenges(),
-            self.rng.clone(),
+            rng,
         );
 
         let mut quotient_term;
@@ -453,8 +458,8 @@ impl<
 
             quotient_term = key.quotient_polynomial_parts[i >> key.small_domain.log2_size]
                 [i & (key.circuit_size - 1)];
-            *quotient_term += sum_of_linear_terms;
-            KernelBase::compute_non_linear_terms(&polynomials, &challenges, quotient_term, i);
+            quotient_term += sum_of_linear_terms;
+            KernelBase::compute_non_linear_terms(&polynomials, &challenges, &mut quotient_term, i);
         }
 
         Self::update_alpha(&challenges)
@@ -471,10 +476,12 @@ impl<
         PC,
         G: BaseGetter<H, F, S, NIndependentRelations>,
         NIndependentRelations: generic_array::ArrayLength<F>,
-    > From<TransitionWidget<H, F, G1Affine, S, PC, G, NIndependentRelations, KB>>
-    for TransitionWidgetBase<F, G1Affine>
+    > From<TransitionWidget<'_, H, F, G1Affine, S, PC, G, NIndependentRelations, KB>>
+    for TransitionWidgetBase<'_, F, G1Affine>
 {
-    fn from(widget: TransitionWidget<H, F, G1Affine, S, PC, G, NIndependentRelations, KB>) -> Self {
+    fn from(
+        widget: TransitionWidget<'_, H, F, G1Affine, S, PC, G, NIndependentRelations, KB>,
+    ) -> Self {
         widget.base
     }
 }
@@ -496,29 +503,31 @@ pub trait GenericVerifierWidget<
         alpha_base: F,
         transcript: &Transcript<H>,
         quotient_numerator_eval: &mut F,
+        rng: &mut dyn rand::RngCore,
     ) -> F {
         let polynomial_evaluations =
             G::get_polynomial_evaluations(&key.as_ref().polynomial_manifest, transcript);
         let challenges = G::get_challenges(
             transcript,
             alpha_base,
-            KernelBase::quotient_required_challenges(),
+            KB::quotient_required_challenges(),
+            rng,
         );
 
         let mut linear_terms = CoefficientArray::default();
-        KernelBase::compute_linear_terms(
+        KB::compute_linear_terms(
             &polynomial_evaluations,
             &challenges,
             &mut linear_terms,
             todo!("where is index"),
         );
-        *quotient_numerator_eval += KernelBase::sum_linear_terms(
+        *quotient_numerator_eval += KB::sum_linear_terms(
             &polynomial_evaluations,
             &challenges,
             &linear_terms,
             todo!("where is index"),
         );
-        KernelBase::compute_non_linear_terms(
+        KB::compute_non_linear_terms(
             &polynomial_evaluations,
             &challenges,
             quotient_numerator_eval,
@@ -533,11 +542,13 @@ pub trait GenericVerifierWidget<
         alpha_base: F,
         transcript: &Transcript<H>,
         scalar_mult_inputs: &mut HashMap<String, F>,
+        rng: Arc<Mutex<dyn rand::RngCore + Send + Sync>>,
     ) -> F {
         let challenges = G::get_challenges(
             transcript,
-            &alpha_base,
-            KernelBase::quotient_required_challenges() | KernelBase::update_required_challenges(),
+            alpha_base,
+            KB::quotient_required_challenges() | KB::update_required_challenges(),
+            rng,
         );
 
         G::update_alpha(&challenges)

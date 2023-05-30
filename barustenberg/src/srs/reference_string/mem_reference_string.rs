@@ -4,7 +4,7 @@ use super::{MillerLines, VerifierReferenceString};
 
 pub struct VerifierMemReferenceString<G2Affine: AffineRepr> {
     g2_x: G2Affine,
-    precomputed_g2_lines: Box<MillerLines>,
+    precomputed_g2_lines: Vec<MillerLines>,
 }
 
 impl<G2Affine: AffineRepr> VerifierMemReferenceString<G2Affine> {
@@ -22,7 +22,7 @@ impl<G2Affine: AffineRepr> VerifierReferenceString<G2Affine>
         self.g2_x
     }
 
-    fn get_precomputed_g2_lines(&self) -> &MillerLines {
-        &self.precomputed_g2_lines
+    fn get_precomputed_g2_lines(&self) -> Vec<MillerLines> {
+        self.precomputed_g2_lines
     }
 }

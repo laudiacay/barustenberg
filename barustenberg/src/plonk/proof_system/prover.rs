@@ -25,6 +25,7 @@ use crate::proof_system::work_queue::WorkQueue;
 // todo https://doc.rust-lang.org/reference/const_eval.html
 
 pub struct Prover<
+    'a,
     Fq: Field,
     Fr: Field + FftField,
     G1Affine: AffineRepr,
@@ -33,19 +34,25 @@ pub struct Prover<
 > {
     pub circuit_size: usize,
     pub transcript: Transcript<H>,
-    pub key: Arc<ProvingKey<Fr, G1Affine>>,
-    pub queue: WorkQueue<H, Fr, G1Affine>,
-    pub random_widgets: Vec<ProverRandomWidget<H, Fr, G1Affine>>,
-    pub transition_widgets: Vec<TransitionWidgetBase<Fr, G1Affine>>,
+    pub key: Arc<ProvingKey<'a, Fr, G1Affine>>,
+    pub queue: WorkQueue<'a, H, Fr, G1Affine>,
+    pub random_widgets: Vec<ProverRandomWidget<'a, H, Fr, G1Affine>>,
+    pub transition_widgets: Vec<TransitionWidgetBase<'a, Fr, G1Affine>>,
     pub commitment_scheme: Box<dyn CommitmentScheme<Fq, Fr, G1Affine, H>>,
     phantom: PhantomData<S>,
 }
 
-impl<Fq: Field, Fr: Field + FftField, G1Affine: AffineRepr, H: BarretenHasher, S: Settings<H>>
-    Prover<Fq, Fr, G1Affine, H, S>
+impl<
+        'a,
+        Fq: Field,
+        Fr: Field + FftField,
+        G1Affine: AffineRepr,
+        H: BarretenHasher + Default,
+        S: Settings<H> + Default,
+    > Prover<'a, Fq, Fr, G1Affine, H, S>
 {
     pub fn new(
-        input_key: Option<Arc<ProvingKey<Fr, G1Affine>>>,
+        input_key: Option<Arc<ProvingKey<'a, Fr, G1Affine>>>,
         input_manifest: Option<Manifest>,
         input_settings: Option<S>,
     ) -> Self {

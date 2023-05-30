@@ -9,12 +9,12 @@ use crate::{
 
 use super::types::PolynomialManifest;
 
-pub struct VerificationKey {
+pub struct VerificationKey<'a> {
     composer_type: u32,
     circuit_size: usize,
     log_circuit_size: usize,
     num_inputs: usize,
-    domain: EvaluationDomain<Fr>,
+    domain: EvaluationDomain<'a, Fr>,
     reference_string: Arc<dyn VerifierReferenceString<G2Affine>>,
     commitments: HashMap<String, G1Affine>,
     pub polynomial_manifest: PolynomialManifest,

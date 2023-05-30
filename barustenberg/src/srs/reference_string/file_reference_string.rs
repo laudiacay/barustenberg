@@ -9,21 +9,22 @@ use super::{
 
 pub struct VerifierFileReferenceString<G2Affine: AffineRepr> {
     g2_x: G2Affine,
-    precomputed_g2_lines: MillerLines,
+    precomputed_g2_lines: Vec<MillerLines>,
 }
 
 impl<G2Affine: AffineRepr> VerifierFileReferenceString<G2Affine> {
     pub fn new(path: &str) -> Self {
         // Please replace the actual types and functions with ones that you have in your Rust codebase.
-        let g2_x: G2Affine = read_transcript_g2(path);
-        let precomputed_g2_lines: Vec<MillerLines> = vec![MillerLines::default(); 2];
+        // let g2_x: G2Affine = read_transcript_g2(path);
+        // let precomputed_g2_lines: Vec<MillerLines> = vec![MillerLines::default(); 2];
 
-        precompute_miller_lines(g2_x, &mut precomputed_g2_lines[1]);
+        // precompute_miller_lines(g2_x, &mut precomputed_g2_lines[1]);
 
-        Self {
-            g2_x,
-            precomputed_g2_lines,
-        }
+        // Self {
+        //     g2_x,
+        //     precomputed_g2_lines,
+        // }
+        unimplemented!()
     }
 }
 
@@ -34,8 +35,8 @@ impl<G2Affine: AffineRepr> VerifierReferenceString<G2Affine>
         self.g2_x
     }
 
-    fn get_precomputed_g2_lines(&self) -> &MillerLines {
-        &self.precomputed_g2_lines
+    fn get_precomputed_g2_lines(&self) -> Vec<MillerLines> {
+        self.precomputed_g2_lines
     }
 }
 

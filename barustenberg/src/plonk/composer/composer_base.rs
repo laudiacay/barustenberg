@@ -53,15 +53,15 @@ impl CycleNode {
     }
 }
 
-pub struct ComposerBase<F: Field + FftField, G1Affine: AffineRepr, G2Affine: AffineRepr> {
+pub struct ComposerBase<'a, F: Field + FftField, G1Affine: AffineRepr, G2Affine: AffineRepr> {
     pub num_gates: usize,
     crs_factory: Arc<dyn ReferenceStringFactory<G1Affine, G2Affine>>,
     num_selectors: usize,
     selectors: Vec<Vec<F>>,
     selector_properties: Vec<SelectorProperties>,
     rand_engine: Option<Box<dyn RngCore>>,
-    circuit_proving_key: Option<Arc<ProvingKey<F, G1Affine>>>,
-    circuit_verification_key: Option<Arc<VerificationKey>>,
+    circuit_proving_key: Option<Arc<ProvingKey<'a, F, G1Affine>>>,
+    circuit_verification_key: Option<Arc<VerificationKey<'a>>>,
     w_l: Vec<u32>,
     w_r: Vec<u32>,
     w_o: Vec<u32>,
@@ -87,8 +87,8 @@ pub struct ComposerBase<F: Field + FftField, G1Affine: AffineRepr, G2Affine: Aff
     computed_witness: bool,
 }
 
-impl<F: Field + FftField, G1Affine: AffineRepr, G2Affine: AffineRepr>
-    ComposerBase<F, G1Affine, G2Affine>
+impl<'a, F: Field + FftField, G1Affine: AffineRepr, G2Affine: AffineRepr>
+    ComposerBase<'a, F, G1Affine, G2Affine>
 {
     pub fn new(
         num_selectors: usize,
@@ -149,8 +149,8 @@ impl<F: Field + FftField, G1Affine: AffineRepr, G2Affine: AffineRepr>
         selfie
     }
     pub fn with_keys(
-        p_key: Arc<ProvingKey<F, G1Affine>>,
-        v_key: Arc<VerificationKey>,
+        p_key: Arc<ProvingKey<'a, F, G1Affine>>,
+        v_key: Arc<VerificationKey<'a>>,
         num_selectors: usize,
         size_hint: usize,
         selector_properties: Vec<SelectorProperties>,

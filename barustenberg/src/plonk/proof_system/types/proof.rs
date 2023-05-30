@@ -6,6 +6,7 @@ pub(crate) struct Proof {
     pub(crate) proof_data: Vec<u8>,
 }
 
+#[derive(Default)]
 pub(crate) struct CommitmentOpenProof {
     pub(crate) proof_data: Vec<u8>,
 }

@@ -33,13 +33,15 @@ pub(crate) struct QueuedFftInputs<Fr: Field> {
     shift_factor: Fr,
 }
 
-pub(crate) struct WorkQueue<H: BarretenHasher, Fr: Field + FftField, G1Affine: AffineRepr> {
-    key: Option<Arc<ProvingKey<Fr, G1Affine>>>,
+pub(crate) struct WorkQueue<'a, H: BarretenHasher, Fr: Field + FftField, G1Affine: AffineRepr> {
+    key: Option<Arc<ProvingKey<'a, Fr, G1Affine>>>,
     transcript: Option<Arc<Transcript<H>>>,
     work_items: Vec<WorkItem<Fr>>,
 }
 
-impl<H: BarretenHasher, Fr: Field + FftField, G1Affine: AffineRepr> WorkQueue<H, Fr, G1Affine> {
+impl<'a, H: BarretenHasher, Fr: Field + FftField, G1Affine: AffineRepr>
+    WorkQueue<'a, H, Fr, G1Affine>
+{
     /*
     work_item_info get_queued_work_item_info() const;
 
@@ -67,7 +69,7 @@ impl<H: BarretenHasher, Fr: Field + FftField, G1Affine: AffineRepr> WorkQueue<H,
      */
 
     pub fn new(
-        prover_key: Option<Arc<ProvingKey<Fr, G1Affine>>>,
+        prover_key: Option<Arc<ProvingKey<'a, Fr, G1Affine>>>,
         prover_transcript: Option<Arc<Transcript<H>>>,
     ) -> Self {
         WorkQueue {

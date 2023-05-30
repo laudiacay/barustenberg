@@ -53,6 +53,7 @@ where
 }
 
 pub struct ProverPermutationWidget<
+    'a,
     Fr: Field + FftField,
     Hash: BarretenHasher,
     G1Affine: AffineRepr,
@@ -60,10 +61,11 @@ pub struct ProverPermutationWidget<
     const IDPOLYS: bool,
     const NUM_ROOTS_CUT_OUT_OF_VANISHING_POLYNOMIAL: usize,
 > {
-    prover_random_widget: ProverRandomWidget<Hash, Fr, G1Affine>,
+    prover_random_widget: ProverRandomWidget<'a, Hash, Fr, G1Affine>,
 }
 
 impl<
+        'a,
         Fr: Field + FftField,
         G1Affine: AffineRepr,
         Hash: BarretenHasher,
@@ -72,6 +74,7 @@ impl<
         const NUM_ROOTS_CUT_OUT_OF_VANISHING_POLYNOMIAL: usize,
     >
     ProverPermutationWidget<
+        'a,
         Fr,
         Hash,
         G1Affine,
@@ -80,7 +83,7 @@ impl<
         NUM_ROOTS_CUT_OUT_OF_VANISHING_POLYNOMIAL,
     >
 {
-    pub fn new(proving_key: Arc<ProvingKey<Fr, G1Affine>>) -> Self {
+    pub fn new(proving_key: Arc<ProvingKey<'_, Fr, G1Affine>>) -> Self {
         Self {
             prover_random_widget: ProverRandomWidget::new(&proving_key),
         }
@@ -90,7 +93,7 @@ impl<
         &mut self,
         transcript: &mut Transcript<Hash>,
         round_number: usize,
-        queue: &mut WorkQueue<Hash, Fr, G1Affine>,
+        queue: &mut WorkQueue<'a, Hash, Fr, G1Affine>,
     ) {
         // ...
     }

@@ -8,7 +8,7 @@ pub struct MillerLines {}
 
 pub trait VerifierReferenceString<G2Affine: AffineRepr> {
     fn get_g2x(&self) -> G2Affine;
-    fn get_precomputed_g2_lines(&self) -> &MillerLines;
+    fn get_precomputed_g2_lines(&self) -> Vec<MillerLines>;
 }
 
 pub trait ProverReferenceString<G1Affine: AffineRepr> {

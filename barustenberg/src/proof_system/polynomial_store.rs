@@ -37,10 +37,10 @@ impl<Fr: Field> PolynomialStore<Fr> {
     ///
     /// # Returns
     /// - `Result<Polynomial>` - a reference to the polynomial associated with the given key
-    pub(crate) const fn get(&self, key: String) -> Result<Polynomial<Fr>> {
+    pub(crate) fn get(&self, key: String) -> Result<Polynomial<Fr>> {
         self.polynomial_map
             .get(&key)
-            .ok_or(anyhow!("didn't find polynomial..."))
+            .ok_or_else(|| anyhow!("didn't find polynomial..."))
             .cloned()
     }
 
@@ -51,10 +51,10 @@ impl<Fr: Field> PolynomialStore<Fr> {
     ///
     /// # Returns
     /// - `Result<Polynomial>` - the polynomial associated with the given key
-    pub(crate) const fn remove(&mut self, key: String) -> Result<Polynomial<Fr>> {
+    pub(crate) fn remove(&mut self, key: String) -> Result<Polynomial<Fr>> {
         self.polynomial_map
             .remove(&key)
-            .ok_or(Err("didn't find polynomial..."))
+            .ok_or_else(|| anyhow!("didn't find polynomial..."))
     }
 
     /// Get the current size (bytes) of all polynomials in the PolynomialStore

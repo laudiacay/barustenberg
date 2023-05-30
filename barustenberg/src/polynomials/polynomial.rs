@@ -1,4 +1,7 @@
-use std::{marker::PhantomData, ops::{AddAssign, SubAssign}};
+use std::{
+    marker::PhantomData,
+    ops::{AddAssign, Index, SubAssign},
+};
 
 use ark_ff::Field;
 
@@ -29,13 +32,13 @@ impl<F: Field> Polynomial<F> {
     }
 }
 
-impl<F:Field> AddAssign for Polynomial<F> {
+impl<F: Field> AddAssign for Polynomial<F> {
     fn add_assign(&mut self, rhs: Self) {
         todo!("unimplemented, see comment below");
     }
 }
 
-impl<F:Field> SubAssign for Polynomial<F> {
+impl<F: Field> SubAssign for Polynomial<F> {
     fn sub_assign(&mut self, rhs: Self) {
         todo!("unimplemented, see comment below");
     }
@@ -47,11 +50,19 @@ impl<F: Field> std::ops::MulAssign<F> for Polynomial<F> {
     }
 }
 
-impl<F:Field> IntoIterator for Polynomial<F> {
+impl<F: Field> IntoIterator for Polynomial<F> {
     type Item = F;
     type IntoIter = std::vec::IntoIter<Self::Item>;
 
     fn into_iter(self) -> Self::IntoIter {
         todo!("unimplemented, see comment below");
+    }
+}
+
+impl<F: Field> Index<usize> for Polynomial<F> {
+    type Output = F;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.coefficients[index]
     }
 }
