@@ -1,23 +1,25 @@
+use ark_ec::AffineRepr;
+use ark_ff::{FftField, Field};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::io::Read;
 use std::sync::Arc;
 use std::vec::Vec;
 
-use crate::ecc::curves::bn254::scalar_multiplication::runtime_states::PippengerRuntimeState;
-use crate::ecc::fields::field::FieldParams;
+use crate::ecc::PippengerRuntimeState;
 use crate::plonk::proof_system::constants::NUM_QUOTIENT_PARTS;
 
 use crate::plonk::composer::composer_base::ComposerType;
 use crate::polynomials::evaluation_domain::EvaluationDomain;
 use crate::polynomials::Polynomial;
 use crate::proof_system::polynomial_store::PolynomialStore;
+use crate::srs::reference_string::file_reference_string::FileReferenceString;
 use crate::srs::reference_string::ProverReferenceString;
 
 use super::types::PolynomialManifest;
 
 const MIN_THREAD_BLOCK: usize = 4;
 
-struct ProvingKeyData<FP: FieldParams> {
+struct ProvingKeyData<F: Field> {
     composer_type: u32,
     circuit_size: u32,
     num_public_inputs: u32,
@@ -25,9 +27,10 @@ struct ProvingKeyData<FP: FieldParams> {
     recursive_proof_public_input_indices: Vec<u32>,
     memory_read_records: Vec<u32>,
     memory_write_records: Vec<u32>,
-    polynomial_store: PolynomialStore<FP>,
+    polynomial_store: PolynomialStore<F>,
 }
-pub struct ProvingKey<Fr: FieldParams> {
+
+pub struct ProvingKey<'a, Fr: Field + FftField, G1Affine: AffineRepr> {
     pub composer_type: u32,
     pub circuit_size: usize,
     pub log_circuit_size: usize,
@@ -39,18 +42,43 @@ pub struct ProvingKey<Fr: FieldParams> {
     /// Used by UltraComposer only, for RAM writes.
     pub memory_write_records: Vec<u32>,
     pub polynomial_store: PolynomialStore<Fr>,
-    pub small_domain: EvaluationDomain<Fr>,
-    pub large_domain: EvaluationDomain<Fr>,
+    pub small_domain: EvaluationDomain<'a, Fr>,
+    pub large_domain: EvaluationDomain<'a, Fr>,
     /// The reference_string object contains the monomial SRS. We can access it using:
     /// Monomial SRS: reference_string->get_monomial_points()
-    pub reference_string: Arc<dyn ProverReferenceString>,
+    pub reference_string: Arc<dyn ProverReferenceString<G1Affine>>,
     pub quotient_polynomial_parts: [Polynomial<Fr>; NUM_QUOTIENT_PARTS as usize],
     pub pippenger_runtime_state: PippengerRuntimeState,
     pub polynomial_manifest: PolynomialManifest,
 }
 
-impl<Fr: FieldParams> ProvingKey<Fr> {
-    pub fn new_with_data(data: ProvingKeyData<Fr>, crs: Arc<dyn ProverReferenceString>) -> Self {
+impl<'a, Fr: Field + FftField, G1Affine: AffineRepr> Default for ProvingKey<'a, Fr, G1Affine> {
+    fn default() -> Self {
+        Self {
+            composer_type: 0,
+            circuit_size: 0,
+            log_circuit_size: 0,
+            num_public_inputs: 0,
+            contains_recursive_proof: false,
+            recursive_proof_public_input_indices: vec![],
+            memory_read_records: vec![],
+            memory_write_records: vec![],
+            polynomial_store: PolynomialStore::new(),
+            small_domain: EvaluationDomain::new(0, None),
+            large_domain: EvaluationDomain::new(0, None),
+            reference_string: Arc::new(FileReferenceString::<G1Affine>::default()),
+            quotient_polynomial_parts: Default::default(),
+            pippenger_runtime_state: PippengerRuntimeState::default(),
+            polynomial_manifest: PolynomialManifest::default(),
+        }
+    }
+}
+
+impl<'a, Fr: Field + FftField, G1Affine: AffineRepr> ProvingKey<'a, Fr, G1Affine> {
+    pub fn new_with_data(
+        data: ProvingKeyData<Fr>,
+        crs: Arc<dyn ProverReferenceString<G1Affine>>,
+    ) -> Self {
         let ProvingKeyData {
             composer_type,
             circuit_size,
@@ -63,14 +91,14 @@ impl<Fr: FieldParams> ProvingKey<Fr> {
         } = data;
 
         let log_circuit_size = (circuit_size as f64).log2().ceil() as usize;
-        let small_domain = EvaluationDomain::new(circuit_size, None).unwrap();
-        let large_domain = EvaluationDomain::new(1usize << log_circuit_size, None).unwrap();
+        let small_domain = EvaluationDomain::new(circuit_size as usize, None);
+        let large_domain = EvaluationDomain::new(1usize << log_circuit_size, None);
 
         let mut ret = Self {
             composer_type,
-            circuit_size,
+            circuit_size: circuit_size as usize,
             log_circuit_size,
-            num_public_inputs,
+            num_public_inputs: num_public_inputs as usize,
             contains_recursive_proof,
             recursive_proof_public_input_indices,
             memory_read_records,
@@ -90,13 +118,13 @@ impl<Fr: FieldParams> ProvingKey<Fr> {
     pub fn new(
         num_gates: usize,
         num_inputs: usize,
-        crs: Arc<dyn ProverReferenceString>,
+        crs: Arc<dyn ProverReferenceString<G1Affine>>,
         type_: ComposerType,
     ) -> Self {
         let data = ProvingKeyData {
             composer_type: type_ as u32,
-            circuit_size: num_gates + num_inputs,
-            num_public_inputs: num_inputs,
+            circuit_size: (num_gates + num_inputs) as u32,
+            num_public_inputs: num_inputs as u32,
             contains_recursive_proof: false,
             recursive_proof_public_input_indices: vec![],
             memory_read_records: vec![],
@@ -131,25 +159,26 @@ impl<Fr: FieldParams> ProvingKey<Fr> {
         let size_t_fr_len = self.circuit_size + 1;
         let fr_len = self.circuit_size;
         self.quotient_polynomial_parts[0]
-            .iter_mut()
+            .into_iter()
             .for_each(|c| *c = zero_fr);
         self.quotient_polynomial_parts[1]
-            .iter_mut()
+            .into_iter()
             .for_each(|c| *c = zero_fr);
         self.quotient_polynomial_parts[2]
-            .iter_mut()
+            .into_iter()
             .for_each(|c| *c = zero_fr);
         self.quotient_polynomial_parts[3]
-            .iter_mut()
+            .into_iter()
             .for_each(|c| *c = zero_fr);
     }
 
     pub fn from_reader<R: Read>(reader: &mut R, crs_path: &str) -> Result<Self, std::io::Error> {
-        let crs = Arc::new(ProverReferenceString::read_from_path(crs_path)?);
+        let crs = Arc::new(FileReferenceString::<G1Affine>::read_from_path(crs_path)?);
+        todo!();
     }
 }
 
-impl<Fr: FieldParams> Serialize for ProvingKey<Fr> {
+impl<'a, Fr: Field + FftField, G1Affine: AffineRepr> Serialize for ProvingKey<'a, Fr, G1Affine> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         // TODO
         /*
@@ -214,8 +243,10 @@ impl<Fr: FieldParams> Serialize for ProvingKey<Fr> {
     }
 }
 
-impl<'de, Fr: FieldParams> Deserialize<'de> for ProvingKey<Fr> {
-    fn deserialize<D>(deserializer: D) -> Result<ProvingKey<Fr>, D::Error>
+impl<'a, 'de, Fr: Field + FftField, G1Affine: AffineRepr> Deserialize<'de>
+    for ProvingKey<'a, Fr, G1Affine>
+{
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {

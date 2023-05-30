@@ -1,27 +1,28 @@
-use crate::ecc::fields::field::FieldParams;
 use crate::plonk::proof_system::proving_key::ProvingKey;
 use crate::plonk::proof_system::widgets::random_widgets::random_widget::ProverRandomWidget;
 use crate::proof_system::work_queue::WorkQueue;
 use crate::transcript::{BarretenHasher, Transcript, TranscriptKey};
 use std::marker::PhantomData;
 use std::sync::Arc;
+
+use ark_ec::AffineRepr;
+use ark_ff::{FftField, Field};
+
 pub struct VerifierPermutationWidget<
     H: BarretenHasher,
-    FP,
+    F: Field,
     Group,
     const NUM_ROOTS_CUT_OUT_OF_VANISHING_POLYNOMIAL: usize,
-> where
-    FP: FieldParams,
-{
+> {
     transcript: Transcript<H>,
-    phantom: PhantomData<(FP, Group)>,
+    phantom: PhantomData<(F, Group)>,
 }
 
 impl<H, F, Group, const NUM_ROOTS_CUT_OUT_OF_VANISHING_POLYNOMIAL: usize>
     VerifierPermutationWidget<H, F, Group, NUM_ROOTS_CUT_OUT_OF_VANISHING_POLYNOMIAL>
 where
     H: BarretenHasher,
-    F: FieldParams,
+    F: Field,
 {
     pub fn new() -> Self {
         Self {
@@ -47,21 +48,24 @@ where
         transcript: &Transcript<H>,
     ) -> F {
         // ...
+        todo!("VerifierPermutationWidget::append_scalar_multiplication_inputs")
     }
 }
 
 pub struct ProverPermutationWidget<
-    Fr: FieldParams,
+    Fr: Field + FftField,
     Hash: BarretenHasher,
+    G1Affine: AffineRepr,
     const PROGRAM_WIDTH: usize,
     const IDPOLYS: bool,
     const NUM_ROOTS_CUT_OUT_OF_VANISHING_POLYNOMIAL: usize,
 > {
-    prover_random_widget: ProverRandomWidget<Hash, Fr>,
+    prover_random_widget: ProverRandomWidget<Hash, Fr, G1Affine>,
 }
 
 impl<
-        Fr: FieldParams,
+        Fr: Field + FftField,
+        G1Affine: AffineRepr,
         Hash: BarretenHasher,
         const PROGRAM_WIDTH: usize,
         const IDPOLYS: bool,
@@ -70,12 +74,13 @@ impl<
     ProverPermutationWidget<
         Fr,
         Hash,
+        G1Affine,
         PROGRAM_WIDTH,
         IDPOLYS,
         NUM_ROOTS_CUT_OUT_OF_VANISHING_POLYNOMIAL,
     >
 {
-    pub fn new(proving_key: Arc<ProvingKey<Fr>>) -> Self {
+    pub fn new(proving_key: Arc<ProvingKey<Fr, G1Affine>>) -> Self {
         Self {
             prover_random_widget: ProverRandomWidget::new(&proving_key),
         }
@@ -85,7 +90,7 @@ impl<
         &mut self,
         transcript: &mut Transcript<Hash>,
         round_number: usize,
-        queue: &mut WorkQueue<Hash, Fr>,
+        queue: &mut WorkQueue<Hash, Fr, G1Affine>,
     ) {
         // ...
     }
@@ -96,5 +101,6 @@ impl<
         transcript: &Transcript<Hash>,
     ) -> Fr {
         // ...
+        todo!("ProverPermutationWidget::compute_quotient_contribution")
     }
 }

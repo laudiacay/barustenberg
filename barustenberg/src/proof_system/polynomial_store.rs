@@ -1,20 +1,18 @@
-use crate::{
-    ecc::fields::field::{Field, FieldParams},
-    polynomials::Polynomial,
-};
+use crate::polynomials::Polynomial;
 use anyhow::{anyhow, Result};
+use ark_ff::Field;
 use std::{
     collections::HashMap,
     fmt::{self, Display, Formatter},
     marker::PhantomData,
 };
 
-#[derive(Debug, Clone)]
-pub(crate) struct PolynomialStore<Fr: FieldParams> {
+#[derive(Debug, Clone, Default)]
+pub(crate) struct PolynomialStore<Fr: Field> {
     polynomial_map: HashMap<String, Polynomial<Fr>>,
     phantom: PhantomData<Fr>,
 }
-impl<Fr: FieldParams> PolynomialStore<Fr> {
+impl<Fr: Field> PolynomialStore<Fr> {
     pub(crate) const fn new() -> Self {
         Self {
             polynomial_map: HashMap::new(),
@@ -56,7 +54,7 @@ impl<Fr: FieldParams> PolynomialStore<Fr> {
     pub(crate) const fn remove(&mut self, key: String) -> Result<Polynomial<Fr>> {
         self.polynomial_map
             .remove(&key)
-            .ok_or(Err(Error::string("didn't find polynomial...")))
+            .ok_or(Err("didn't find polynomial..."))
     }
 
     /// Get the current size (bytes) of all polynomials in the PolynomialStore
@@ -66,7 +64,7 @@ impl<Fr: FieldParams> PolynomialStore<Fr> {
     fn get_size_in_bytes(&self) -> usize {
         let mut size_in_bytes: usize = 0;
         for (_, entry) in self.polynomial_map.iter() {
-            size_in_bytes += entry.size() * Field::<Fr>::size_in_bytes();
+            size_in_bytes += entry.size() * std::mem::size_of::<Fr>();
         }
         size_in_bytes
     }
@@ -82,12 +80,12 @@ impl<Fr: FieldParams> PolynomialStore<Fr> {
     // TODO: "allow for const range based for loop"
 }
 
-impl<Fr: FieldParams> Display for PolynomialStore<Fr> {
+impl<Fr: Field> Display for PolynomialStore<Fr> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let size_in_mb = (self.get_size_in_bytes() / 1_000_000) as f32;
         write!(f, "PolynomialStore contents total size: {} MB", size_in_mb);
         for (key, entry) in self.polynomial_map.iter() {
-            let entry_bytes = entry.size() * Field::<Fr>::size_in_bytes();
+            let entry_bytes = entry.size() * std::mem::size_of::<Fr>();
             write!(
                 f,
                 "PolynomialStore: {} -> {} bytes, {:?}",

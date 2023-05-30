@@ -12,13 +12,10 @@
 // use crate::barretenberg::polynomials::polynomial_arithmetic;
 // use crate::barretenberg::scalar_multiplication;
 
-use crate::{
-    ecc::{
-        fields::field::{Field, FieldParams},
-        groups::{affine_element::Affine, GroupParams},
-    },
-    transcript::{BarretenHasher, Manifest},
-};
+use crate::transcript::{BarretenHasher, Manifest};
+
+use ark_ec::AffineRepr;
+use ark_ff::Field;
 
 use super::{
     commitment_scheme::CommitmentScheme,
@@ -40,28 +37,18 @@ pub trait VerifierBase<H: BarretenHasher, PS: Settings<H>> {
     fn verify_proof(&self, proof: &Proof) -> bool;
 }
 
-pub struct Verifier<
-    FqP: FieldParams,
-    FrP: FieldParams,
-    G1AffineP: GroupParams<FqP, FrP>,
-    H: BarretenHasher,
-    PS: Settings<H>,
-> {
+pub struct Verifier<Fq: Field, Fr: Field, G1Affine: AffineRepr, H: BarretenHasher, PS: Settings<H>>
+{
     settings: PS,
     key: Option<Arc<VerificationKey>>,
     manifest: Manifest,
-    kate_g1_elements: HashMap<String, Affine<FqP, Field<FqP>, FrP, G1AffineP>>,
-    kate_fr_elements: HashMap<String, Field<FrP>>,
-    commitment_scheme: Box<dyn CommitmentScheme<FqP, FrP, G1AffineP, H>>,
+    kate_g1_elements: HashMap<String, G1Affine>,
+    kate_fr_elements: HashMap<String, Fr>,
+    commitment_scheme: Box<dyn CommitmentScheme<Fq, Fr, G1Affine, H>>,
 }
 
-impl<
-        FqP: FieldParams,
-        FrP: FieldParams,
-        G1AffineP: GroupParams<FqP, FrP>,
-        H: BarretenHasher,
-        PS: Settings<H>,
-    > VerifierBase<H, PS> for Verifier<FqP, FrP, G1AffineP, H, PS>
+impl<Fq: Field, Fr: Field, G1Affine: AffineRepr, H: BarretenHasher, PS: Settings<H>>
+    VerifierBase<H, PS> for Verifier<Fq, Fr, G1Affine, H, PS>
 {
     fn new(verifier_key: Option<Arc<VerificationKey>>, manifest: Manifest) -> Self {
         // Implement constructor logic here.
