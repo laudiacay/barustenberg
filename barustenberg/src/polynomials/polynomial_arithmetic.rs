@@ -104,19 +104,21 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
     ) {
         let generator_size_per_thread = generator_size / self.num_threads;
 
-        target
-            .par_chunks_mut(generator_size_per_thread)
-            .enumerate()
-            .for_each(|(j, chunk)| {
-                let thread_shift = generator_shift.pow(j.into() * generator_size_per_thread.into());
-                let mut work_generator = generator_start * thread_shift;
+        // TODO: parallelism
+        // target
+        //     .iter()
+        //     .enumerate()
+        //     .for_each(|(j, chunk)| {
+        //         let thread_shift = generator_shift.pow(j.into() * generator_size_per_thread.into());
+        //         let mut work_generator = generator_start * thread_shift;
 
-                for (i, coeff) in chunk.iter_mut().enumerate() {
-                    let index = j * generator_size_per_thread + i;
-                    *coeff = coeffs[index] * work_generator;
-                    work_generator = work_generator * generator_shift;
-                }
-            });
+        //         for (i, coeff) in chunk.iter_mut().enumerate() {
+        //             let index = j * generator_size_per_thread + i;
+        //             *coeff = coeffs[index] * work_generator;
+        //             work_generator = work_generator * generator_shift;
+        //         }
+        //     });
+        todo!();
     }
 
     /// Compute multiplicative subgroup (g.X)^n.
@@ -156,7 +158,9 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
         fr: &Fr,
         root_table: &[&[Fr]],
     ) {
-        let scratch_space = Self::get_scratch_space(self.size); // Implement the get_scratch_space function
+        //let scratch_space = Self::get_scratch_space(self.size); // Implement the get_scratch_space function
+
+        let mut scratch_space = vec![Fr::zero(); self.size];
 
         let num_polys = coeffs.len();
         assert!(num_polys.is_power_of_two());

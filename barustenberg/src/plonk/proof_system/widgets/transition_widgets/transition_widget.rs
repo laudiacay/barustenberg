@@ -3,6 +3,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+use ark_bn254::G1Affine;
 use ark_ec::AffineRepr;
 use ark_ff::{FftField, Field};
 use typenum::Unsigned;
@@ -150,7 +151,7 @@ pub trait BaseGetter<
     ///
     /// # Returns
     /// A structure with an array of challenge values and powers of α
-    fn get_challenges(
+    fn get_challenges<G1Affine: AffineRepr>(
         transcript: &Transcript<H>,
         alpha_base: F,
         required_challenges: u8,
@@ -161,10 +162,11 @@ pub trait BaseGetter<
             assert!(!required || transcript.has_challenge(label));
             if transcript.has_challenge(label) {
                 assert!(index < transcript.get_num_challenges(label));
-                result.elements[tag] = transcript.get_challenge_field_element(label, index);
+                result.elements[tag] = <Transcript<H> as TranscriptWrapper<F, G1Affine, H>>::get_challenge_field_element(transcript, label, index);
             } else {
                 let mut random_bytes = vec![0u8; std::mem::size_of::<F>()];
-                rng.lock().fill_bytes(&mut random_bytes);
+                // TODO should you really have an unwrap here?
+                rng.lock().unwrap().fill_bytes(&mut random_bytes);
                 result.elements[tag] = F::from_random_bytes(random_bytes.as_ref())
                     .expect("random deserialization didn't work");
             }
@@ -455,7 +457,7 @@ impl<
         let required_polynomial_ids = KB::get_required_polynomial_ids();
         let polynomials = Self::get_polynomials(key, &required_polynomial_ids);
 
-        let challenges = Self::get_challenges(
+        let challenges = Self::get_challenges::<G1Affine>(
             transcript,
             alpha_base,
             KB::quotient_required_challenges(),
@@ -464,7 +466,8 @@ impl<
 
         let mut quotient_term;
 
-        for i in key.large_domain.iter() {
+        // TODO: hidden missing multithreading here
+        for i in 0..key.large_domain.size {
             let mut linear_terms = CoefficientArray::default();
             KB::compute_linear_terms(polynomials, &challenges, &mut linear_terms, i);
             let sum_of_linear_terms =
@@ -513,16 +516,18 @@ pub trait GenericVerifierWidget<
     NIndependentRelations: generic_array::ArrayLength<F>,
     KB: KernelBase<H, S, F, PC, G, NIndependentRelations>,
 {
-    fn compute_quotient_evaluation_contribution(
+    fn compute_quotient_evaluation_contribution<G1Affine: AffineRepr>(
         key: &Arc<TranscriptKey<'a>>,
         alpha_base: F,
         transcript: &Transcript<H>,
         quotient_numerator_eval: &mut F,
-        rng: &mut dyn rand::RngCore,
+        rng: Arc<Mutex<dyn rand::RngCore + Send + Sync>>,
     ) -> F {
-        let polynomial_evaluations =
-            G::get_polynomial_evaluations(&key.as_ref().polynomial_manifest, transcript);
-        let challenges = G::get_challenges(
+        let polynomial_evaluations = G::get_polynomial_evaluations::<G1Affine>(
+            &key.as_ref().polynomial_manifest,
+            transcript,
+        );
+        let challenges = G::get_challenges::<G1Affine>(
             transcript,
             alpha_base,
             KB::quotient_required_challenges(),
@@ -530,23 +535,14 @@ pub trait GenericVerifierWidget<
         );
 
         let mut linear_terms = CoefficientArray::default();
-        KB::compute_linear_terms(
-            polynomial_evaluations,
-            &challenges,
-            &mut linear_terms,
-            todo!("where is index"),
-        );
-        *quotient_numerator_eval += KB::sum_linear_terms(
-            polynomial_evaluations,
-            &challenges,
-            &linear_terms,
-            todo!("where is index"),
-        );
+        KB::compute_linear_terms(polynomial_evaluations, &challenges, &mut linear_terms, 0);
+        *quotient_numerator_eval +=
+            KB::sum_linear_terms(polynomial_evaluations, &challenges, &linear_terms, 0);
         KB::compute_non_linear_terms(
             polynomial_evaluations,
             &challenges,
             quotient_numerator_eval,
-            todo!("where is the index"),
+            0,
         );
 
         G::update_alpha(&challenges)
@@ -559,7 +555,7 @@ pub trait GenericVerifierWidget<
         scalar_mult_inputs: &mut HashMap<String, F>,
         rng: Arc<Mutex<dyn rand::RngCore + Send + Sync>>,
     ) -> F {
-        let challenges = G::get_challenges(
+        let challenges = G::get_challenges::<G1Affine>(
             transcript,
             alpha_base,
             KB::quotient_required_challenges() | KB::update_required_challenges(),
