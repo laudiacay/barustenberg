@@ -149,27 +149,11 @@ impl<'a, Fr: Field + FftField, G1Affine: AffineRepr> ProvingKey<'a, Fr, G1Affine
         }
 
         // t_i for i = 1,2,3 have n+1 coefficients after blinding. t_4 has only n coefficients.
+        // TODO unclear if this is necessary
         self.quotient_polynomial_parts[0] = Polynomial::new(self.circuit_size + 1);
         self.quotient_polynomial_parts[1] = Polynomial::new(self.circuit_size + 1);
         self.quotient_polynomial_parts[2] = Polynomial::new(self.circuit_size + 1);
         self.quotient_polynomial_parts[3] = Polynomial::new(self.circuit_size);
-
-        // Initialize quotient_polynomial_parts to zeroes
-        let zero_fr = Fr::zero();
-        let size_t_fr_len = self.circuit_size + 1;
-        let fr_len = self.circuit_size;
-        self.quotient_polynomial_parts[0]
-            .into_iter()
-            .for_each(|c| *c = zero_fr);
-        self.quotient_polynomial_parts[1]
-            .into_iter()
-            .for_each(|c| *c = zero_fr);
-        self.quotient_polynomial_parts[2]
-            .into_iter()
-            .for_each(|c| *c = zero_fr);
-        self.quotient_polynomial_parts[3]
-            .into_iter()
-            .for_each(|c| *c = zero_fr);
     }
 
     pub fn from_reader<R: Read>(reader: &mut R, crs_path: &str) -> Result<Self, std::io::Error> {
