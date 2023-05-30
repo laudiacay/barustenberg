@@ -83,14 +83,14 @@ impl<Fr: Field> PolynomialStore<Fr> {
 impl<Fr: Field> Display for PolynomialStore<Fr> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let size_in_mb = (self.get_size_in_bytes() / 1_000_000) as f32;
-        write!(f, "PolynomialStore contents total size: {} MB", size_in_mb);
+        write!(f, "PolynomialStore contents total size: {} MB", size_in_mb)?;
         for (key, entry) in self.polynomial_map.iter() {
             let entry_bytes = entry.size() * std::mem::size_of::<Fr>();
             write!(
                 f,
                 "PolynomialStore: {} -> {} bytes, {:?}",
                 key, entry_bytes, entry
-            );
+            )?;
         }
         Ok(())
     }

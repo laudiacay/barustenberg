@@ -1,1 +1,1 @@
-pub mod bitop;
+pub(crate) mod bitop;

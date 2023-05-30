@@ -62,7 +62,7 @@ pub(crate) struct ComposerBase<'a, F: Field + FftField, G1Affine: AffineRepr, G2
     selector_properties: Vec<SelectorProperties>,
     rand_engine: Option<Box<dyn RngCore>>,
     circuit_proving_key: Option<Arc<ProvingKey<'a, F, G1Affine>>>,
-    circuit_verification_key: Option<Arc<VerificationKey<'a>>>,
+    circuit_verification_key: Option<Arc<VerificationKey<'a, F>>>,
     w_l: Vec<u32>,
     w_r: Vec<u32>,
     w_o: Vec<u32>,
@@ -151,7 +151,7 @@ impl<'a, F: Field + FftField, G1Affine: AffineRepr, G2Affine: AffineRepr>
     }
     pub(crate) fn with_keys(
         p_key: Arc<ProvingKey<'a, F, G1Affine>>,
-        v_key: Arc<VerificationKey<'a>>,
+        v_key: Arc<VerificationKey<'a, F>>,
         num_selectors: usize,
         size_hint: usize,
         selector_properties: Vec<SelectorProperties>,

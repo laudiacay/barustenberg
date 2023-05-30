@@ -15,7 +15,7 @@
 use crate::transcript::{BarretenHasher, Manifest};
 
 use ark_ec::AffineRepr;
-use ark_ff::Field;
+use ark_ff::{FftField, Field};
 
 use super::{
     commitment_scheme::CommitmentScheme,
@@ -30,8 +30,8 @@ use super::verification_key::VerificationKey;
 #[cfg(test)]
 mod test;
 
-pub(crate) trait VerifierBase<'a, H: BarretenHasher, PS: Settings<H>> {
-    fn new(verifier_key: Option<Arc<VerificationKey<'a>>>, manifest: Manifest) -> Self;
+pub(crate) trait VerifierBase<'a, Fr: Field + FftField, H: BarretenHasher, PS: Settings<H>> {
+    fn new(verifier_key: Option<Arc<VerificationKey<'a, Fr>>>, manifest: Manifest) -> Self;
     fn validate_commitments(&self) -> bool;
     fn validate_scalars(&self) -> bool;
     fn verify_proof(&self, proof: &Proof) -> bool;
@@ -40,23 +40,29 @@ pub(crate) trait VerifierBase<'a, H: BarretenHasher, PS: Settings<H>> {
 pub(crate) struct Verifier<
     'a,
     Fq: Field,
-    Fr: Field,
+    Fr: Field + FftField,
     G1Affine: AffineRepr,
     H: BarretenHasher,
     PS: Settings<H>,
 > {
     settings: PS,
-    key: Option<Arc<VerificationKey<'a>>>,
+    key: Option<Arc<VerificationKey<'a, Fr>>>,
     manifest: Manifest,
     kate_g1_elements: HashMap<String, G1Affine>,
     kate_fr_elements: HashMap<String, Fr>,
     commitment_scheme: Box<dyn CommitmentScheme<Fq, Fr, G1Affine, H>>,
 }
 
-impl<'a, Fq: Field, Fr: Field, G1Affine: AffineRepr, H: BarretenHasher, PS: Settings<H>>
-    VerifierBase<'a, H, PS> for Verifier<'a, Fq, Fr, G1Affine, H, PS>
+impl<
+        'a,
+        Fq: Field,
+        Fr: Field + FftField,
+        G1Affine: AffineRepr,
+        H: BarretenHasher,
+        PS: Settings<H>,
+    > VerifierBase<'a, Fr, H, PS> for Verifier<'a, Fq, Fr, G1Affine, H, PS>
 {
-    fn new(_verifier_key: Option<Arc<VerificationKey<'a>>>, _manifest: Manifest) -> Self {
+    fn new(_verifier_key: Option<Arc<VerificationKey<'a, Fr>>>, _manifest: Manifest) -> Self {
         // Implement constructor logic here.
         todo!("Verifier::new")
     }

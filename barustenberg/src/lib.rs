@@ -3,14 +3,22 @@
 #![deny(unreachable_pub, private_in_public)]
 
 //! barustenberg
-pub mod common;
-pub mod ecc;
-pub mod numeric;
-pub mod plonk;
-pub mod polynomials;
-pub mod proof_system;
-pub mod srs;
-pub mod transcript;
+/// random utilities
+pub(crate) mod common;
+/// elliptic curves stuff (currently a thin wrapper on other people's grumpkin and bn254)
+pub(crate) mod ecc;
+/// bitops mostly
+pub(crate) mod numeric;
+/// plonk
+pub(crate) mod plonk;
+/// math with polynomials
+pub(crate) mod polynomials;
+/// proof system
+pub(crate) mod proof_system;
+/// SRS utilities.
+pub(crate) mod srs;
+/// Transcript utilities.
+pub(crate) mod transcript;
 
 // TODOs for claudia and waylon
 // big error handling energy, type cleanup
@@ -31,12 +39,12 @@ pub mod transcript;
 pub mod test_utils;
 
 /// Add two integers together.
-pub fn add(a: i32, b: i32) -> i32 {
+pub(crate) fn add(a: i32, b: i32) -> i32 {
     a + b
 }
 
 /// Multiplies two integers together.
-pub fn mult(a: i32, b: i32) -> i32 {
+pub(crate) fn mult(a: i32, b: i32) -> i32 {
     a * b
 }
 

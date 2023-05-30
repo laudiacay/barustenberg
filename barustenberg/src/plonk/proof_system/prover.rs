@@ -34,7 +34,7 @@ pub(crate) struct Prover<
     CS: CommitmentScheme<Fq, Fr, G1Affine, H>,
 > {
     pub(crate) circuit_size: usize,
-    pub(crate) transcript: Arc<Transcript<H>>,
+    pub(crate) transcript: Arc<Transcript<H, Fr, G1Affine>>,
     pub(crate) key: Arc<ProvingKey<'a, Fr, G1Affine>>,
     pub(crate) queue: WorkQueue<'a, H, Fr, G1Affine>,
     pub(crate) random_widgets: Vec<ProverRandomWidget<'a, H, Fr, G1Affine>>,
@@ -761,7 +761,7 @@ impl<
     }
     fn reset(&mut self) {
         let manifest = self.transcript.get_manifest();
-        self.transcript = Arc::new(Transcript::<H>::new(
+        self.transcript = Arc::new(Transcript::<H, Fr, G1Affine>::new(
             Some(manifest),
             self.transcript.num_challenge_bytes,
         ));

@@ -1,3 +1,3 @@
-pub mod get_msb;
+pub(crate) mod get_msb;
 
-pub use self::get_msb::Msb;
+pub(crate) use self::get_msb::Msb;
