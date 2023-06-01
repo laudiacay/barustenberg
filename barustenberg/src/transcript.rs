@@ -260,9 +260,12 @@ impl<H: BarretenHasher, Fr: Field, G1Affine: AffineRepr> Transcript<H, Fr, G1Aff
         transcript
     }
 
-    fn parse(_input_transcript: Vec<u8>, _manifest: Manifest, _challenge_bytes: usize) -> Self {
-        // implementation
-        todo!("Transcript::parse")
+    fn from_serialized(
+        _input_transcript: Vec<u8>,
+        _manifest: Manifest,
+        _challenge_bytes: usize,
+    ) -> Self {
+        todo!()
     }
 
     pub(crate) fn get_manifest(&self) -> Manifest {
@@ -428,8 +431,9 @@ impl<H: BarretenHasher, Fr: Field, G1Affine: AffineRepr> Transcript<H, Fr, G1Aff
     pub(crate) fn get_challenge(
         &self,
         challenge_name: &str,
-        idx: usize,
+        idx: Option<usize>,
     ) -> Result<&GenericArray<u8, H::PrngOutputSize>, Error> {
+        let idx = idx.unwrap_or(0);
         info!("get_challenge(): {}", challenge_name);
         assert!(self.challenges.contains_key(challenge_name));
         Ok(&self.challenges.get(challenge_name).unwrap()[idx].data)
@@ -535,8 +539,7 @@ impl<H: BarretenHasher, Fr: Field, G1Affine: AffineRepr> Transcript<H, Fr, G1Aff
                 }
             }
         }
-        //return -1;
-        todo!("how do you return -1 in get_element_size? seems wrong.")
+        usize::MAX
     }
 
     /// serialize the transcript to a byte vector.
@@ -693,7 +696,6 @@ impl<H: BarretenHasher, Fr: Field, G1Affine: AffineRepr> Transcript<H, Fr, G1Aff
         challenge_name: &str,
         idx: Option<usize>,
     ) -> Fr {
-        let idx = idx.unwrap_or(0);
         let buf = self.get_challenge(challenge_name, idx);
         Fr::deserialize_uncompressed(buf.unwrap().as_slice()).unwrap()
     }

@@ -561,3 +561,7 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
         unimplemented!()
     }
 }
+
+pub fn evaluate<F: Field>(coeffs: &[F], z: &F, n: usize) -> F {
+    todo!()
+}

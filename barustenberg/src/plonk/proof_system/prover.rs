@@ -1,4 +1,4 @@
-use std::{marker::PhantomData, sync::Arc};
+use std::{fmt::format, marker::PhantomData, sync::Arc};
 
 use ark_ec::AffineRepr;
 use ark_ff::{FftField, Field};
@@ -16,9 +16,12 @@ use super::{
 use typenum::Unsigned;
 
 use crate::{
-    proof_system::work_queue::{self, QueuedFftInputs},
+    polynomials::{polynomial_arithmetic, Polynomial},
+    proof_system::work_queue::{self, QueuedFftInputs, WorkItem},
     transcript::{BarretenHasher, Manifest, Transcript},
 };
+
+use anyhow::{ensure, Result};
 
 use crate::proof_system::work_queue::WorkQueue;
 
@@ -40,7 +43,8 @@ pub(crate) struct Prover<
     pub(crate) random_widgets: Vec<ProverRandomWidget<'a, H, Fr, G1Affine>>,
     pub(crate) transition_widgets: Vec<TransitionWidgetBase<'a, Fr, G1Affine>>,
     pub(crate) commitment_scheme: CS,
-    phantom: PhantomData<(Fq, S)>,
+    pub(crate) settings: S,
+    phantom: PhantomData<Fq>,
 }
 
 impl<
@@ -55,7 +59,7 @@ impl<
     pub(crate) fn new(
         input_key: Option<Arc<ProvingKey<'a, Fr, G1Affine>>>,
         input_manifest: Option<Manifest>,
-        _input_settings: Option<S>,
+        input_settings: Option<S>,
     ) -> Self {
         let circuit_size = input_key.as_ref().map_or(0, |key| key.circuit_size);
         let transcript = Arc::new(Transcript::new(input_manifest, H::PrngOutputSize::USIZE));
@@ -63,6 +67,7 @@ impl<
             input_key.as_ref().map(|a| a.clone()),
             Some(transcript.clone()),
         );
+        let settings = input_settings.unwrap_or_default();
 
         Self {
             circuit_size,
@@ -72,6 +77,7 @@ impl<
             random_widgets: Vec::new(),
             transition_widgets: Vec::new(),
             commitment_scheme: KateCommitmentScheme::<H, S>::default(),
+            settings,
             phantom: PhantomData,
         }
     }
@@ -91,45 +97,6 @@ impl<
         todo!("LOOK AT THE COMMENTS IN PROVERBASE");
     }
 
-    // TODO: there is some copying bullshit you need to look at from prover.cpp...
-    /*
-        template <typename settings>
-    ProverBase<settings>::ProverBase(ProverBase<settings>&& other)
-        : circuit_size(other.circuit_size)
-        , transcript(other.transcript)
-        , key(std::move(other.key))
-        , commitment_scheme(std::move(other.commitment_scheme))
-        , queue(key.get(), &transcript)
-    {
-        for (size_t i = 0; i < other.random_widgets.size(); ++i) {
-            random_widgets.emplace_back(std::move(other.random_widgets[i]));
-        }
-        for (size_t i = 0; i < other.transition_widgets.size(); ++i) {
-            transition_widgets.emplace_back(std::move(other.transition_widgets[i]));
-        }
-    }
-
-    template <typename settings> ProverBase<settings>& ProverBase<settings>::operator=(ProverBase<settings>&& other)
-    {
-        circuit_size = other.circuit_size;
-
-        random_widgets.resize(0);
-        transition_widgets.resize(0);
-        for (size_t i = 0; i < other.random_widgets.size(); ++i) {
-            random_widgets.emplace_back(std::move(other.random_widgets[i]));
-        }
-        for (size_t i = 0; i < other.transition_widgets.size(); ++i) {
-            transition_widgets.emplace_back(std::move(other.transition_widgets[i]));
-        }
-        transcript = other.transcript;
-        key = std::move(other.key);
-        commitment_scheme = std::move(other.commitment_scheme);
-
-        queue = work_queue(key.get(), &transcript);
-        return *this;
-    }
-     */
-
     /// Execute preamble round.
     /// - Execute init round
     /// - Add randomness to the wire witness polynomials for Honest-Verifier Zero Knowledge.
@@ -137,31 +104,45 @@ impl<
     /// and after they are in monomial form. This is an inconsistency that can mislead developers.
     /// Parameters:
     /// - `settings` Program settings.
-    fn execute_preamble_round(&self) {
-        /*
-               queue.flush_queue();
+    fn execute_preamble_round(&self) -> Result<()> {
+        self.queue.flush_queue();
 
-        transcript.add_element("circuit_size",
-                               { static_cast<uint8_t>(circuit_size >> 24),
-                                 static_cast<uint8_t>(circuit_size >> 16),
-                                 static_cast<uint8_t>(circuit_size >> 8),
-                                 static_cast<uint8_t>(circuit_size) });
+        self.transcript.add_element(
+            "circuit_size",
+            vec![
+                (self.circuit_size >> 24) as u8,
+                (self.circuit_size >> 16) as u8,
+                (self.circuit_size >> 8) as u8,
+                (self.circuit_size) as u8,
+            ],
+        );
 
-        transcript.add_element("public_input_size",
-                               { static_cast<uint8_t>(key->num_public_inputs >> 24),
-                                 static_cast<uint8_t>(key->num_public_inputs >> 16),
-                                 static_cast<uint8_t>(key->num_public_inputs >> 8),
-                                 static_cast<uint8_t>(key->num_public_inputs) });
+        self.transcript.add_element(
+            "public_input_size",
+            vec![
+                (self.key.num_public_inputs >> 24) as u8,
+                (self.key.num_public_inputs >> 16) as u8,
+                (self.key.num_public_inputs >> 8) as u8,
+                (self.key.num_public_inputs) as u8,
+            ],
+        );
 
-        transcript.apply_fiat_shamir("init");
+        self.transcript.apply_fiat_shamir("init");
 
         // If this is a plookup proof, do not queue up an ifft on W_4 - we can only finish computing
         // the lagrange-base values in W_4 once eta has been generated.
         // This is because of the RAM/ROM subprotocol, which adds witnesses into W_4 that depend on eta
-        const size_t end = settings::is_plookup ? (settings::program_width - 1) : settings::program_width;
-        for (size_t i = 0; i < end; ++i) {
-            std::string wire_tag = "w_" + std::to_string(i + 1);
-            barretenberg::polynomial wire_lagrange = key->polynomial_store.get(wire_tag + "_lagrange");
+        let end = if self.settings.is_plookup() {
+            self.settings.program_width() - 1
+        } else {
+            self.settings.program_width()
+        };
+        for i in 0..end {
+            let wire_tag = format!("w_{}", i + 1);
+            let wire_lagrange = self
+                .key
+                .polynomial_store
+                .get(format!("{}_lagrange", wire_tag))?;
 
             /*
             Adding zero knowledge to the witness polynomials.
@@ -184,31 +165,31 @@ impl<
             // NOTE: If in future there is a need to cut off more zeros off the vanishing polynomial, this method
             // will not change. This must be changed only if the number of evaluations of witness polynomials
             // change.
-            const size_t w_randomness = 3;
-            ASSERT(w_randomness < settings::num_roots_cut_out_of_vanishing_polynomial);
-            for (size_t k = 0; k < w_randomness; ++k) {
-                wire_lagrange.at(circuit_size - settings::num_roots_cut_out_of_vanishing_polynomial + k) =
-                    fr::random_element();
+            let w_randomness: usize = 3;
+            ensure!(w_randomness < self.settings.num_roots_cut_out_of_vanishing_polynomial());
+            for k in 0..w_randomness {
+                wire_lagrange.at(self.circuit_size
+                    - self.settings.num_roots_cut_out_of_vanishing_polynomial()
+                    + k) = Fr::random_element();
             }
 
-            key->polynomial_store.put(wire_tag + "_lagrange", std::move(wire_lagrange));
+            self.key
+                .polynomial_store
+                .put(wire_tag + "_lagrange", wire_lagrange);
         }
 
         // perform an IFFT so that the "w_i" polynomial cache will contain the monomial form
-        for (size_t i = 0; i < end; ++i) {
-            std::string wire_tag = "w_" + std::to_string(i + 1);
-            queue.add_to_queue({
-                .work_type = work_queue::WorkType::IFFT,
-                .mul_scalars = nullptr,
-                .tag = wire_tag,
-                .constant = 0,
-                .index = 0,
+        for i in 0..end {
+            let wire_tag = format!("w_{}", i + 1);
+            self.queue.add_to_queue(WorkItem {
+                work_type: work_queue::WorkType::Ifft,
+                mul_scalars: nullptr,
+                tag: wire_tag,
+                constant: 0,
+                index: 0,
             });
         }
-
-            */
-
-        todo!("execute_preamble_round implementation");
+        Ok(())
     }
 
     /// Execute the first round:
@@ -218,7 +199,6 @@ impl<
     /// N.B. Random widget precommitments aren't actually being computed, since we are using permutation widget
     /// which only does computation in compute_random_commitments function if the round is 3.
     fn execute_first_round(&self) {
-        // TODO
         /*
                     queue.flush_queue();
         #ifdef DEBUG_TIMING
@@ -259,49 +239,55 @@ impl<
     /// - Compute the random_widgets' round commitments that need to be computed at round 2.
     /// - If using plookup, we compute some w_4 values here (for gates which access "memory"), and apply blinding factors,
     ///   before finally committing to w_4.
-    fn execute_second_round(&self) {
-        // TODO
-        /*
-            queue.flush_queue();
+    fn execute_second_round(&mut self) -> Result<()> {
+        self.queue.flush_queue();
 
-        transcript.apply_fiat_shamir("eta");
+        self.transcript.apply_fiat_shamir("eta");
 
-        for (auto& widget : random_widgets) {
-            widget->compute_round_commitments(transcript, 2, queue);
+        for widget in self.random_widgets {
+            widget.compute_round_commitments(&mut self.transcript, 2, &mut self.queue);
         }
 
         // RAM/ROM memory subprotocol requires eta is generated before w_4 is comitted
-        if (settings::is_plookup) {
-            add_plookup_memory_records_to_w_4();
-            std::string wire_tag = "w_4";
-            barretenberg::polynomial& w_4_lagrange(key->polynomial_store.get(wire_tag + "_lagrange"));
+        if self.settings.is_plookup() {
+            self.add_plookup_memory_records_to_w_4();
+            let wire_tag = "w_4";
+            let w_4_lagrange = self
+                .key
+                .polynomial_store
+                .get(format!("{}_lagrange", wire_tag))?;
 
             // add randomness to w_4_lagrange
-            const size_t w_randomness = 3;
-            ASSERT(w_randomness < settings::num_roots_cut_out_of_vanishing_polynomial);
-            for (size_t k = 0; k < w_randomness; ++k) {
+            let w_randomness = 3;
+            ensure!(w_randomness < self.settings.num_roots_cut_out_of_vanishing_polynomial());
+            for k in 0..w_randomness {
                 // Blinding
-                w_4_lagrange.at(circuit_size - settings::num_roots_cut_out_of_vanishing_polynomial + k) =
+                w_4_lagrange
+                    .at(circuit_size - settings::num_roots_cut_out_of_vanishing_polynomial + k) =
                     fr::random_element();
             }
 
             // compute poly w_4 from w_4_lagrange and add it to the cache
-            barretenberg::polynomial w_4(key->circuit_size);
-            barretenberg::polynomial_arithmetic::copy_polynomial(&w_4_lagrange[0], &w_4[0], circuit_size, circuit_size);
-            w_4.ifft(key->small_domain);
-            key->polynomial_store.put(wire_tag, std::move(w_4));
+            let w_4 = Polynomial::new(self.key.circuit_size);
+            barretenberg::polynomial_arithmetic::copy_polynomial(
+                &w_4_lagrange[0],
+                &w_4[0],
+                circuit_size,
+                circuit_size,
+            );
+            w_4.ifft(self.key.small_domain);
+            self.key.polynomial_store.put(wire_tag, w_4);
 
             // commit to w_4 using the monomial srs.
-            queue.add_to_queue({
-                .work_type = work_queue::WorkType::SCALAR_MULTIPLICATION,
-                .mul_scalars = key->polynomial_store.get(wire_tag).get_coefficients(),
-                .tag = "W_4",
-                .constant = key->circuit_size + 1,
-                .index = 0,
+            self.queue.add_to_queue(WorkItem {
+                work_type: work_queue::WorkType::SCALAR_MULTIPLICATION,
+                mul_scalars: key.polynomial_store.get(wire_tag).get_coefficients(),
+                tag: "W_4".to_owned(),
+                constant: key.circuit_size + 1,
+                index: 0,
             });
         }
-         */
-        todo!("execute_second_round implementation");
+        Ok(())
     }
 
     /// Execute the third round:
@@ -496,29 +482,36 @@ impl<
     }
     /// - Compute wire commitments and add them to the transcript.
     /// - Add public_inputs from w_2_fft to transcript.
-    fn compute_wire_commitments(&self) {
-        /* TODO implement me
-                // Compute wire commitments
-        const size_t end = settings::is_plookup ? (settings::program_width - 1) : settings::program_width;
-        for (size_t i = 0; i < end; ++i) {
-            std::string wire_tag = "w_" + std::to_string(i + 1);
-            std::string commit_tag = "W_" + std::to_string(i + 1);
-            barretenberg::fr* coefficients = key->polynomial_store.get(wire_tag).get_coefficients();
+    fn compute_wire_commitments(&self) -> Result<()> {
+        // Compute wire commitments
+        let end: usize = if self.settings.is_plookup() {
+            (self.settings.program_width() - 1)
+        } else {
+            self.settings.program_width()
+        };
+        for i in 0..end {
+            let wire_tag = format!("w_{}", i + 1);
+            let commit_tag = format!("W_{}" + i + 1);
+            let coefficients = self.key.polynomial_store.get(wire_tag)?.get_coefficients();
 
             // This automatically saves the computed point to the transcript
-            fr domain_size_flag = i > 2 ? key->circuit_size : (key->circuit_size + 1);
-            commitment_scheme->commit(coefficients, commit_tag, domain_size_flag, queue);
+            let domain_size_flag = if i > 2 {
+                self.key.circuit_size
+            } else {
+                (self.key.circuit_size + 1)
+            };
+            self.commitment_scheme
+                .commit(coefficients, commit_tag, domain_size_flag, queue);
         }
 
         // add public inputs
-        const polynomial& public_wires_source = key->polynomial_store.get("w_2_lagrange");
-        std::vector<fr> public_wires;
-        for (size_t i = 0; i < key->num_public_inputs; ++i) {
+        let public_wires_source = self.key.polynomial_store.get("w_2_lagrange")?;
+        let mut public_wires = vec![];
+        for i in 0..self.key.num_public_inputs {
             public_wires.push_back(public_wires_source[i]);
         }
-        transcript.add_element("public_inputs", ::to_buffer(public_wires));
-             */
-        todo!("implement me, see comment");
+        self.transcript
+            .add_element("public_inputs", ::to_buffer(public_wires));
     }
 
     /// In this method, we compute the commitments to polynomials t_{low}(X), t_{mid}(X) and t_{high}(X).
@@ -560,18 +553,19 @@ impl<
     /// computing the commitments to these polynomials.
     ///
     fn compute_quotient_commitments(&self) {
-        // TODO see comment
-        /*
-                for (size_t i = 0; i < settings::program_width; ++i) {
-            fr* coefficients = key->quotient_polynomial_parts[i].get_coefficients();
-            std::string quotient_tag = "T_" + std::to_string(i + 1);
+        for i in 0..self.settings.program_width() {
+            let coefficients = self.key.quotient_polynomial_parts[i].get_coefficients();
+            let quotient_tag = format!("T_{}", i + 1);
             // Set flag that determines domain size (currently n or n+1) in pippenger (see process_queue()).
             // Note: After blinding, all t_i have size n+1 representation (degree n) except t_4 in Turbo/Ultra.
-            fr domain_size_flag = i > 2 ? key->circuit_size : (key->circuit_size + 1);
-            commitment_scheme->commit(coefficients, quotient_tag, domain_size_flag, queue);
+            let domain_size_flag = if i > 2 {
+                self.key.circuit_size
+            } else {
+                (self.key.circuit_size + 1)
+            };
+            self.commitment_scheme
+                .commit(coefficients, quotient_tag, domain_size_flag, queue);
         }
-             */
-        todo!("implement me, see comment");
     }
     fn init_quotient_polynomials(&self) {
         todo!("yeehaw")
@@ -579,22 +573,36 @@ impl<
     fn compute_opening_elements(&self) {
         todo!("yeehaw")
     }
-    fn add_plookup_memory_records_to_w_4(&self) {
-        // TODO
-        /*
-            // We can only compute memory record values once W_1, W_2, W_3 have been comitted to,
+    fn add_plookup_memory_records_to_w_4(&mut self) {
+        // We can only compute memory record values once W_1, W_2, W_3 have been comitted to,
         // due to the dependence on the `eta` challenge.
 
-        const fr eta = fr::serialize_from_buffer(transcript.get_challenge("eta").begin());
+        let eta = Fr::serialize_from_buffer(self.transcript.get_challenge("eta", None).begin());
 
         // We need the lagrange-base forms of the first 3 wires to compute the plookup memory record
         // value. w4 = w3 * eta^3 + w2 * eta^2 + w1 * eta + read_write_flag;
         // a RAM write. See plookup_auxiliary_widget.hpp for details)
-        std::span<const fr> w_1 = key->polynomial_store.get("w_1_lagrange");
-        std::span<const fr> w_2 = key->polynomial_store.get("w_2_lagrange");
-        std::span<const fr> w_3 = key->polynomial_store.get("w_3_lagrange");
-        std::span<fr> w_4 = key->polynomial_store.get("w_4_lagrange");
-        for (const auto& gate_idx : key->memory_read_records) {
+        let w_1 = self
+            .key
+            .polynomial_store
+            .get("w_1_lagrange".to_string())
+            .unwrap();
+        let w_2 = self
+            .key
+            .polynomial_store
+            .get("w_2_lagrange".to_string())
+            .unwrap();
+        let w_3 = self
+            .key
+            .polynomial_store
+            .get("w_3_lagrange".to_string())
+            .unwrap();
+        let w_4 = self
+            .key
+            .polynomial_store
+            .get("w_4_lagrange".to_string())
+            .unwrap();
+        for gate_idx in self.key.memory_read_records {
             w_4[gate_idx] += w_3[gate_idx];
             w_4[gate_idx] *= eta;
             w_4[gate_idx] += w_2[gate_idx];
@@ -602,54 +610,54 @@ impl<
             w_4[gate_idx] += w_1[gate_idx];
             w_4[gate_idx] *= eta;
         }
-        for (const auto& gate_idx : key->memory_write_records) {
+        for gate_idx in self.key.memory_write_records {
             w_4[gate_idx] += w_3[gate_idx];
             w_4[gate_idx] *= eta;
             w_4[gate_idx] += w_2[gate_idx];
             w_4[gate_idx] *= eta;
             w_4[gate_idx] += w_1[gate_idx];
             w_4[gate_idx] *= eta;
-            w_4[gate_idx] += 1;
+            w_4[gate_idx] += Fr::one();
         }
-
-             */
-        todo!("implement me, see comment");
     }
 
     fn compute_quotient_evaluation(&self) {
-        // TODO
-        /*
-                 fr zeta = fr::serialize_from_buffer(transcript.get_challenge("z").begin());
+        let zeta = fr::serialize_from_buffer(self.transcript.get_challenge("z").begin());
 
-        commitment_scheme->add_opening_evaluations_to_transcript(transcript, key, false);
+        self.commitment_scheme
+            .add_opening_evaluations_to_transcript(self.transcript, self.key, false);
 
-        fr t_eval = polynomial_arithmetic::evaluate({ &key->quotient_polynomial_parts[0][0],
-                                                      &key->quotient_polynomial_parts[1][0],
-                                                      &key->quotient_polynomial_parts[2][0],
-                                                      &key->quotient_polynomial_parts[3][0] },
-                                                    zeta,
-                                                    4 * circuit_size);
+        let t_eval = polynomial_arithmetic::evaluate(
+            [
+                self.key.quotient_polynomial_parts[0][0],
+                self.key.quotient_polynomial_parts[1][0],
+                self.key.quotient_polynomial_parts[2][0],
+                self.key.quotient_polynomial_parts[3][0],
+            ],
+            zeta,
+            4 * self.circuit_size,
+        );
 
-        fr zeta_pow_n = zeta.pow(key->circuit_size);
-        fr scalar = zeta_pow_n;
+        let zeta_pow_n = zeta.pow(key.circuit_size);
+        let scalar = zeta_pow_n;
         // Adjust the evaluation to consider the (n + 1)th coefficient when needed (note that width 3 is just an avatar for
         // StandardComposer here)
-        const size_t num_deg_n_poly = settings::program_width == 3 ? settings::program_width : settings::program_width - 1;
-        for (size_t j = 0; j < num_deg_n_poly; j++) {
-            t_eval += key->quotient_polynomial_parts[j][key->circuit_size] * scalar;
+        let num_deg_n_poly = if self.settings.program_width() == 3 {
+            self.settings.program_width()
+        } else {
+            self.settings.program_width() - 1
+        };
+        for j in 0..num_deg_n_poly {
+            t_eval += self.key.quotient_polynomial_parts[j][self.key.circuit_size] * scalar;
             scalar *= zeta_pow_n;
         }
 
-        transcript.add_element("t", t_eval.to_buffer());
-             */
-        todo!("implement me, see comment");
+        self.transcript.add_element("t", t_eval.to_buffer());
     }
 
     /// Add blinding to the components in such a way that the full quotient would be unchanged if reconstructed
     fn add_blinding_to_quotient_polynomial_parts(&self) {
-        // TODO
-        /*
-                // Construct blinded quotient polynomial parts t_i by adding randomness to the unblinded parts t_i' in
+        // Construct blinded quotient polynomial parts t_i by adding randomness to the unblinded parts t_i' in
         // such a way that the full quotient polynomial t is unchanged upon reconstruction, i.e.
         //
         //        t = t_1' + X^n*t_2' + X^2n*t_3' + X^3n*t_4' = t_1 + X^n*t_2 + X^2n*t_3 + X^3n*t_4
@@ -662,32 +670,30 @@ impl<
         //              t_4 = t_4' - b_2
         //
         // For details, please head to: https://hackmd.io/JiyexiqRQJW55TMRrBqp1g.
-        for (size_t i = 0; i < settings::program_width - 1; i++) {
+        for i in 0..self.settings.program_width() - 1 {
             // Note that only program_width-1 random elements are required for full blinding
-            fr quotient_randomness = fr::random_element();
+            let quotient_randomness = Fr::random_element();
 
-            key->quotient_polynomial_parts[i][key->circuit_size] +=
-                quotient_randomness;                                         // update coefficient of X^n'th term
-            key->quotient_polynomial_parts[i + 1][0] -= quotient_randomness; // update constant coefficient
+            self.key.quotient_polynomial_parts[i][self.key.circuit_size] += quotient_randomness; // update coefficient of X^n'th term
+            self.key.quotient_polynomial_parts[i + 1][0] -= quotient_randomness;
+            // update constant coefficient
         }
-             */
-
-        todo!("implement me, see comment");
     }
 
     /// Compute FFT of lagrange polynomial L_1 needed in random widgets only
     fn compute_lagrange_1_fft(&self) {
-        // TODO
-        /*
-                polynomial lagrange_1_fft(4 * circuit_size + 8);
+        let lagrange_1_fft = Polynomial::new(4 * self.circuit_size + 8);
         polynomial_arithmetic::compute_lagrange_polynomial_fft(
-            lagrange_1_fft.get_coefficients(), key->small_domain, key->large_domain);
-        for (size_t i = 0; i < 8; i++) {
-            lagrange_1_fft[4 * circuit_size + i] = lagrange_1_fft[i];
+            lagrange_1_fft.get_coefficients(),
+            self.key.small_domain,
+            self.key.large_domain,
+        );
+        for i in 0..8 {
+            lagrange_1_fft[4 * self.circuit_size + i] = lagrange_1_fft[i];
         }
-        key->polynomial_store.put("lagrange_1_fft", std::move(lagrange_1_fft));
-         */
-        todo!("implement me, see comment");
+        self.key
+            .polynomial_store
+            .put("lagrange_1_fft", lagrange_1_fft);
     }
 
     fn export_proof(&self) -> Proof {
@@ -763,7 +769,7 @@ impl<
         let manifest = self.transcript.get_manifest();
         self.transcript = Arc::new(Transcript::<H, Fr, G1Affine>::new(
             Some(manifest),
-            self.transcript.num_challenge_bytes,
+            self.transcript.1,
         ));
     }
 }
