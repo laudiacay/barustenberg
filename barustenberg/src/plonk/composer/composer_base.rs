@@ -83,8 +83,8 @@ pub(crate) struct ComposerBase<'a, F: Field + FftField, G1Affine: AffineRepr, G2
     real_variable_tags: Vec<u32>,
     current_tag: u32,
     /// The permutation on variable tags. See
-    /// https://github.com/AztecProtocol/plonk-with-lookups-private/blob/new-stuff/GenPermuations.pdf
-    /// DOCTODO: replace with the relevant wiki link.
+    /// https://hackernoon.com/plookup-an-algorithm-widely-used-in-zkevm-ymw37qu
+    /// DOCTODO: Check this link is sufficient
     tau: HashMap<u32, u32>,
     wire_copy_cycles: Vec<Vec<CycleNode>>,
     computed_witness: bool,

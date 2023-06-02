@@ -444,9 +444,11 @@ impl<H: BarretenHasher, Fr: Field, G1Affine: AffineRepr> Transcript<H, Fr, G1Aff
     /// # Returns
     ///
     /// The index of the subchallenge in the vector corresponding to the challenge.
-    pub(crate) fn get_challenge_index_from_map(&self, challenge_map_name: &str) -> isize {
-        // TODO bad unwrap
-        self.challenge_map[challenge_map_name].try_into().unwrap()
+    pub(crate) fn get_challenge_index_from_map(
+        &self,
+        challenge_map_name: &str,
+    ) -> Result<isize, Error> {
+        Ok(self.challenge_map[challenge_map_name].try_into()?)
     }
 
     /// Check if a challenge exists.
