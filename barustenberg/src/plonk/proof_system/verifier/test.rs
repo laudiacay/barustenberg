@@ -1,6 +1,14 @@
 use super::*;
 
-impl<Fr: Field, H: BarretenHasher, S: Settings<H>> Verifier<Fr, H, S> {
+//     Fq: Field,
+// Fr: Field + FftField,
+// G1Affine: AffineRepr,
+// H: BarretenHasher,
+// PS: Settings<H>,
+
+impl<Fq: Field, Fr: Field + FftField, G1Affine: AffineRepr, H: BarretenHasher, PS: Settings<H>>
+    Verifier<'_, Fq, Fr, dyn FftField, G1Affine, PS>
+{
     pub fn generate_verifier(circuit_proving_key: Arc<ProvingKey<Fr>>) -> Self {
         let mut poly_coefficients = [None; 8];
         poly_coefficients[0] = circuit_proving_key

@@ -20,6 +20,8 @@ pub(crate) const FIRST_VARIABLE_IN_CLASS: u32 = u32::MAX - 2;
 pub(crate) const NUM_RESERVED_GATES: usize = 4;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[allow(clippy::enum_clike_unportable_variant)]
+// Note that this will fail to compile on 32-bit systems
 pub(crate) enum WireType {
     Left = 0,
     Right = 1 << 30,
