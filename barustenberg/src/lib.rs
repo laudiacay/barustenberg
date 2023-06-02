@@ -36,7 +36,7 @@ pub(crate) mod transcript;
 /// Test utilities.
 #[cfg(any(test, feature = "test_utils"))]
 #[cfg_attr(docsrs, doc(cfg(feature = "test_utils")))]
-pub mod test_utils;
+pub(crate) mod test_utils;
 
 /// Add two integers together.
 pub(crate) fn add(a: i32, b: i32) -> i32 {

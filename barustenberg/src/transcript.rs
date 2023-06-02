@@ -1,3 +1,4 @@
+use anyhow::{Error, Ok};
 use ark_ec::AffineRepr;
 use ark_ff::Field;
 use generic_array::{ArrayLength, GenericArray};
@@ -65,13 +66,13 @@ impl BarretenHasher for PlookupPedersenBlake3s {
     fn hash(_buffer: &[u8]) -> GenericArray<u8, Self::PrngOutputSize> {
         // TODO from original codebase
         /*
-               std::vector<uint8_t> compressed_buffer = crypto::pedersen_commitment::lookup::compress_native(buffer);
+        std::vector<uint8_t> compressed_buffer = crypto::pedersen_commitment::lookup::compress_native(buffer);
         std::array<uint8_t, PRNG_OUTPUT_SIZE> result;
         for (size_t i = 0; i < PRNG_OUTPUT_SIZE; ++i) {
             result[i] = compressed_buffer[i];
         }
         return result;
-             */
+         */
         todo!("check comment to see what gpt told us to do")
     }
 }
@@ -428,10 +429,10 @@ impl<H: BarretenHasher, Fr: Field, G1Affine: AffineRepr> Transcript<H, Fr, G1Aff
         &self,
         challenge_name: &str,
         idx: usize,
-    ) -> &GenericArray<u8, H::PrngOutputSize> {
+    ) -> Result<&GenericArray<u8, H::PrngOutputSize>, Error> {
         info!("get_challenge(): {}", challenge_name);
         assert!(self.challenges.contains_key(challenge_name));
-        &self.challenges.get(challenge_name).unwrap()[idx].data
+        Ok(&self.challenges.get(challenge_name).unwrap()[idx].data)
     }
 
     /// Get the challenge index from map (needed when we name subchallenges).
@@ -692,7 +693,7 @@ impl<H: BarretenHasher, Fr: Field, G1Affine: AffineRepr> Transcript<H, Fr, G1Aff
     ) -> Fr {
         let idx = idx.unwrap_or(0);
         let buf = self.get_challenge(challenge_name, idx);
-        Fr::deserialize_uncompressed(buf.as_slice()).unwrap()
+        Fr::deserialize_uncompressed(buf.unwrap().as_slice()).unwrap()
     }
     fn get_challenge_field_element_from_map(
         &self,

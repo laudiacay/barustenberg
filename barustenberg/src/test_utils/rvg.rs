@@ -7,13 +7,13 @@ use proptest::{
 /// A random value generator (RVG), which, given proptest strategies, will
 /// generate random values based on those strategies.
 #[derive(Debug, Default)]
-pub struct Rvg {
+pub(crate) struct Rvg {
     runner: TestRunner,
 }
 
 impl Rvg {
     /// Creates a new RVG with the default random number generator.
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Rvg {
             runner: TestRunner::new(Config::default()),
         }
@@ -21,7 +21,7 @@ impl Rvg {
 
     /// Creates a new RVG with a deterministic random number generator,
     /// using the same seed across test runs.
-    pub fn deterministic() -> Self {
+    pub(crate) fn deterministic() -> Self {
         Rvg {
             runner: TestRunner::deterministic(),
         }
@@ -37,7 +37,7 @@ impl Rvg {
     /// let mut rvg = Rvg::new();
     /// let int = rvg.sample(&(0..100i32));
     /// ```
-    pub fn sample<S: Strategy>(&mut self, strategy: &S) -> S::Value {
+    pub(crate) fn sample<S: Strategy>(&mut self, strategy: &S) -> S::Value {
         strategy
             .new_tree(&mut self.runner)
             .expect("No value can be generated")
@@ -54,7 +54,7 @@ impl Rvg {
     /// let mut rvg = Rvg::new();
     /// let ints = rvg.sample_vec(&(0..100i32), 10);
     /// ```
-    pub fn sample_vec<S: Strategy>(&mut self, strategy: &S, len: usize) -> Vec<S::Value> {
+    pub(crate) fn sample_vec<S: Strategy>(&mut self, strategy: &S, len: usize) -> Vec<S::Value> {
         vec(strategy, len..=len)
             .new_tree(&mut self.runner)
             .expect("No value can be generated")
