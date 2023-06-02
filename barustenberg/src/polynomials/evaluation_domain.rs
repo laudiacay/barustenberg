@@ -1,4 +1,3 @@
-use ark_bn254::Fr;
 use ark_ff::{FftField, Field, One};
 
 use crate::numeric::bitop::Msb;
@@ -76,7 +75,7 @@ fn compute_num_threads(size: usize) -> usize {
 /// let mut round_roots = Vec::new();
 /// compute_lookup_table_single(&input_root, size, &mut roots, &mut round_roots);
 /// ```
-fn compute_lookup_table_single(
+fn compute_lookup_table_single<Fr: Field>(
     input_root: &Fr,
     size: usize,
     roots: &mut Vec<Fr>,
