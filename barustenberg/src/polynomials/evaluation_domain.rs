@@ -68,6 +68,7 @@ fn compute_num_threads(size: usize) -> usize {
 ///
 /// ```
 /// use ark_ff::One;
+/// use ark_bn254::Fr;
 ///
 /// // Assume Fr, input_root are properly defined here
 /// let size = 16;
