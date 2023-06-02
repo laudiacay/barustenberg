@@ -47,7 +47,34 @@ fn compute_num_threads(size: usize) -> usize {
     }
     return num_threads;
 }
-
+/// This function computes a lookup table for the roots of a polynomial.
+///
+/// # Arguments
+///
+/// * `input_root` - An element of the field `Fr` that represents the root of the polynomial.
+/// * `size` - The size of the polynomial. This is used to determine the number of rounds needed for computation.
+/// * `roots` - A mutable vector of elements from the field `Fr`. This vector is used to store the roots computed in each round.
+/// * `round_roots` - A mutable vector of `usize` values representing indices into `roots`. After each round, the index of the newly computed root is stored in this vector.
+///
+/// # Description
+///
+/// This function operates in several rounds. In each round, it computes a new root of the polynomial and stores it in the `roots` vector.
+/// The index of the new root in the `roots` vector is then stored in the `round_roots` vector.
+///
+/// The new root in each round is computed by raising the `input_root` to a power that is determined by the current round and the size of the polynomial.
+/// The result is then multiplied with the previous root to get the new root.
+///
+/// # Example
+///
+/// ```
+/// use ark_ff::One;
+///
+/// // Assume Fr, input_root are properly defined here
+/// let size = 16;
+/// let mut roots = vec![Fr::one(); size];
+/// let mut round_roots = Vec::new();
+/// compute_lookup_table_single(&input_root, size, &mut roots, &mut round_roots);
+/// ```
 fn compute_lookup_table_single(
     input_root: &Fr,
     size: usize,
