@@ -1,3 +1,5 @@
+use ark_bn254::Fq12;
+
 use super::*;
 
 //     Fq: Field,
@@ -57,7 +59,8 @@ impl<Fq: Field, Fr: Field + FftField, G1Affine: AffineRepr, H: BarretenHasher, P
             }
         }
 
-        let crs = Arc::new(FileReferenceString::new("../srs_db/ignition"));
+        // TODOL: this number of points in arbitrary and needs to be checked with the reference string
+        let crs = Arc::new(FileReferenceString::new(32, "../srs_db/ignition"));
         let circuit_verification_key = Arc::new(VerificationKey::new(
             circuit_proving_key.circuit_size,
             circuit_proving_key.num_public_inputs,
@@ -93,10 +96,13 @@ impl<Fq: Field, Fr: Field + FftField, G1Affine: AffineRepr, H: BarretenHasher, P
 
         let verifier = Verifier::new(
             Some(circuit_verification_key),
-            StandardComposer::create_manifest(0),
+            ComposerType::StandardComposer::create_manifest(0),
         );
 
-        let kate_commitment_scheme = Box::new(KateCommitmentScheme::<H, S>::new());
+        let kate_commitment_scheme = Box::new(KateCommitmentScheme::<
+            H,
+            crate::plonk::proof_system::types::polynomial_manifest::PolynomialIndex,
+        >::new());
         verifier.commitment_scheme = kate_commitment_scheme;
         verifier
     }
@@ -457,7 +463,11 @@ fn generate_test_data<'a>(n: usize) -> Prover<'a, Fr, StandardSettings> {
 
     let kate_commitment_scheme = Box::new(KateCommitmentScheme::<StandardSettings>::new());
 
-    let state = Prover::new(key, Some(StandardComposer::create_manifest(0)), None);
+    let state = Prover::new(
+        key,
+        Some(ComposerType::StandardComposer::create_manifest(0)),
+        None,
+    );
     state.random_widgets.push(permutation_widget);
     state.transition_widgets.push(widget);
     state.commitment_scheme = kate_commitment_scheme;
@@ -479,18 +489,22 @@ use crate::{
         },
         reduced_ate_pairing_batch_precomputed,
     },
-    plonk::proof_system::{
-        commitment_scheme::KateCommitmentScheme,
-        constants::NUM_LIMB_BITS_IN_FIELD_SIMULATION,
-        prover::Prover,
-        proving_key::ProvingKey,
-        types::prover_settings::StandardSettings,
-        widgets::{
-            random_widgets::permutation_widget::ProverPermutationWidget,
-            transition_widgets::arithmetic_widget::ProverArithmeticWidget,
+    plonk::{
+        composer::composer_base::ComposerType,
+        proof_system::{
+            commitment_scheme::KateCommitmentScheme,
+            constants::NUM_LIMB_BITS_IN_FIELD_SIMULATION,
+            prover::Prover,
+            proving_key::ProvingKey,
+            types::prover_settings::StandardSettings,
+            widgets::{
+                random_widgets::permutation_widget::ProverPermutationWidget,
+                transition_widgets::arithmetic_widget::ProverArithmeticWidget,
+            },
         },
     },
     polynomials::Polynomial,
+    srs::reference_string::file_reference_string::FileReferenceString,
     transcript::Transcript,
 };
 
