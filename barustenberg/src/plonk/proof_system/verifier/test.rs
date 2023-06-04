@@ -2,12 +2,6 @@ use ark_bn254::Fq12;
 
 use super::*;
 
-//     Fq: Field,
-// Fr: Field + FftField,
-// G1Affine: AffineRepr,
-// H: BarretenHasher,
-// PS: Settings<H>,
-
 impl<Fq: Field, Fr: Field + FftField, G1Affine: AffineRepr, H: BarretenHasher, PS: Settings<H>>
     Verifier<'_, Fq, Fr, dyn FftField, G1Affine, PS>
 {

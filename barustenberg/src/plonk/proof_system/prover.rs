@@ -263,27 +263,21 @@ impl<
             for k in 0..w_randomness {
                 // Blinding
                 w_4_lagrange
-                    .at(circuit_size - settings::num_roots_cut_out_of_vanishing_polynomial + k) =
-                    fr::random_element();
+                    .at(self.circuit_size - self.settings.num_roots_cut_out_of_vanishing_polynomial() + k) =
+                    Fr::random_element();
             }
 
             // compute poly w_4 from w_4_lagrange and add it to the cache
-            let w_4 = Polynomial::new(self.key.circuit_size);
-            barretenberg::polynomial_arithmetic::copy_polynomial(
-                &w_4_lagrange[0],
-                &w_4[0],
-                circuit_size,
-                circuit_size,
-            );
+            let mut w_4 = w_4_lagrange.clone();
             w_4.ifft(self.key.small_domain);
-            self.key.polynomial_store.put(wire_tag, w_4);
+            self.key.polynomial_store.put(wire_tag.to_string(), w_4);
 
             // commit to w_4 using the monomial srs.
             self.queue.add_to_queue(WorkItem {
-                work_type: work_queue::WorkType::SCALAR_MULTIPLICATION,
-                mul_scalars: key.polynomial_store.get(wire_tag).get_coefficients(),
+                work_type: work_queue::WorkType::ScalarMultiplication,
+                mul_scalars: self.key.polynomial_store.get(wire_tag.to_string()).get_coefficients(),
                 tag: "W_4".to_owned(),
-                constant: key.circuit_size + 1,
+                constant: self.key.circuit_size + 1,
                 index: 0,
             });
         }
@@ -628,7 +622,7 @@ impl<
             .add_opening_evaluations_to_transcript(self.transcript, self.key, false);
 
         let t_eval = polynomial_arithmetic::evaluate(
-            [
+            &[
                 self.key.quotient_polynomial_parts[0][0],
                 self.key.quotient_polynomial_parts[1][0],
                 self.key.quotient_polynomial_parts[2][0],
@@ -693,7 +687,7 @@ impl<
         }
         self.key
             .polynomial_store
-            .put("lagrange_1_fft", lagrange_1_fft);
+            .put("lagrange_1_fft".to_string(), lagrange_1_fft);
     }
 
     fn export_proof(&self) -> Proof {

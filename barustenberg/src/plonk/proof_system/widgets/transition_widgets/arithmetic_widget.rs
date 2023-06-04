@@ -113,18 +113,14 @@ impl<
         PC: PolyContainer<F>,
     > KernelBase<H, S, F, PC, Get, U1> for ArithmeticKernel<H, F, S, Get, PC>
 {
+    #[inline]
     fn get_required_polynomial_ids() -> HashSet<PolynomialIndex> {
-        // inline static std::set<PolynomialIndex> const& get_required_polynomial_ids()
-        // {
-        //     static const std::set<PolynomialIndex> required_polynomial_ids = { PolynomialIndex::Q_1, PolynomialIndex::Q_2,
-        //                                                                        PolynomialIndex::Q_3, PolynomialIndex::Q_M,
-        //                                                                        PolynomialIndex::Q_C, PolynomialIndex::W_1,
-        //                                                                        PolynomialIndex::W_2, PolynomialIndex::W_3 };
-        //     return required_polynomial_ids;
-        //}
+            HashSet::from([PolynomialIndex::Q1, PolynomialIndex::Q2,
+            PolynomialIndex::Q3, PolynomialIndex::QM,
+            PolynomialIndex::QC, PolynomialIndex::W1,
+            PolynomialIndex::W2, PolynomialIndex::W3])
+        }
 
-        todo!()
-    }
 
     fn quotient_required_challenges() -> u8 {
         todo!()
@@ -134,34 +130,26 @@ impl<
         todo!()
     }
 
+    #[inline]
     fn compute_linear_terms(
-        _polynomials: &impl PolyContainer<F>,
-        _challenges: &ChallengeArray<F, U1>,
-        _linear_terms: &mut CoefficientArray<F>,
-        _index: usize,
+        polynomials: &impl PolyContainer<F>,
+        challenges: &ChallengeArray<F, U1>,
+        linear_terms: &mut CoefficientArray<F>,
+        index: Option<usize>,
     ) {
-        /*
-                inline static void compute_linear_terms(PolyContainer& polynomials,
-                                                const challenge_array&,
-                                                coefficient_array& linear_terms,
-                                                const size_t i = 0)
-        {
-            const Field& w_1 =
-                Getters::template get_value<EvaluationType::NON_SHIFTED, PolynomialIndex::W_1>(polynomials, i);
-            const Field& w_2 =
-                Getters::template get_value<EvaluationType::NON_SHIFTED, PolynomialIndex::W_2>(polynomials, i);
-            const Field& w_3 =
-                Getters::template get_value<EvaluationType::NON_SHIFTED, PolynomialIndex::W_3>(polynomials, i);
+        let index = index.unwrap_or_default();
 
+        let shifted = false;
+
+        let w_1 = polynomials.get_value::<shifted, PolynomialIndex::W1>(i);
+        let w_2 = polynomials.get_value::<shifted, PolynomialIndex::W2>(i);
+        let w_3 = polynomials.get_value::<shifted, PolynomialIndex::W3>(i);
             linear_terms[0] = w_1 * w_2;
             linear_terms[1] = w_1;
             linear_terms[2] = w_2;
             linear_terms[3] = w_3;
         }
-             */
-        todo!()
     }
-
     fn sum_linear_terms(
         _polynomials: &impl PolyContainer<F>,
         _challenges: &ChallengeArray<F, U1>,
