@@ -2,4 +2,4 @@
 #[cfg(feature = "test_utils")]
 mod rvg;
 #[cfg(feature = "test_utils")]
-pub use rvg::*;
+pub(crate) use rvg::*;

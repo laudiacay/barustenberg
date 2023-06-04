@@ -20,6 +20,8 @@ pub(crate) const FIRST_VARIABLE_IN_CLASS: u32 = u32::MAX - 2;
 pub(crate) const NUM_RESERVED_GATES: usize = 4;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[allow(clippy::enum_clike_unportable_variant)]
+// Note that this will fail to compile on 32-bit systems
 pub(crate) enum WireType {
     Left = 0,
     Right = 1 << 30,
@@ -81,8 +83,8 @@ pub(crate) struct ComposerBase<'a, F: Field + FftField, G1Affine: AffineRepr, G2
     real_variable_tags: Vec<u32>,
     current_tag: u32,
     /// The permutation on variable tags. See
-    /// https://github.com/AztecProtocol/plonk-with-lookups-private/blob/new-stuff/GenPermuations.pdf
-    /// DOCTODO: replace with the relevant wiki link.
+    /// https://hackernoon.com/plookup-an-algorithm-widely-used-in-zkevm-ymw37qu
+    /// DOCTODO: Check this link is sufficient
     tau: HashMap<u32, u32>,
     wire_copy_cycles: Vec<Vec<CycleNode>>,
     computed_witness: bool,

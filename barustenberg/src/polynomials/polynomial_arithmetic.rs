@@ -52,7 +52,6 @@ fn fft_inner_serial<Fr: Copy + Default + Add<Output = Fr> + Sub<Output = Fr> + M
     let poly_domain_size = domain_size / num_polys;
     assert!(is_power_of_two_usize(poly_domain_size));
 
-    // TODO Implement the msb from numeric/bitop/get_msb.cpp
     let log2_size = domain_size.get_msb();
     let log2_poly_size = poly_domain_size.get_msb();
 
@@ -469,12 +468,11 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
         todo!()
     }
 
-    fn fft_with_constant(&self, _coeffs: &mut [Fr], _value: Fr) {
-        // self.fft_inner_parallel(coeffs, &self.root, self.get_round_roots());
-        // for i in 0..self.size {
-        //     coeffs[i] *= value;
-        // }
-        todo!()
+    fn fft_with_constant(&self, coeffs: &mut [Fr], target: &mut [Fr], value: Fr) {
+        self.fft_inner_parallel(coeffs, target, &self.root, self.get_round_roots());
+        for i in 0..self.size {
+            coeffs[i] *= value;
+        }
     }
 
     // The remaining `coset_fft` functions require you to create a version of `scale_by_generator` that accepts a Vec<&[T]> as the first parameter.

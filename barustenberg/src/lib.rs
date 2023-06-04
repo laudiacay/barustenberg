@@ -39,12 +39,12 @@ pub(crate) mod transcript;
 pub mod test_utils;
 
 /// Add two integers together.
-pub(crate) fn add(a: i32, b: i32) -> i32 {
+pub fn add(a: i32, b: i32) -> i32 {
     a + b
 }
 
 /// Multiplies two integers together.
-pub(crate) fn mult(a: i32, b: i32) -> i32 {
+pub fn mult(a: i32, b: i32) -> i32 {
     a * b
 }
 
@@ -55,5 +55,8 @@ mod tests {
     #[test]
     fn test_mult() {
         assert_eq!(mult(3, 2), 6);
+    }
+    fn test_add() {
+        assert_eq!(add(3, 2), 5);
     }
 }

@@ -25,6 +25,7 @@ impl<F: Field> Polynomial<F> {
             phantom: PhantomData,
         }
     }
+    /// TODO Question to Claudia: Aren't these functionally the same?
     #[inline]
     pub(crate) fn get_degree(&self) -> usize {
         todo!("unimplemented, see comment below");
