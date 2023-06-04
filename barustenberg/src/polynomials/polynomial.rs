@@ -34,6 +34,14 @@ impl<F: Field> Polynomial<F> {
     pub(crate) fn size(&self) -> usize {
         todo!("unimplemented, see comment below");
     }
+    #[inline]
+    pub(crate) fn get_coefficients(&self) -> Vec<F> {
+        self.coefficients.clone()
+    }
+    #[inline]
+    pub(crate) fn set_coefficient(&mut self, idx: usize, v: F) {
+        self.coefficients[idx] = v
+    }
 }
 
 impl<F: Field> AddAssign for Polynomial<F> {

@@ -1,4 +1,4 @@
-use std::{fmt::format, marker::PhantomData, sync::Arc};
+use std::{borrow::BorrowMut, fmt::format, marker::PhantomData, sync::Arc};
 
 use ark_ec::AffineRepr;
 use ark_ff::{FftField, Field};
@@ -168,9 +168,11 @@ impl<
             let w_randomness: usize = 3;
             ensure!(w_randomness < self.settings.num_roots_cut_out_of_vanishing_polynomial());
             for k in 0..w_randomness {
-                wire_lagrange.at(self.circuit_size
-                    - self.settings.num_roots_cut_out_of_vanishing_polynomial()
-                    + k) = Fr::random_element();
+                wire_lagrange.set_coefficient(
+                    self.circuit_size - self.settings.num_roots_cut_out_of_vanishing_polynomial()
+                        + k,
+                    Fr::random_element(),
+                )
             }
 
             self.key
@@ -262,9 +264,11 @@ impl<
             ensure!(w_randomness < self.settings.num_roots_cut_out_of_vanishing_polynomial());
             for k in 0..w_randomness {
                 // Blinding
-                w_4_lagrange
-                    .at(self.circuit_size - self.settings.num_roots_cut_out_of_vanishing_polynomial() + k) =
-                    Fr::random_element();
+                w_4_lagrange.set_coefficient(
+                    self.circuit_size - self.settings.num_roots_cut_out_of_vanishing_polynomial()
+                        + k,
+                    Fr::random_element(),
+                );
             }
 
             // compute poly w_4 from w_4_lagrange and add it to the cache
@@ -275,9 +279,14 @@ impl<
             // commit to w_4 using the monomial srs.
             self.queue.add_to_queue(WorkItem {
                 work_type: work_queue::WorkType::ScalarMultiplication,
-                mul_scalars: self.key.polynomial_store.get(wire_tag.to_string()).get_coefficients(),
+                mul_scalars: Arc::new(
+                    self.key
+                        .polynomial_store
+                        .get(wire_tag.to_string())?
+                        .get_coefficients(),
+                ),
                 tag: "W_4".to_owned(),
-                constant: self.key.circuit_size + 1,
+                constant: Fr::from((self.key.circuit_size + 1) as u64),
                 index: 0,
             });
         }
@@ -479,33 +488,38 @@ impl<
     fn compute_wire_commitments(&self) -> Result<()> {
         // Compute wire commitments
         let end: usize = if self.settings.is_plookup() {
-            (self.settings.program_width() - 1)
+            self.settings.program_width() - 1
         } else {
             self.settings.program_width()
         };
         for i in 0..end {
             let wire_tag = format!("w_{}", i + 1);
-            let commit_tag = format!("W_{}" + i + 1);
-            let coefficients = self.key.polynomial_store.get(wire_tag)?.get_coefficients();
+            let commit_tag = format!("W_{}", i + 1);
+            let mut coefficients = self.key.polynomial_store.get(wire_tag)?.get_coefficients();
 
             // This automatically saves the computed point to the transcript
             let domain_size_flag = if i > 2 {
                 self.key.circuit_size
             } else {
-                (self.key.circuit_size + 1)
+                self.key.circuit_size + 1
             };
-            self.commitment_scheme
-                .commit(coefficients, commit_tag, domain_size_flag, queue);
+            self.commitment_scheme.commit(
+                &mut coefficients,
+                commit_tag,
+                Fr::from(domain_size_flag as u64),
+                &mut self.queue,
+            );
         }
 
         // add public inputs
-        let public_wires_source = self.key.polynomial_store.get("w_2_lagrange")?;
+        let public_wires_source = self.key.polynomial_store.get("w_2_lagrange".to_string())?;
         let mut public_wires = vec![];
         for i in 0..self.key.num_public_inputs {
             public_wires.push_back(public_wires_source[i]);
         }
         self.transcript
             .add_element("public_inputs", ::to_buffer(public_wires));
+        Ok(())
     }
 
     /// In this method, we compute the commitments to polynomials t_{low}(X), t_{mid}(X) and t_{high}(X).
@@ -555,10 +569,15 @@ impl<
             let domain_size_flag = if i > 2 {
                 self.key.circuit_size
             } else {
-                (self.key.circuit_size + 1)
+                self.key.circuit_size + 1
             };
-            self.commitment_scheme
-                .commit(coefficients, quotient_tag, domain_size_flag, queue);
+            // TODO concerned about the fr::from on domain_size_flag. this may not be correct. bberg just uses equivalent of std::mem::transmute
+            self.commitment_scheme.commit(
+                &mut coefficients,
+                quotient_tag,
+                Fr::from(domain_size_flag),
+                &mut self.queue,
+            );
         }
     }
     fn init_quotient_polynomials(&self) {
@@ -615,11 +634,15 @@ impl<
         }
     }
 
-    fn compute_quotient_evaluation(&self) {
-        let zeta = fr::serialize_from_buffer(self.transcript.get_challenge("z").begin());
+    fn compute_quotient_evaluation(&self) -> Result<()> {
+        let zeta = Fr::serialize_from_buffer(self.transcript.get_challenge("z", None)?.begin());
 
         self.commitment_scheme
-            .add_opening_evaluations_to_transcript(self.transcript, self.key, false);
+            .add_opening_evaluations_to_transcript(
+                self.transcript.borrow_mut(),
+                Some(self.key),
+                false,
+            );
 
         let t_eval = polynomial_arithmetic::evaluate(
             &[
@@ -632,7 +655,7 @@ impl<
             4 * self.circuit_size,
         );
 
-        let zeta_pow_n = zeta.pow(key.circuit_size);
+        let zeta_pow_n = zeta.pow(self.key.circuit_size);
         let scalar = zeta_pow_n;
         // Adjust the evaluation to consider the (n + 1)th coefficient when needed (note that width 3 is just an avatar for
         // StandardComposer here)
@@ -647,6 +670,7 @@ impl<
         }
 
         self.transcript.add_element("t", t_eval.to_buffer());
+        Ok(())
     }
 
     /// Add blinding to the components in such a way that the full quotient would be unchanged if reconstructed
@@ -763,7 +787,7 @@ impl<
         let manifest = self.transcript.get_manifest();
         self.transcript = Arc::new(Transcript::<H, Fr, G1Affine>::new(
             Some(manifest),
-            self.transcript.1,
+            self.transcript.num_challenge_bytes,
         ));
     }
 }

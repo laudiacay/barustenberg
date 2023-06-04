@@ -3,9 +3,9 @@ use ark_bn254::Fq12;
 use super::*;
 
 impl<Fq: Field, Fr: Field + FftField, G1Affine: AffineRepr, H: BarretenHasher, PS: Settings<H>>
-    Verifier<'_, Fq, Fr, dyn FftField, G1Affine, PS>
+    Verifier<'_, Fq, Fr, G1Affine, H, PS>
 {
-    pub fn generate_verifier(circuit_proving_key: Arc<ProvingKey<Fr>>) -> Self {
+    pub fn generate_verifier(circuit_proving_key: Arc<ProvingKey<'_, Fr, G1Affine>>) -> Self {
         let mut poly_coefficients = [None; 8];
         poly_coefficients[0] = circuit_proving_key
             .polynomial_store
