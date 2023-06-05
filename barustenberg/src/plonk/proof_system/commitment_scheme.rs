@@ -4,6 +4,7 @@ use std::sync::Arc;
 
 use ark_ec::AffineRepr;
 use ark_ff::{FftField, Field};
+use ff::BatchInverter;
 
 use crate::polynomials::polynomial_arithmetic;
 use crate::proof_system::work_queue::{WorkItem, WorkQueue, WorkType};
@@ -145,7 +146,11 @@ impl<Fq: Field, Fr: Field + FftField, G1Affine: AffineRepr, H: BarretenHasher, S
         for i in 0..num_z_points {
             divisors[i] = -z_points[i];
         }
-        Fr::batch_invert(divisors, num_z_points);
+        // invert them all
+        divisors
+            .iter_mut()
+            .map(|x| *x = x.inverse().unwrap())
+            .for_each(drop);
 
         for i in 0..num_z_points {
             let challenge = challenges[i];
@@ -177,7 +182,7 @@ impl<Fq: Field, Fr: Field + FftField, G1Affine: AffineRepr, H: BarretenHasher, S
             }
 
             // commit to the i-th opened polynomial
-            self.commit(dest[dest_offset], tags[i], item_constants[i], queue);
+            self.commit(&mut dest[dest_offset], tags[i], item_constants[i], queue);
         }
     }
 

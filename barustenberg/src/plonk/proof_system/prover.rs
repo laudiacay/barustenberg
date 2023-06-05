@@ -194,7 +194,7 @@ impl<
                 work_type: work_queue::WorkType::Ifft,
                 mul_scalars: nullptr,
                 tag: wire_tag,
-                constant: 0,
+                constant: Fr::zero(),
                 index: 0,
             });
         }
@@ -280,7 +280,7 @@ impl<
 
             // compute poly w_4 from w_4_lagrange and add it to the cache
             let mut w_4 = w_4_lagrange.clone();
-            w_4.ifft(self.key.small_domain);
+            self.key.small_domain.ifft_inplace(&mut w_4);
             self.key.polynomial_store.put(wire_tag.to_string(), w_4);
 
             // commit to w_4 using the monomial srs.
@@ -712,9 +712,9 @@ impl<
 
     /// Compute FFT of lagrange polynomial L_1 needed in random widgets only
     fn compute_lagrange_1_fft(&self) {
-        let lagrange_1_fft = Polynomial::new(4 * self.circuit_size + 8);
+        let mut lagrange_1_fft = Polynomial::new(4 * self.circuit_size + 8);
         polynomial_arithmetic::compute_lagrange_polynomial_fft(
-            lagrange_1_fft.get_coefficients(),
+            &lagrange_1_fft,
             self.key.small_domain,
             self.key.large_domain,
         );
