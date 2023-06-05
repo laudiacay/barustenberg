@@ -182,7 +182,7 @@ impl<Fq: Field, Fr: Field + FftField, G1Affine: AffineRepr, H: BarretenHasher, S
             }
 
             // commit to the i-th opened polynomial
-            self.commit(&mut dest[dest_offset], tags[i], item_constants[i], queue);
+            self.commit(&mut dest[dest_offset..], tags[i], item_constants[i], queue);
         }
     }
 

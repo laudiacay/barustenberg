@@ -149,7 +149,7 @@ impl<
             let wire_lagrange = self
                 .key
                 .polynomial_store
-                .get(format!("{}_lagrange", wire_tag))?;
+                .get_mut(format!("{}_lagrange", wire_tag))?;
 
             /*
             Adding zero knowledge to the witness polynomials.
@@ -192,7 +192,7 @@ impl<
             let wire_tag = format!("w_{}", i + 1);
             self.queue.add_to_queue(WorkItem {
                 work_type: work_queue::WorkType::Ifft,
-                mul_scalars: nullptr,
+                mul_scalars: None,
                 tag: wire_tag,
                 constant: Fr::zero(),
                 index: 0,
@@ -286,12 +286,12 @@ impl<
             // commit to w_4 using the monomial srs.
             self.queue.add_to_queue(WorkItem {
                 work_type: work_queue::WorkType::ScalarMultiplication,
-                mul_scalars: Arc::new(
+                mul_scalars: Some(Arc::new(
                     self.key
                         .polynomial_store
                         .get(wire_tag.to_string())?
                         .get_coefficients(),
-                ),
+                )),
                 tag: "W_4".to_owned(),
                 constant: Fr::from((self.key.circuit_size + 1) as u64),
                 index: 0,
