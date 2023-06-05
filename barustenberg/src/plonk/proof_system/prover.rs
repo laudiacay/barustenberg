@@ -1,4 +1,9 @@
-use std::{borrow::BorrowMut, fmt::format, marker::PhantomData, sync::Arc};
+use std::{
+    borrow::BorrowMut,
+    fmt::format,
+    marker::PhantomData,
+    sync::{Arc, Mutex},
+};
 
 use ark_ec::AffineRepr;
 use ark_ff::{FftField, Field};
@@ -7,7 +12,10 @@ use super::{
     commitment_scheme::{CommitmentScheme, KateCommitmentScheme},
     proving_key::ProvingKey,
     types::{prover_settings::Settings, Proof},
-    widgets::random_widgets::random_widget::ProverRandomWidget,
+    widgets::{
+        random_widgets::random_widget::ProverRandomWidget,
+        transition_widgets::transition_widget::TransitionWidget,
+    },
 };
 
 use typenum::Unsigned;
@@ -38,9 +46,10 @@ pub(crate) struct Prover<
     pub(crate) key: Arc<ProvingKey<'a, Fr, G1Affine>>,
     pub(crate) queue: WorkQueue<'a, H, Fr, G1Affine>,
     pub(crate) random_widgets: Vec<ProverRandomWidget<'a, H, Fr, G1Affine>>,
-    pub(crate) transition_widgets: Vec<TransitionWidgetBase<'a, Fr, G1Affine>>,
+    pub(crate) transition_widgets: Vec<dyn TransitionWidget<'a, H, Fr, G1Affine, S, U1, IDK>>,
     pub(crate) commitment_scheme: CS,
     pub(crate) settings: S,
+    pub(crate) rng: Box<dyn rand::RngCore>,
     phantom: PhantomData<Fq>,
 }
 
@@ -76,6 +85,7 @@ impl<
             commitment_scheme: KateCommitmentScheme::<H, S>::default(),
             settings,
             phantom: PhantomData,
+            rng: Box::new(rand::thread_rng()),
         }
     }
 }
@@ -168,7 +178,7 @@ impl<
                 wire_lagrange.set_coefficient(
                     self.circuit_size - self.settings.num_roots_cut_out_of_vanishing_polynomial()
                         + k,
-                    Fr::random_element(),
+                    Fr::rand(&mut self.rng),
                 )
             }
 
@@ -264,7 +274,7 @@ impl<
                 w_4_lagrange.set_coefficient(
                     self.circuit_size - self.settings.num_roots_cut_out_of_vanishing_polynomial()
                         + k,
-                    Fr::random_element(),
+                    Fr::rand(&mut self.rng),
                 );
             }
 
@@ -512,10 +522,10 @@ impl<
         let public_wires_source = self.key.polynomial_store.get("w_2_lagrange".to_string())?;
         let mut public_wires = vec![];
         for i in 0..self.key.num_public_inputs {
-            public_wires.push_back(public_wires_source[i]);
+            public_wires.push(public_wires_source[i]);
         }
         self.transcript
-            .add_element("public_inputs", ::to_buffer(public_wires));
+            .put_field_element_vector("public_inputs", &public_wires);
         Ok(())
     }
 
@@ -572,7 +582,7 @@ impl<
             self.commitment_scheme.commit(
                 &mut coefficients,
                 quotient_tag,
-                Fr::from(domain_size_flag),
+                Fr::from(domain_size_flag as u64),
                 &mut self.queue,
             );
         }
@@ -583,11 +593,11 @@ impl<
     fn compute_opening_elements(&self) {
         todo!("yeehaw")
     }
-    fn add_plookup_memory_records_to_w_4(&mut self) {
+    fn add_plookup_memory_records_to_w_4(&mut self) -> Result<()> {
         // We can only compute memory record values once W_1, W_2, W_3 have been comitted to,
         // due to the dependence on the `eta` challenge.
 
-        let eta = Fr::serialize_from_buffer(self.transcript.get_challenge("eta", None).begin());
+        let eta = self.transcript.get_field_element("eta");
 
         // We need the lagrange-base forms of the first 3 wires to compute the plookup memory record
         // value. w4 = w3 * eta^3 + w2 * eta^2 + w1 * eta + read_write_flag;
@@ -607,7 +617,7 @@ impl<
             .polynomial_store
             .get("w_3_lagrange".to_string())
             .unwrap();
-        let w_4 = self
+        let mut w_4 = self
             .key
             .polynomial_store
             .get("w_4_lagrange".to_string())
@@ -629,10 +639,14 @@ impl<
             w_4[gate_idx] *= eta;
             w_4[gate_idx] += Fr::one();
         }
+        self.key
+            .polynomial_store
+            .put("w_4_lagrange".to_string(), w_4);
+        Ok(())
     }
 
     fn compute_quotient_evaluation(&self) -> Result<()> {
-        let zeta = Fr::serialize_from_buffer(self.transcript.get_challenge("z", None)?.begin());
+        let zeta = self.transcript.get_field_element("zeta");
 
         self.commitment_scheme
             .add_opening_evaluations_to_transcript(
@@ -641,19 +655,20 @@ impl<
                 false,
             );
 
-        let t_eval = polynomial_arithmetic::evaluate(
+        let mut t_eval = polynomial_arithmetic::evaluate(
             &[
                 self.key.quotient_polynomial_parts[0][0],
                 self.key.quotient_polynomial_parts[1][0],
                 self.key.quotient_polynomial_parts[2][0],
                 self.key.quotient_polynomial_parts[3][0],
             ],
-            zeta,
+            &zeta,
             4 * self.circuit_size,
         );
 
-        let zeta_pow_n = zeta.pow(self.key.circuit_size);
-        let scalar = zeta_pow_n;
+        // TODO are these limbs wrong?
+        let zeta_pow_n = zeta.pow([self.key.circuit_size as u64]);
+        let mut scalar = zeta_pow_n;
         // Adjust the evaluation to consider the (n + 1)th coefficient when needed (note that width 3 is just an avatar for
         // StandardComposer here)
         let num_deg_n_poly = if self.settings.program_width() == 3 {
@@ -666,7 +681,7 @@ impl<
             scalar *= zeta_pow_n;
         }
 
-        self.transcript.add_element("t", t_eval.to_buffer());
+        self.transcript.add_field_element("t", &t_eval);
         Ok(())
     }
 
@@ -687,7 +702,7 @@ impl<
         // For details, please head to: https://hackmd.io/JiyexiqRQJW55TMRrBqp1g.
         for i in 0..self.settings.program_width() - 1 {
             // Note that only program_width-1 random elements are required for full blinding
-            let quotient_randomness = Fr::random_element();
+            let quotient_randomness = Fr::rand(&mut self.rng);
 
             self.key.quotient_polynomial_parts[i][self.key.circuit_size] += quotient_randomness; // update coefficient of X^n'th term
             self.key.quotient_polynomial_parts[i + 1][0] -= quotient_randomness;
