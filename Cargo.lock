@@ -180,6 +180,7 @@ dependencies = [
  "ark-ec",
  "ark-ff",
  "ark-serialize",
+ "ff",
  "generic-array",
  "grumpkin",
  "lazy_static",

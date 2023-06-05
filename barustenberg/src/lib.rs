@@ -22,6 +22,8 @@ pub(crate) mod transcript;
 
 // TODOs for claudia and waylon
 // big error handling energy, type cleanup
+// no asserts only ensures. no unwraps at all.
+// nice error messages abound
 // logging!
 // tests!
 // docstrings!
@@ -32,6 +34,7 @@ pub(crate) mod transcript;
 // remove all the extra trait bounds if you don't need them. sometimes you don't need them.
 // there are some things that should be parallel that aren't. do a pass.
 // pon de inlining
+// audit how str versus String is used around the library. probably should have static strings.
 
 /// Test utilities.
 #[cfg(any(test, feature = "test_utils"))]
@@ -39,12 +42,12 @@ pub(crate) mod transcript;
 pub mod test_utils;
 
 /// Add two integers together.
-pub(crate) fn add(a: i32, b: i32) -> i32 {
+pub fn add(a: i32, b: i32) -> i32 {
     a + b
 }
 
 /// Multiplies two integers together.
-pub(crate) fn mult(a: i32, b: i32) -> i32 {
+pub fn mult(a: i32, b: i32) -> i32 {
     a * b
 }
 
@@ -55,5 +58,8 @@ mod tests {
     #[test]
     fn test_mult() {
         assert_eq!(mult(3, 2), 6);
+    }
+    fn test_add() {
+        assert_eq!(add(3, 2), 5);
     }
 }

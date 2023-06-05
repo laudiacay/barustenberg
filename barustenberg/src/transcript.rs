@@ -1,3 +1,4 @@
+use anyhow::{Error, Ok};
 use ark_ec::AffineRepr;
 use ark_ff::Field;
 use generic_array::{ArrayLength, GenericArray};
@@ -65,13 +66,13 @@ impl BarretenHasher for PlookupPedersenBlake3s {
     fn hash(_buffer: &[u8]) -> GenericArray<u8, Self::PrngOutputSize> {
         // TODO from original codebase
         /*
-               std::vector<uint8_t> compressed_buffer = crypto::pedersen_commitment::lookup::compress_native(buffer);
+        std::vector<uint8_t> compressed_buffer = crypto::pedersen_commitment::lookup::compress_native(buffer);
         std::array<uint8_t, PRNG_OUTPUT_SIZE> result;
         for (size_t i = 0; i < PRNG_OUTPUT_SIZE; ++i) {
             result[i] = compressed_buffer[i];
         }
         return result;
-             */
+         */
         todo!("check comment to see what gpt told us to do")
     }
 }
@@ -259,9 +260,12 @@ impl<H: BarretenHasher, Fr: Field, G1Affine: AffineRepr> Transcript<H, Fr, G1Aff
         transcript
     }
 
-    fn parse(_input_transcript: Vec<u8>, _manifest: Manifest, _challenge_bytes: usize) -> Self {
-        // implementation
-        todo!("Transcript::parse")
+    fn from_serialized(
+        _input_transcript: Vec<u8>,
+        _manifest: Manifest,
+        _challenge_bytes: usize,
+    ) -> Self {
+        todo!()
     }
 
     pub(crate) fn get_manifest(&self) -> Manifest {
@@ -427,11 +431,12 @@ impl<H: BarretenHasher, Fr: Field, G1Affine: AffineRepr> Transcript<H, Fr, G1Aff
     pub(crate) fn get_challenge(
         &self,
         challenge_name: &str,
-        idx: usize,
-    ) -> &GenericArray<u8, H::PrngOutputSize> {
+        idx: Option<usize>,
+    ) -> Result<&GenericArray<u8, H::PrngOutputSize>, Error> {
+        let idx = idx.unwrap_or(0);
         info!("get_challenge(): {}", challenge_name);
         assert!(self.challenges.contains_key(challenge_name));
-        &self.challenges.get(challenge_name).unwrap()[idx].data
+        Ok(&self.challenges.get(challenge_name).unwrap()[idx].data)
     }
 
     /// Get the challenge index from map (needed when we name subchallenges).
@@ -443,9 +448,11 @@ impl<H: BarretenHasher, Fr: Field, G1Affine: AffineRepr> Transcript<H, Fr, G1Aff
     /// # Returns
     ///
     /// The index of the subchallenge in the vector corresponding to the challenge.
-    pub(crate) fn get_challenge_index_from_map(&self, challenge_map_name: &str) -> isize {
-        // TODO bad unwrap
-        self.challenge_map[challenge_map_name].try_into().unwrap()
+    pub(crate) fn get_challenge_index_from_map(
+        &self,
+        challenge_map_name: &str,
+    ) -> Result<isize, Error> {
+        Ok(self.challenge_map[challenge_map_name].try_into()?)
     }
 
     /// Check if a challenge exists.
@@ -532,8 +539,7 @@ impl<H: BarretenHasher, Fr: Field, G1Affine: AffineRepr> Transcript<H, Fr, G1Aff
                 }
             }
         }
-        //return -1;
-        todo!("how do you return -1 in get_element_size? seems wrong.")
+        usize::MAX
     }
 
     /// serialize the transcript to a byte vector.
@@ -659,7 +665,7 @@ impl<H: BarretenHasher, Fr: Field, G1Affine: AffineRepr> Transcript<H, Fr, G1Aff
 
          */
 
-    fn add_field_element(&mut self, element_name: &str, element: &Fr) {
+    pub(crate) fn add_field_element(&mut self, element_name: &str, element: &Fr) {
         let mut buf = vec![0u8; Fr::serialized_size(element, ark_serialize::Compress::No)];
         Fr::serialize_uncompressed(element, &mut buf).unwrap();
         self.add_element(element_name, buf);
@@ -668,7 +674,7 @@ impl<H: BarretenHasher, Fr: Field, G1Affine: AffineRepr> Transcript<H, Fr, G1Aff
         let buf = self.get_element(element_name);
         Fr::deserialize_uncompressed(buf.as_slice()).unwrap()
     }
-    fn get_group_element(&self, element_name: &str) -> G1Affine {
+    pub(crate) fn get_group_element(&self, element_name: &str) -> G1Affine {
         let buf = self.get_element(element_name);
         G1Affine::deserialize_uncompressed(buf.as_slice()).unwrap()
     }
@@ -685,14 +691,23 @@ impl<H: BarretenHasher, Fr: Field, G1Affine: AffineRepr> Transcript<H, Fr, G1Aff
         }
         res
     }
+    pub(crate) fn put_field_element_vector(&self, element_name: &str, elements: &[Fr]) {
+        let mut buf = Vec::new();
+        for element in elements {
+            let mut tmp = vec![0u8; Fr::serialized_size(element, ark_serialize::Compress::No)];
+            Fr::serialize_uncompressed(element, &mut tmp).unwrap();
+            buf.extend(tmp);
+        }
+        self.add_element(element_name, buf);
+    }
+
     pub(crate) fn get_challenge_field_element(
         &self,
         challenge_name: &str,
         idx: Option<usize>,
     ) -> Fr {
-        let idx = idx.unwrap_or(0);
         let buf = self.get_challenge(challenge_name, idx);
-        Fr::deserialize_uncompressed(buf.as_slice()).unwrap()
+        Fr::deserialize_uncompressed(buf.unwrap().as_slice()).unwrap()
     }
     fn get_challenge_field_element_from_map(
         &self,

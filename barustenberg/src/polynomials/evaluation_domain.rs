@@ -46,63 +46,61 @@ fn compute_num_threads(size: usize) -> usize {
     }
     return num_threads;
 }
-
-fn compute_lookup_table_single<F: Field>(
-    _input_root: &F,
-    _size: usize,
-    _roots: &[F],
-    _round_roots: &mut Vec<&mut [F]>,
+/// This function computes a lookup table for the roots of a polynomial.
+///
+/// # Arguments
+///
+/// * `input_root` - An element of the field `Fr` that represents the root of the polynomial.
+/// * `size` - The size of the polynomial. This is used to determine the number of rounds needed for computation.
+/// * `roots` - A mutable vector of elements from the field `Fr`. This vector is used to store the roots computed in each round.
+/// * `round_roots` - A mutable vector of `usize` values representing indices into `roots`. After each round, the index of the newly computed root is stored in this vector.
+///
+/// # Description
+///
+/// This function operates in several rounds. In each round, it computes a new root of the polynomial and stores it in the `roots` vector.
+/// The index of the new root in the `roots` vector is then stored in the `round_roots` vector.
+///
+/// The new root in each round is computed by raising the `input_root` to a power that is determined by the current round and the size of the polynomial.
+/// The result is then multiplied with the previous root to get the new root.
+///
+/// # Example
+///
+/// ```
+/// use ark_ff::One;
+/// use ark_bn254::Fr;
+///
+/// // Assume Fr, input_root are properly defined here
+/// let size = 16;
+/// let mut roots = vec![Fr::one(); size];
+/// let mut round_roots = Vec::new();
+/// compute_lookup_table_single(&input_root, size, &mut roots, &mut round_roots);
+/// ```
+fn compute_lookup_table_single<Fr: Field>(
+    input_root: &Fr,
+    size: usize,
+    roots: &mut Vec<Fr>,
+    round_roots: &mut Vec<usize>,
 ) {
-    todo!("unimplemented, see comment below");
-    // ORIGINAL CODE:
-    /*
-    void compute_lookup_table_single(const Fr& input_root,
-                                     const size_t size,
-                                     Fr* const roots,
-                                     std::vector<Fr*>& round_roots)
-    {
-        const size_t num_rounds = static_cast<size_t>(numeric::get_msb(size));
+    let num_rounds = (size as f64).log2().ceil() as usize;
 
-        round_roots.emplace_back(&roots[0]);
-        for (size_t i = 1; i < num_rounds - 1; ++i) {
-            round_roots.emplace_back(round_roots.back() + (1UL << i));
-        }
+    round_roots.push(0);
+    for i in 1..num_rounds - 1 {
+        let last = *round_roots.last().unwrap();
+        round_roots.push(last + (1 << i));
+    }
 
-        for (size_t i = 0; i < num_rounds - 1; ++i) {
-            const size_t m = 1UL << (i + 1);
-            const Fr round_root = input_root.pow(static_cast<uint64_t>(size / (2 * m)));
-            Fr* const current_round_roots = round_roots[i];
-            current_round_roots[0] = Fr::one();
-            for (size_t j = 1; j < m; ++j) {
-                current_round_roots[j] = current_round_roots[j - 1] * round_root;
-            }
+    for i in 0..num_rounds - 1 {
+        let m = 1 << (i + 1);
+        let exponent = [(size / (2 * m)) as u64];
+        let round_root = input_root.pow(exponent);
+        let current_round_roots_index = round_roots[i];
+        roots[current_round_roots_index] = Fr::one();
+        for j in 1..m {
+            roots[current_round_roots_index + j] =
+                roots[current_round_roots_index + j - 1] * round_root;
         }
     }
-     */
-
-    // MAYBE a solution- from chatgpt
-    // let num_rounds = size.get_msb();
-
-    // round_roots.push(&mut roots[0..1]);
-    // for i in 1..(num_rounds - 1) {
-    //     let prev_round_roots = round_roots.last().unwrap();
-    //     let next_start = prev_round_roots.as_ptr() as usize + (1 << i) * std::mem::size_of::<Fr>();
-    //     let next_round_roots =
-    //         unsafe { std::slice::from_raw_parts_mut(next_start as *mut Fr, 1 << i) };
-    //     round_roots.push(next_round_roots);
-    // }
-
-    // for i in 0..(num_rounds - 1) {
-    //     let m = 1 << (i + 1);
-    //     let round_root = input_root.pow((size / (2 * m)) as u64);
-    //     let current_round_roots = round_roots[i];
-    //     current_round_roots[0] = Fr::one();
-    //     for j in 1..m {
-    //         current_round_roots[j] = current_round_roots[j - 1] * round_root;
-    //     }
-    // }
 }
-
 impl<'a, F: Field + FftField> EvaluationDomain<'a, F> {
     pub(crate) fn new(domain_size: usize, _target_generator_size: Option<usize>) -> Self {
         // TODO: implement constructor logic

@@ -25,6 +25,7 @@ impl<F: Field> Polynomial<F> {
             phantom: PhantomData,
         }
     }
+    /// TODO Question to Claudia: Aren't these functionally the same?
     #[inline]
     pub(crate) fn get_degree(&self) -> usize {
         todo!("unimplemented, see comment below");
@@ -32,6 +33,18 @@ impl<F: Field> Polynomial<F> {
     #[inline]
     pub(crate) fn size(&self) -> usize {
         todo!("unimplemented, see comment below");
+    }
+    #[inline]
+    pub(crate) fn get_coefficients(&self) -> Vec<F> {
+        self.coefficients.clone()
+    }
+    #[inline]
+    pub(crate) fn set_coefficient(&mut self, idx: usize, v: F) {
+        self.coefficients[idx] = v
+    }
+    #[inline]
+    pub(crate) fn get_mut_coefficients(&mut self) -> &mut [F] {
+        self.coefficients.as_mut_slice()
     }
 }
 

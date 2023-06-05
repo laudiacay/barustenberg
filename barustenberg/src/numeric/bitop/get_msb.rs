@@ -68,7 +68,6 @@ impl Msb for i64 {
     }
 }
 
-// TODO could be buggy on 32bit systems! are we sure this is ok?
 impl Msb for usize {
     fn get_msb(self) -> Self {
         get_msb64(self as u64) as usize

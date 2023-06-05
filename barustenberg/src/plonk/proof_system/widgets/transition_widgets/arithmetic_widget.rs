@@ -1,11 +1,13 @@
+use ark_ec::AffineRepr;
 use ark_ff::{FftField, Field};
 use typenum::U1;
 
 use crate::{
     plonk::proof_system::{
-        types::{polynomial_manifest::PolynomialIndex, prover_settings::Settings},
-        widgets::transition_widgets::transition_widget::containers::{
-            ChallengeArray, CoefficientArray,
+        proving_key::ProvingKey,
+        types::{
+            polynomial_manifest::{EvaluationType, PolynomialIndex},
+            prover_settings::Settings,
         },
     },
     transcript::BarretenHasher,
@@ -14,25 +16,20 @@ use crate::{
 use std::{
     collections::{HashMap, HashSet},
     marker::PhantomData,
+    sync::Arc,
 };
 
-use super::transition_widget::{
-    containers::PolyContainer, BaseGetter, EvaluationGetter, GenericVerifierWidget, KernelBase,
-    TransitionWidget, CHALLENGE_BIT_ALPHA,
+use super::{
+    containers::{ChallengeArray, CoefficientArray, PolyContainer, CHALLENGE_BIT_ALPHA},
+    getters::{BaseGetter, EvaluationGetter},
+    transition_widget::{GenericVerifierWidget, KernelBase, TransitionWidget},
 };
 
-pub(crate) struct ArithmeticKernel<
-    H: BarretenHasher,
-    F: Field,
-    S: Settings<H>,
-    Get: BaseGetter<H, F, S, U1>,
-    PolyContainer,
-> {
-    _marker: PhantomData<(H, F, S, Get, PolyContainer)>,
+pub(crate) struct ArithmeticKernel<H: BarretenHasher, F: Field, S: Settings<H>> {
+    _marker: PhantomData<(H, F, S)>,
 }
 
-impl<H: BarretenHasher, F, Get: BaseGetter<H, F, S, U1>, S: Settings<H>, PolyContainer>
-    ArithmeticKernel<H, F, S, Get, PolyContainer>
+impl<H: BarretenHasher, F, S: Settings<H>> ArithmeticKernel<H, F, S>
 where
     F: Field,
 {
@@ -44,86 +41,23 @@ where
         // ...
         todo!("ArithmeticKernel::get_required_polynomial_ids")
     }
-
-    pub(crate) fn compute_linear_terms(
-        _polynomials: &PolyContainer,
-        _challenges: &ChallengeArray<F, U1>,
-        _linear_terms: &mut CoefficientArray<F>,
-        _i: usize,
-    ) {
-        // ...
-    }
-
-    pub(crate) fn compute_non_linear_terms(
-        _polynomials: &PolyContainer,
-        _challenges: &ChallengeArray<F, U1>,
-        _field: &mut F,
-        _i: usize,
-    ) {
-        // ...
-    }
-
-    pub(crate) fn sum_linear_terms(
-        _polynomials: &PolyContainer,
-        _challenges: &ChallengeArray<F, U1>,
-        _linear_terms: &mut CoefficientArray<F>,
-        _i: usize,
-    ) -> F {
-        // ...
-        todo!("ArithmeticKernel::sum_linear_terms")
-    }
-
-    /// Compute the scaled values of openings
-    ///
-    /// # Arguments
-    /// - `linear_terms` - The original computed linear terms of the product and wires
-    /// - `scalars` - A map where we put the values
-    /// - `challenges` - Challenges where we get the alpha
-    pub(crate) fn update_kate_opening_scalars(
-        linear_terms: &CoefficientArray<F>,
-        scalars: &mut HashMap<String, F>,
-        challenges: &ChallengeArray<F, U1>,
-    ) {
-        let alpha: F = challenges.alpha_powers[0];
-        scalars.insert(
-            "Q_M".to_string(),
-            *scalars.get("Q_M").unwrap() + linear_terms[0.into()] * alpha,
-        );
-        scalars.insert(
-            "Q_1".to_string(),
-            *scalars.get("Q_1").unwrap() + linear_terms[1.into()] * alpha,
-        );
-        scalars.insert(
-            "Q_2".to_string(),
-            *scalars.get("Q_2").unwrap() + linear_terms[2.into()] * alpha,
-        );
-        scalars.insert(
-            "Q_3".to_string(),
-            *scalars.get("Q_3").unwrap() + linear_terms[3.into()] * alpha,
-        );
-        scalars.insert("Q_C".to_string(), *scalars.get("Q_C").unwrap() + alpha);
-    }
 }
 
-impl<
-        H: BarretenHasher,
-        F: Field,
-        S: Settings<H>,
-        Get: BaseGetter<H, F, S, U1>,
-        PC: PolyContainer<F>,
-    > KernelBase<H, S, F, PC, Get, U1> for ArithmeticKernel<H, F, S, Get, PC>
+impl<H: BarretenHasher, F: Field, S: Settings<H>> KernelBase<H, S, F, U1>
+    for ArithmeticKernel<H, F, S>
 {
+    #[inline]
     fn get_required_polynomial_ids() -> HashSet<PolynomialIndex> {
-        // inline static std::set<PolynomialIndex> const& get_required_polynomial_ids()
-        // {
-        //     static const std::set<PolynomialIndex> required_polynomial_ids = { PolynomialIndex::Q_1, PolynomialIndex::Q_2,
-        //                                                                        PolynomialIndex::Q_3, PolynomialIndex::Q_M,
-        //                                                                        PolynomialIndex::Q_C, PolynomialIndex::W_1,
-        //                                                                        PolynomialIndex::W_2, PolynomialIndex::W_3 };
-        //     return required_polynomial_ids;
-        //}
-
-        todo!()
+        HashSet::from([
+            PolynomialIndex::Q1,
+            PolynomialIndex::Q2,
+            PolynomialIndex::Q3,
+            PolynomialIndex::QM,
+            PolynomialIndex::QC,
+            PolynomialIndex::W1,
+            PolynomialIndex::W2,
+            PolynomialIndex::W3,
+        ])
     }
 
     fn quotient_required_challenges() -> u8 {
@@ -134,36 +68,43 @@ impl<
         todo!()
     }
 
-    fn compute_linear_terms(
-        _polynomials: &impl PolyContainer<F>,
-        _challenges: &ChallengeArray<F, U1>,
-        _linear_terms: &mut CoefficientArray<F>,
-        _index: usize,
+    #[inline]
+    fn compute_linear_terms<PC: PolyContainer<F>, G: BaseGetter<H, F, S, PC, U1>>(
+        polynomials: &PC,
+        challenges: &ChallengeArray<F, U1>,
+        linear_terms: &mut CoefficientArray<F>,
+        index: Option<usize>,
     ) {
-        /*
-                inline static void compute_linear_terms(PolyContainer& polynomials,
-                                                const challenge_array&,
-                                                coefficient_array& linear_terms,
-                                                const size_t i = 0)
-        {
-            const Field& w_1 =
-                Getters::template get_value<EvaluationType::NON_SHIFTED, PolynomialIndex::W_1>(polynomials, i);
-            const Field& w_2 =
-                Getters::template get_value<EvaluationType::NON_SHIFTED, PolynomialIndex::W_2>(polynomials, i);
-            const Field& w_3 =
-                Getters::template get_value<EvaluationType::NON_SHIFTED, PolynomialIndex::W_3>(polynomials, i);
+        let index = index.unwrap_or_default();
 
-            linear_terms[0] = w_1 * w_2;
-            linear_terms[1] = w_1;
-            linear_terms[2] = w_2;
-            linear_terms[3] = w_3;
-        }
-             */
-        todo!()
+        let shifted = false;
+
+        let w_1 = *G::get_value(
+            polynomials,
+            EvaluationType::Shifted,
+            PolynomialIndex::W1,
+            Some(index),
+        );
+        let w_2 = *G::get_value(
+            polynomials,
+            EvaluationType::Shifted,
+            PolynomialIndex::W2,
+            Some(index),
+        );
+        let w_3 = *G::get_value(
+            polynomials,
+            EvaluationType::Shifted,
+            PolynomialIndex::W3,
+            Some(index),
+        );
+        linear_terms[0.into()] = w_1 * w_2;
+        linear_terms[1.into()] = w_1;
+        linear_terms[2.into()] = w_2;
+        linear_terms[3.into()] = w_3;
     }
 
-    fn sum_linear_terms(
-        _polynomials: &impl PolyContainer<F>,
+    fn sum_linear_terms<PC: PolyContainer<F>, G: BaseGetter<H, F, S, PC, U1>>(
+        _polynomials: &PC,
         _challenges: &ChallengeArray<F, U1>,
         _linear_terms: &CoefficientArray<F>,
         _index: usize,
@@ -210,8 +151,8 @@ impl<
     }
 
     /// Not being used in arithmetic_widget because there are none
-    fn compute_non_linear_terms(
-        _polynomials: &impl PolyContainer<F>,
+    fn compute_non_linear_terms<PC: PolyContainer<F>, G: BaseGetter<H, F, S, PC, U1>>(
+        _polynomials: &PC,
         _challenges: &ChallengeArray<F, U1>,
         _quotient_term: &mut F,
         _index: usize,
@@ -220,27 +161,64 @@ impl<
             "ArithmeticKernel::compute_non_linear_terms- there are no non-linear terms..."
         )
     }
+
+    /// Compute the scaled values of openings
+    ///
+    /// # Arguments
+    /// - `linear_terms` - The original computed linear terms of the product and wires
+    /// - `scalars` - A map where we put the values
+    /// - `challenges` - Challenges where we get the alpha
+    fn update_kate_opening_scalars(
+        linear_terms: &CoefficientArray<F>,
+        scalars: &mut HashMap<String, F>,
+        challenges: &ChallengeArray<F, U1>,
+    ) {
+        let alpha: F = challenges.alpha_powers[0];
+        scalars.insert(
+            "Q_M".to_string(),
+            *scalars.get("Q_M").unwrap() + linear_terms[0.into()] * alpha,
+        );
+        scalars.insert(
+            "Q_1".to_string(),
+            *scalars.get("Q_1").unwrap() + linear_terms[1.into()] * alpha,
+        );
+        scalars.insert(
+            "Q_2".to_string(),
+            *scalars.get("Q_2").unwrap() + linear_terms[2.into()] * alpha,
+        );
+        scalars.insert(
+            "Q_3".to_string(),
+            *scalars.get("Q_3").unwrap() + linear_terms[3.into()] * alpha,
+        );
+        scalars.insert("Q_C".to_string(), *scalars.get("Q_C").unwrap() + alpha);
+    }
 }
 
-pub(crate) type ProverArithmeticWidget<'a, F, G1Affine, H, S, PolyContainer, Getters> =
-    TransitionWidget<
-        'a,
-        H,
-        F,
-        G1Affine,
-        S,
-        PolyContainer,
-        Getters,
-        U1,
-        ArithmeticKernel<H, F, S, Getters, PolyContainer>,
-    >;
+pub(crate) struct ProverArithmeticWidget<'a, Fr: Field + FftField, G1Affine: AffineRepr, H, S> {
+    key: Arc<ProvingKey<'a, Fr, G1Affine>>,
+    phantom: PhantomData<(H, S)>,
+}
+
+impl<'a, H: BarretenHasher, F: Field + FftField, G1Affine: AffineRepr, S: Settings<H>>
+    TransitionWidget<'a, H, F, G1Affine, S, U1, ArithmeticKernel<H, F, S>>
+    for ProverArithmeticWidget<'a, F, G1Affine, H, S>
+{
+    fn get_key(&self) -> Arc<ProvingKey<'a, F, G1Affine>> {
+        self.key.clone()
+    }
+}
+
+// kernelbase is a trait that takes 3 parameters
+// those parameters need to be generic
+// something is really wrong here
+// you need a kernelbase that can work over
 
 pub(crate) struct VerifierArithmeticWidget<
     H: BarretenHasher,
     F: Field,
     //Group,
     NWidgetRelations: generic_array::ArrayLength<F>,
-    Getters: BaseGetter<H, F, S, NWidgetRelations> + EvaluationGetter<H, F, S, NWidgetRelations>,
+    Getters: EvaluationGetter<H, F, S, NWidgetRelations>,
     PC,
     S: Settings<H>,
 > {
@@ -261,8 +239,8 @@ impl<
         S: Settings<H>,
         F: Field + FftField,
         PC: PolyContainer<F>,
-        Get: BaseGetter<H, F, S, U1> + EvaluationGetter<H, F, S, U1>,
-    > GenericVerifierWidget<'a, F, H, PC, Get, U1, S, ArithmeticKernel<H, F, S, Get, PC>>
+        Get: EvaluationGetter<H, F, S, U1>,
+    > GenericVerifierWidget<'a, F, H, Get, U1, S, ArithmeticKernel<H, F, S>>
     for VerifierArithmeticWidget<H, F, U1, Get, PC, S>
 {
 }
