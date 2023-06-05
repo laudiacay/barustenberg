@@ -69,8 +69,7 @@ impl<H: BarretenHasher, F: Field, S: Settings<H>> KernelBase<H, S, F, U1>
     }
 
     #[inline]
-    fn compute_linear_terms<Getters: BaseGetter<H, F, S, U1>, PC: PolyContainer<F>>(
-        getter: Getters,
+    fn compute_linear_terms<PC: PolyContainer<F>, G: BaseGetter<H, F, S, PC, U1>>(
         polynomials: &PC,
         challenges: &ChallengeArray<F, U1>,
         linear_terms: &mut CoefficientArray<F>,
@@ -80,19 +79,19 @@ impl<H: BarretenHasher, F: Field, S: Settings<H>> KernelBase<H, S, F, U1>
 
         let shifted = false;
 
-        let w_1 = *Getters::get_value(
+        let w_1 = *G::get_value(
             polynomials,
             EvaluationType::Shifted,
             PolynomialIndex::W1,
             Some(index),
         );
-        let w_2 = *Getters::get_value(
+        let w_2 = *G::get_value(
             polynomials,
             EvaluationType::Shifted,
             PolynomialIndex::W2,
             Some(index),
         );
-        let w_3 = *Getters::get_value(
+        let w_3 = *G::get_value(
             polynomials,
             EvaluationType::Shifted,
             PolynomialIndex::W3,
@@ -104,8 +103,8 @@ impl<H: BarretenHasher, F: Field, S: Settings<H>> KernelBase<H, S, F, U1>
         linear_terms[3.into()] = w_3;
     }
 
-    fn sum_linear_terms(
-        _polynomials: &impl PolyContainer<F>,
+    fn sum_linear_terms<PC: PolyContainer<F>, G: BaseGetter<H, F, S, PC, U1>>(
+        _polynomials: &PC,
         _challenges: &ChallengeArray<F, U1>,
         _linear_terms: &CoefficientArray<F>,
         _index: usize,
@@ -152,8 +151,8 @@ impl<H: BarretenHasher, F: Field, S: Settings<H>> KernelBase<H, S, F, U1>
     }
 
     /// Not being used in arithmetic_widget because there are none
-    fn compute_non_linear_terms(
-        _polynomials: &impl PolyContainer<F>,
+    fn compute_non_linear_terms<PC: PolyContainer<F>, G: BaseGetter<H, F, S, PC, U1>>(
+        _polynomials: &PC,
         _challenges: &ChallengeArray<F, U1>,
         _quotient_term: &mut F,
         _index: usize,

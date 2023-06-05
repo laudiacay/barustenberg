@@ -8,6 +8,7 @@
 
 use std::{
     collections::HashSet,
+    marker::PhantomData,
     sync::{Arc, Mutex},
 };
 
@@ -42,6 +43,7 @@ pub(crate) trait BaseGetter<
     H: BarretenHasher,
     F: Field,
     S: Settings<H>,
+    PC: PolyContainer<F>,
     NWidgetRelations: generic_array::ArrayLength<F>,
 >
 {
@@ -123,11 +125,53 @@ pub(crate) trait BaseGetter<
     }
 
     fn get_value(
-        polynomials: &impl PolyContainer<F>,
+        polynomials: &PC,
         evaluation_type: EvaluationType,
         id: PolynomialIndex,
         index: Option<usize>,
     ) -> &F;
+}
+
+pub(crate) struct EvaluationGetterImpl<H, F, S, NWidgetRelations>
+where
+    F: Field + FftField,
+    H: BarretenHasher,
+    S: Settings<H>,
+    NWidgetRelations: generic_array::ArrayLength<F>,
+{
+    phantom: PhantomData<(F, H, S, NWidgetRelations)>,
+}
+
+impl<H, F, S, NWidgetRelations> BaseGetter<H, F, S, PolyArray<F>, NWidgetRelations>
+    for EvaluationGetterImpl<H, F, S, NWidgetRelations>
+where
+    F: Field + FftField,
+    H: BarretenHasher,
+    S: Settings<H>,
+    NWidgetRelations: generic_array::ArrayLength<F>,
+{
+    fn get_value(
+        polynomials: &PolyArray<F>,
+        evaluation_type: EvaluationType,
+        id: PolynomialIndex,
+        index: Option<usize>,
+    ) -> &F {
+        assert!(index.is_none());
+        match evaluation_type {
+            EvaluationType::NonShifted => &polynomials[id].1,
+            EvaluationType::Shifted => &polynomials[id].0,
+        }
+    }
+}
+
+impl<'a, H, F, S, NWidgetRelations> EvaluationGetter<H, F, S, NWidgetRelations>
+    for EvaluationGetterImpl<H, F, S, NWidgetRelations>
+where
+    F: Field + FftField,
+    H: BarretenHasher,
+    S: Settings<H>,
+    NWidgetRelations: generic_array::ArrayLength<F>,
+{
 }
 
 /// Implements loading polynomial openings from transcript in addition to BaseGetter's
@@ -137,8 +181,20 @@ pub(crate) trait EvaluationGetter<
     F: Field,
     S: Settings<H>,
     NWidgetRelations: generic_array::ArrayLength<F>,
->: BaseGetter<H, F, S, NWidgetRelations>
+>: BaseGetter<H, F, S, PolyArray<F>, NWidgetRelations>
 {
+    // fn get_value(
+    //     polynomials: &PolyArray<F>,
+    //     evaluation_type: EvaluationType,
+    //     id: PolynomialIndex,
+    //     index: Option<usize>,
+    // ) -> &F {
+    //     assert!(index.is_none());
+    //     match evaluation_type {
+    //         EvaluationType::NonShifted => &polynomials[id].1,
+    //         EvaluationType::Shifted => &polynomials[id].0,
+    //     }
+    // }
     /// Get a polynomial at offset `id`
     ///
     /// # Arguments
@@ -196,6 +252,54 @@ pub(crate) trait EvaluationGetter<
     }
 }
 
+pub(crate) struct FFTGetterImpl<H, F, G1Affine, S, NWidgetRelations>
+where
+    F: Field + FftField,
+    H: BarretenHasher,
+    S: Settings<H>,
+    G1Affine: AffineRepr,
+    NWidgetRelations: generic_array::ArrayLength<F>,
+{
+    phantom: PhantomData<(F, H, S, G1Affine, NWidgetRelations)>,
+}
+
+impl<'a, H, F, G1Affine, S, NWidgetRelations> BaseGetter<H, F, S, PolyPtrMap<F>, NWidgetRelations>
+    for FFTGetterImpl<H, F, G1Affine, S, NWidgetRelations>
+where
+    F: Field + FftField,
+    H: BarretenHasher,
+    S: Settings<H>,
+    G1Affine: AffineRepr,
+    NWidgetRelations: generic_array::ArrayLength<F>,
+{
+    fn get_value(
+        polynomials: &PolyPtrMap<F>,
+        evaluation_type: EvaluationType,
+        id: PolynomialIndex,
+        index: Option<usize>,
+    ) -> &F {
+        // TODO ew
+        let index = index.unwrap();
+        if evaluation_type == EvaluationType::Shifted {
+            let shifted_index = (index + polynomials.index_shift) & polynomials.block_mask;
+            &polynomials.coefficients.get(&id).unwrap()[shifted_index]
+        } else {
+            &polynomials.coefficients.get(&id).unwrap()[index]
+        }
+    }
+}
+
+impl<'a, H, F, G1Affine, S, NWidgetRelations> FFTGetter<'a, H, F, G1Affine, S, NWidgetRelations>
+    for FFTGetterImpl<H, F, G1Affine, S, NWidgetRelations>
+where
+    F: Field + FftField,
+    H: BarretenHasher,
+    S: Settings<H>,
+    G1Affine: AffineRepr,
+    NWidgetRelations: generic_array::ArrayLength<F>,
+{
+}
+
 /// Provides access to polynomials (monomial or coset FFT) for use in widgets
 /// Coset FFT access is needed in quotient construction.
 pub(crate) trait FFTGetter<
@@ -205,7 +309,7 @@ pub(crate) trait FFTGetter<
     G1Affine: AffineRepr,
     S,
     NWidgetRelations: generic_array::ArrayLength<F>,
->: BaseGetter<H, F, S, NWidgetRelations> where
+>: BaseGetter<H, F, S, PolyPtrMap<F>, NWidgetRelations> where
     F: Field + FftField,
     H: BarretenHasher,
     S: Settings<H>,
@@ -231,19 +335,19 @@ pub(crate) trait FFTGetter<
         result
     }
 
-    fn get_value(
-        polynomials: &PolyPtrMap<F>,
-        evaluation_type: EvaluationType,
-        id: PolynomialIndex,
-        index: Option<usize>,
-    ) -> &F {
-        // TODO ew
-        let index = index.unwrap();
-        if evaluation_type == EvaluationType::Shifted {
-            let shifted_index = (index + polynomials.index_shift) & polynomials.block_mask;
-            &polynomials.coefficients.get(&id).unwrap()[shifted_index]
-        } else {
-            &polynomials.coefficients.get(&id).unwrap()[index]
-        }
-    }
+    // fn get_value(
+    //     polynomials: &PolyPtrMap<F>,
+    //     evaluation_type: EvaluationType,
+    //     id: PolynomialIndex,
+    //     index: Option<usize>,
+    // ) -> &F {
+    //     // TODO ew
+    //     let index = index.unwrap();
+    //     if evaluation_type == EvaluationType::Shifted {
+    //         let shifted_index = (index + polynomials.index_shift) & polynomials.block_mask;
+    //         &polynomials.coefficients.get(&id).unwrap()[shifted_index]
+    //     } else {
+    //         &polynomials.coefficients.get(&id).unwrap()[index]
+    //     }
+    // }
 }

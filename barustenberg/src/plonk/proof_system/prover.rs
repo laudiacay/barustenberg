@@ -7,10 +7,7 @@ use super::{
     commitment_scheme::{CommitmentScheme, KateCommitmentScheme},
     proving_key::ProvingKey,
     types::{prover_settings::Settings, Proof},
-    widgets::{
-        random_widgets::random_widget::ProverRandomWidget,
-        transition_widgets::transition_widget::TransitionWidgetBase,
-    },
+    widgets::random_widgets::random_widget::ProverRandomWidget,
 };
 
 use typenum::Unsigned;

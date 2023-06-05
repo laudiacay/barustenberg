@@ -88,6 +88,13 @@ impl<F: Field> PolyPtrMap<F> {
 
 impl<F: Field> PolyContainer<F> for PolyPtrMap<F> {}
 
+impl<F: Field> Index<PolynomialIndex> for PolyPtrMap<F> {
+    type Output = Polynomial<F>;
+    fn index(&self, index: PolynomialIndex) -> &Self::Output {
+        &self.coefficients[&index]
+    }
+}
+
 pub(crate) struct CoefficientArray<F: Field>([F; PolynomialIndex::MaxNumPolynomials as usize]);
 impl<F: Field> Index<PolynomialIndex> for CoefficientArray<F> {
     type Output = F;

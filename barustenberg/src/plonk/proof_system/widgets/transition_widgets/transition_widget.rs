@@ -16,8 +16,8 @@ use crate::{
 };
 
 use super::{
-    containers::{ChallengeArray, CoefficientArray, PolyContainer},
-    getters::{BaseGetter, EvaluationGetter},
+    containers::{ChallengeArray, CoefficientArray, PolyArray, PolyContainer, PolyPtrMap},
+    getters::{BaseGetter, EvaluationGetter, EvaluationGetterImpl, FFTGetter, FFTGetterImpl},
 };
 
 pub(crate) trait KernelBase<
@@ -31,23 +31,25 @@ pub(crate) trait KernelBase<
     fn quotient_required_challenges() -> u8;
     fn update_required_challenges() -> u8;
     fn compute_linear_terms<
-        Getters: BaseGetter<H, F, S, NumIndependentRelations>,
         PC: PolyContainer<F>,
+        G: BaseGetter<H, F, S, PC, NumIndependentRelations>,
     >(
-        getter: Getters,
         polynomials: &PC,
         challenges: &ChallengeArray<F, NumIndependentRelations>,
         linear_terms: &mut CoefficientArray<F>,
         index: Option<usize>,
     );
-    fn sum_linear_terms(
-        polynomials: &impl PolyContainer<F>,
+    fn sum_linear_terms<PC: PolyContainer<F>, G: BaseGetter<H, F, S, PC, NumIndependentRelations>>(
+        polynomials: &PC,
         challenges: &ChallengeArray<F, NumIndependentRelations>,
         linear_terms: &CoefficientArray<F>,
         index: usize,
     ) -> F;
-    fn compute_non_linear_terms(
-        polynomials: &impl PolyContainer<F>,
+    fn compute_non_linear_terms<
+        PC: PolyContainer<F>,
+        G: BaseGetter<H, F, S, PC, NumIndependentRelations>,
+    >(
+        polynomials: &PC,
         challenges: &ChallengeArray<F, NumIndependentRelations>,
         quotient_term: &mut F,
         index: usize,
@@ -71,6 +73,7 @@ pub(crate) trait TransitionWidget<
     NIndependentRelations: generic_array::ArrayLength<F>,
     KB: KernelBase<H, S, F, NIndependentRelations>,
 {
+    /// make sure to inline me...
     fn get_key(&self) -> Arc<ProvingKey<'a, F, G1Affine>>;
 
     // other methods and trait implementations
@@ -80,34 +83,47 @@ pub(crate) trait TransitionWidget<
         transcript: &Transcript<H, F, G1Affine>,
         rng: Arc<Mutex<dyn rand::RngCore + Send + Sync>>,
     ) -> F {
-        let key = self.base.key.as_ref().expect("Proving key is missing");
+        let key = self.get_key();
 
         let required_polynomial_ids = KB::get_required_polynomial_ids();
-        let polynomials = KB::get_polynomials(key, &required_polynomial_ids);
+        let polynomials =
+            FFTGetterImpl::<H, F, G1Affine, S, NIndependentRelations>::get_polynomials(
+                &key,
+                &required_polynomial_ids,
+            );
 
-        let challenges = Self::get_challenges::<G1Affine>(
-            transcript,
-            alpha_base,
-            KB::quotient_required_challenges(),
-            rng,
-        );
+        let challenges =
+            FFTGetterImpl::<H, F, G1Affine, S, NIndependentRelations>::get_challenges::<G1Affine>(
+                transcript,
+                alpha_base,
+                KB::quotient_required_challenges(),
+                rng,
+            );
 
         let mut quotient_term;
 
         // TODO: hidden missing multithreading here
         for i in 0..key.large_domain.size {
             let mut linear_terms = CoefficientArray::default();
-            KB::compute_linear_terms(&polynomials, &challenges, &mut linear_terms, Some(i));
-            let sum_of_linear_terms =
-                KB::sum_linear_terms(&polynomials, &challenges, &linear_terms, i);
+            KB::compute_linear_terms::<
+                PolyPtrMap<F>,
+                FFTGetterImpl<H, F, G1Affine, S, NIndependentRelations>,
+            >(&polynomials, &challenges, &mut linear_terms, Some(i));
+            let sum_of_linear_terms = KB::sum_linear_terms::<
+                PolyPtrMap<F>,
+                FFTGetterImpl<H, F, G1Affine, S, NIndependentRelations>,
+            >(&polynomials, &challenges, &linear_terms, i);
 
             quotient_term = key.quotient_polynomial_parts[i >> key.small_domain.log2_size]
                 [i & (key.circuit_size - 1)];
             quotient_term += sum_of_linear_terms;
-            KB::compute_non_linear_terms(&polynomials, &challenges, &mut quotient_term, i);
+            KB::compute_non_linear_terms::<
+                PolyPtrMap<F>,
+                FFTGetterImpl<H, F, G1Affine, S, NIndependentRelations>,
+            >(&polynomials, &challenges, &mut quotient_term, i);
         }
 
-        Self::update_alpha(&challenges)
+        FFTGetterImpl::<H, F, G1Affine, S, NIndependentRelations>::update_alpha(&challenges)
     }
 }
 
@@ -142,15 +158,24 @@ pub(crate) trait GenericVerifierWidget<
         );
 
         let mut linear_terms = CoefficientArray::default();
-        KB::compute_linear_terms(
-            EvaluationGetter::new() & polynomial_evaluations,
+        KB::compute_linear_terms::<
+            PolyArray<F>,
+            EvaluationGetterImpl<H, F, S, NIndependentRelations>,
+        >(
+            &polynomial_evaluations,
             &challenges,
             &mut linear_terms,
             Some(0),
         );
         *quotient_numerator_eval +=
-            KB::sum_linear_terms(&polynomial_evaluations, &challenges, &linear_terms, 0);
-        KB::compute_non_linear_terms(
+            KB::sum_linear_terms::<
+                PolyArray<F>,
+                EvaluationGetterImpl<H, F, S, NIndependentRelations>,
+            >(&polynomial_evaluations, &challenges, &linear_terms, 0);
+        KB::compute_non_linear_terms::<
+            PolyArray<F>,
+            EvaluationGetterImpl<H, F, S, NIndependentRelations>,
+        >(
             &polynomial_evaluations,
             &challenges,
             quotient_numerator_eval,
