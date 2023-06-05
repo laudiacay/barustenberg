@@ -1,7 +1,9 @@
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 
 use ark_ec::AffineRepr;
 use ark_ff::{FftField, Field};
+
+use anyhow::Result;
 
 use crate::plonk::proof_system::proving_key::ProvingKey;
 use crate::transcript::{BarretenHasher, Transcript};
@@ -34,44 +36,21 @@ pub(crate) struct QueuedFftInputs<Fr: Field> {
 }
 
 pub(crate) struct WorkQueue<'a, H: BarretenHasher, Fr: Field + FftField, G1Affine: AffineRepr> {
-    key: Option<Arc<ProvingKey<'a, Fr, G1Affine>>>,
-    transcript: Option<Arc<Transcript<H, Fr, G1Affine>>>,
+    key: Arc<RwLock<ProvingKey<'a, Fr, G1Affine>>>,
+    transcript: Arc<RwLock<Transcript<H, Fr, G1Affine>>>,
     work_items: Vec<WorkItem<Fr>>,
 }
 
 impl<'a, H: BarretenHasher, Fr: Field + FftField, G1Affine: AffineRepr>
     WorkQueue<'a, H, Fr, G1Affine>
 {
-    /*
-    work_item_info get_queued_work_item_info() const;
-
-    barretenberg::fr* get_scalar_multiplication_data(const size_t work_item_number) const;
-
-    size_t get_scalar_multiplication_size(const size_t work_item_number) const;
-
-    barretenberg::fr* get_ifft_data(const size_t work_item_number) const;
-
-    void put_ifft_data(barretenberg::fr* result, const size_t work_item_number);
-
-    queued_fft_inputs get_fft_data(const size_t work_item_number) const;
-
-    void put_fft_data(barretenberg::fr* result, const size_t work_item_number);
-
-    void put_scalar_multiplication_data(const barretenberg::g1::affine_element result, const size_t work_item_number);
-
-    void flush_queue();
-
-    void add_to_queue(const work_item& item);
-
-    void process_queue();
-
-    std::vector<work_item> get_queue() const;
-     */
 
     pub(crate) fn new(
-        prover_key: Option<Arc<ProvingKey<'a, Fr, G1Affine>>>,
-        prover_transcript: Option<Arc<Transcript<H, Fr, G1Affine>>>,
+        prover_key: Option<Arc<RwLock<ProvingKey<'a, Fr, G1Affine>>>>,
+        prover_transcript: Option<Arc<RwLock<Transcript<H, Fr, G1Affine>>>>,
     ) -> Self {
+        let prover_key = prover_key.unwrap_or_default();
+        let prover_transcript = prover_transcript.unwrap_or_default();
         WorkQueue {
             key: prover_key,
             transcript: prover_transcript,
@@ -120,8 +99,8 @@ impl<'a, H: BarretenHasher, Fr: Field + FftField, G1Affine: AffineRepr>
         for item in self.work_items.iter() {
             if item.work_type == WorkType::ScalarMultiplication {
                 if count == work_item_number {
-                    todo!("look at this nasty code")
-                    //return Sstatic_cast<size_t>(static_cast<uint256_t>(item.constant));
+                    todo!("look at this code");
+                    // return static_cast<size_t>(static_cast<uint256_t>(item.constant));
                 };
                 count += 1;
             }
@@ -129,23 +108,35 @@ impl<'a, H: BarretenHasher, Fr: Field + FftField, G1Affine: AffineRepr>
         0
     }
 
-    pub(crate) fn get_ifft_data(&self, work_item_number: usize) -> Option<Arc<Vec<Fr>>> {
+    pub(crate) fn get_ifft_data(&self, work_item_number: usize) -> Result<Option<Arc<Vec<Fr>>>> {
         let mut count: usize = 0;
         for item in self.work_items.iter() {
             if item.work_type == WorkType::Ifft {
                 if count == work_item_number {
-                    todo!("look at this code");
+                    //todo!("look at this code");
+                    return Ok(Some(self.key.read()?.polynomial_store.get(format!("{}_lagrange", item.tag)?.get_coefficients()));
                     // barretenberg::polynomial& wire = key->polynomial_store.get(item.tag + "_lagrange");
                     // return wire.get_coefficients();
                 };
                 count += 1;
             }
         }
-        None
+        Ok(None)
     }
 
-    pub(crate) fn put_ifft_data(&self, _result: Vec<Fr>, _work_item_number: usize) {
+    pub(crate) fn put_ifft_data(&self, result: &mut Vec<Fr>, _work_item_number: usize) {
         todo!("do it");
+        let mut count = 0;
+        for item in self.work_items {
+            if (count == work_item_number) && (item.work_type == WorkType::Ifft) {
+                todo!("looook");
+                //  barretenberg::polynomial wire(key->circuit_size);
+                // memcpy((void*)wire.get_coefficients(), result, key->circuit_size * sizeof(barretenberg::fr));
+                // key->polynomial_store.put(item.tag, std::move(wire));
+                return;
+            }
+            count += 1;
+        }
     }
 
     pub(crate) fn get_fft_data(
@@ -170,7 +161,7 @@ impl<'a, H: BarretenHasher, Fr: Field + FftField, G1Affine: AffineRepr>
     pub(crate) fn flush_queue(&mut self) {
         self.work_items = vec![];
     }
-    pub(crate) fn add_to_queue(&mut self, work_item: WorkItem<Fr>) {
+    pub(crate) fn woradd_to_queue(&mut self, work_item: WorkItem<Fr>) {
         todo!("whole wasm thing")
     }
     pub(crate) fn process_queue(&self) {
