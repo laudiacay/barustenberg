@@ -7,7 +7,7 @@ use crate::plonk::proof_system::proving_key::ProvingKey;
 use crate::transcript::{BarretenHasher, Transcript};
 
 #[derive(PartialEq, Eq, Clone, Copy)]
-enum WorkType {
+pub(crate) enum WorkType {
     Fft,
     SmallFft,
     Ifft,
@@ -20,7 +20,7 @@ pub(crate) struct WorkItemInfo {
     num_iffts: usize,
 }
 
-struct WorkItem<Fr: Field> {
+pub(crate) struct WorkItem<Fr: Field> {
     work_type: WorkType,
     mul_scalars: Arc<Vec<Fr>>,
     tag: String,
@@ -170,7 +170,7 @@ impl<'a, H: BarretenHasher, Fr: Field + FftField, G1Affine: AffineRepr>
     pub(crate) fn flush_queue(&mut self) {
         self.work_items = vec![];
     }
-    fn add_to_queue(&mut self) {
+    pub(crate) fn add_to_queue(&mut self, work_item: WorkItem<Fr>) {
         todo!("whole wasm thing")
     }
     pub(crate) fn process_queue(&self) {

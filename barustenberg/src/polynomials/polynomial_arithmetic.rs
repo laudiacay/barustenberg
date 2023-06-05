@@ -39,7 +39,7 @@ fn copy_polynomial<Fr: Copy + Default>(
 
 use std::ops::{Add, Mul, Sub};
 
-use super::evaluation_domain::EvaluationDomain;
+use super::{evaluation_domain::EvaluationDomain, Polynomial};
 
 fn fft_inner_serial<Fr: Copy + Default + Add<Output = Fr> + Sub<Output = Fr> + Mul<Output = Fr>>(
     coeffs: &mut [Vec<Fr>],
@@ -433,9 +433,9 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
 
     // The remaining functions require you to create a version of `fft_inner_parallel` that accepts a Vec<&[T]> as the first parameter.
 
-    fn ifft_inplace(&self, coeffs: &mut [Fr]) {
+    pub(crate) fn ifft_inplace(&self, coeffs: &mut Polynomial<Fr>) {
         self.fft_inner_parallel_vec_inplace(
-            &mut [coeffs],
+            &mut [coeffs.get_mut_coefficients()],
             &self.root_inverse,
             self.get_inverse_round_roots(),
         );
@@ -560,4 +560,22 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
     fn coset_fft_with_generator_shift(&self, _coeffs: &mut [Fr], _constant: Fr) {
         unimplemented!()
     }
+}
+
+pub fn evaluate<F: Field>(coeffs: &[F], z: &F, n: usize) -> F {
+    todo!()
+}
+
+/// For L_1(X) = (X^{n} - 1 / (X - 1)) * (1 / n)
+/// Compute the size k*n-fft of L_1(X), where k is determined by the target domain (e.g. large_domain -> 4*n)
+/// We can use this to compute the k*n-fft evaluations of any L_i(X).
+/// We can consider `l_1_coefficients` to be a k*n-sized vector of the evaluations of L_1(X),
+/// for all X = k*n'th roots of unity.
+/// To compute the vector for the k*n-fft transform of L_i(X), we perform a (k*i)-left-shift of this vector
+pub(crate) fn compute_lagrange_polynomial_fft<Fr: Field + FftField>(
+    l_1_coefficients: &Polynomial<Fr>,
+    src_domain: EvaluationDomain<'_, Fr>,
+    target_domain: EvaluationDomain<'_, Fr>,
+) {
+    todo!("hiii")
 }

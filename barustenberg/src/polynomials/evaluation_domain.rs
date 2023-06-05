@@ -1,4 +1,4 @@
-use ark_ff::{FftField, Field, One};
+use ark_ff::{FftField, Field};
 
 use crate::numeric::bitop::Msb;
 use std::vec::Vec;

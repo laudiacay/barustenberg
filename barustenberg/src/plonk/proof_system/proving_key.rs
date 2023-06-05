@@ -24,9 +24,9 @@ pub(crate) struct ProvingKeyData<F: Field> {
     circuit_size: u32,
     num_public_inputs: u32,
     contains_recursive_proof: bool,
-    recursive_proof_public_input_indices: Vec<u32>,
-    memory_read_records: Vec<u32>,
-    memory_write_records: Vec<u32>,
+    recursive_proof_public_input_indices: Vec<usize>,
+    memory_read_records: Vec<usize>,
+    memory_write_records: Vec<usize>,
     polynomial_store: PolynomialStore<F>,
 }
 
@@ -36,11 +36,11 @@ pub(crate) struct ProvingKey<'a, Fr: Field + FftField, G1Affine: AffineRepr> {
     pub(crate) log_circuit_size: usize,
     pub(crate) num_public_inputs: usize,
     pub(crate) contains_recursive_proof: bool,
-    pub(crate) recursive_proof_public_input_indices: Vec<u32>,
+    pub(crate) recursive_proof_public_input_indices: Vec<usize>,
     /// Used by UltraComposer only; for ROM, RAM reads.
-    pub(crate) memory_read_records: Vec<u32>,
+    pub(crate) memory_read_records: Vec<usize>,
     /// Used by UltraComposer only, for RAM writes.
-    pub(crate) memory_write_records: Vec<u32>,
+    pub(crate) memory_write_records: Vec<usize>,
     pub(crate) polynomial_store: PolynomialStore<Fr>,
     pub(crate) small_domain: EvaluationDomain<'a, Fr>,
     pub(crate) large_domain: EvaluationDomain<'a, Fr>,

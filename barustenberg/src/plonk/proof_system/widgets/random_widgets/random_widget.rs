@@ -26,7 +26,7 @@ impl<'a, H: BarretenHasher, Fr: Field + FftField, G1Affine: AffineRepr>
         todo!("ProverRandomWidget::new")
     }
 
-    fn compute_round_commitments(
+    pub(crate) fn compute_round_commitments(
         &self,
         _transcript: &mut Transcript<H, Fr, G1Affine>,
         _size: usize,
