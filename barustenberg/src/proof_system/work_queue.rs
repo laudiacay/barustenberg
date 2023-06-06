@@ -256,15 +256,16 @@ impl<'a, H: BarretenHasher, Fr: Field + FftField, G1Affine: AffineRepr>
                  */
     }
     pub(crate) fn process_queue(&self) -> Result<()> {
+        let key = self.key.write().unwrap();
         for item in &self.work_items {
             match item.work_type {
                 WorkType::ScalarMultiplication => {
                     let msm_size =
                         usize::try_from(item.constant).expect("unable to convert constant to size");
 
-                    assert!(msm_size <= self.key.reference_string.get_monomial_size());
+                    assert!(msm_size <= key.reference_string.get_monomial_size());
 
-                    let srs_points = self.key.reference_string.get_monomial_points();
+                    let srs_points = key.reference_string.get_monomial_points();
 
                     let runtime_state =
                         barretenberg::scalar_multiplication::pippenger_runtime_state(msm_size);
@@ -278,16 +279,11 @@ impl<'a, H: BarretenHasher, Fr: Field + FftField, G1Affine: AffineRepr>
 
                     self.transcript
                         .write()?
-                        .add_element(&item.tag, result.to_buffer());
+                        .add_group_element(&item.tag, &result);
                 }
-                WorkType::SmallFFT => {
+                WorkType::SmallFft => {
                     let n = self.key.circuit_size;
-                    let mut wire = self
-                        .key
-                        .polynomial_store
-                        .get_mut(&item.tag)
-                        .unwrap()
-                        .clone();
+                    let mut wire = key.polynomial_store.get_mut(&item.tag).unwrap().clone();
 
                     wire.coset_fft_with_generator_shift(&self.key.small_domain, item.constant);
 
@@ -312,12 +308,7 @@ impl<'a, H: BarretenHasher, Fr: Field + FftField, G1Affine: AffineRepr>
                     }
                 }
                 WorkType::FFT => {
-                    let mut wire = self
-                        .key
-                        .polynomial_store
-                        .get_mut(&item.tag)
-                        .unwrap()
-                        .clone();
+                    key.polynomial_store.get_mut(&item.tag).unwrap().clone();
 
                     let mut wire_fft = wire.clone();
                     wire_fft.resize(4 * self.key.circuit_size + 4, 0);
@@ -332,8 +323,7 @@ impl<'a, H: BarretenHasher, Fr: Field + FftField, G1Affine: AffineRepr>
                         .insert(item.tag.clone() + "_fft", wire_fft);
                 }
                 WorkType::IFFT => {
-                    let wire_lagrange = self
-                        .key
+                    let wire_lagrange = key
                         .polynomial_store
                         .get_mut(&(item.tag.clone() + "_lagrange"))
                         .unwrap();
@@ -342,7 +332,7 @@ impl<'a, H: BarretenHasher, Fr: Field + FftField, G1Affine: AffineRepr>
                     polynomial_arithmetic::ifft(
                         &wire_lagrange,
                         &mut wire_monomial,
-                        &self.key.small_domain,
+                        &self.key.read().unwrap().small_domain,
                     );
                     self.key
                         .polynomial_store
