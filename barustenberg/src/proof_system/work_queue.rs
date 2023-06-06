@@ -108,7 +108,10 @@ impl<'a, H: BarretenHasher, Fr: Field + FftField, G1Affine: AffineRepr>
         0
     }
 
-    pub(crate) fn get_ifft_data(&self, work_item_number: usize) -> Result<Option<Arc<Vec<Fr>>>> {
+    pub(crate) fn get_ifft_data(
+        &self,
+        work_item_number: usize,
+    ) -> Result<Option<Arc<Polynomial<Fr>>>> {
         let mut count: usize = 0;
         for item in self.work_items.iter() {
             if item.work_type == WorkType::Ifft {
@@ -118,7 +121,7 @@ impl<'a, H: BarretenHasher, Fr: Field + FftField, G1Affine: AffineRepr>
                         self.key
                             .read()?
                             .polynomial_store
-                            .get(format!("{}_lagrange", item.tag)?.get_coefficients()),
+                            .get(format!("{}_lagrange", item.tag)?.get_coefficients())?,
                     ));
                     // barretenberg::polynomial& wire = key->polynomial_store.get(item.tag + "_lagrange");
                     // return wire.get_coefficients();
@@ -141,13 +144,10 @@ impl<'a, H: BarretenHasher, Fr: Field + FftField, G1Affine: AffineRepr>
         }
     }
 
-    pub(crate) fn get_fft_data(
-        &self,
-        _work_item_number: usize,
-    ) -> Option<Arc<QueuedFftInputs<Fr>>> {
+    pub(crate) fn get_fft_data(&self, work_item_number: usize) -> Option<Arc<QueuedFftInputs<Fr>>> {
         let mut count = 0;
         for item in &self.work_item_queue {
-            if let WorkType::SmallFFT = item.work_type {
+            if let WorkType::SmallFft = item.work_type {
                 if count == work_item_number {
                     let wire = self.key.polynomial_store.get(&item.tag).unwrap();
                     return QueuedFftInputs {
@@ -158,18 +158,18 @@ impl<'a, H: BarretenHasher, Fr: Field + FftField, G1Affine: AffineRepr>
                 count += 1;
             }
         }
-        QueuedFFTInputs {
+        QueuedFftInputs {
             coefficients: None,
-            power: Fr(0),
+            power: Fr::zero(),
         }
     }
 
     pub(crate) fn put_fft_data(&self, result: Vec<Fr>, work_item_number: usize) {
         let mut count = 0;
-        for item in &self.work_item_queue {
-            if let WorkType::SmallFFT = item.work_type {
+        for item in &self.work_items {
+            if let WorkType::SmallFft = item.work_type {
                 if count == work_item_number {
-                    let n = self.key.circuit_size;
+                    let n = self.key.read().unwrap().circuit_size;
                     let mut wire_fft = Polynomial::new(4 * n + 4);
 
                     for i in 0..n {
@@ -178,6 +178,8 @@ impl<'a, H: BarretenHasher, Fr: Field + FftField, G1Affine: AffineRepr>
                     wire_fft[4 * n + item.index] = result[0];
 
                     self.key
+                        .write()
+                        .unwrap()
                         .polynomial_store
                         .insert(format!("{}_fft", item.tag), wire_fft);
                     return;
@@ -189,16 +191,19 @@ impl<'a, H: BarretenHasher, Fr: Field + FftField, G1Affine: AffineRepr>
 
     pub(crate) fn put_scalar_multiplication_data(
         &self,
-        _result: G1Affine,
+        result: G1Affine,
         work_item_number: usize,
-    ) {
+    ) -> Result<()> {
         for (idx, item) in self.work_items.iter().enumerate() {
             if item.work_type == WorkType::ScalarMultiplication && idx == work_item_number {
-                todo!("do it");
-                //transcript->add_element(item.tag, result.to_buffer());
-                return;
+                self.transcript
+                    .write()
+                    .unwrap()
+                    .add_group_element(&item.tag, &result);
+                return Ok(());
             }
         }
+        Ok(())
     }
 
     pub(crate) fn flush_queue(&mut self) {
@@ -263,18 +268,17 @@ impl<'a, H: BarretenHasher, Fr: Field + FftField, G1Affine: AffineRepr>
 
                     let runtime_state =
                         barretenberg::scalar_multiplication::pippenger_runtime_state(msm_size);
-                    let result = barretenberg::g1::affine_element::new(
-                        barretenberg::scalar_multiplication::pippenger_unsafe(
+                    let result =
+                        G1Affine::from(barretenberg::scalar_multiplication::pippenger_unsafe(
                             &item.mul_scalars,
                             srs_points,
                             msm_size,
                             runtime_state,
-                        ),
-                    );
+                        ));
 
                     self.transcript
                         .write()?
-                        .add_element(item.tag, result.to_buffer());
+                        .add_element(&item.tag, result.to_buffer());
                 }
                 WorkType::SmallFFT => {
                     let n = self.key.circuit_size;

@@ -670,6 +670,12 @@ impl<H: BarretenHasher, Fr: Field, G1Affine: AffineRepr> Transcript<H, Fr, G1Aff
         Fr::serialize_uncompressed(element, &mut buf).unwrap();
         self.add_element(element_name, buf);
     }
+
+    pub(crate) fn add_group_element(&mut self, element_name: &str, element: &G1Affine) {
+        let mut buf = vec![0u8; G1Affine::serialized_size(element, ark_serialize::Compress::No)];
+        G1Affine::serialize_uncompressed(element, &mut buf).unwrap();
+        self.add_element(element_name, buf);
+    }
     pub(crate) fn get_field_element(&self, element_name: &str) -> Fr {
         let buf = self.get_element(element_name);
         Fr::deserialize_uncompressed(buf.as_slice()).unwrap()
