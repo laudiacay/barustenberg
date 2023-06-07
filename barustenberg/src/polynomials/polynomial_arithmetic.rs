@@ -445,7 +445,7 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
         // }
     }
 
-    fn ifft(&self, coeffs: &mut [Fr], target: &mut [Fr]) {
+    pub(crate) fn ifft(&self, coeffs: &mut [Fr], target: &mut [Fr]) {
         self.fft_inner_parallel(coeffs, target, &self.root_inverse, self.get_round_roots());
         // TODO parallelize me
         todo!("parallelize here")
@@ -548,16 +548,16 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
             }
         }
     }
-    fn coset_fft_inplace(&self, _coeffs: &mut [Fr]) {
+    pub(crate) fn coset_fft_inplace(&self, _coeffs: &mut [Fr]) {
         unimplemented!()
     }
     fn coset_fft_vec_inplace(&self, _coeffs: &mut [&mut [Fr]]) {
         unimplemented!()
     }
-    fn coset_fft(&self, _coeffs: &[Fr], _target: &mut [Fr]) {
+    pub(crate) fn coset_fft(&self, _coeffs: &[Fr], _target: &mut [Fr]) {
         unimplemented!()
     }
-    fn coset_fft_with_generator_shift(&self, _coeffs: &mut [Fr], _constant: Fr) {
+    pub(crate) fn coset_fft_with_generator_shift(&self, _coeffs: &mut [Fr], _constant: Fr) {
         unimplemented!()
     }
 }

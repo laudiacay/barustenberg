@@ -46,6 +46,10 @@ impl<F: Field> Polynomial<F> {
     pub(crate) fn get_mut_coefficients(&mut self) -> &mut [F] {
         self.coefficients.as_mut_slice()
     }
+    #[inline]
+    pub(crate) fn resize(&mut self, new_len: usize, val: F) {
+        self.coefficients.resize(new_len, val)
+    }
 }
 
 impl<F: Field> AddAssign for Polynomial<F> {

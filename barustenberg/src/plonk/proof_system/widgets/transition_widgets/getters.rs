@@ -129,7 +129,7 @@ pub(crate) trait BaseGetter<
         evaluation_type: EvaluationType,
         id: PolynomialIndex,
         index: Option<usize>,
-    ) -> &F;
+    ) -> F;
 }
 
 pub(crate) struct EvaluationGetterImpl<H, F, S, NWidgetRelations>
@@ -155,11 +155,11 @@ where
         evaluation_type: EvaluationType,
         id: PolynomialIndex,
         index: Option<usize>,
-    ) -> &F {
+    ) -> F {
         assert!(index.is_none());
         match evaluation_type {
-            EvaluationType::NonShifted => &polynomials[id].1,
-            EvaluationType::Shifted => &polynomials[id].0,
+            EvaluationType::NonShifted => polynomials[id].1,
+            EvaluationType::Shifted => polynomials[id].0,
         }
     }
 }
@@ -277,14 +277,15 @@ where
         evaluation_type: EvaluationType,
         id: PolynomialIndex,
         index: Option<usize>,
-    ) -> &F {
+    ) -> F {
         // TODO ew
         let index = index.unwrap();
+        let poly = &polynomials.coefficients.get(&id).unwrap().read().unwrap();
         if evaluation_type == EvaluationType::Shifted {
             let shifted_index = (index + polynomials.index_shift) & polynomials.block_mask;
-            &polynomials.coefficients.get(&id).unwrap()[shifted_index]
+            poly[shifted_index]
         } else {
-            &polynomials.coefficients.get(&id).unwrap()[index]
+            poly[index]
         }
     }
 }
@@ -328,7 +329,7 @@ pub(crate) trait FFTGetter<
         for info in key.polynomial_manifest.clone() {
             if required_polynomial_ids.get(&info.index).is_some() {
                 let label = info.polynomial_label.clone() + label_suffix;
-                let poly = key.polynomial_store.get(label).unwrap();
+                let poly = key.polynomial_store.get(&label).unwrap();
                 result.coefficients.insert(info.index, poly);
             }
         }

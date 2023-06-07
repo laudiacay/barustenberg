@@ -9,7 +9,7 @@ use super::{
 
 pub(crate) struct VerifierFileReferenceString<G2Affine: AffineRepr> {
     g2_x: G2Affine,
-    precomputed_g2_lines: Vec<MillerLines>,
+    precomputed_g2_lines: Arc<Vec<MillerLines>>,
 }
 
 impl<G2Affine: AffineRepr> VerifierFileReferenceString<G2Affine> {
@@ -35,8 +35,8 @@ impl<G2Affine: AffineRepr> VerifierReferenceString<G2Affine>
         self.g2_x
     }
 
-    fn get_precomputed_g2_lines(&self) -> &Vec<MillerLines> {
-        &self.precomputed_g2_lines
+    fn get_precomputed_g2_lines(&self) -> Arc<Vec<MillerLines>> {
+        self.precomputed_g2_lines.clone()
     }
 }
 
@@ -69,7 +69,7 @@ impl<G1Affine: AffineRepr> Default for FileReferenceString<G1Affine> {
 }
 
 impl<G1Affine: AffineRepr> ProverReferenceString<G1Affine> for FileReferenceString<G1Affine> {
-    fn get_monomial_points(&mut self) -> &Vec<G1Affine> {
+    fn get_monomial_points(&mut self) -> Arc<Vec<G1Affine>> {
         // Implementation depends on your project.
         todo!()
     }

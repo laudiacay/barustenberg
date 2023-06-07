@@ -5,13 +5,15 @@ use std::{
     collections::HashMap,
     fmt::{self, Display, Formatter},
     marker::PhantomData,
+    sync::{Arc, RwLock},
 };
 
 #[derive(Debug, Clone, Default)]
 pub(crate) struct PolynomialStore<Fr: Field> {
-    polynomial_map: HashMap<String, Polynomial<Fr>>,
+    polynomial_map: HashMap<String, Arc<RwLock<Polynomial<Fr>>>>,
     phantom: PhantomData<Fr>,
 }
+
 impl<Fr: Field> PolynomialStore<Fr> {
     pub(crate) fn new() -> Self {
         Self {
@@ -25,7 +27,7 @@ impl<Fr: Field> PolynomialStore<Fr> {
     /// # Arguments
     /// - `name` - string ID of the polynomial
     /// - `polynomial` - the polynomial to be stored
-    pub(crate) fn put(&mut self, name: String, polynomial: Polynomial<Fr>) {
+    pub(crate) fn put(&mut self, name: String, polynomial: Arc<RwLock<Polynomial<Fr>>>) {
         self.polynomial_map.insert(name, polynomial);
     }
 
@@ -37,11 +39,11 @@ impl<Fr: Field> PolynomialStore<Fr> {
     ///
     /// # Returns
     /// - `Result<Polynomial>` - a reference to the polynomial associated with the given key
-    pub(crate) fn get(&self, key: String) -> Result<Polynomial<Fr>> {
+    pub(crate) fn get(&self, key: &String) -> Result<Arc<RwLock<Polynomial<Fr>>>> {
         self.polynomial_map
-            .get(&key)
+            .get(key)
             .ok_or_else(|| anyhow!("didn't find polynomial..."))
-            .cloned()
+            .map(|a| a.clone())
     }
 
     /// Erase a polynomial from the PolynomialStore; will throw exception if the key does not exist
@@ -55,6 +57,8 @@ impl<Fr: Field> PolynomialStore<Fr> {
         self.polynomial_map
             .remove(&key)
             .ok_or_else(|| anyhow!("didn't find polynomial..."))
+            .map(|poly| poly.into_inner().map_err(|e| anyhow!(e)))?
+            .map_err(|e| anyhow!(e))
     }
 
     /// Get the current size (bytes) of all polynomials in the PolynomialStore
@@ -64,19 +68,23 @@ impl<Fr: Field> PolynomialStore<Fr> {
     fn get_size_in_bytes(&self) -> usize {
         let mut size_in_bytes: usize = 0;
         for (_, entry) in self.polynomial_map.iter() {
-            size_in_bytes += entry.size() * std::mem::size_of::<Fr>();
+            size_in_bytes += entry.read().unwrap().size() * std::mem::size_of::<Fr>();
         }
         size_in_bytes
     }
 
-    fn contains(&self, key: String) -> bool {
-        self.polynomial_map.contains_key(&key)
+    pub(crate) fn insert(&mut self, key: &String, poly: Polynomial<Fr>) {
+        self.polynomial_map
+            .insert(key.to_string(), Arc::new(RwLock::new(poly)));
+    }
+
+    fn contains(&self, key: &String) -> bool {
+        self.polynomial_map.contains_key(key)
     }
 
     fn len(&self) -> usize {
         self.polynomial_map.len()
     }
-
     // TODO: "allow for const range based for loop"
 }
 
@@ -85,7 +93,7 @@ impl<Fr: Field> Display for PolynomialStore<Fr> {
         let size_in_mb = (self.get_size_in_bytes() / 1_000_000) as f32;
         write!(f, "PolynomialStore contents total size: {} MB", size_in_mb)?;
         for (key, entry) in self.polynomial_map.iter() {
-            let entry_bytes = entry.size() * std::mem::size_of::<Fr>();
+            let entry_bytes = entry.read().unwrap().size() * std::mem::size_of::<Fr>();
             write!(
                 f,
                 "PolynomialStore: {} -> {} bytes, {:?}",

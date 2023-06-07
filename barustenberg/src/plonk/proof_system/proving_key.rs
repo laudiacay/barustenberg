@@ -48,7 +48,7 @@ pub(crate) struct ProvingKey<'a, Fr: Field + FftField, G1Affine: AffineRepr> {
     /// Monomial SRS: reference_string->get_monomial_points()
     pub(crate) reference_string: Arc<dyn ProverReferenceString<G1Affine>>,
     pub(crate) quotient_polynomial_parts: [Polynomial<Fr>; NUM_QUOTIENT_PARTS as usize],
-    pub(crate) pippenger_runtime_state: PippengerRuntimeState,
+    pub(crate) pippenger_runtime_state: PippengerRuntimeState<Fr, G1Affine>,
     pub(crate) polynomial_manifest: PolynomialManifest,
 }
 

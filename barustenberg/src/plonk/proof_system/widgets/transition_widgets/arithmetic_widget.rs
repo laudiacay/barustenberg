@@ -79,19 +79,19 @@ impl<H: BarretenHasher, F: Field, S: Settings<H>> KernelBase<H, S, F, U1>
 
         let shifted = false;
 
-        let w_1 = *G::get_value(
+        let w_1 = G::get_value(
             polynomials,
             EvaluationType::Shifted,
             PolynomialIndex::W1,
             Some(index),
         );
-        let w_2 = *G::get_value(
+        let w_2 = G::get_value(
             polynomials,
             EvaluationType::Shifted,
             PolynomialIndex::W2,
             Some(index),
         );
-        let w_3 = *G::get_value(
+        let w_3 = G::get_value(
             polynomials,
             EvaluationType::Shifted,
             PolynomialIndex::W3,

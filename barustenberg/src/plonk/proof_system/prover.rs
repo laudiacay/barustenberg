@@ -2,7 +2,7 @@ use std::{
     borrow::BorrowMut,
     fmt::format,
     marker::PhantomData,
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, RwLock},
 };
 
 use ark_ec::AffineRepr;
@@ -146,10 +146,12 @@ impl<
         };
         for i in 0..end {
             let wire_tag = format!("w_{}", i + 1);
-            let wire_lagrange = self
+            let mut wire_lagrange = self
                 .key
                 .polynomial_store
-                .get_mut(format!("{}_lagrange", wire_tag))?;
+                .get(&format!("{}_lagrange", wire_tag))?
+                .write()
+                .unwrap();
 
             /*
             Adding zero knowledge to the witness polynomials.
@@ -181,10 +183,6 @@ impl<
                     Fr::rand(&mut self.rng),
                 )
             }
-
-            self.key
-                .polynomial_store
-                .put(wire_tag + "_lagrange", wire_lagrange);
         }
 
         // perform an IFFT so that the "w_i" polynomial cache will contain the monomial form
@@ -264,14 +262,14 @@ impl<
             let w_4_lagrange = self
                 .key
                 .polynomial_store
-                .get(format!("{}_lagrange", wire_tag))?;
+                .get(&format!("{}_lagrange", wire_tag))?;
 
             // add randomness to w_4_lagrange
             let w_randomness = 3;
             ensure!(w_randomness < self.settings.num_roots_cut_out_of_vanishing_polynomial());
             for k in 0..w_randomness {
                 // Blinding
-                w_4_lagrange.set_coefficient(
+                w_4_lagrange.write().unwrap().set_coefficient(
                     self.circuit_size - self.settings.num_roots_cut_out_of_vanishing_polynomial()
                         + k,
                     Fr::rand(&mut self.rng),
@@ -279,19 +277,18 @@ impl<
             }
 
             // compute poly w_4 from w_4_lagrange and add it to the cache
-            let mut w_4 = w_4_lagrange.clone();
+            let mut w_4 = w_4_lagrange.read().unwrap().clone();
             self.key.small_domain.ifft_inplace(&mut w_4);
             self.key.polynomial_store.put(wire_tag.to_string(), w_4);
 
             // commit to w_4 using the monomial srs.
             self.queue.add_to_queue(WorkItem {
                 work_type: work_queue::WorkType::ScalarMultiplication,
-                mul_scalars: Some(Arc::new(
-                    self.key
-                        .polynomial_store
-                        .get(wire_tag.to_string())?
-                        .get_coefficients(),
-                )),
+                mul_scalars: self
+                    .key
+                    .polynomial_store
+                    .get(&wire_tag.to_string())?
+                    .clone(),
                 tag: "W_4".to_owned(),
                 constant: Fr::from((self.key.circuit_size + 1) as u64),
                 index: 0,
@@ -502,7 +499,13 @@ impl<
         for i in 0..end {
             let wire_tag = format!("w_{}", i + 1);
             let commit_tag = format!("W_{}", i + 1);
-            let mut coefficients = self.key.polynomial_store.get(wire_tag)?.get_coefficients();
+            let mut coefficients = self
+                .key
+                .polynomial_store
+                .get(&wire_tag)?
+                .read()
+                .unwrap()
+                .get_coefficients();
 
             // This automatically saves the computed point to the transcript
             let domain_size_flag = if i > 2 {
@@ -519,7 +522,12 @@ impl<
         }
 
         // add public inputs
-        let public_wires_source = self.key.polynomial_store.get("w_2_lagrange".to_string())?;
+        let public_wires_source = self
+            .key
+            .polynomial_store
+            .get(&"w_2_lagrange".to_string())?
+            .read()
+            .unwrap();
         let mut public_wires = vec![];
         for i in 0..self.key.num_public_inputs {
             public_wires.push(public_wires_source[i]);
@@ -605,22 +613,30 @@ impl<
         let w_1 = self
             .key
             .polynomial_store
-            .get("w_1_lagrange".to_string())
+            .get(&"w_1_lagrange".to_string())
+            .unwrap()
+            .read()
             .unwrap();
         let w_2 = self
             .key
             .polynomial_store
-            .get("w_2_lagrange".to_string())
+            .get(&"w_2_lagrange".to_string())
+            .unwrap()
+            .read()
             .unwrap();
         let w_3 = self
             .key
             .polynomial_store
-            .get("w_3_lagrange".to_string())
+            .get(&"w_3_lagrange".to_string())
+            .unwrap()
+            .read()
             .unwrap();
         let mut w_4 = self
             .key
             .polynomial_store
-            .get("w_4_lagrange".to_string())
+            .get(&"w_4_lagrange".to_string())
+            .unwrap()
+            .write()
             .unwrap();
         for gate_idx in self.key.memory_read_records {
             w_4[gate_idx] += w_3[gate_idx];
@@ -779,10 +795,13 @@ impl<
     fn get_scalar_multiplication_size(&self, work_item_number: usize) -> usize {
         self.queue.get_scalar_multiplication_size(work_item_number)
     }
-    fn get_ifft_data(&self, work_item_number: usize) -> Option<Arc<Vec<Fr>>> {
+    fn get_ifft_data(
+        &self,
+        work_item_number: usize,
+    ) -> Result<Option<Arc<RwLock<Polynomial<Fr>>>>> {
         self.queue.get_ifft_data(work_item_number)
     }
-    fn get_fft_data(&self, work_item_number: usize) -> Option<Arc<QueuedFftInputs<Fr>>> {
+    fn get_fft_data(&self, work_item_number: usize) -> Option<QueuedFftInputs<Fr>> {
         self.queue.get_fft_data(work_item_number)
     }
     fn put_scalar_multiplication_data(&self, result: G1Affine, work_item_number: usize) {
