@@ -1,9 +1,4 @@
-use std::{
-    borrow::BorrowMut,
-    fmt::format,
-    marker::PhantomData,
-    sync::{Arc, Mutex, RwLock},
-};
+use std::{marker::PhantomData, rc::Rc};
 
 use ark_ec::AffineRepr;
 use ark_ff::{FftField, Field};
@@ -22,7 +17,7 @@ use typenum::Unsigned;
 
 use crate::{
     polynomials::{polynomial_arithmetic, Polynomial},
-    proof_system::work_queue::{self, QueuedFftInputs, WorkItem},
+    proof_system::work_queue::{self, WorkItem},
     transcript::{BarretenHasher, Manifest, Transcript},
 };
 
@@ -42,8 +37,8 @@ pub(crate) struct Prover<
     CS: CommitmentScheme<Fq, Fr, G1Affine, H>,
 > {
     pub(crate) circuit_size: usize,
-    pub(crate) transcript: Arc<Transcript<H, Fr, G1Affine>>,
-    pub(crate) key: Arc<ProvingKey<'a, Fr, G1Affine>>,
+    pub(crate) transcript: Rc<Transcript<H, Fr, G1Affine>>,
+    pub(crate) key: Rc<ProvingKey<'a, Fr, G1Affine>>,
     pub(crate) queue: WorkQueue<'a, H, Fr, G1Affine>,
     pub(crate) random_widgets: Vec<ProverRandomWidget<'a, H, Fr, G1Affine>>,
     pub(crate) transition_widgets: Vec<dyn TransitionWidget<'a, H, Fr, G1Affine, S, U1, IDK>>,
@@ -63,22 +58,19 @@ impl<
     > Prover<'a, Fq, Fr, G1Affine, H, S, KateCommitmentScheme<H, S>>
 {
     pub(crate) fn new(
-        input_key: Option<Arc<ProvingKey<'a, Fr, G1Affine>>>,
+        input_key: Option<ProvingKey<'a, Fr, G1Affine>>,
         input_manifest: Option<Manifest>,
         input_settings: Option<S>,
     ) -> Self {
         let circuit_size = input_key.as_ref().map_or(0, |key| key.circuit_size);
-        let transcript = Arc::new(Transcript::new(input_manifest, H::PrngOutputSize::USIZE));
-        let queue = WorkQueue::new(
-            input_key.as_ref().map(|a| a.clone()),
-            Some(transcript.clone()),
-        );
+        let transcript = Rc::new(Transcript::new(input_manifest, H::PrngOutputSize::USIZE));
+        let queue = WorkQueue::new(input_key, Some(transcript));
         let settings = input_settings.unwrap_or_default();
 
         Self {
             circuit_size,
             transcript,
-            key: input_key.unwrap_or_else(|| Arc::new(ProvingKey::default())),
+            key: input_key.unwrap_or_default().into(),
             queue,
             random_widgets: Vec::new(),
             transition_widgets: Vec::new(),
@@ -111,7 +103,7 @@ impl<
     /// and after they are in monomial form. This is an inconsistency that can mislead developers.
     /// Parameters:
     /// - `settings` Program settings.
-    fn execute_preamble_round(&self) -> Result<()> {
+    fn execute_preamble_round(&mut self) -> Result<()> {
         self.queue.flush_queue();
 
         self.transcript.add_element(
@@ -149,9 +141,7 @@ impl<
             let mut wire_lagrange = self
                 .key
                 .polynomial_store
-                .get(&format!("{}_lagrange", wire_tag))?
-                .write()
-                .unwrap();
+                .get(&format!("{}_lagrange", wire_tag))?;
 
             /*
             Adding zero knowledge to the witness polynomials.
@@ -262,14 +252,15 @@ impl<
             let w_4_lagrange = self
                 .key
                 .polynomial_store
-                .get(&format!("{}_lagrange", wire_tag))?;
+                .get(&format!("{}_lagrange", wire_tag))
+                .unwrap();
 
             // add randomness to w_4_lagrange
             let w_randomness = 3;
             ensure!(w_randomness < self.settings.num_roots_cut_out_of_vanishing_polynomial());
             for k in 0..w_randomness {
                 // Blinding
-                w_4_lagrange.write().unwrap().set_coefficient(
+                w_4_lagrange.set_coefficient(
                     self.circuit_size - self.settings.num_roots_cut_out_of_vanishing_polynomial()
                         + k,
                     Fr::rand(&mut self.rng),
@@ -277,18 +268,14 @@ impl<
             }
 
             // compute poly w_4 from w_4_lagrange and add it to the cache
-            let mut w_4 = w_4_lagrange.read().unwrap().clone();
+            let mut w_4 = w_4_lagrange.clone();
             self.key.small_domain.ifft_inplace(&mut w_4);
             self.key.polynomial_store.put(wire_tag.to_string(), w_4);
 
             // commit to w_4 using the monomial srs.
             self.queue.add_to_queue(WorkItem {
                 work_type: work_queue::WorkType::ScalarMultiplication,
-                mul_scalars: self
-                    .key
-                    .polynomial_store
-                    .get(&wire_tag.to_string())?
-                    .clone(),
+                mul_scalars: Some(self.key.polynomial_store.get(&wire_tag.to_string())?),
                 tag: "W_4".to_owned(),
                 constant: Fr::from((self.key.circuit_size + 1) as u64),
                 index: 0,
@@ -499,13 +486,7 @@ impl<
         for i in 0..end {
             let wire_tag = format!("w_{}", i + 1);
             let commit_tag = format!("W_{}", i + 1);
-            let mut coefficients = self
-                .key
-                .polynomial_store
-                .get(&wire_tag)?
-                .read()
-                .unwrap()
-                .get_coefficients();
+            let coefficients = self.key.polynomial_store.get(&wire_tag)?;
 
             // This automatically saves the computed point to the transcript
             let domain_size_flag = if i > 2 {
@@ -514,7 +495,7 @@ impl<
                 self.key.circuit_size + 1
             };
             self.commitment_scheme.commit(
-                &mut coefficients,
+                coefficients,
                 commit_tag,
                 Fr::from(domain_size_flag as u64),
                 &mut self.queue,
@@ -522,12 +503,7 @@ impl<
         }
 
         // add public inputs
-        let public_wires_source = self
-            .key
-            .polynomial_store
-            .get(&"w_2_lagrange".to_string())?
-            .read()
-            .unwrap();
+        let public_wires_source = self.key.polynomial_store.get(&"w_2_lagrange".to_string())?;
         let mut public_wires = vec![];
         for i in 0..self.key.num_public_inputs {
             public_wires.push(public_wires_source[i]);
@@ -577,7 +553,7 @@ impl<
     ///
     fn compute_quotient_commitments(&self) {
         for i in 0..self.settings.program_width() {
-            let coefficients = self.key.quotient_polynomial_parts[i].get_coefficients();
+            let coefficients = self.key.quotient_polynomial_parts[i];
             let quotient_tag = format!("T_{}", i + 1);
             // Set flag that determines domain size (currently n or n+1) in pippenger (see process_queue()).
             // Note: After blinding, all t_i have size n+1 representation (degree n) except t_4 in Turbo/Ultra.
@@ -588,7 +564,7 @@ impl<
             };
             // TODO concerned about the fr::from on domain_size_flag. this may not be correct. bberg just uses equivalent of std::mem::transmute
             self.commitment_scheme.commit(
-                &mut coefficients,
+                coefficients,
                 quotient_tag,
                 Fr::from(domain_size_flag as u64),
                 &mut self.queue,
@@ -614,29 +590,21 @@ impl<
             .key
             .polynomial_store
             .get(&"w_1_lagrange".to_string())
-            .unwrap()
-            .read()
             .unwrap();
         let w_2 = self
             .key
             .polynomial_store
             .get(&"w_2_lagrange".to_string())
-            .unwrap()
-            .read()
             .unwrap();
         let w_3 = self
             .key
             .polynomial_store
             .get(&"w_3_lagrange".to_string())
-            .unwrap()
-            .read()
             .unwrap();
         let mut w_4 = self
             .key
             .polynomial_store
             .get(&"w_4_lagrange".to_string())
-            .unwrap()
-            .write()
             .unwrap();
         for gate_idx in self.key.memory_read_records {
             w_4[gate_idx] += w_3[gate_idx];
@@ -655,9 +623,6 @@ impl<
             w_4[gate_idx] *= eta;
             w_4[gate_idx] += Fr::one();
         }
-        self.key
-            .polynomial_store
-            .put("w_4_lagrange".to_string(), w_4);
         Ok(())
     }
 
@@ -665,11 +630,7 @@ impl<
         let zeta = self.transcript.get_field_element("zeta");
 
         self.commitment_scheme
-            .add_opening_evaluations_to_transcript(
-                self.transcript.borrow_mut(),
-                Some(self.key),
-                false,
-            );
+            .add_opening_evaluations_to_transcript(&mut self.transcript, Some(self.key), false);
 
         let mut t_eval = polynomial_arithmetic::evaluate(
             &[
@@ -739,7 +700,7 @@ impl<
         }
         self.key
             .polynomial_store
-            .put("lagrange_1_fft".to_string(), lagrange_1_fft);
+            .put("lagrange_1_fft".to_string(), Rc::new(lagrange_1_fft));
     }
 
     fn export_proof(&self) -> Proof {
@@ -783,40 +744,9 @@ impl<
     fn get_circuit_size(&self) -> usize {
         todo!("implement me")
     }
-    fn flush_queued_work_items(&mut self) {
-        self.queue.flush_queue()
-    }
-    fn get_queued_work_item_info(&self) -> work_queue::WorkItemInfo {
-        self.queue.get_queued_work_item_info()
-    }
-    fn get_scalar_multiplication_data(&self, work_item_number: usize) -> Option<Arc<Vec<Fr>>> {
-        self.queue.get_scalar_multiplication_data(work_item_number)
-    }
-    fn get_scalar_multiplication_size(&self, work_item_number: usize) -> usize {
-        self.queue.get_scalar_multiplication_size(work_item_number)
-    }
-    fn get_ifft_data(
-        &self,
-        work_item_number: usize,
-    ) -> Result<Option<Arc<RwLock<Polynomial<Fr>>>>> {
-        self.queue.get_ifft_data(work_item_number)
-    }
-    fn get_fft_data(&self, work_item_number: usize) -> Option<QueuedFftInputs<Fr>> {
-        self.queue.get_fft_data(work_item_number)
-    }
-    fn put_scalar_multiplication_data(&self, result: G1Affine, work_item_number: usize) {
-        self.queue
-            .put_scalar_multiplication_data(result, work_item_number);
-    }
-    fn put_fft_data(&self, result: Vec<Fr>, work_item_number: usize) {
-        self.queue.put_fft_data(result, work_item_number);
-    }
-    fn put_ifft_data(&self, result: Vec<Fr>, work_item_number: usize) {
-        self.queue.put_ifft_data(result, work_item_number);
-    }
     fn reset(&mut self) {
         let manifest = self.transcript.get_manifest();
-        self.transcript = Arc::new(Transcript::<H, Fr, G1Affine>::new(
+        self.transcript = Rc::new(Transcript::<H, Fr, G1Affine>::new(
             Some(manifest),
             self.transcript.num_challenge_bytes,
         ));

@@ -1,12 +1,12 @@
 use std::collections::HashMap;
 use std::marker::PhantomData;
+use std::rc::Rc;
 use std::sync::Arc;
 
 use ark_ec::AffineRepr;
 use ark_ff::{FftField, Field};
-use ff::BatchInverter;
 
-use crate::polynomials::polynomial_arithmetic;
+use crate::polynomials::{polynomial_arithmetic, Polynomial};
 use crate::proof_system::work_queue::{WorkItem, WorkQueue, WorkType};
 use crate::transcript::{BarretenHasher, Transcript};
 
@@ -24,7 +24,7 @@ pub(crate) trait CommitmentScheme<
 {
     fn commit<'a>(
         &mut self,
-        coefficients: &mut [Fr],
+        coefficients: Rc<Polynomial<'a, Fr>>,
         tag: String,
         item_constant: Fr,
         queue: &mut WorkQueue<'a, H, Fr, G1Affine>,
@@ -33,9 +33,9 @@ pub(crate) trait CommitmentScheme<
     fn compute_opening_polynomial(&self, src: &[Fr], dest: &mut [Fr], z: &Fr, n: usize);
 
     fn generic_batch_open<'a>(
-        &self,
+        &mut self,
         src: &[Fr],
-        dest: &mut [Fr],
+        dest: Rc<Polynomial<'a, Fr>>,
         num_polynomials: usize,
         z_points: &[Fr],
         num_z_points: usize,
@@ -64,7 +64,7 @@ pub(crate) trait CommitmentScheme<
     fn add_opening_evaluations_to_transcript<'a>(
         &self,
         transcript: &mut Transcript<H, Fr, G1Affine>,
-        input_key: Option<Arc<ProvingKey<'a, Fr, G1Affine>>>,
+        input_key: Option<Rc<ProvingKey<'a, Fr, G1Affine>>>,
         in_lagrange_form: bool,
     );
 }
@@ -80,14 +80,14 @@ impl<Fq: Field, Fr: Field + FftField, G1Affine: AffineRepr, H: BarretenHasher, S
 {
     fn commit<'a>(
         &mut self,
-        coefficients: &mut [Fr],
+        coefficients: Rc<Polynomial<'a, Fr>>,
         tag: String,
         item_constant: Fr,
         queue: &mut WorkQueue<'a, H, Fr, G1Affine>,
     ) {
         queue.add_to_queue(WorkItem {
             work_type: WorkType::ScalarMultiplication,
-            mul_scalars: coefficients,
+            mul_scalars: Some(coefficients),
             tag,
             constant: item_constant,
             index: 0,
@@ -97,7 +97,7 @@ impl<Fq: Field, Fr: Field + FftField, G1Affine: AffineRepr, H: BarretenHasher, S
     fn add_opening_evaluations_to_transcript(
         &self,
         _transcript: &mut Transcript<H, Fr, G1Affine>,
-        _input_key: Option<Arc<ProvingKey<'_, Fr, G1Affine>>>,
+        _input_key: Option<Rc<ProvingKey<'_, Fr, G1Affine>>>,
         _in_lagrange_form: bool,
     ) {
         todo!()
@@ -108,9 +108,9 @@ impl<Fq: Field, Fr: Field + FftField, G1Affine: AffineRepr, H: BarretenHasher, S
     }
 
     fn generic_batch_open<'a>(
-        &self,
+        &mut self,
         src: &[Fr],
-        dest: &mut [Fr],
+        dest: Rc<Polynomial<'a, Fr>>,
         num_polynomials: usize,
         z_points: &[Fr],
         num_z_points: usize,
@@ -182,7 +182,13 @@ impl<Fq: Field, Fr: Field + FftField, G1Affine: AffineRepr, H: BarretenHasher, S
             }
 
             // commit to the i-th opened polynomial
-            self.commit(&mut dest[dest_offset..], tags[i], item_constants[i], queue);
+            <KateCommitmentScheme<H, S> as CommitmentScheme<Fq, Fr, G1Affine, H>>::commit(
+                self,
+                dest,
+                tags[i],
+                item_constants[i],
+                queue,
+            );
         }
     }
 

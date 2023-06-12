@@ -106,11 +106,11 @@ pub(crate) trait TransitionWidget<
         for i in 0..key.large_domain.size {
             let mut linear_terms = CoefficientArray::default();
             KB::compute_linear_terms::<
-                PolyPtrMap<F>,
+                PolyPtrMap<'a, F>,
                 FFTGetterImpl<H, F, G1Affine, S, NIndependentRelations>,
             >(&polynomials, &challenges, &mut linear_terms, Some(i));
             let sum_of_linear_terms = KB::sum_linear_terms::<
-                PolyPtrMap<F>,
+                PolyPtrMap<'a, F>,
                 FFTGetterImpl<H, F, G1Affine, S, NIndependentRelations>,
             >(&polynomials, &challenges, &linear_terms, i);
 
@@ -118,7 +118,7 @@ pub(crate) trait TransitionWidget<
                 [i & (key.circuit_size - 1)];
             quotient_term += sum_of_linear_terms;
             KB::compute_non_linear_terms::<
-                PolyPtrMap<F>,
+                PolyPtrMap<'a, F>,
                 FFTGetterImpl<H, F, G1Affine, S, NIndependentRelations>,
             >(&polynomials, &challenges, &mut quotient_term, i);
         }

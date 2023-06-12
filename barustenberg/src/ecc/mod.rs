@@ -39,7 +39,7 @@ impl<Fr: Field, G1Affine: AffineRepr> PippengerRuntimeState<Fr, G1Affine> {
     }
     pub(crate) fn pippenger_unsafe(
         &mut self,
-        mul_scalars: &Vec<Fr>,
+        mul_scalars: &mut [Fr],
         srs_points: Vec<G1Affine>,
         msm_size: usize,
     ) -> G1Affine {

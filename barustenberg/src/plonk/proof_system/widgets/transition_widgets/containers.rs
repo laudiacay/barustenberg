@@ -2,7 +2,7 @@ use generic_array::GenericArray;
 use once_cell::sync::Lazy;
 use std::{
     ops::{Index, IndexMut},
-    sync::{Arc, RwLock},
+    rc::Rc,
 };
 use typenum::Unsigned;
 
@@ -73,13 +73,13 @@ impl<F: Field> Default for PolyArray<F> {
 
 impl<F: Field> PolyContainer<F> for PolyArray<F> {}
 
-pub(crate) struct PolyPtrMap<F: Field> {
-    pub(crate) coefficients: HashMap<PolynomialIndex, Arc<RwLock<Polynomial<F>>>>,
+pub(crate) struct PolyPtrMap<'a, F: Field> {
+    pub(crate) coefficients: HashMap<PolynomialIndex, Rc<Polynomial<'a, F>>>,
     pub(crate) block_mask: usize,
     pub(crate) index_shift: usize,
 }
 
-impl<F: Field> PolyPtrMap<F> {
+impl<'a, F: Field> PolyPtrMap<'a, F> {
     pub(crate) fn new() -> Self {
         Self {
             coefficients: HashMap::new(),
@@ -89,10 +89,10 @@ impl<F: Field> PolyPtrMap<F> {
     }
 }
 
-impl<F: Field> PolyContainer<F> for PolyPtrMap<F> {}
+impl<'a, F: Field> PolyContainer<F> for PolyPtrMap<'a, F> {}
 
-impl<F: Field> Index<PolynomialIndex> for PolyPtrMap<F> {
-    type Output = Arc<RwLock<Polynomial<F>>>;
+impl<'a, F: Field> Index<PolynomialIndex> for PolyPtrMap<'a, F> {
+    type Output = Rc<Polynomial<'a, F>>;
     fn index(&self, index: PolynomialIndex) -> &Self::Output {
         &self.coefficients[&index]
     }

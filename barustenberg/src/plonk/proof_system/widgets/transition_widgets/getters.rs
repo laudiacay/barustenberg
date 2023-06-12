@@ -263,7 +263,8 @@ where
     phantom: PhantomData<(F, H, S, G1Affine, NWidgetRelations)>,
 }
 
-impl<'a, H, F, G1Affine, S, NWidgetRelations> BaseGetter<H, F, S, PolyPtrMap<F>, NWidgetRelations>
+impl<'a, H, F, G1Affine, S, NWidgetRelations>
+    BaseGetter<H, F, S, PolyPtrMap<'a, F>, NWidgetRelations>
     for FFTGetterImpl<H, F, G1Affine, S, NWidgetRelations>
 where
     F: Field + FftField,
@@ -273,14 +274,14 @@ where
     NWidgetRelations: generic_array::ArrayLength<F>,
 {
     fn get_value(
-        polynomials: &PolyPtrMap<F>,
+        polynomials: &PolyPtrMap<'a, F>,
         evaluation_type: EvaluationType,
         id: PolynomialIndex,
         index: Option<usize>,
     ) -> F {
         // TODO ew
         let index = index.unwrap();
-        let poly = &polynomials.coefficients.get(&id).unwrap().read().unwrap();
+        let poly = &polynomials.coefficients.get(&id).unwrap();
         if evaluation_type == EvaluationType::Shifted {
             let shifted_index = (index + polynomials.index_shift) & polynomials.block_mask;
             poly[shifted_index]
@@ -310,7 +311,7 @@ pub(crate) trait FFTGetter<
     G1Affine: AffineRepr,
     S,
     NWidgetRelations: generic_array::ArrayLength<F>,
->: BaseGetter<H, F, S, PolyPtrMap<F>, NWidgetRelations> where
+>: BaseGetter<H, F, S, PolyPtrMap<'a, F>, NWidgetRelations> where
     F: Field + FftField,
     H: BarretenHasher,
     S: Settings<H>,
@@ -318,7 +319,7 @@ pub(crate) trait FFTGetter<
     fn get_polynomials(
         key: &ProvingKey<'a, F, G1Affine>,
         required_polynomial_ids: &HashSet<PolynomialIndex>,
-    ) -> PolyPtrMap<F> {
+    ) -> PolyPtrMap<'a, F> {
         let mut result = PolyPtrMap::new();
         let label_suffix = "_fft";
 

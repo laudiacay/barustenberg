@@ -37,6 +37,7 @@ thiserror = "1.0"
 tracing = "0.1"
 typenum = "1.13"
 ff = {version = "0.13.0", features = ["alloc"]}
+either = "1.8.1"
 
 [dev-dependencies]
 proptest = "1.1"
