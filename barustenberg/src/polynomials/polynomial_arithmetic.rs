@@ -433,7 +433,7 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
 
     // The remaining functions require you to create a version of `fft_inner_parallel` that accepts a Vec<&[T]> as the first parameter.
 
-    pub(crate) fn ifft_inplace(&self, coeffs: &mut Polynomial<Fr>) {
+    pub(crate) fn ifft_inplace(&self, coeffs: &mut Polynomial<'a, Fr>) {
         self.fft_inner_parallel_vec_inplace(
             &mut [coeffs.get_mut_coefficients()],
             &self.root_inverse,
@@ -445,7 +445,7 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
         // }
     }
 
-    fn ifft(&self, coeffs: &mut [Fr], target: &mut [Fr]) {
+    pub(crate) fn ifft(&self, coeffs: &mut [Fr], target: &mut [Fr]) {
         self.fft_inner_parallel(coeffs, target, &self.root_inverse, self.get_round_roots());
         // TODO parallelize me
         todo!("parallelize here")
@@ -548,16 +548,16 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
             }
         }
     }
-    fn coset_fft_inplace(&self, _coeffs: &mut [Fr]) {
+    pub(crate) fn coset_fft_inplace(&self, _coeffs: &mut [Fr]) {
         unimplemented!()
     }
     fn coset_fft_vec_inplace(&self, _coeffs: &mut [&mut [Fr]]) {
         unimplemented!()
     }
-    fn coset_fft(&self, _coeffs: &[Fr], _target: &mut [Fr]) {
+    pub(crate) fn coset_fft(&self, _coeffs: &[Fr], _target: &mut [Fr]) {
         unimplemented!()
     }
-    fn coset_fft_with_generator_shift(&self, _coeffs: &mut [Fr], _constant: Fr) {
+    pub(crate) fn coset_fft_with_generator_shift(&self, _coeffs: &mut [Fr], _constant: Fr) {
         unimplemented!()
     }
 }
@@ -572,10 +572,10 @@ pub fn evaluate<F: Field>(coeffs: &[F], z: &F, n: usize) -> F {
 /// We can consider `l_1_coefficients` to be a k*n-sized vector of the evaluations of L_1(X),
 /// for all X = k*n'th roots of unity.
 /// To compute the vector for the k*n-fft transform of L_i(X), we perform a (k*i)-left-shift of this vector
-pub(crate) fn compute_lagrange_polynomial_fft<Fr: Field + FftField>(
-    l_1_coefficients: &Polynomial<Fr>,
-    src_domain: EvaluationDomain<'_, Fr>,
-    target_domain: EvaluationDomain<'_, Fr>,
+pub(crate) fn compute_lagrange_polynomial_fft<'a, Fr: Field + FftField>(
+    l_1_coefficients: &Polynomial<'a, Fr>,
+    src_domain: EvaluationDomain<'a, Fr>,
+    target_domain: EvaluationDomain<'a, Fr>,
 ) {
     todo!("hiii")
 }

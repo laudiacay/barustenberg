@@ -35,6 +35,7 @@ pub(crate) mod transcript;
 // there are some things that should be parallel that aren't. do a pass.
 // pon de inlining
 // audit how str versus String is used around the library. probably should have static strings.
+// audit where rwlocks are used and where arcs are used?
 
 /// Test utilities.
 #[cfg(any(test, feature = "test_utils"))]

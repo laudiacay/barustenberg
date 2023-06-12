@@ -8,11 +8,11 @@ pub(crate) struct MillerLines {}
 
 pub(crate) trait VerifierReferenceString<G2Affine: AffineRepr> {
     fn get_g2x(&self) -> G2Affine;
-    fn get_precomputed_g2_lines(&self) -> &Vec<MillerLines>;
+    fn get_precomputed_g2_lines(&self) -> Arc<Vec<MillerLines>>;
 }
 
 pub(crate) trait ProverReferenceString<G1Affine: AffineRepr> {
-    fn get_monomial_points(&mut self) -> &Vec<G1Affine>;
+    fn get_monomial_points(&mut self) -> Arc<Vec<G1Affine>>;
     fn get_monomial_size(&self) -> usize;
 }
 pub(crate) trait ReferenceStringFactory<G1Affine: AffineRepr, G2Affine: AffineRepr> {

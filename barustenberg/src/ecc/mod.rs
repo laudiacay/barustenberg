@@ -1,4 +1,8 @@
+use std::marker::PhantomData;
+
 use ark_bn254::{Fq12, G1Affine};
+use ark_ec::AffineRepr;
+use ark_ff::Field;
 
 // TODO todo - stubs to get the compiler to cooperate.
 pub(crate) mod curves;
@@ -25,4 +29,20 @@ pub(crate) fn reduced_ate_pairing_batch_precomputed(
 }
 
 #[derive(Clone, Default)]
-pub(crate) struct PippengerRuntimeState {}
+pub(crate) struct PippengerRuntimeState<Fr: Field, G1Affine: AffineRepr> {
+    phantom: PhantomData<(Fr, G1Affine)>,
+}
+
+impl<Fr: Field, G1Affine: AffineRepr> PippengerRuntimeState<Fr, G1Affine> {
+    pub(crate) fn new(size: usize) -> Self {
+        todo!()
+    }
+    pub(crate) fn pippenger_unsafe(
+        &mut self,
+        mul_scalars: &mut [Fr],
+        srs_points: Vec<G1Affine>,
+        msm_size: usize,
+    ) -> G1Affine {
+        todo!()
+    }
+}

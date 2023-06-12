@@ -37,7 +37,7 @@ impl<G1Affine: AffineRepr> ProverReferenceString<G1Affine> for PippengerReferenc
         todo!()
     }
 
-    fn get_monomial_points(&mut self) -> &Vec<G1Affine> {
+    fn get_monomial_points(&mut self) -> Arc<Vec<G1Affine>> {
         todo!()
     }
 }
