@@ -7,7 +7,7 @@ use ark_ec::AffineRepr;
 use ark_ff::{FftField, Field};
 
 use crate::polynomials::{polynomial_arithmetic, Polynomial};
-use crate::proof_system::work_queue::{WorkItem, WorkQueue, WorkType};
+use crate::proof_system::work_queue::{Work, WorkItem, WorkQueue};
 use crate::transcript::{BarretenHasher, Transcript};
 
 use super::proving_key::ProvingKey;
@@ -86,11 +86,11 @@ impl<Fq: Field, Fr: Field + FftField, G1Affine: AffineRepr, H: BarretenHasher, S
         queue: &mut WorkQueue<'a, H, Fr, G1Affine>,
     ) {
         queue.add_to_queue(WorkItem {
-            work_type: WorkType::ScalarMultiplication,
-            mul_scalars: Some(coefficients),
+            work: Work::ScalarMultiplication {
+                mul_scalars: coefficients,
+                constant: item_constant,
+            },
             tag,
-            constant: item_constant,
-            index: 0,
         })
     }
 

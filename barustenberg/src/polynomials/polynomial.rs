@@ -6,7 +6,7 @@ use std::{
 use anyhow::{anyhow, Result};
 use ark_ff::Field;
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(crate) struct Polynomial<'a, F: Field> {
     size: usize,
     coefficients: &'a [F],

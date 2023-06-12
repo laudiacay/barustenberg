@@ -185,6 +185,7 @@ dependencies = [
  "generic-array",
  "grumpkin",
  "lazy_static",
+ "num-bigint",
  "num_cpus",
  "once_cell",
  "primitive-types",

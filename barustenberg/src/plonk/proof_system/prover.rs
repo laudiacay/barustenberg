@@ -179,11 +179,8 @@ impl<
         for i in 0..end {
             let wire_tag = format!("w_{}", i + 1);
             self.queue.add_to_queue(WorkItem {
-                work_type: work_queue::WorkType::Ifft,
-                mul_scalars: None,
+                work: work_queue::Work::Ifft,
                 tag: wire_tag,
-                constant: Fr::zero(),
-                index: 0,
             });
         }
         Ok(())
@@ -274,11 +271,11 @@ impl<
 
             // commit to w_4 using the monomial srs.
             self.queue.add_to_queue(WorkItem {
-                work_type: work_queue::WorkType::ScalarMultiplication,
-                mul_scalars: Some(self.key.polynomial_store.get(&wire_tag.to_string())?),
+                work: work_queue::Work::ScalarMultiplication {
+                    mul_scalars: self.key.polynomial_store.get(&wire_tag.to_string())?,
+                    constant: Fr::from((self.key.circuit_size + 1) as u64),
+                },
                 tag: "W_4".to_owned(),
-                constant: Fr::from((self.key.circuit_size + 1) as u64),
-                index: 0,
             });
         }
         Ok(())
