@@ -34,14 +34,14 @@ pub(crate) struct PippengerRuntimeState<Fr: Field, G1Affine: AffineRepr> {
 }
 
 impl<Fr: Field, G1Affine: AffineRepr> PippengerRuntimeState<Fr, G1Affine> {
-    pub(crate) fn new(size: usize) -> Self {
+    pub(crate) fn new(_size: usize) -> Self {
         todo!()
     }
     pub(crate) fn pippenger_unsafe(
         &mut self,
-        mul_scalars: &mut [Fr],
-        srs_points: Vec<G1Affine>,
-        msm_size: usize,
+        _mul_scalars: &mut [Fr],
+        _srs_points: &[G1Affine],
+        _msm_size: usize,
     ) -> G1Affine {
         todo!()
     }

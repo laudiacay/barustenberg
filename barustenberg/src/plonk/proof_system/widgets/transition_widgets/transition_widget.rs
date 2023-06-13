@@ -1,6 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
-    sync::{Arc, Mutex},
+    sync::Arc,
 };
 
 use ark_bn254::G1Affine;
@@ -81,7 +81,7 @@ pub(crate) trait TransitionWidget<
         &self,
         alpha_base: F,
         transcript: &Transcript<H, F, G1Affine>,
-        rng: Arc<Mutex<dyn rand::RngCore + Send + Sync>>,
+        rng: Box<dyn rand::RngCore>,
     ) -> F {
         let key = self.get_key();
 
@@ -106,19 +106,19 @@ pub(crate) trait TransitionWidget<
         for i in 0..key.large_domain.size {
             let mut linear_terms = CoefficientArray::default();
             KB::compute_linear_terms::<
-                PolyPtrMap<'a, F>,
+                PolyPtrMap<F>,
                 FFTGetterImpl<H, F, G1Affine, S, NIndependentRelations>,
             >(&polynomials, &challenges, &mut linear_terms, Some(i));
             let sum_of_linear_terms = KB::sum_linear_terms::<
-                PolyPtrMap<'a, F>,
+                PolyPtrMap<F>,
                 FFTGetterImpl<H, F, G1Affine, S, NIndependentRelations>,
             >(&polynomials, &challenges, &linear_terms, i);
 
-            quotient_term = key.quotient_polynomial_parts[i >> key.small_domain.log2_size]
+            quotient_term = key.quotient_polynomial_parts[i >> key.small_domain.log2_size].borrow()
                 [i & (key.circuit_size - 1)];
             quotient_term += sum_of_linear_terms;
             KB::compute_non_linear_terms::<
-                PolyPtrMap<'a, F>,
+                PolyPtrMap<F>,
                 FFTGetterImpl<H, F, G1Affine, S, NIndependentRelations>,
             >(&polynomials, &challenges, &mut quotient_term, i);
         }
@@ -144,7 +144,7 @@ pub(crate) trait GenericVerifierWidget<
         alpha_base: F,
         transcript: &Transcript<H, F, G1Affine>,
         quotient_numerator_eval: &mut F,
-        rng: Arc<Mutex<dyn rand::RngCore + Send + Sync>>,
+        rng: Box<dyn rand::RngCore>,
     ) -> F {
         let polynomial_evaluations = G::get_polynomial_evaluations::<G1Affine>(
             &key.as_ref().polynomial_manifest,
@@ -190,7 +190,7 @@ pub(crate) trait GenericVerifierWidget<
         alpha_base: F,
         transcript: &Transcript<H, F, G1Affine>,
         _scalar_mult_inputs: &mut HashMap<String, F>,
-        rng: Arc<Mutex<dyn rand::RngCore + Send + Sync>>,
+        rng: Box<dyn rand::RngCore>,
     ) -> F {
         let challenges = G::get_challenges::<G1Affine>(
             transcript,

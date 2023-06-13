@@ -433,9 +433,9 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
 
     // The remaining functions require you to create a version of `fft_inner_parallel` that accepts a Vec<&[T]> as the first parameter.
 
-    pub(crate) fn ifft_inplace(&self, coeffs: &mut Polynomial<'a, Fr>) {
+    pub(crate) fn ifft_inplace(&self, coeffs: &mut Polynomial<Fr>) {
         self.fft_inner_parallel_vec_inplace(
-            &mut [coeffs.get_mut_coefficients()],
+            &mut [coeffs.coefficients.as_mut_slice()],
             &self.root_inverse,
             self.get_inverse_round_roots(),
         );
@@ -461,10 +461,10 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
         todo!();
     }
 
-    fn coset_ifft(&self, _coeffs: &mut [Fr]) {
+    pub(crate) fn coset_ifft(&self, _coeffs: &mut [Fr]) {
         todo!()
     }
-    fn coset_ifft_vec(&self, _coeffs: &mut [&mut [Fr]]) {
+    pub(crate) fn coset_ifft_vec(&self, _coeffs: &mut [&mut [Fr]]) {
         todo!()
     }
 
@@ -560,9 +560,18 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
     pub(crate) fn coset_fft_with_generator_shift(&self, _coeffs: &mut [Fr], _constant: Fr) {
         unimplemented!()
     }
+
+    pub(crate) fn divide_by_pseudo_vanishing_polynomial(
+        &self,
+        _coeffs: &mut [&mut [Fr]],
+        _target: EvaluationDomain<'a, Fr>,
+        _num_roots_cut_out_of_vanishing_poly: usize,
+    ) {
+        unimplemented!()
+    }
 }
 
-pub fn evaluate<F: Field>(coeffs: &[F], z: &F, n: usize) -> F {
+pub fn evaluate<F: Field>(_coeffs: &[F], _z: &F, _n: usize) -> F {
     todo!()
 }
 
@@ -573,9 +582,9 @@ pub fn evaluate<F: Field>(coeffs: &[F], z: &F, n: usize) -> F {
 /// for all X = k*n'th roots of unity.
 /// To compute the vector for the k*n-fft transform of L_i(X), we perform a (k*i)-left-shift of this vector
 pub(crate) fn compute_lagrange_polynomial_fft<'a, Fr: Field + FftField>(
-    l_1_coefficients: &Polynomial<'a, Fr>,
-    src_domain: EvaluationDomain<'a, Fr>,
-    target_domain: EvaluationDomain<'a, Fr>,
+    _l_1_coefficients: &Polynomial<Fr>,
+    _src_domain: EvaluationDomain<'a, Fr>,
+    _target_domain: EvaluationDomain<'a, Fr>,
 ) {
     todo!("hiii")
 }

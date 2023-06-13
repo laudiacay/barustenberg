@@ -1,6 +1,7 @@
 use ark_ec::AffineRepr;
 use ark_ff::{FftField, Field};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use std::cell::RefCell;
 use std::io::Read;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -20,7 +21,7 @@ use super::types::PolynomialManifest;
 
 const MIN_THREAD_BLOCK: usize = 4;
 
-pub(crate) struct ProvingKeyData<'a, F: Field> {
+pub(crate) struct ProvingKeyData<F: Field> {
     composer_type: u32,
     circuit_size: u32,
     num_public_inputs: u32,
@@ -28,7 +29,7 @@ pub(crate) struct ProvingKeyData<'a, F: Field> {
     recursive_proof_public_input_indices: Vec<usize>,
     memory_read_records: Vec<usize>,
     memory_write_records: Vec<usize>,
-    polynomial_store: PolynomialStore<'a, F>,
+    polynomial_store: PolynomialStore<F>,
 }
 
 pub(crate) struct ProvingKey<'a, Fr: Field + FftField, G1Affine: AffineRepr> {
@@ -42,13 +43,14 @@ pub(crate) struct ProvingKey<'a, Fr: Field + FftField, G1Affine: AffineRepr> {
     pub(crate) memory_read_records: Vec<usize>,
     /// Used by UltraComposer only, for RAM writes.
     pub(crate) memory_write_records: Vec<usize>,
-    pub(crate) polynomial_store: PolynomialStore<'a, Fr>,
+    pub(crate) polynomial_store: PolynomialStore<Fr>,
     pub(crate) small_domain: EvaluationDomain<'a, Fr>,
     pub(crate) large_domain: EvaluationDomain<'a, Fr>,
     /// The reference_string object contains the monomial SRS. We can access it using:
     /// Monomial SRS: reference_string->get_monomial_points()
-    pub(crate) reference_string: Rc<dyn ProverReferenceString<G1Affine>>,
-    pub(crate) quotient_polynomial_parts: [Rc<Polynomial<'a, Fr>>; NUM_QUOTIENT_PARTS as usize],
+    pub(crate) reference_string: Rc<RefCell<dyn ProverReferenceString<G1Affine>>>,
+    pub(crate) quotient_polynomial_parts:
+        [Rc<RefCell<Polynomial<Fr>>>; NUM_QUOTIENT_PARTS as usize],
     pub(crate) pippenger_runtime_state: PippengerRuntimeState<Fr, G1Affine>,
     pub(crate) polynomial_manifest: PolynomialManifest,
 }
@@ -67,7 +69,7 @@ impl<'a, Fr: Field + FftField, G1Affine: AffineRepr> Default for ProvingKey<'a, 
             polynomial_store: PolynomialStore::new(),
             small_domain: EvaluationDomain::new(0, None),
             large_domain: EvaluationDomain::new(0, None),
-            reference_string: Rc::new(FileReferenceString::<G1Affine>::default()),
+            reference_string: Rc::new(RefCell::new(FileReferenceString::<G1Affine>::default())),
             quotient_polynomial_parts: Default::default(),
             pippenger_runtime_state: PippengerRuntimeState::default(),
             polynomial_manifest: PolynomialManifest::default(),
@@ -77,8 +79,8 @@ impl<'a, Fr: Field + FftField, G1Affine: AffineRepr> Default for ProvingKey<'a, 
 
 impl<'a, Fr: Field + FftField, G1Affine: AffineRepr> ProvingKey<'a, Fr, G1Affine> {
     pub(crate) fn new_with_data(
-        data: ProvingKeyData<'a, Fr>,
-        crs: Rc<dyn ProverReferenceString<G1Affine>>,
+        data: ProvingKeyData<Fr>,
+        crs: Rc<RefCell<dyn ProverReferenceString<G1Affine>>>,
     ) -> Self {
         let ProvingKeyData {
             composer_type,
@@ -119,7 +121,7 @@ impl<'a, Fr: Field + FftField, G1Affine: AffineRepr> ProvingKey<'a, Fr, G1Affine
     pub(crate) fn new(
         num_gates: usize,
         num_inputs: usize,
-        crs: Rc<dyn ProverReferenceString<G1Affine>>,
+        crs: Rc<RefCell<dyn ProverReferenceString<G1Affine>>>,
         type_: ComposerType,
     ) -> Self {
         let data = ProvingKeyData {
@@ -151,10 +153,14 @@ impl<'a, Fr: Field + FftField, G1Affine: AffineRepr> ProvingKey<'a, Fr, G1Affine
 
         // t_i for i = 1,2,3 have n+1 coefficients after blinding. t_4 has only n coefficients.
         // TODO unclear if this is necessary
-        self.quotient_polynomial_parts[0] = Polynomial::new(self.circuit_size + 1).into();
-        self.quotient_polynomial_parts[1] = Polynomial::new(self.circuit_size + 1).into();
-        self.quotient_polynomial_parts[2] = Polynomial::new(self.circuit_size + 1).into();
-        self.quotient_polynomial_parts[3] = Polynomial::new(self.circuit_size).into();
+        self.quotient_polynomial_parts[0] =
+            Rc::new(RefCell::new(Polynomial::new(self.circuit_size + 1)));
+        self.quotient_polynomial_parts[1] =
+            Rc::new(RefCell::new(Polynomial::new(self.circuit_size + 1)));
+        self.quotient_polynomial_parts[2] =
+            Rc::new(RefCell::new(Polynomial::new(self.circuit_size + 1)));
+        self.quotient_polynomial_parts[3] =
+            Rc::new(RefCell::new(Polynomial::new(self.circuit_size)));
     }
 
     pub(crate) fn from_reader<R: Read>(

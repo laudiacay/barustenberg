@@ -6,11 +6,7 @@
 // - Polynomials in monomial form
 // - Polynomials in Lagrange form
 
-use std::{
-    collections::HashSet,
-    marker::PhantomData,
-    sync::{Arc, Mutex},
-};
+use std::{collections::HashSet, marker::PhantomData};
 
 use ark_ec::AffineRepr;
 use ark_ff::{FftField, Field};
@@ -61,7 +57,7 @@ pub(crate) trait BaseGetter<
         transcript: &Transcript<H, F, G1Affine>,
         alpha_base: F,
         required_challenges: u8,
-        rng: Arc<Mutex<dyn rand::RngCore + Send + Sync>>,
+        mut rng: Box<dyn rand::RngCore>,
     ) -> ChallengeArray<F, NWidgetRelations> {
         let mut result: ChallengeArray<F, _> = ChallengeArray::default();
         let mut add_challenge = |label: &str, tag: usize, required: bool, index: usize| {
@@ -72,7 +68,7 @@ pub(crate) trait BaseGetter<
             } else {
                 let mut random_bytes = vec![0u8; std::mem::size_of::<F>()];
                 // TODO should you really have an unwrap here?
-                rng.lock().unwrap().fill_bytes(&mut random_bytes);
+                rng.fill_bytes(&mut random_bytes);
                 result.elements[tag] = F::from_random_bytes(random_bytes.as_ref())
                     .expect("random deserialization didn't work");
             }
@@ -263,8 +259,7 @@ where
     phantom: PhantomData<(F, H, S, G1Affine, NWidgetRelations)>,
 }
 
-impl<'a, H, F, G1Affine, S, NWidgetRelations>
-    BaseGetter<H, F, S, PolyPtrMap<'a, F>, NWidgetRelations>
+impl<'a, H, F, G1Affine, S, NWidgetRelations> BaseGetter<H, F, S, PolyPtrMap<F>, NWidgetRelations>
     for FFTGetterImpl<H, F, G1Affine, S, NWidgetRelations>
 where
     F: Field + FftField,
@@ -274,7 +269,7 @@ where
     NWidgetRelations: generic_array::ArrayLength<F>,
 {
     fn get_value(
-        polynomials: &PolyPtrMap<'a, F>,
+        polynomials: &PolyPtrMap<F>,
         evaluation_type: EvaluationType,
         id: PolynomialIndex,
         index: Option<usize>,
@@ -284,9 +279,9 @@ where
         let poly = &polynomials.coefficients.get(&id).unwrap();
         if evaluation_type == EvaluationType::Shifted {
             let shifted_index = (index + polynomials.index_shift) & polynomials.block_mask;
-            poly[shifted_index]
+            poly.borrow()[shifted_index]
         } else {
-            poly[index]
+            poly.borrow()[index]
         }
     }
 }
@@ -311,7 +306,7 @@ pub(crate) trait FFTGetter<
     G1Affine: AffineRepr,
     S,
     NWidgetRelations: generic_array::ArrayLength<F>,
->: BaseGetter<H, F, S, PolyPtrMap<'a, F>, NWidgetRelations> where
+>: BaseGetter<H, F, S, PolyPtrMap<F>, NWidgetRelations> where
     F: Field + FftField,
     H: BarretenHasher,
     S: Settings<H>,
@@ -319,7 +314,7 @@ pub(crate) trait FFTGetter<
     fn get_polynomials(
         key: &ProvingKey<'a, F, G1Affine>,
         required_polynomial_ids: &HashSet<PolynomialIndex>,
-    ) -> PolyPtrMap<'a, F> {
+    ) -> PolyPtrMap<F> {
         let mut result = PolyPtrMap::new();
         let label_suffix = "_fft";
 

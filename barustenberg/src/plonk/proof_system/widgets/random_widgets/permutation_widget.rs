@@ -41,13 +41,13 @@ where
         quotient_numerator_eval: &mut F,
         idpolys: bool,
     ) -> F {
-        let mut alpha_squared: F = alpha.square();
-        let mut alpha_cubed = alpha_squared * alpha;
+        let alpha_squared: F = alpha.square();
+        let alpha_cubed = alpha_squared * alpha;
         // a.k.a. zeta or ʓ
-        let mut z: F = transcript.get_challenge_field_element("z", None);
-        let mut beta: F = transcript.get_challenge_field_element("beta", Some(0));
-        let mut gamma: F = transcript.get_challenge_field_element("beta", Some(1));
-        let mut z_beta: F = z * beta;
+        let z: F = transcript.get_challenge_field_element("z", None);
+        let beta: F = transcript.get_challenge_field_element("beta", Some(0));
+        let gamma: F = transcript.get_challenge_field_element("beta", Some(1));
+        let z_beta: F = z * beta;
 
         // We need wire polynomials' and sigma polynomials' evaluations at zeta which we fetch from the transcript.
         // Fetch a_eval, b_eval, c_eval, sigma1_eval, sigma2_eval
@@ -79,7 +79,7 @@ where
         let mut numerator = key.z_pow_n - F::one();
         numerator *= key.domain.domain_inverse;
         // [ʓ^n - 1] / [n.(ʓ - 1)] =: L_1(ʓ)
-        let mut l_start: F = numerator / (z - F::one());
+        let l_start: F = numerator / (z - F::one());
 
         // Compute ω^{num_roots_cut_out_of_vanishing_polynomial + 1}
         let mut l_end_root = if NUM_ROOTS_CUT_OUT_OF_VANISHING_POLYNOMIAL & 1 != 0 {
@@ -91,9 +91,9 @@ where
             l_end_root *= key.domain.root.square();
         }
         // [ʓ^n - 1] / [n.(ʓ.ω^{k+1} - 1)] =: L_{n-k}(ʓ)
-        let mut l_end: F = numerator / ((z * l_end_root) - F::one());
+        let l_end: F = numerator / ((z * l_end_root) - F::one());
 
-        let mut z_1_shifted_eval: F = transcript.get_field_element("z_perm_omega");
+        let z_1_shifted_eval: F = transcript.get_field_element("z_perm_omega");
 
         // Recall that the full quotient numerator is the polynomial
         // t(X) =
@@ -139,7 +139,7 @@ where
         //
         // L_1(ʓ).α^3
         //
-        let mut T2: F = l_start * alpha_cubed;
+        let T2: F = l_start * alpha_cubed;
 
         // Combine parts 1, 2, 3.
         //  quotient_numerator_eval =

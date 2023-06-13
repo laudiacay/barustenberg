@@ -697,7 +697,7 @@ impl<H: BarretenHasher, Fr: Field, G1Affine: AffineRepr> Transcript<H, Fr, G1Aff
         }
         res
     }
-    pub(crate) fn put_field_element_vector(&self, element_name: &str, elements: &[Fr]) {
+    pub(crate) fn put_field_element_vector(&mut self, element_name: &str, elements: &[Fr]) {
         let mut buf = Vec::new();
         for element in elements {
             let mut tmp = vec![0u8; Fr::serialized_size(element, ark_serialize::Compress::No)];

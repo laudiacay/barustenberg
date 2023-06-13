@@ -1,6 +1,7 @@
 use generic_array::GenericArray;
 use once_cell::sync::Lazy;
 use std::{
+    cell::RefCell,
     ops::{Index, IndexMut},
     rc::Rc,
 };
@@ -73,13 +74,13 @@ impl<F: Field> Default for PolyArray<F> {
 
 impl<F: Field> PolyContainer<F> for PolyArray<F> {}
 
-pub(crate) struct PolyPtrMap<'a, F: Field> {
-    pub(crate) coefficients: HashMap<PolynomialIndex, Rc<Polynomial<'a, F>>>,
+pub(crate) struct PolyPtrMap<F: Field> {
+    pub(crate) coefficients: HashMap<PolynomialIndex, Rc<RefCell<Polynomial<F>>>>,
     pub(crate) block_mask: usize,
     pub(crate) index_shift: usize,
 }
 
-impl<'a, F: Field> PolyPtrMap<'a, F> {
+impl<F: Field> PolyPtrMap<F> {
     pub(crate) fn new() -> Self {
         Self {
             coefficients: HashMap::new(),
@@ -89,10 +90,10 @@ impl<'a, F: Field> PolyPtrMap<'a, F> {
     }
 }
 
-impl<'a, F: Field> PolyContainer<F> for PolyPtrMap<'a, F> {}
+impl<F: Field> PolyContainer<F> for PolyPtrMap<F> {}
 
-impl<'a, F: Field> Index<PolynomialIndex> for PolyPtrMap<'a, F> {
-    type Output = Rc<Polynomial<'a, F>>;
+impl<F: Field> Index<PolynomialIndex> for PolyPtrMap<F> {
+    type Output = Rc<RefCell<Polynomial<F>>>;
     fn index(&self, index: PolynomialIndex) -> &Self::Output {
         &self.coefficients[&index]
     }
@@ -106,6 +107,12 @@ impl<F: Field> Index<PolynomialIndex> for CoefficientArray<F> {
         &self.0[index as usize]
     }
 }
+impl<F: Field> IndexMut<PolynomialIndex> for CoefficientArray<F> {
+    fn index_mut(&mut self, index: PolynomialIndex) -> &mut Self::Output {
+        &mut self.0[index as usize]
+    }
+}
+
 impl<F: Field> Default for CoefficientArray<F> {
     fn default() -> Self {
         Self([F::zero(); PolynomialIndex::MaxNumPolynomials as usize])
