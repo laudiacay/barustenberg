@@ -57,7 +57,7 @@ pub(crate) trait BaseGetter<
         transcript: &Transcript<H, F, G1Affine>,
         alpha_base: F,
         required_challenges: u8,
-        mut rng: Box<dyn rand::RngCore>,
+        rng: &mut impl rand::RngCore,
     ) -> ChallengeArray<F, NWidgetRelations> {
         let mut result: ChallengeArray<F, _> = ChallengeArray::default();
         let mut add_challenge = |label: &str, tag: usize, required: bool, index: usize| {

@@ -166,7 +166,7 @@ impl<'a, H: BarretenHasher, Fr: Field + FftField, G1Affine: AffineRepr>
                     (*self.key)
                         .borrow_mut()
                         .polynomial_store
-                        .put(item.tag, wire);
+                        .put(item.tag.clone(), wire);
                     return;
                 }
             }
@@ -221,9 +221,8 @@ impl<'a, H: BarretenHasher, Fr: Field + FftField, G1Affine: AffineRepr>
     ) -> Result<()> {
         for (idx, item) in self.work_items.iter().enumerate() {
             if let Work::ScalarMultiplication {
-                constant,
-                mul_scalars,
-            } = item.work
+                ..
+            } = &item.work
             {
                 if idx == work_item_number {
                     (*self.transcript)
@@ -269,12 +268,12 @@ impl<'a, H: BarretenHasher, Fr: Field + FftField, G1Affine: AffineRepr>
 
     pub(crate) fn process_queue(&mut self) -> Result<()> {
         for item in &self.work_items {
-            match item.work {
+            match &item.work {
                 Work::ScalarMultiplication {
                     constant,
                     mul_scalars,
                 } => {
-                    let msm_size = unsafe { field_element_to_usize(constant) };
+                    let msm_size = unsafe { field_element_to_usize(*constant) };
 
                     assert!(
                         msm_size
@@ -311,10 +310,10 @@ impl<'a, H: BarretenHasher, Fr: Field + FftField, G1Affine: AffineRepr>
                         .small_domain
                         .coset_fft_with_generator_shift(
                             (*wire).borrow_mut().coefficients.as_mut_slice(),
-                            constant,
+                            *constant,
                         );
 
-                    if index != 0 {
+                    if *index != 0 {
                         let old_wire_fft = self
                             .key
                             .borrow()
@@ -344,9 +343,7 @@ impl<'a, H: BarretenHasher, Fr: Field + FftField, G1Affine: AffineRepr>
                         .borrow()
                         .polynomial_store
                         .get(&item.tag)
-                        .unwrap()
-                        .clone()
-                        .into_inner();
+                        .unwrap().borrow().clone();
 
                     wire_fft.resize(4 * self.key.borrow().circuit_size + 4, Fr::zero());
 
@@ -381,14 +378,13 @@ impl<'a, H: BarretenHasher, Fr: Field + FftField, G1Affine: AffineRepr>
                         .polynomial_store
                         .insert(&item.tag, wire_monomial);
                 }
-                _ => {}
             }
         }
         self.work_items.clear();
         Ok(())
     }
 
-    fn get_queue(&self) -> Vec<WorkItem<Fr>> {
-        self.work_items
+    fn get_queue(&self) -> &Vec<WorkItem<Fr>> {
+        &self.work_items
     }
 }

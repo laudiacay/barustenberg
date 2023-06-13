@@ -1,4 +1,4 @@
-use std::cell::RefCell;
+use std::cell::{RefCell, Ref};
 use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::rc::Rc;
@@ -50,7 +50,7 @@ pub(crate) trait CommitmentScheme<
         &mut self,
         transcript: &Transcript<H, Fr, G1Affine>,
         queue: &mut WorkQueue<'a, H, Fr, G1Affine>,
-        input_key: Option<&'a ProvingKey<'a, Fr, G1Affine>>,
+        input_key: Option<Ref<'_, ProvingKey<'a, Fr, G1Affine>>>,
     );
 
     fn batch_verify<'a>(
@@ -200,7 +200,7 @@ impl<Fq: Field, Fr: Field + FftField, G1Affine: AffineRepr, H: BarretenHasher, S
         &mut self,
         _transcript: &Transcript<H, Fr, G1Affine>,
         _queue: &mut WorkQueue<'a, H, Fr, G1Affine>,
-        _input_key: Option<&'a ProvingKey<'a, Fr, G1Affine>>,
+        _input_key: Option<Ref<'_, ProvingKey<'a, Fr, G1Affine>>>,
     ) {
         todo!()
     }

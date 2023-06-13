@@ -81,7 +81,7 @@ pub(crate) trait TransitionWidget<
         &self,
         alpha_base: F,
         transcript: &Transcript<H, F, G1Affine>,
-        rng: Box<dyn rand::RngCore>,
+        rng: &mut impl rand::RngCore,
     ) -> F {
         let key = self.get_key();
 
@@ -144,7 +144,7 @@ pub(crate) trait GenericVerifierWidget<
         alpha_base: F,
         transcript: &Transcript<H, F, G1Affine>,
         quotient_numerator_eval: &mut F,
-        rng: Box<dyn rand::RngCore>,
+        rng: &mut impl rand::RngCore,
     ) -> F {
         let polynomial_evaluations = G::get_polynomial_evaluations::<G1Affine>(
             &key.as_ref().polynomial_manifest,
@@ -190,7 +190,7 @@ pub(crate) trait GenericVerifierWidget<
         alpha_base: F,
         transcript: &Transcript<H, F, G1Affine>,
         _scalar_mult_inputs: &mut HashMap<String, F>,
-        rng: Box<dyn rand::RngCore>,
+        rng: &mut impl rand::RngCore,
     ) -> F {
         let challenges = G::get_challenges::<G1Affine>(
             transcript,

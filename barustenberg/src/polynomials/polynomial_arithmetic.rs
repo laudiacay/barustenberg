@@ -478,8 +478,8 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
     // The remaining `coset_fft` functions require you to create a version of `scale_by_generator` that accepts a Vec<&[T]> as the first parameter.
     fn coset_fft_inplace_extension(
         coeffs: &mut [Fr],
-        small_domain: Self,
-        _large_domain: Self,
+        small_domain: &Self,
+        _large_domain: &Self,
         domain_extension: usize,
     ) {
         let log2_domain_extension = domain_extension.get_msb();
@@ -564,27 +564,27 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
     pub(crate) fn divide_by_pseudo_vanishing_polynomial(
         &self,
         _coeffs: &mut [&mut [Fr]],
-        _target: EvaluationDomain<'a, Fr>,
+        _target: &EvaluationDomain<'a, Fr>,
         _num_roots_cut_out_of_vanishing_poly: usize,
     ) {
         unimplemented!()
+    }
+
+    /// For L_1(X) = (X^{n} - 1 / (X - 1)) * (1 / n)
+    /// Compute the size k*n-fft of L_1(X), where k is determined by the target domain (e.g. large_domain -> 4*n)
+    /// We can use this to compute the k*n-fft evaluations of any L_i(X).
+    /// We can consider `l_1_coefficients` to be a k*n-sized vector of the evaluations of L_1(X),
+    /// for all X = k*n'th roots of unity.
+    /// To compute the vector for the k*n-fft transform of L_i(X), we perform a (k*i)-left-shift of this vector
+    pub(crate) fn compute_lagrange_polynomial_fft(
+        &self,
+        _l_1_coefficients: &Polynomial<Fr>,
+        _target_domain: &EvaluationDomain<'a, Fr>,
+    ) {
+        todo!("hiii")
     }
 }
 
 pub fn evaluate<F: Field>(_coeffs: &[F], _z: &F, _n: usize) -> F {
     todo!()
-}
-
-/// For L_1(X) = (X^{n} - 1 / (X - 1)) * (1 / n)
-/// Compute the size k*n-fft of L_1(X), where k is determined by the target domain (e.g. large_domain -> 4*n)
-/// We can use this to compute the k*n-fft evaluations of any L_i(X).
-/// We can consider `l_1_coefficients` to be a k*n-sized vector of the evaluations of L_1(X),
-/// for all X = k*n'th roots of unity.
-/// To compute the vector for the k*n-fft transform of L_i(X), we perform a (k*i)-left-shift of this vector
-pub(crate) fn compute_lagrange_polynomial_fft<'a, Fr: Field + FftField>(
-    _l_1_coefficients: &Polynomial<Fr>,
-    _src_domain: EvaluationDomain<'a, Fr>,
-    _target_domain: EvaluationDomain<'a, Fr>,
-) {
-    todo!("hiii")
 }

@@ -149,12 +149,13 @@ impl<
         };
         for i in 0..end {
             let wire_tag = format!("w_{}", i + 1);
-            let mut wire_lagrange = self
+            let wire_lagrange = self
                 .key
                 .borrow()
                 .polynomial_store
                 .get(&format!("{}_lagrange", wire_tag))?
-                .borrow_mut();
+                .clone();
+            let mut wire_lagrange = wire_lagrange.borrow_mut();
 
             /*
             Adding zero knowledge to the witness polynomials.
@@ -243,13 +244,14 @@ impl<
         if self.settings.is_plookup() {
             self.add_plookup_memory_records_to_w_4();
             let wire_tag = "w_4";
+
             let w_4_lagrange = self
                 .key
                 .borrow()
                 .polynomial_store
-                .get(&format!("{}_lagrange", wire_tag))
-                .unwrap()
-                .borrow_mut();
+                .get(&format!("{}_lagrange", wire_tag))?
+                .clone();
+            let mut w_4_lagrange = w_4_lagrange.borrow_mut();
 
             // add randomness to w_4_lagrange
             let w_randomness = 3;
@@ -293,7 +295,7 @@ impl<
     /// - FFT the wires.
     ///
     /// *For example, standard composer executes permutation widget for z polynomial construction at this round.
-    fn execute_third_round(&self) {
+    fn execute_third_round(&mut self) {
         self.queue.flush_queue();
 
         (*self.transcript).borrow_mut().apply_fiat_shamir("beta");
@@ -336,7 +338,7 @@ impl<
             alpha_base = widget.compute_quotient_contribution(
                 alpha_base,
                 &self.transcript.borrow(),
-                self.rng,
+                &mut self.rng,
             );
         }
 
@@ -345,18 +347,22 @@ impl<
         // as well as iFFT (coset) are to be performed on the polynomial t(X) as a whole.
         // We avoid redundant copy of the parts t_1, t_2, t_3, t_4 and instead just tweak the
         // relevant functions to work on quotient polynomial parts.
+        // TODO this does not work so good in rust. for now, we copy... is it still okay to do this?
         let mut quotient_poly_parts: Vec<&mut [Fr]> = Vec::new();
-        quotient_poly_parts.push(&mut [self.key.borrow().quotient_polynomial_parts[0].borrow()[0]]);
-        quotient_poly_parts.push(&mut [self.key.borrow().quotient_polynomial_parts[1].borrow()[0]]);
-        quotient_poly_parts.push(&mut [self.key.borrow().quotient_polynomial_parts[2].borrow()[0]]);
-        quotient_poly_parts.push(&mut [self.key.borrow().quotient_polynomial_parts[3].borrow()[0]]);
+        {
+        let key = self.key.borrow();
+        for i in 0..=3 {
+            let poly = key.quotient_polynomial_parts[i].clone();
+            let poly = [poly.borrow()[0]];
+            quotient_poly_parts.push(poly);
+        }}
 
         self.key
             .borrow()
             .small_domain
             .divide_by_pseudo_vanishing_polynomial(
                 quotient_poly_parts.as_mut_slice(),
-                self.key.borrow().large_domain,
+                &self.key.borrow().large_domain,
                 0,
             );
 
@@ -377,7 +383,7 @@ impl<
 
         self.compute_quotient_commitments();
     }
-    fn execute_fifth_round(&self) {
+    fn execute_fifth_round(&mut self) {
         self.queue.flush_queue();
         (*self.transcript).borrow_mut().apply_fiat_shamir("z"); // end of 4th round
         self.compute_quotient_evaluation();
@@ -389,7 +395,7 @@ impl<
         self.commitment_scheme.batch_open(
             &(*self.transcript).borrow(),
             &mut self.queue,
-            Some(&self.key.borrow()),
+            Some(self.key.clone().borrow()),
         );
     }
 
@@ -399,7 +405,7 @@ impl<
     fn compute_batch_opening_polynomials(&self) {}
     /// - Compute wire commitments and add them to the transcript.
     /// - Add public_inputs from w_2_fft to transcript.
-    fn compute_wire_commitments(&self) -> Result<()> {
+    fn compute_wire_commitments(&mut self) -> Result<()> {
         // Compute wire commitments
         let end: usize = if self.settings.is_plookup() {
             self.settings.program_width() - 1
@@ -476,10 +482,10 @@ impl<
     /// t_{i} would change and so we will have to ensure the correct size of multi-scalar multiplication in
     /// computing the commitments to these polynomials.
     ///
-    fn compute_quotient_commitments(&self) {
+    fn compute_quotient_commitments(&mut self) {
         let key = self.key.borrow();
         for i in 0..self.settings.program_width() {
-            let coefficients = key.quotient_polynomial_parts[i];
+            let coefficients = key.quotient_polynomial_parts[i].clone();
             let quotient_tag = format!("T_{}", i + 1);
             // Set flag that determines domain size (currently n or n+1) in pippenger (see process_queue()).
             // Note: After blinding, all t_i have size n+1 representation (degree n) except t_4 in Turbo/Ultra.
@@ -513,42 +519,30 @@ impl<
         // We need the lagrange-base forms of the first 3 wires to compute the plookup memory record
         // value. w4 = w3 * eta^3 + w2 * eta^2 + w1 * eta + read_write_flag;
         // a RAM write. See plookup_auxiliary_widget.hpp for details)
-        let w_1 = key
-            .polynomial_store
-            .get(&"w_1_lagrange".to_string())
-            .unwrap()
-            .borrow();
-        let w_2 = key
-            .polynomial_store
-            .get(&"w_2_lagrange".to_string())
-            .unwrap()
-            .borrow();
-        let w_3 = key
-            .polynomial_store
-            .get(&"w_3_lagrange".to_string())
-            .unwrap()
-            .borrow();
-        let mut w_4 = key
-            .polynomial_store
-            .get(&"w_4_lagrange".to_string())
-            .unwrap()
-            .borrow_mut();
-        for gate_idx in key.memory_read_records {
-            w_4[gate_idx] += w_3[gate_idx];
-            w_4[gate_idx] *= eta;
-            w_4[gate_idx] += w_2[gate_idx];
-            w_4[gate_idx] *= eta;
-            w_4[gate_idx] += w_1[gate_idx];
-            w_4[gate_idx] *= eta;
+        let w_1 = key.polynomial_store.get(&"w_1_lagrange".to_string())?;
+        let w_1 = w_1.borrow();
+        let w_2 = key.polynomial_store.get(&"w_2_lagrange".to_string())?;
+        let w_2 = w_2.borrow();
+        let w_3 = key.polynomial_store.get(&"w_3_lagrange".to_string())?;
+        let w_3 = w_3.borrow();
+        let w_4 = key.polynomial_store.get(&"w_4_lagrange".to_string())?;
+        let mut w_4 = w_4.borrow_mut();
+        for gate_idx in key.memory_read_records.iter() {
+            w_4[*gate_idx] += w_3[*gate_idx];
+            w_4[*gate_idx] *= eta;
+            w_4[*gate_idx] += w_2[*gate_idx];
+            w_4[*gate_idx] *= eta;
+            w_4[*gate_idx] += w_1[*gate_idx];
+            w_4[*gate_idx] *= eta;
         }
-        for gate_idx in key.memory_write_records {
-            w_4[gate_idx] += w_3[gate_idx];
-            w_4[gate_idx] *= eta;
-            w_4[gate_idx] += w_2[gate_idx];
-            w_4[gate_idx] *= eta;
-            w_4[gate_idx] += w_1[gate_idx];
-            w_4[gate_idx] *= eta;
-            w_4[gate_idx] += Fr::one();
+        for gate_idx in key.memory_write_records.iter() {
+            w_4[*gate_idx] += w_3[*gate_idx];
+            w_4[*gate_idx] *= eta;
+            w_4[*gate_idx] += w_2[*gate_idx];
+            w_4[*gate_idx] *= eta;
+            w_4[*gate_idx] += w_1[*gate_idx];
+            w_4[*gate_idx] *= eta;
+            w_4[*gate_idx] += Fr::one();
         }
         Ok(())
     }
@@ -598,7 +592,7 @@ impl<
     }
 
     /// Add blinding to the components in such a way that the full quotient would be unchanged if reconstructed
-    fn add_blinding_to_quotient_polynomial_parts(&self) {
+    fn add_blinding_to_quotient_polynomial_parts(&mut self) {
         // Construct blinded quotient polynomial parts t_i by adding randomness to the unblinded parts t_i' in
         // such a way that the full quotient polynomial t is unchanged upon reconstruction, i.e.
         //
@@ -629,11 +623,8 @@ impl<
 
         {
             let key = self.key.borrow();
-            polynomial_arithmetic::compute_lagrange_polynomial_fft(
-                &lagrange_1_fft,
-                key.small_domain,
-                key.large_domain,
-            );
+            key.small_domain
+                .compute_lagrange_polynomial_fft(&lagrange_1_fft, &key.large_domain);
             for i in 0..8 {
                 lagrange_1_fft[4 * self.circuit_size + i] = lagrange_1_fft[i];
             }
