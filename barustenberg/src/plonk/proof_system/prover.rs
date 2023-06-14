@@ -1,4 +1,4 @@
-use std::{marker::PhantomData, rc::Rc};
+use std::{cell::RefCell, marker::PhantomData, ops::IndexMut, rc::Rc};
 
 use ark_ec::AffineRepr;
 use ark_ff::{FftField, Field};
@@ -9,7 +9,9 @@ use super::{
     types::{prover_settings::Settings, Proof},
     widgets::{
         random_widgets::random_widget::ProverRandomWidget,
-        transition_widgets::transition_widget::TransitionWidget,
+        transition_widgets::{
+            arithmetic_widget::ProverArithmeticWidget, transition_widget::TransitionWidget,
+        },
     },
 };
 
@@ -17,7 +19,7 @@ use typenum::Unsigned;
 
 use crate::{
     polynomials::{polynomial_arithmetic, Polynomial},
-    proof_system::work_queue::{self, WorkItem},
+    proof_system::work_queue::{self, Work, WorkItem},
     transcript::{BarretenHasher, Manifest, Transcript},
 };
 
@@ -37,11 +39,11 @@ pub(crate) struct Prover<
     CS: CommitmentScheme<Fq, Fr, G1Affine, H>,
 > {
     pub(crate) circuit_size: usize,
-    pub(crate) transcript: Rc<Transcript<H, Fr, G1Affine>>,
-    pub(crate) key: Rc<ProvingKey<'a, Fr, G1Affine>>,
+    pub(crate) transcript: Rc<RefCell<Transcript<H, Fr, G1Affine>>>,
+    pub(crate) key: Rc<RefCell<ProvingKey<'a, Fr, G1Affine>>>,
     pub(crate) queue: WorkQueue<'a, H, Fr, G1Affine>,
     pub(crate) random_widgets: Vec<ProverRandomWidget<'a, H, Fr, G1Affine>>,
-    pub(crate) transition_widgets: Vec<dyn TransitionWidget<'a, H, Fr, G1Affine, S, U1, IDK>>,
+    pub(crate) transition_widgets: Vec<ProverArithmeticWidget<'a, Fr, G1Affine, H, S>>,
     pub(crate) commitment_scheme: CS,
     pub(crate) settings: S,
     pub(crate) rng: Box<dyn rand::RngCore>,
@@ -58,19 +60,28 @@ impl<
     > Prover<'a, Fq, Fr, G1Affine, H, S, KateCommitmentScheme<H, S>>
 {
     pub(crate) fn new(
-        input_key: Option<ProvingKey<'a, Fr, G1Affine>>,
+        input_key: Option<Rc<RefCell<ProvingKey<'a, Fr, G1Affine>>>>,
         input_manifest: Option<Manifest>,
         input_settings: Option<S>,
     ) -> Self {
-        let circuit_size = input_key.as_ref().map_or(0, |key| key.circuit_size);
-        let transcript = Rc::new(Transcript::new(input_manifest, H::PrngOutputSize::USIZE));
-        let queue = WorkQueue::new(input_key, Some(transcript));
+        let circuit_size = input_key
+            .as_ref()
+            .map_or(0, |key| key.borrow().circuit_size);
+        let transcript = Rc::new(RefCell::new(Transcript::new(
+            input_manifest,
+            H::PrngOutputSize::USIZE,
+        )));
+        let input_key = match input_key {
+            Some(ik) => ik,
+            None => Rc::new(RefCell::new(ProvingKey::default())),
+        };
+        let queue = WorkQueue::new(Some(input_key.clone()), Some(transcript.clone()));
         let settings = input_settings.unwrap_or_default();
 
         Self {
             circuit_size,
             transcript,
-            key: input_key.unwrap_or_default().into(),
+            key: input_key,
             queue,
             random_widgets: Vec::new(),
             transition_widgets: Vec::new(),
@@ -106,7 +117,7 @@ impl<
     fn execute_preamble_round(&mut self) -> Result<()> {
         self.queue.flush_queue();
 
-        self.transcript.add_element(
+        (*self.transcript).borrow_mut().add_element(
             "circuit_size",
             vec![
                 (self.circuit_size >> 24) as u8,
@@ -116,17 +127,17 @@ impl<
             ],
         );
 
-        self.transcript.add_element(
+        (*self.transcript).borrow_mut().add_element(
             "public_input_size",
             vec![
-                (self.key.num_public_inputs >> 24) as u8,
-                (self.key.num_public_inputs >> 16) as u8,
-                (self.key.num_public_inputs >> 8) as u8,
-                (self.key.num_public_inputs) as u8,
+                (self.key.borrow().num_public_inputs >> 24) as u8,
+                (self.key.borrow().num_public_inputs >> 16) as u8,
+                (self.key.borrow().num_public_inputs >> 8) as u8,
+                (self.key.borrow().num_public_inputs) as u8,
             ],
         );
 
-        self.transcript.apply_fiat_shamir("init");
+        (*self.transcript).borrow_mut().apply_fiat_shamir("init");
 
         // If this is a plookup proof, do not queue up an ifft on W_4 - we can only finish computing
         // the lagrange-base values in W_4 once eta has been generated.
@@ -138,10 +149,13 @@ impl<
         };
         for i in 0..end {
             let wire_tag = format!("w_{}", i + 1);
-            let mut wire_lagrange = self
+            let wire_lagrange = self
                 .key
+                .borrow()
                 .polynomial_store
-                .get(&format!("{}_lagrange", wire_tag))?;
+                .get(&format!("{}_lagrange", wire_tag))?
+                .clone();
+            let mut wire_lagrange = wire_lagrange.borrow_mut();
 
             /*
             Adding zero knowledge to the witness polynomials.
@@ -192,40 +206,21 @@ impl<
     ///
     /// N.B. Random widget precommitments aren't actually being computed, since we are using permutation widget
     /// which only does computation in compute_random_commitments function if the round is 3.
-    fn execute_first_round(&self) {
-        /*
-                    queue.flush_queue();
-        #ifdef DEBUG_TIMING
-            std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
-        #endif
-        #ifdef DEBUG_TIMING
-            std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
-            std::chrono::milliseconds diff = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-            std::cerr << "init quotient polys: " << diff.count() << "ms" << std::endl;
-        #endif
-        #ifdef DEBUG_TIMING
-            start = std::chrono::steady_clock::now();
-        #endif
-        #ifdef DEBUG_TIMING
-            end = std::chrono::steady_clock::now();
-            diff = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-            std::cerr << "compute wire coefficients: " << diff.count() << "ms" << std::endl;
-        #endif
-        #ifdef DEBUG_TIMING
-            start = std::chrono::steady_clock::now();
-        #endif
-            compute_wire_commitments();
+    fn execute_first_round(&mut self) -> Result<()> {
+        // note that there were a lot of debug timing things here and i removed them because they were a mess
 
-            for (auto& widget : random_widgets) {
-                widget->compute_round_commitments(transcript, 1, queue);
-            }
-        #ifdef DEBUG_TIMING
-            end = std::chrono::steady_clock::now();
-            diff = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-            std::cerr << "compute wire commitments: " << diff.count() << "ms" << std::endl;
-        #endif
-                 */
-        todo!("execute_first_round implementation");
+        self.queue.flush_queue();
+
+        self.compute_wire_commitments()?;
+
+        for widget in self.random_widgets.iter() {
+            widget.compute_round_commitments(
+                &mut (*self.transcript).borrow_mut(),
+                1,
+                &mut self.queue,
+            );
+        }
+        Ok(())
     }
 
     /// Execute the second round:
@@ -236,21 +231,27 @@ impl<
     fn execute_second_round(&mut self) -> Result<()> {
         self.queue.flush_queue();
 
-        self.transcript.apply_fiat_shamir("eta");
+        (*self.transcript).borrow_mut().apply_fiat_shamir("eta");
 
-        for widget in self.random_widgets {
-            widget.compute_round_commitments(&mut self.transcript, 2, &mut self.queue);
+        for widget in self.random_widgets.iter() {
+            widget.compute_round_commitments(
+                &mut (*self.transcript).borrow_mut(),
+                2,
+                &mut self.queue,
+            );
         }
 
         // RAM/ROM memory subprotocol requires eta is generated before w_4 is comitted
         if self.settings.is_plookup() {
-            self.add_plookup_memory_records_to_w_4();
+            self.add_plookup_memory_records_to_w_4()?;
             let wire_tag = "w_4";
+
             let w_4_lagrange = self
                 .key
+                .borrow()
                 .polynomial_store
-                .get(&format!("{}_lagrange", wire_tag))
-                .unwrap();
+                .get(&format!("{}_lagrange", wire_tag))?;
+            let mut w_4_lagrange = w_4_lagrange.borrow_mut();
 
             // add randomness to w_4_lagrange
             let w_randomness = 3;
@@ -266,14 +267,21 @@ impl<
 
             // compute poly w_4 from w_4_lagrange and add it to the cache
             let mut w_4 = w_4_lagrange.clone();
-            self.key.small_domain.ifft_inplace(&mut w_4);
-            self.key.polynomial_store.put(wire_tag.to_string(), w_4);
+            self.key.borrow().small_domain.ifft_inplace(&mut w_4);
+            self.key
+                .borrow_mut()
+                .polynomial_store
+                .put(wire_tag.to_string(), w_4);
 
             // commit to w_4 using the monomial srs.
             self.queue.add_to_queue(WorkItem {
                 work: work_queue::Work::ScalarMultiplication {
-                    mul_scalars: self.key.polynomial_store.get(&wire_tag.to_string())?,
-                    constant: Fr::from((self.key.circuit_size + 1) as u64),
+                    mul_scalars: self
+                        .key
+                        .borrow()
+                        .polynomial_store
+                        .get(&wire_tag.to_string())?,
+                    constant: Fr::from((self.key.borrow().circuit_size + 1) as u64),
                 },
                 tag: "W_4".to_owned(),
             });
@@ -287,209 +295,141 @@ impl<
     /// - FFT the wires.
     ///
     /// *For example, standard composer executes permutation widget for z polynomial construction at this round.
-    fn execute_third_round(&self) {
-        // TODO
-        /*
-                queue.flush_queue();
+    fn execute_third_round(&mut self) {
+        self.queue.flush_queue();
 
-            transcript.apply_fiat_shamir("beta");
+        (*self.transcript).borrow_mut().apply_fiat_shamir("beta");
 
-        #ifdef DEBUG_TIMING
-            std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
-        #endif
-        #ifdef DEBUG_TIMING
-            std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
-            std::chrono::milliseconds diff = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-            std::cerr << "compute z coefficients: " << diff.count() << "ms" << std::endl;
-        #endif
-        #ifdef DEBUG_TIMING
-            start = std::chrono::steady_clock::now();
-        #endif
-            for (auto& widget : random_widgets) {
-                widget->compute_round_commitments(transcript, 3, queue);
-            }
+        for widget in &mut self.random_widgets {
+            widget.compute_round_commitments(
+                &mut (*self.transcript).borrow_mut(),
+                3,
+                &mut self.queue,
+            );
+        }
 
-            for (size_t i = 0; i < settings::program_width; ++i) {
-                std::string wire_tag = "w_" + std::to_string(i + 1);
-                queue.add_to_queue({
-                    .work_type = work_queue::WorkType::FFT,
-                    .mul_scalars = nullptr,
-                    .tag = wire_tag,
-                    .constant = barretenberg::fr(0),
-                    .index = 0,
-                });
-            }
-        #ifdef DEBUG_TIMING
-            end = std::chrono::steady_clock::now();
-            diff = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-            std::cerr << "compute z commitment: " << diff.count() << "ms" << std::endl;
-        #endif
-                */
-        todo!("execute_third_round implementation")
+        for i in 0..self.settings.program_width() {
+            let wire_tag = format!("w_{}", i + 1);
+            self.queue.add_to_queue(WorkItem {
+                work: Work::Fft { index: 0 },
+                tag: wire_tag,
+            });
+        }
     }
 
     /// Computes the quotient polynomial, then commits to its degree-n split parts.
-    fn execute_fourth_round(&self) {
-        // TODO
-        /*
-                queue.flush_queue();
-            transcript.apply_fiat_shamir("alpha");
-        #ifdef DEBUG_TIMING
-            std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
-        #endif
-        #ifdef DEBUG_TIMING
-            std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
-            std::chrono::milliseconds diff = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-            std::cerr << "compute wire ffts: " << diff.count() << "ms" << std::endl;
-        #endif
+    fn execute_fourth_round(&mut self) {
+        self.queue.flush_queue();
+        (*self.transcript).borrow_mut().apply_fiat_shamir("alpha");
 
-        #ifdef DEBUG_TIMING
-            start = std::chrono::steady_clock::now();
-        #endif
-        #ifdef DEBUG_TIMING
-            end = std::chrono::steady_clock::now();
-            diff = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-            std::cerr << "copy z: " << diff.count() << "ms" << std::endl;
-        #endif
-        #ifdef DEBUG_TIMING
-            start = std::chrono::steady_clock::now();
-        #endif
-        #ifdef DEBUG_TIMING
-            end = std::chrono::steady_clock::now();
-            diff = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-            std::cerr << "compute permutation grand product coeffs: " << diff.count() << "ms" << std::endl;
-        #endif
-            fr alpha_base = fr::serialize_from_buffer(transcript.get_challenge("alpha").begin());
+        let mut alpha_base = (*self.transcript)
+            .borrow_mut()
+            .get_challenge_field_element("alpha", None);
 
-            // Compute FFT of lagrange polynomial L_1 (needed in random widgets only)
-            compute_lagrange_1_fft();
+        // Compute FFT of lagrange polynomial L_1 (needed in random widgets only)
+        self.compute_lagrange_1_fft();
 
-            for (auto& widget : random_widgets) {
-        #ifdef DEBUG_TIMING
-                std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
-        #endif
-                alpha_base = widget->compute_quotient_contribution(alpha_base, transcript);
-        #ifdef DEBUG_TIMING
-                std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
-                std::chrono::milliseconds diff = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-                std::cerr << "widget " << i << " quotient compute time: " << diff.count() << "ms" << std::endl;
-        #endif
-            }
+        for widget in &mut self.random_widgets {
+            alpha_base =
+                widget.compute_quotient_contribution(alpha_base, &self.transcript.borrow());
+        }
 
-            for (auto& widget : transition_widgets) {
-                alpha_base = widget->compute_quotient_contribution(alpha_base, transcript);
-            }
-        #ifdef DEBUG_TIMING
-            start = std::chrono::steady_clock::now();
-        #endif
+        for widget in &mut self.transition_widgets {
+            alpha_base = widget.compute_quotient_contribution(
+                alpha_base,
+                &self.transcript.borrow(),
+                &mut self.rng,
+            );
+        }
 
-            // The parts of the quotient polynomial t(X) are stored as 4 separate polynomials in
-            // the code. However, operations such as dividing by the pseudo vanishing polynomial
-            // as well as iFFT (coset) are to be performed on the polynomial t(X) as a whole.
-            // We avoid redundant copy of the parts t_1, t_2, t_3, t_4 and instead just tweak the
-            // relevant functions to work on quotient polynomial parts.
-            std::vector<fr*> quotient_poly_parts;
-            quotient_poly_parts.push_back(&key->quotient_polynomial_parts[0][0]);
-            quotient_poly_parts.push_back(&key->quotient_polynomial_parts[1][0]);
-            quotient_poly_parts.push_back(&key->quotient_polynomial_parts[2][0]);
-            quotient_poly_parts.push_back(&key->quotient_polynomial_parts[3][0]);
-            barretenberg::polynomial_arithmetic::divide_by_pseudo_vanishing_polynomial(
-                quotient_poly_parts, key->small_domain, key->large_domain);
-
-        #ifdef DEBUG_TIMING
-            end = std::chrono::steady_clock::now();
-            diff = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-            std::cerr << "divide by vanishing polynomial: " << diff.count() << "ms" << std::endl;
-        #endif
-        #ifdef DEBUG_TIMING
-            start = std::chrono::steady_clock::now();
-        #endif
-            polynomial_arithmetic::coset_ifft(quotient_poly_parts, key->large_domain);
-
-            // Manually copy the (n + 1)th coefficient of t_3 for StandardPlonk from t_4.
-            // This is because the degree of t_3 for StandardPlonk is n.
-            if (settings::program_width == 3) {
-                key->quotient_polynomial_parts[2][circuit_size] = key->quotient_polynomial_parts[3][0];
-                key->quotient_polynomial_parts[3][0] = 0;
-            }
-
-        #ifdef DEBUG_TIMING
-            end = std::chrono::steady_clock::now();
-            diff = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-            std::cerr << "final inverse fourier transforms: " << diff.count() << "ms" << std::endl;
-        #endif
-        #ifdef DEBUG_TIMING
-            start = std::chrono::steady_clock::now();
-        #endif
-
-            add_blinding_to_quotient_polynomial_parts();
-
-            compute_quotient_commitments();
-        #ifdef DEBUG_TIMING
-            end = std::chrono::steady_clock::now();
-            diff = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-            std::cerr << "compute quotient commitment: " << diff.count() << "ms" << std::endl;
-        #endif
-        } // namespace proof_system::plonk
-                */
-        todo!("implement me")
-    }
-    fn execute_fifth_round(&self) {
-        // TODO
-        /*
-
-        template <typename settings> void ProverBase<settings>::execute_fifth_round()
+        // The parts of the quotient polynomial t(X) are stored as 4 separate polynomials in
+        // the code. However, operations such as dividing by the pseudo vanishing polynomial
+        // as well as iFFT (coset) are to be performed on the polynomial t(X) as a whole.
+        // We avoid redundant copy of the parts t_1, t_2, t_3, t_4 and instead just tweak the
+        // relevant functions to work on quotient polynomial parts.
+        // TODO this does not work so good in rust. for now, we copy... is it still okay to do this?
+        let mut quotient_poly_parts: Vec<&mut [&mut Fr]> = Vec::new();
         {
-            queue.flush_queue();
-            transcript.apply_fiat_shamir("z"); // end of 4th round
-        #ifdef DEBUG_TIMING
-            std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
-        #endif
-            compute_quotient_evaluation();
-        #ifdef DEBUG_TIMING
-            std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
-            std::chrono::milliseconds diff = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-            std::cerr << "compute quotient evaluation: " << diff.count() << "ms" << std::endl;
-        #endif
-                 */
-        todo!("implement me")
+            let key = self.key.borrow();
+            let mut poly0 = (*key.quotient_polynomial_parts[0]).borrow_mut();
+            let mut poly_sliced0 = [poly0.index_mut(0)];
+            quotient_poly_parts.push(&mut poly_sliced0);
+            let mut poly1 = (*key.quotient_polynomial_parts[1]).borrow_mut();
+            let mut poly_sliced1 = [poly1.index_mut(0)];
+            quotient_poly_parts.push(&mut poly_sliced1);
+            let mut poly2 = (*key.quotient_polynomial_parts[2]).borrow_mut();
+            let mut poly_sliced2 = [poly2.index_mut(0)];
+            quotient_poly_parts.push(&mut poly_sliced2);
+            let mut poly3 = (*key.quotient_polynomial_parts[3]).borrow_mut();
+            let mut poly_sliced3 = [poly3.index_mut(0)];
+            quotient_poly_parts.push(&mut poly_sliced3);
+
+            self.key
+                .borrow()
+                .small_domain
+                .divide_by_pseudo_vanishing_polynomial(
+                    &quotient_poly_parts,
+                    &self.key.borrow().large_domain,
+                    0,
+                );
+
+            self.key
+                .borrow()
+                .large_domain
+                .coset_ifft_vec(quotient_poly_parts.as_mut_slice());
+        }
+        // Manually copy the (n + 1)th coefficient of t_3 for StandardPlonk from t_4.
+        // This is because the degree of t_3 for StandardPlonk is n.
+        if self.settings.program_width() == 3 {
+            self.key.borrow().quotient_polynomial_parts[2].borrow_mut()[self.circuit_size] =
+                self.key.borrow().quotient_polynomial_parts[3].borrow_mut()[0];
+            self.key.borrow().quotient_polynomial_parts[3].borrow_mut()[0] = Fr::zero();
+        }
+
+        self.add_blinding_to_quotient_polynomial_parts();
+
+        self.compute_quotient_commitments();
+    }
+    fn execute_fifth_round(&mut self) -> Result<()> {
+        self.queue.flush_queue();
+        (*self.transcript).borrow_mut().apply_fiat_shamir("z"); // end of 4th round
+        self.compute_quotient_evaluation()
     }
 
-    fn execute_sixth_round(&self) {
-        // TODO
-        /*
-                queue.flush_queue();
-        transcript.apply_fiat_shamir("nu");
-        commitment_scheme->batch_open(transcript, queue, key);
-        */
-        todo!("implement me")
+    fn execute_sixth_round(&mut self) {
+        self.queue.flush_queue();
+        (*self.transcript).borrow_mut().apply_fiat_shamir("nu");
+        self.commitment_scheme.batch_open(
+            &(*self.transcript).borrow(),
+            &mut self.queue,
+            Some(self.key.clone().borrow()),
+        );
     }
 
-    fn add_polynomial_evaluations_to_transcript(&self) {
-        todo!("i don't know what this is")
-    }
-    fn compute_batch_opening_polynomials(&self) {
-        todo!("i don't know what this is")
-    }
+    /// note that this is never defined in barettenberg
+    fn add_polynomial_evaluations_to_transcript(&self) {}
+    /// note that this is never defined in barettenberg
+    fn compute_batch_opening_polynomials(&self) {}
     /// - Compute wire commitments and add them to the transcript.
     /// - Add public_inputs from w_2_fft to transcript.
-    fn compute_wire_commitments(&self) -> Result<()> {
+    fn compute_wire_commitments(&mut self) -> Result<()> {
         // Compute wire commitments
         let end: usize = if self.settings.is_plookup() {
             self.settings.program_width() - 1
         } else {
             self.settings.program_width()
         };
+        let key = self.key.borrow();
         for i in 0..end {
             let wire_tag = format!("w_{}", i + 1);
             let commit_tag = format!("W_{}", i + 1);
-            let coefficients = self.key.polynomial_store.get(&wire_tag)?;
+            let coefficients = key.polynomial_store.get(&wire_tag)?;
 
             // This automatically saves the computed point to the transcript
             let domain_size_flag = if i > 2 {
-                self.key.circuit_size
+                key.circuit_size
             } else {
-                self.key.circuit_size + 1
+                key.circuit_size + 1
             };
             self.commitment_scheme.commit(
                 coefficients,
@@ -500,12 +440,13 @@ impl<
         }
 
         // add public inputs
-        let public_wires_source = self.key.polynomial_store.get(&"w_2_lagrange".to_string())?;
+        let public_wires_source = key.polynomial_store.get(&"w_2_lagrange".to_string())?;
         let mut public_wires = vec![];
-        for i in 0..self.key.num_public_inputs {
-            public_wires.push(public_wires_source[i]);
+        for i in 0..key.num_public_inputs {
+            public_wires.push(public_wires_source.borrow()[i]);
         }
-        self.transcript
+        (*self.transcript)
+            .borrow_mut()
             .put_field_element_vector("public_inputs", &public_wires);
         Ok(())
     }
@@ -548,16 +489,17 @@ impl<
     /// t_{i} would change and so we will have to ensure the correct size of multi-scalar multiplication in
     /// computing the commitments to these polynomials.
     ///
-    fn compute_quotient_commitments(&self) {
+    fn compute_quotient_commitments(&mut self) {
+        let key = self.key.borrow();
         for i in 0..self.settings.program_width() {
-            let coefficients = self.key.quotient_polynomial_parts[i];
+            let coefficients = key.quotient_polynomial_parts[i].clone();
             let quotient_tag = format!("T_{}", i + 1);
             // Set flag that determines domain size (currently n or n+1) in pippenger (see process_queue()).
             // Note: After blinding, all t_i have size n+1 representation (degree n) except t_4 in Turbo/Ultra.
             let domain_size_flag = if i > 2 {
-                self.key.circuit_size
+                key.circuit_size
             } else {
-                self.key.circuit_size + 1
+                key.circuit_size + 1
             };
             // TODO concerned about the fr::from on domain_size_flag. this may not be correct. bberg just uses equivalent of std::mem::transmute
             self.commitment_scheme.commit(
@@ -578,70 +520,65 @@ impl<
         // We can only compute memory record values once W_1, W_2, W_3 have been comitted to,
         // due to the dependence on the `eta` challenge.
 
-        let eta = self.transcript.get_field_element("eta");
+        let eta = (*self.transcript).borrow_mut().get_field_element("eta");
+        let key = self.key.borrow();
 
         // We need the lagrange-base forms of the first 3 wires to compute the plookup memory record
         // value. w4 = w3 * eta^3 + w2 * eta^2 + w1 * eta + read_write_flag;
         // a RAM write. See plookup_auxiliary_widget.hpp for details)
-        let w_1 = self
-            .key
-            .polynomial_store
-            .get(&"w_1_lagrange".to_string())
-            .unwrap();
-        let w_2 = self
-            .key
-            .polynomial_store
-            .get(&"w_2_lagrange".to_string())
-            .unwrap();
-        let w_3 = self
-            .key
-            .polynomial_store
-            .get(&"w_3_lagrange".to_string())
-            .unwrap();
-        let mut w_4 = self
-            .key
-            .polynomial_store
-            .get(&"w_4_lagrange".to_string())
-            .unwrap();
-        for gate_idx in self.key.memory_read_records {
-            w_4[gate_idx] += w_3[gate_idx];
-            w_4[gate_idx] *= eta;
-            w_4[gate_idx] += w_2[gate_idx];
-            w_4[gate_idx] *= eta;
-            w_4[gate_idx] += w_1[gate_idx];
-            w_4[gate_idx] *= eta;
+        let w_1 = key.polynomial_store.get(&"w_1_lagrange".to_string())?;
+        let w_1 = w_1.borrow();
+        let w_2 = key.polynomial_store.get(&"w_2_lagrange".to_string())?;
+        let w_2 = w_2.borrow();
+        let w_3 = key.polynomial_store.get(&"w_3_lagrange".to_string())?;
+        let w_3 = w_3.borrow();
+        let w_4 = key.polynomial_store.get(&"w_4_lagrange".to_string())?;
+        let mut w_4 = w_4.borrow_mut();
+        for gate_idx in key.memory_read_records.iter() {
+            w_4[*gate_idx] += w_3[*gate_idx];
+            w_4[*gate_idx] *= eta;
+            w_4[*gate_idx] += w_2[*gate_idx];
+            w_4[*gate_idx] *= eta;
+            w_4[*gate_idx] += w_1[*gate_idx];
+            w_4[*gate_idx] *= eta;
         }
-        for gate_idx in self.key.memory_write_records {
-            w_4[gate_idx] += w_3[gate_idx];
-            w_4[gate_idx] *= eta;
-            w_4[gate_idx] += w_2[gate_idx];
-            w_4[gate_idx] *= eta;
-            w_4[gate_idx] += w_1[gate_idx];
-            w_4[gate_idx] *= eta;
-            w_4[gate_idx] += Fr::one();
+        for gate_idx in key.memory_write_records.iter() {
+            w_4[*gate_idx] += w_3[*gate_idx];
+            w_4[*gate_idx] *= eta;
+            w_4[*gate_idx] += w_2[*gate_idx];
+            w_4[*gate_idx] *= eta;
+            w_4[*gate_idx] += w_1[*gate_idx];
+            w_4[*gate_idx] *= eta;
+            w_4[*gate_idx] += Fr::one();
         }
         Ok(())
     }
 
     fn compute_quotient_evaluation(&self) -> Result<()> {
-        let zeta = self.transcript.get_field_element("zeta");
+        let key = self.key.borrow();
+
+        let zeta = (*self.transcript).borrow_mut().get_field_element("zeta");
 
         self.commitment_scheme
-            .add_opening_evaluations_to_transcript(&mut self.transcript, Some(self.key), false);
+            .add_opening_evaluations_to_transcript(
+                &mut (*self.transcript).borrow_mut(),
+                Some(&self.key.borrow()),
+                false,
+            );
 
         let mut t_eval = polynomial_arithmetic::evaluate(
             &[
-                self.key.quotient_polynomial_parts[0][0],
-                self.key.quotient_polynomial_parts[1][0],
-                self.key.quotient_polynomial_parts[2][0],
-                self.key.quotient_polynomial_parts[3][0],
+                key.quotient_polynomial_parts[0].borrow()[0],
+                key.quotient_polynomial_parts[1].borrow()[0],
+                key.quotient_polynomial_parts[2].borrow()[0],
+                key.quotient_polynomial_parts[3].borrow()[0],
             ],
             &zeta,
             4 * self.circuit_size,
         );
 
         // TODO are these limbs wrong?
-        let zeta_pow_n = zeta.pow([self.key.circuit_size as u64]);
+        let zeta_pow_n = zeta.pow([key.circuit_size as u64]);
         let mut scalar = zeta_pow_n;
         // Adjust the evaluation to consider the (n + 1)th coefficient when needed (note that width 3 is just an avatar for
         // StandardComposer here)
@@ -651,16 +588,18 @@ impl<
             self.settings.program_width() - 1
         };
         for j in 0..num_deg_n_poly {
-            t_eval += self.key.quotient_polynomial_parts[j][self.key.circuit_size] * scalar;
+            t_eval += key.quotient_polynomial_parts[j].borrow()[key.circuit_size] * scalar;
             scalar *= zeta_pow_n;
         }
 
-        self.transcript.add_field_element("t", &t_eval);
+        (*self.transcript)
+            .borrow_mut()
+            .add_field_element("t", &t_eval);
         Ok(())
     }
 
     /// Add blinding to the components in such a way that the full quotient would be unchanged if reconstructed
-    fn add_blinding_to_quotient_polynomial_parts(&self) {
+    fn add_blinding_to_quotient_polynomial_parts(&mut self) {
         // Construct blinded quotient polynomial parts t_i by adding randomness to the unblinded parts t_i' in
         // such a way that the full quotient polynomial t is unchanged upon reconstruction, i.e.
         //
@@ -674,79 +613,82 @@ impl<
         //              t_4 = t_4' - b_2
         //
         // For details, please head to: https://hackmd.io/JiyexiqRQJW55TMRrBqp1g.
+        let key = self.key.borrow();
         for i in 0..self.settings.program_width() - 1 {
             // Note that only program_width-1 random elements are required for full blinding
             let quotient_randomness = Fr::rand(&mut self.rng);
 
-            self.key.quotient_polynomial_parts[i][self.key.circuit_size] += quotient_randomness; // update coefficient of X^n'th term
-            self.key.quotient_polynomial_parts[i + 1][0] -= quotient_randomness;
+            key.quotient_polynomial_parts[i].borrow_mut()[key.circuit_size] += quotient_randomness; // update coefficient of X^n'th term
+            key.quotient_polynomial_parts[i + 1].borrow_mut()[0] -= quotient_randomness;
             // update constant coefficient
         }
     }
 
     /// Compute FFT of lagrange polynomial L_1 needed in random widgets only
     fn compute_lagrange_1_fft(&self) {
-        let mut lagrange_1_fft = Polynomial::new(4 * self.circuit_size + 8);
-        polynomial_arithmetic::compute_lagrange_polynomial_fft(
-            &lagrange_1_fft,
-            self.key.small_domain,
-            self.key.large_domain,
-        );
-        for i in 0..8 {
-            lagrange_1_fft[4 * self.circuit_size + i] = lagrange_1_fft[i];
+        let mut lagrange_1_fft: Polynomial<Fr> = Polynomial::new(4 * self.circuit_size + 8);
+
+        {
+            let key = self.key.borrow();
+            key.small_domain
+                .compute_lagrange_polynomial_fft(&lagrange_1_fft, &key.large_domain);
+            for i in 0..8 {
+                lagrange_1_fft[4 * self.circuit_size + i] = lagrange_1_fft[i];
+            }
         }
         self.key
+            .borrow_mut()
             .polynomial_store
-            .put("lagrange_1_fft".to_string(), Rc::new(lagrange_1_fft));
+            .put("lagrange_1_fft".to_string(), lagrange_1_fft);
     }
 
     fn export_proof(&self) -> Proof {
         Proof {
-            proof_data: self.transcript.export_transcript(),
+            proof_data: (*self.transcript).borrow_mut().export_transcript(),
         }
     }
 
-    pub(crate) fn construct_proof(&mut self) -> Proof {
+    pub(crate) fn construct_proof(&mut self) -> Result<Proof> {
         // Execute init round. Randomize witness polynomials.
-        self.execute_preamble_round();
-        self.queue.process_queue();
+        self.execute_preamble_round()?;
+        self.queue.process_queue()?;
 
         // Compute wire precommitments and sometimes random widget round commitments
-        self.execute_first_round();
-        self.queue.process_queue();
+        self.execute_first_round()?;
+        self.queue.process_queue()?;
 
         // Fiat-Shamir eta + execute random widgets.
-        self.execute_second_round();
-        self.queue.process_queue();
+        self.execute_second_round()?;
+        self.queue.process_queue()?;
 
         // Fiat-Shamir beta & gamma, execute random widgets (Permutation widget is executed here)
         // and fft the witnesses
         self.execute_third_round();
-        self.queue.process_queue();
+        self.queue.process_queue()?;
 
         // Fiat-Shamir alpha, compute & commit to quotient polynomial.
         self.execute_fourth_round();
-        self.queue.process_queue();
+        self.queue.process_queue()?;
 
-        self.execute_fifth_round();
+        self.execute_fifth_round()?;
 
         self.execute_sixth_round();
-        self.queue.process_queue();
+        self.queue.process_queue()?;
 
         self.queue.flush_queue();
 
-        return self.export_proof();
+        Ok(self.export_proof())
     }
 
     fn get_circuit_size(&self) -> usize {
         todo!("implement me")
     }
     fn reset(&mut self) {
-        let manifest = self.transcript.get_manifest();
-        self.transcript = Rc::new(Transcript::<H, Fr, G1Affine>::new(
+        let manifest = (*self.transcript).borrow_mut().get_manifest();
+        *(*self.transcript).borrow_mut() = Transcript::<H, Fr, G1Affine>::new(
             Some(manifest),
-            self.transcript.num_challenge_bytes,
-        ));
+            (*self.transcript).borrow().num_challenge_bytes,
+        );
     }
 }
 

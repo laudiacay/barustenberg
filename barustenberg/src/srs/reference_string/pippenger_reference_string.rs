@@ -1,4 +1,4 @@
-use std::{marker::PhantomData, sync::Arc};
+use std::{marker::PhantomData, rc::Rc, sync::Arc};
 
 use ark_ec::AffineRepr;
 
@@ -37,7 +37,7 @@ impl<G1Affine: AffineRepr> ProverReferenceString<G1Affine> for PippengerReferenc
         todo!()
     }
 
-    fn get_monomial_points(&mut self) -> Arc<Vec<G1Affine>> {
+    fn get_monomial_points(&mut self) -> Rc<Vec<G1Affine>> {
         todo!()
     }
 }
@@ -53,7 +53,7 @@ impl<'a, G1Affine: AffineRepr, G2Affine: AffineRepr>
 {
     pub(crate) fn new(pippenger: Arc<Pippenger>, g2x: &'a [u8]) -> Self {
         PippengerReferenceStringFactory {
-            pippenger: pippenger.clone(),
+            pippenger,
             g2x,
             phantom: PhantomData,
         }
@@ -63,13 +63,13 @@ impl<'a, G1Affine: AffineRepr, G2Affine: AffineRepr>
 impl<'a, G1Affine: AffineRepr, G2Affine: AffineRepr> ReferenceStringFactory<G1Affine, G2Affine>
     for PippengerReferenceStringFactory<'a, G1Affine, G2Affine>
 {
-    fn get_prover_crs(&self, degree: usize) -> Option<Arc<dyn ProverReferenceString<G1Affine>>> {
+    fn get_prover_crs(&self, degree: usize) -> Option<Rc<dyn ProverReferenceString<G1Affine>>> {
         assert!(degree <= self.pippenger.get_num_points());
-        Some(Arc::new(PippengerReferenceString::new(
+        Some(Rc::new(PippengerReferenceString::new(
             self.pippenger.clone(),
         )))
     }
-    fn get_verifier_crs(&self) -> Option<Arc<dyn VerifierReferenceString<G2Affine>>> {
-        Some(Arc::new(VerifierMemReferenceString::new(self.g2x)))
+    fn get_verifier_crs(&self) -> Option<Rc<dyn VerifierReferenceString<G2Affine>>> {
+        Some(Rc::new(VerifierMemReferenceString::new(self.g2x)))
     }
 }

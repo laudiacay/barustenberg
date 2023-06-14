@@ -42,9 +42,10 @@ fn compute_num_threads(size: usize) -> usize {
     #[cfg(not(feature = "multithreading"))]
     let num_threads = 1;
     if size <= num_threads * MIN_GROUP_PER_THREAD {
-        return 1;
+        1
+    } else {
+        num_threads
     }
-    return num_threads;
 }
 /// This function computes a lookup table for the roots of a polynomial.
 ///
@@ -78,7 +79,7 @@ fn compute_num_threads(size: usize) -> usize {
 fn compute_lookup_table_single<Fr: Field>(
     input_root: &Fr,
     size: usize,
-    roots: &mut Vec<Fr>,
+    roots: &mut [Fr],
     round_roots: &mut Vec<usize>,
 ) {
     let num_rounds = (size as f64).log2().ceil() as usize;
@@ -88,16 +89,14 @@ fn compute_lookup_table_single<Fr: Field>(
         let last = *round_roots.last().unwrap();
         round_roots.push(last + (1 << i));
     }
-
-    for i in 0..num_rounds - 1 {
+    for (i, round_root_i) in round_roots.iter().enumerate().take(num_rounds - 1) {
         let m = 1 << (i + 1);
         let exponent = [(size / (2 * m)) as u64];
         let round_root = input_root.pow(exponent);
-        let current_round_roots_index = round_roots[i];
-        roots[current_round_roots_index] = Fr::one();
+        roots[*round_root_i] = Fr::one();
         for j in 1..m {
-            roots[current_round_roots_index + j] =
-                roots[current_round_roots_index + j - 1] * round_root;
+            roots[round_root_i + j] =
+                roots[round_root_i + j - 1] * round_root;
         }
     }
 }

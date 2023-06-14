@@ -2,6 +2,7 @@ use crate::polynomials::Polynomial;
 use anyhow::{anyhow, Result};
 use ark_ff::Field;
 use std::{
+    cell::RefCell,
     collections::HashMap,
     fmt::{self, Display, Formatter},
     marker::PhantomData,
@@ -9,12 +10,12 @@ use std::{
 };
 
 #[derive(Debug, Clone, Default)]
-pub(crate) struct PolynomialStore<'a, Fr: Field> {
-    polynomial_map: HashMap<String, Rc<Polynomial<'a, Fr>>>,
+pub(crate) struct PolynomialStore<Fr: Field> {
+    polynomial_map: HashMap<String, Rc<RefCell<Polynomial<Fr>>>>,
     phantom: PhantomData<Fr>,
 }
 
-impl<'a, Fr: Field> PolynomialStore<'a, Fr> {
+impl<Fr: Field> PolynomialStore<Fr> {
     pub(crate) fn new() -> Self {
         Self {
             polynomial_map: HashMap::new(),
@@ -27,8 +28,9 @@ impl<'a, Fr: Field> PolynomialStore<'a, Fr> {
     /// # Arguments
     /// - `name` - string ID of the polynomial
     /// - `polynomial` - the polynomial to be stored
-    pub(crate) fn put(&mut self, name: String, polynomial: Rc<Polynomial<'a, Fr>>) {
-        self.polynomial_map.insert(name, polynomial);
+    pub(crate) fn put(&mut self, name: String, polynomial: Polynomial<Fr>) {
+        self.polynomial_map
+            .insert(name, Rc::new(RefCell::new(polynomial)));
     }
 
     /// Get a reference to a polynomial in the PolynomialStore; will throw exception if the
@@ -39,7 +41,7 @@ impl<'a, Fr: Field> PolynomialStore<'a, Fr> {
     ///
     /// # Returns
     /// - `Result<Polynomial>` - a reference to the polynomial associated with the given key
-    pub(crate) fn get(&self, key: &String) -> Result<Rc<Polynomial<'a, Fr>>> {
+    pub(crate) fn get(&self, key: &String) -> Result<Rc<RefCell<Polynomial<Fr>>>> {
         self.polynomial_map
             .get(key)
             .ok_or_else(|| anyhow!("didn't find polynomial..."))
@@ -53,10 +55,13 @@ impl<'a, Fr: Field> PolynomialStore<'a, Fr> {
     ///
     /// # Returns
     /// - `Result<Polynomial>` - the polynomial associated with the given key
-    pub(crate) fn remove(&mut self, key: String) -> Result<Rc<Polynomial<'a, Fr>>> {
-        self.polynomial_map
+    pub(crate) fn remove(&mut self, key: String) -> Result<Polynomial<Fr>> {
+        let wrapped_poly = self
+            .polynomial_map
             .remove(&key)
-            .ok_or_else(|| anyhow!("didn't find polynomial..."))
+            .ok_or_else(|| anyhow!("didn't find polynomial..."))?;
+        let poly = Rc::try_unwrap(wrapped_poly).map_err(|_| anyhow!("unwrapping rc failed"))?;
+        Ok(poly.into_inner())
     }
 
     /// Get the current size (bytes) of all polynomials in the PolynomialStore
@@ -66,13 +71,14 @@ impl<'a, Fr: Field> PolynomialStore<'a, Fr> {
     fn get_size_in_bytes(&self) -> usize {
         let mut size_in_bytes: usize = 0;
         for (_, entry) in self.polynomial_map.iter() {
-            size_in_bytes += entry.size() * std::mem::size_of::<Fr>();
+            size_in_bytes += entry.borrow().size() * std::mem::size_of::<Fr>();
         }
         size_in_bytes
     }
 
-    pub(crate) fn insert(&mut self, key: &String, poly: Polynomial<'a, Fr>) {
-        self.polynomial_map.insert(key.to_string(), Rc::new(poly));
+    pub(crate) fn insert(&mut self, key: &String, poly: Polynomial<Fr>) {
+        self.polynomial_map
+            .insert(key.to_string(), Rc::new(RefCell::new(poly)));
     }
 
     fn contains(&self, key: &String) -> bool {
@@ -85,12 +91,12 @@ impl<'a, Fr: Field> PolynomialStore<'a, Fr> {
     // TODO: "allow for const range based for loop"
 }
 
-impl<'a, Fr: Field> Display for PolynomialStore<'a, Fr> {
+impl<Fr: Field> Display for PolynomialStore<Fr> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let size_in_mb = (self.get_size_in_bytes() / 1_000_000) as f32;
         write!(f, "PolynomialStore contents total size: {} MB", size_in_mb)?;
         for (key, entry) in self.polynomial_map.iter() {
-            let entry_bytes = entry.size() * std::mem::size_of::<Fr>();
+            let entry_bytes = entry.borrow().size() * std::mem::size_of::<Fr>();
             write!(
                 f,
                 "PolynomialStore: {} -> {} bytes, {:?}",

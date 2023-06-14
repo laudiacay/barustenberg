@@ -10,7 +10,7 @@ pub(crate) mod ecc;
 /// bitops mostly
 pub(crate) mod numeric;
 /// plonk
-pub(crate) mod plonk;
+pub mod plonk;
 /// math with polynomials
 pub(crate) mod polynomials;
 /// proof system

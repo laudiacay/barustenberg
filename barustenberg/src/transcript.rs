@@ -8,8 +8,6 @@ use std::{collections::HashMap, marker::PhantomData};
 use tracing::info;
 use typenum::{Unsigned, U16, U32};
 
-use crate::plonk::proof_system::verification_key::VerificationKey;
-
 /// BarretenHasher is a trait that defines the hash function used for Fiat-Shamir.
 pub(crate) trait BarretenHasher {
     /// The size of the security parameter in bytes.
@@ -149,8 +147,6 @@ struct Challenge<H: BarretenHasher> {
     data: GenericArray<u8, H::PrngOutputSize>,
 }
 
-pub(crate) type TranscriptKey<'a, Fr: Field> = VerificationKey<'a, Fr>;
-
 pub(crate) struct Transcript<H: BarretenHasher, Fr: Field, G1Affine: AffineRepr> {
     current_round: usize,
     pub(crate) num_challenge_bytes: usize,
@@ -192,9 +188,11 @@ impl<H: BarretenHasher, Fr: Field, G1Affine: AffineRepr> Transcript<H, Fr, G1Aff
     /// hash_type: The hash used for Fiat-Shamir.
     /// challenge_bytes: The number of bytes per challenge to generate.
     pub(crate) fn new(input_manifest: Option<Manifest>, num_challenge_bytes: usize) -> Self {
-        let mut ret: Transcript<H, Fr, G1Affine> = Default::default();
-        ret.num_challenge_bytes = num_challenge_bytes;
-        ret.manifest = input_manifest.unwrap_or_default();
+        let mut ret = Transcript::<H, Fr, G1Affine> {
+            num_challenge_bytes: num_challenge_bytes,
+            manifest: input_manifest.unwrap_or_default(),
+            ..Default::default()
+        };
         ret.compute_challenge_map();
         ret
     }
@@ -630,41 +628,6 @@ impl<H: BarretenHasher, Fr: Field, G1Affine: AffineRepr> Transcript<H, Fr, G1Aff
         }
     }
 
-    /*
-        void StandardTranscript::add_field_element(const std::string& element_name, const barretenberg::fr& element)
-    {
-        add_element(element_name, element.to_buffer());
-    }
-
-    barretenberg::fr StandardTranscript::get_field_element(const std::string& element_name) const
-    {
-        return barretenberg::fr::serialize_from_buffer(&(get_element(element_name))[0]);
-    }
-
-    barretenberg::g1::affine_element StandardTranscript::get_group_element(const std::string& element_name) const
-    {
-        return barretenberg::g1::affine_element::serialize_from_buffer(&(get_element(element_name))[0]);
-    }
-
-    std::vector<barretenberg::fr> StandardTranscript::get_field_element_vector(const std::string& element_name) const
-    {
-        return many_from_buffer<barretenberg::fr>(get_element(element_name));
-    }
-
-    barretenberg::fr StandardTranscript::get_challenge_field_element(const std::string& challenge_name,
-                                                                     const size_t idx) const
-    {
-        return barretenberg::fr::serialize_from_buffer(&(get_challenge(challenge_name, idx))[0]);
-    }
-
-    barretenberg::fr StandardTranscript::get_challenge_field_element_from_map(const std::string& challenge_name,
-                                                                              const std::string& challenge_map_name) const
-    {
-        return barretenberg::fr::serialize_from_buffer(&(get_challenge_from_map(challenge_name, challenge_map_name))[0]);
-    }
-
-         */
-
     pub(crate) fn add_field_element(&mut self, element_name: &str, element: &Fr) {
         let mut buf = vec![0u8; Fr::serialized_size(element, ark_serialize::Compress::No)];
         Fr::serialize_uncompressed(element, &mut buf).unwrap();
@@ -697,7 +660,7 @@ impl<H: BarretenHasher, Fr: Field, G1Affine: AffineRepr> Transcript<H, Fr, G1Aff
         }
         res
     }
-    pub(crate) fn put_field_element_vector(&self, element_name: &str, elements: &[Fr]) {
+    pub(crate) fn put_field_element_vector(&mut self, element_name: &str, elements: &[Fr]) {
         let mut buf = Vec::new();
         for element in elements {
             let mut tmp = vec![0u8; Fr::serialized_size(element, ark_serialize::Compress::No)];

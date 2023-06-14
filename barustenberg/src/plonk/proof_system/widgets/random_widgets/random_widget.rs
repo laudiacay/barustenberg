@@ -35,7 +35,7 @@ impl<'a, H: BarretenHasher, Fr: Field + FftField, G1Affine: AffineRepr>
         todo!("ProverRandomWidget::compute_round_commitments")
     }
 
-    fn compute_quotient_contribution(
+    pub(crate) fn compute_quotient_contribution(
         &self,
         _alpha_base: Fr,
         _transcript: &Transcript<H, Fr, G1Affine>,
@@ -44,7 +44,7 @@ impl<'a, H: BarretenHasher, Fr: Field + FftField, G1Affine: AffineRepr>
     }
 }
 
-impl<'a, H: BarretenHasher, Fr: Field + FftField, G1Affine: AffineRepr> PartialEq
+impl<H: BarretenHasher, Fr: Field + FftField, G1Affine: AffineRepr> PartialEq
     for ProverRandomWidget<'_, H, Fr, G1Affine>
 {
     fn eq(&self, other: &Self) -> bool {

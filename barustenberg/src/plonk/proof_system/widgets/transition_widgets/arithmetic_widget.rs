@@ -71,29 +71,27 @@ impl<H: BarretenHasher, F: Field, S: Settings<H>> KernelBase<H, S, F, U1>
     #[inline]
     fn compute_linear_terms<PC: PolyContainer<F>, G: BaseGetter<H, F, S, PC, U1>>(
         polynomials: &PC,
-        challenges: &ChallengeArray<F, U1>,
+        _challenges: &ChallengeArray<F, U1>,
         linear_terms: &mut CoefficientArray<F>,
         index: Option<usize>,
     ) {
         let index = index.unwrap_or_default();
 
-        let shifted = false;
-
         let w_1 = G::get_value(
             polynomials,
-            EvaluationType::Shifted,
+            EvaluationType::NonShifted,
             PolynomialIndex::W1,
             Some(index),
         );
         let w_2 = G::get_value(
             polynomials,
-            EvaluationType::Shifted,
+            EvaluationType::NonShifted,
             PolynomialIndex::W2,
             Some(index),
         );
         let w_3 = G::get_value(
             polynomials,
-            EvaluationType::Shifted,
+            EvaluationType::NonShifted,
             PolynomialIndex::W3,
             Some(index),
         );

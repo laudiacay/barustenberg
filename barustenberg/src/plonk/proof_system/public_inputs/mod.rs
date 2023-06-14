@@ -119,21 +119,21 @@ pub(crate) fn compute_public_input_delta<F: Field>(
     let mut denominator = F::one();
 
     let mut work_root = F::one();
-    let mut T0;
-    let mut T1;
-    let mut T2: F;
-    let mut T3: F;
+    let mut t0;
+    let mut t1;
+    let mut t2: F;
+    let mut t3: F;
     for witness in public_inputs {
-        T0 = *witness + gamma;
-        T1 = work_root * beta;
-        T2 = T1 * coset_generator::<F>(0);
-        T3 = T1 * external_coset_generator::<F>();
-        T2 += T0;
-        T3 += T0;
-        numerator *= T2;
-        denominator *= T3;
+        t0 = *witness + gamma;
+        t1 = work_root * beta;
+        t2 = t1 * coset_generator::<F>(0);
+        t3 = t1 * external_coset_generator::<F>();
+        t2 += t0;
+        t3 += t0;
+        numerator *= t2;
+        denominator *= t3;
         work_root *= subgroup_generator;
     }
-    T0 = numerator / denominator;
-    T0
+    t0 = numerator / denominator;
+    t0
 }

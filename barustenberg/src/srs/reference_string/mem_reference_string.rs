@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::rc::Rc;
 
 use ark_ec::AffineRepr;
 
@@ -6,7 +6,7 @@ use super::{MillerLines, VerifierReferenceString};
 
 pub(crate) struct VerifierMemReferenceString<G2Affine: AffineRepr> {
     g2_x: G2Affine,
-    precomputed_g2_lines: Arc<Vec<MillerLines>>,
+    precomputed_g2_lines: Rc<Vec<MillerLines>>,
 }
 
 impl<G2Affine: AffineRepr> VerifierMemReferenceString<G2Affine> {
@@ -24,7 +24,7 @@ impl<G2Affine: AffineRepr> VerifierReferenceString<G2Affine>
         self.g2_x
     }
 
-    fn get_precomputed_g2_lines(&self) -> Arc<Vec<MillerLines>> {
+    fn get_precomputed_g2_lines(&self) -> Rc<Vec<MillerLines>> {
         self.precomputed_g2_lines.clone()
     }
 }
