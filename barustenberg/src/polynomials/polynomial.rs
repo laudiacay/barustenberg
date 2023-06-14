@@ -90,7 +90,7 @@ impl<F: Field> Index<Range<usize>> for Polynomial<F> {
     type Output = [F];
 
     fn index(&self, index: Range<usize>) -> &Self::Output {
-        &&self.coefficients[index]
+        &self.coefficients[index]
     }
 }
 

@@ -44,8 +44,8 @@ impl<Fr: Field> From<usize> for WorkItemConstant<Fr> {
 }
 
 pub(crate) struct WorkItem<Fr: Field> {
-    work: Work<Fr>,
-    tag: String,
+    pub(crate) work: Work<Fr>,
+    pub(crate) tag: String,
 }
 
 pub(crate) struct QueuedFftInputs<Fr: Field> {
@@ -144,8 +144,7 @@ impl<'a, H: BarretenHasher, Fr: Field + FftField, G1Affine: AffineRepr>
                             .borrow()
                             .polynomial_store
                             .get(&format!("{}_lagrange", item.tag))
-                            .unwrap()
-                            .clone(),
+                            .unwrap(),
                     ));
                 };
                 count += 1;
@@ -154,7 +153,7 @@ impl<'a, H: BarretenHasher, Fr: Field + FftField, G1Affine: AffineRepr>
         Ok(None)
     }
 
-    pub(crate) fn put_ifft_data(&mut self, result: &mut Vec<Fr>, work_item_number: usize) {
+    pub(crate) fn put_ifft_data(&mut self, result: &mut [Fr], work_item_number: usize) {
         for (ix, item) in self.work_items.iter().enumerate() {
             if let Work::Ifft = item.work {
                 if ix == work_item_number {
@@ -180,14 +179,14 @@ impl<'a, H: BarretenHasher, Fr: Field + FftField, G1Affine: AffineRepr>
                 if count == work_item_number {
                     let wire = self.key.borrow().polynomial_store.get(&item.tag).unwrap();
                     return Some(QueuedFftInputs {
-                        data: wire.clone(),
+                        data: wire,
                         shift_factor: self.key.borrow().large_domain.root.pow([index as u64]),
                     });
                 }
                 count += 1;
             }
         }
-        return None;
+        None
     }
 
     pub(crate) fn put_fft_data(&self, result: Vec<Fr>, work_item_number: usize) {
@@ -220,10 +219,7 @@ impl<'a, H: BarretenHasher, Fr: Field + FftField, G1Affine: AffineRepr>
         work_item_number: usize,
     ) -> Result<()> {
         for (idx, item) in self.work_items.iter().enumerate() {
-            if let Work::ScalarMultiplication {
-                ..
-            } = &item.work
-            {
+            if let Work::ScalarMultiplication { .. } = &item.work {
                 if idx == work_item_number {
                     (*self.transcript)
                         .borrow_mut()
@@ -343,7 +339,9 @@ impl<'a, H: BarretenHasher, Fr: Field + FftField, G1Affine: AffineRepr>
                         .borrow()
                         .polynomial_store
                         .get(&item.tag)
-                        .unwrap().borrow().clone();
+                        .unwrap()
+                        .borrow()
+                        .clone();
 
                     wire_fft.resize(4 * self.key.borrow().circuit_size + 4, Fr::zero());
 

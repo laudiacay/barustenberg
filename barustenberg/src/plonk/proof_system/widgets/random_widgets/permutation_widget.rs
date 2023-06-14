@@ -1,9 +1,10 @@
 use crate::ecc::curves::coset_generator;
 use crate::plonk::proof_system::proving_key::ProvingKey;
 use crate::plonk::proof_system::public_inputs::compute_public_input_delta;
+use crate::plonk::proof_system::verification_key::VerificationKey;
 use crate::plonk::proof_system::widgets::random_widgets::random_widget::ProverRandomWidget;
 use crate::proof_system::work_queue::WorkQueue;
-use crate::transcript::{BarretenHasher, Transcript, TranscriptKey};
+use crate::transcript::{BarretenHasher, Transcript};
 use std::marker::PhantomData;
 use std::sync::Arc;
 
@@ -35,7 +36,7 @@ where
     }
 
     pub(crate) fn compute_quotient_evaluation_contribution(
-        key: &Arc<TranscriptKey<'_, F>>,
+        key: &Arc<VerificationKey<'_, F>>,
         alpha: F,
         transcript: &Transcript<H, F, G1Affine>,
         quotient_numerator_eval: &mut F,
@@ -112,17 +113,17 @@ where
         // sigma_contribution = (a_eval + β.sigma1_eval + γ)(b_eval + β.sigma2_eval + γ)(c_eval + γ).z(ʓ.ω).α
         //
         let mut sigma_contribution = F::one();
-        let mut T0;
-        let mut T1: F;
+        let mut t0;
+        let mut t1: F;
         for i in 0..key.program_width - 1 {
-            T0 = sigma_evaluations[i] * beta;
-            T1 = wire_evaluations[i] + gamma;
-            T0 += T1;
-            sigma_contribution *= T0;
+            t0 = sigma_evaluations[i] * beta;
+            t1 = wire_evaluations[i] + gamma;
+            t0 += t1;
+            sigma_contribution *= t0;
         }
 
-        T0 = wire_evaluations[key.program_width - 1] + gamma;
-        sigma_contribution *= T0;
+        t0 = wire_evaluations[key.program_width - 1] + gamma;
+        sigma_contribution *= t0;
         sigma_contribution *= z_1_shifted_eval;
         sigma_contribution *= alpha;
         // Part 2: compute the public-inputs term, i.e.
@@ -134,12 +135,12 @@ where
         let public_input_delta: F =
             compute_public_input_delta(&public_inputs, beta, gamma, key.domain.root);
 
-        T1 = (z_1_shifted_eval - public_input_delta) * l_end * alpha_squared;
+        t1 = (z_1_shifted_eval - public_input_delta) * l_end * alpha_squared;
         // Part 3: compute starting lagrange polynomial term, i.e.
         //
         // L_1(ʓ).α^3
         //
-        let T2: F = l_start * alpha_cubed;
+        let t2: F = l_start * alpha_cubed;
 
         // Combine parts 1, 2, 3.
         //  quotient_numerator_eval =
@@ -148,9 +149,9 @@ where
         //       - α.(a_eval + β.sigma1_eval + γ)(b_eval + β.sigma2_eval + γ)(c_eval + γ).z(ʓ.ω)
         //
 
-        T1 -= T2;
-        T1 -= sigma_contribution;
-        *quotient_numerator_eval += T1;
+        t1 -= t2;
+        t1 -= sigma_contribution;
+        *quotient_numerator_eval += t1;
 
         // If we were using the linearization trick, we would return here. Instead we proceed to fully construct
         // the permutation part of a purported quotient numerator value.
@@ -161,10 +162,10 @@ where
         //
         sigma_contribution = F::one();
         for i in 0..key.program_width - 1 {
-            T0 = sigma_evaluations[i] * beta;
-            T0 += wire_evaluations[i];
-            T0 += gamma;
-            sigma_contribution *= T0;
+            t0 = sigma_evaluations[i] * beta;
+            t0 += wire_evaluations[i];
+            t0 += gamma;
+            sigma_contribution *= t0;
         }
         sigma_contribution *= z_1_shifted_eval;
         let mut sigma_last_multiplicand = -(sigma_contribution * alpha);
@@ -202,17 +203,17 @@ where
             //
 
             let mut id_contribution = F::one();
-            for i in 0..key.program_width {
+            for (i, eval_i) in wire_evaluations.iter().enumerate().take(key.program_width) {
                 let id_evaluation: F =
                     transcript.get_field_element(format!("id_{}", i + 1).as_str());
-                T0 = id_evaluation * beta;
-                T0 += wire_evaluations[i];
-                T0 += gamma;
-                id_contribution *= T0;
+                t0 = id_evaluation * beta;
+                t0 += eval_i;
+                t0 += gamma;
+                id_contribution *= t0;
             }
             let mut id_last_multiplicand = id_contribution * alpha;
-            T0 = l_start * alpha_cubed;
-            id_last_multiplicand += T0;
+            t0 = l_start * alpha_cubed;
+            id_last_multiplicand += t0;
 
             // Add up part 5.1 to the  quotient_numerator_eval term, so  quotient_numerator_eval will be:
             //
@@ -237,20 +238,20 @@ where
             // ].z(ʓ)
             //
             let mut z_contribution = F::one();
-            for i in 0..key.program_width {
+            for (i, eval_i) in wire_evaluations.iter().enumerate().take(key.program_width) {
                 let coset_generator = if i == 0 {
                     F::one()
                 } else {
                     coset_generator(i - 1)
                 };
-                T0 = z_beta * coset_generator;
-                T0 += wire_evaluations[i];
-                T0 += gamma;
-                z_contribution *= T0;
+                t0 = z_beta * coset_generator;
+                t0 += eval_i;
+                t0 += gamma;
+                z_contribution *= t0;
             }
             let mut z_1_multiplicand = z_contribution * alpha;
-            T0 = l_start * alpha_cubed;
-            z_1_multiplicand += T0;
+            t0 = l_start * alpha_cubed;
+            z_1_multiplicand += t0;
 
             // add up part 5.2 to the  quotient_numerator_eval term
             *quotient_numerator_eval += z_1_multiplicand * z_eval;

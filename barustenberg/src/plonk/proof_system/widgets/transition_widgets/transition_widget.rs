@@ -11,8 +11,9 @@ use crate::{
     plonk::proof_system::{
         proving_key::ProvingKey,
         types::{polynomial_manifest::PolynomialIndex, prover_settings::Settings},
+        verification_key::VerificationKey,
     },
-    transcript::{BarretenHasher, Transcript, TranscriptKey},
+    transcript::{BarretenHasher, Transcript},
 };
 
 use super::{
@@ -140,7 +141,7 @@ pub(crate) trait GenericVerifierWidget<
     KB: KernelBase<H, S, F, NIndependentRelations>,
 {
     fn compute_quotient_evaluation_contribution<G1Affine: AffineRepr>(
-        key: &Arc<TranscriptKey<'a, F>>,
+        key: &Arc<VerificationKey<'a, F>>,
         alpha_base: F,
         transcript: &Transcript<H, F, G1Affine>,
         quotient_numerator_eval: &mut F,
@@ -186,7 +187,7 @@ pub(crate) trait GenericVerifierWidget<
     }
 
     fn append_scalar_multiplication_inputs(
-        _key: &Arc<TranscriptKey<'_, F>>,
+        _key: &Arc<VerificationKey<'_, F>>,
         alpha_base: F,
         transcript: &Transcript<H, F, G1Affine>,
         _scalar_mult_inputs: &mut HashMap<String, F>,

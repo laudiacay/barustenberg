@@ -160,7 +160,7 @@ where
     }
 }
 
-impl<'a, H, F, S, NWidgetRelations> EvaluationGetter<H, F, S, NWidgetRelations>
+impl<H, F, S, NWidgetRelations> EvaluationGetter<H, F, S, NWidgetRelations>
     for EvaluationGetterImpl<H, F, S, NWidgetRelations>
 where
     F: Field + FftField,
@@ -259,7 +259,7 @@ where
     phantom: PhantomData<(F, H, S, G1Affine, NWidgetRelations)>,
 }
 
-impl<'a, H, F, G1Affine, S, NWidgetRelations> BaseGetter<H, F, S, PolyPtrMap<F>, NWidgetRelations>
+impl<H, F, G1Affine, S, NWidgetRelations> BaseGetter<H, F, S, PolyPtrMap<F>, NWidgetRelations>
     for FFTGetterImpl<H, F, G1Affine, S, NWidgetRelations>
 where
     F: Field + FftField,

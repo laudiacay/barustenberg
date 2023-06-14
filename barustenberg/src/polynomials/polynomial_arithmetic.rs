@@ -31,8 +31,8 @@ fn copy_polynomial<Fr: Copy + Default>(
 
     if num_target_coefficients > num_src_coefficients {
         // fill out the polynomial coefficients with zeroes
-        for i in num_src_coefficients..num_target_coefficients {
-            dest[i] = Fr::default();
+        for item in dest.iter_mut().take(num_target_coefficients).skip(num_src_coefficients) {
+            *item = Fr::default();
         }
     }
 }
@@ -67,11 +67,11 @@ fn fft_inner_serial<Fr: Copy + Default + Add<Output = Fr> + Sub<Output = Fr> + M
         }
     }
 
-    for l in 0..num_polys {
+    for coeffs_l in coeffs.iter_mut().take(num_polys) {
         for k in (0..poly_domain_size).step_by(2) {
-            let temp = coeffs[l][k + 1];
-            coeffs[l][k + 1] = coeffs[l][k] - coeffs[l][k + 1];
-            coeffs[l][k] = coeffs[l][k] + temp;
+            let temp = coeffs_l[k + 1];
+            coeffs_l[k + 1] = coeffs_l[k] - coeffs_l[k + 1];
+            coeffs_l[k] = coeffs_l[k] + temp;
         }
     }
 
@@ -171,8 +171,8 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
                 let poly_idx_2 = swap_index_2 >> log2_poly_size;
                 let elem_idx_2 = swap_index_2 & poly_mask;
 
-                temp_1 = coeffs[poly_idx_1][elem_idx_1].clone();
-                temp_2 = coeffs[poly_idx_2][elem_idx_2].clone();
+                temp_1 = coeffs[poly_idx_1][elem_idx_1];
+                temp_2 = coeffs[poly_idx_2][elem_idx_2];
                 scratch_space[i + 1] = temp_1 - temp_2;
                 scratch_space[i] = temp_1 + temp_2;
             }
@@ -390,7 +390,7 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
             let mut temp_constant = constant;
 
             for s in 0..4 {
-                for j in 0..4 {
+                for (j, t_j) in temp.iter().enumerate() {
                     index = i + j * n;
                     root_index = index * (s + 1);
                     if is_coset {
@@ -401,7 +401,7 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
                     if root_index >= m {
                         root_multiplier = -round_roots[root_index & half_mask];
                     }
-                    coeffs[(3 - s) * n + i] += root_multiplier * temp[j];
+                    coeffs[(3 - s) * n + i] += root_multiplier * t_j;
                 }
                 if is_coset {
                     temp_constant *= self.generator;
@@ -464,14 +464,14 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
     pub(crate) fn coset_ifft(&self, _coeffs: &mut [Fr]) {
         todo!()
     }
-    pub(crate) fn coset_ifft_vec(&self, _coeffs: &mut [&mut [Fr]]) {
+    pub(crate) fn coset_ifft_vec(&self, _coeffs: &[&mut [&mut Fr]]) {
         todo!()
     }
 
     fn fft_with_constant(&self, coeffs: &mut [Fr], target: &mut [Fr], value: Fr) {
         self.fft_inner_parallel(coeffs, target, &self.root, self.get_round_roots());
-        for i in 0..self.size {
-            coeffs[i] *= value;
+        for mut item in coeffs.iter_mut().take(self.size) {
+            *item *= value;
         }
     }
 
@@ -563,7 +563,7 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
 
     pub(crate) fn divide_by_pseudo_vanishing_polynomial(
         &self,
-        _coeffs: &mut [&mut [Fr]],
+        _coeffs: &[&mut [&mut Fr]],
         _target: &EvaluationDomain<'a, Fr>,
         _num_roots_cut_out_of_vanishing_poly: usize,
     ) {
@@ -585,6 +585,6 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
     }
 }
 
-pub fn evaluate<F: Field>(_coeffs: &[F], _z: &F, _n: usize) -> F {
+pub(crate) fn evaluate<F: Field>(_coeffs: &[F], _z: &F, _n: usize) -> F {
     todo!()
 }

@@ -59,10 +59,10 @@ impl Index<PolynomialIndex> for PolynomialManifest {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) enum PolynomialSource {
-    WITNESS,
-    SELECTOR,
-    PERMUTATION,
-    OTHER,
+    Witness,
+    Selector,
+    Permutation,
+    Other,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]

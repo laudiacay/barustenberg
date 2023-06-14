@@ -44,7 +44,7 @@ impl<'a, H: BarretenHasher, Fr: Field + FftField, G1Affine: AffineRepr>
     }
 }
 
-impl<'a, H: BarretenHasher, Fr: Field + FftField, G1Affine: AffineRepr> PartialEq
+impl<H: BarretenHasher, Fr: Field + FftField, G1Affine: AffineRepr> PartialEq
     for ProverRandomWidget<'_, H, Fr, G1Affine>
 {
     fn eq(&self, other: &Self) -> bool {

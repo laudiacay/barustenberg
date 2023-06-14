@@ -53,7 +53,7 @@ impl<'a, G1Affine: AffineRepr, G2Affine: AffineRepr>
 {
     pub(crate) fn new(pippenger: Arc<Pippenger>, g2x: &'a [u8]) -> Self {
         PippengerReferenceStringFactory {
-            pippenger: pippenger.clone(),
+            pippenger,
             g2x,
             phantom: PhantomData,
         }

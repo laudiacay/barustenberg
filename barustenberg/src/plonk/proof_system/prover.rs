@@ -1,4 +1,4 @@
-use std::{cell::RefCell, marker::PhantomData, rc::Rc};
+use std::{cell::RefCell, marker::PhantomData, ops::IndexMut, rc::Rc};
 
 use ark_ec::AffineRepr;
 use ark_ff::{FftField, Field};
@@ -206,12 +206,12 @@ impl<
     ///
     /// N.B. Random widget precommitments aren't actually being computed, since we are using permutation widget
     /// which only does computation in compute_random_commitments function if the round is 3.
-    fn execute_first_round(&mut self) {
+    fn execute_first_round(&mut self) -> Result<()> {
         // note that there were a lot of debug timing things here and i removed them because they were a mess
 
         self.queue.flush_queue();
 
-        self.compute_wire_commitments();
+        self.compute_wire_commitments()?;
 
         for widget in self.random_widgets.iter() {
             widget.compute_round_commitments(
@@ -220,6 +220,7 @@ impl<
                 &mut self.queue,
             );
         }
+        Ok(())
     }
 
     /// Execute the second round:
@@ -242,15 +243,14 @@ impl<
 
         // RAM/ROM memory subprotocol requires eta is generated before w_4 is comitted
         if self.settings.is_plookup() {
-            self.add_plookup_memory_records_to_w_4();
+            self.add_plookup_memory_records_to_w_4()?;
             let wire_tag = "w_4";
 
             let w_4_lagrange = self
                 .key
                 .borrow()
                 .polynomial_store
-                .get(&format!("{}_lagrange", wire_tag))?
-                .clone();
+                .get(&format!("{}_lagrange", wire_tag))?;
             let mut w_4_lagrange = w_4_lagrange.borrow_mut();
 
             // add randomness to w_4_lagrange
@@ -348,29 +348,36 @@ impl<
         // We avoid redundant copy of the parts t_1, t_2, t_3, t_4 and instead just tweak the
         // relevant functions to work on quotient polynomial parts.
         // TODO this does not work so good in rust. for now, we copy... is it still okay to do this?
-        let mut quotient_poly_parts: Vec<&mut [Fr]> = Vec::new();
+        let mut quotient_poly_parts: Vec<&mut [&mut Fr]> = Vec::new();
         {
-        let key = self.key.borrow();
-        for i in 0..=3 {
-            let poly = key.quotient_polynomial_parts[i].clone();
-            let poly = [poly.borrow()[0]];
-            quotient_poly_parts.push(poly);
-        }}
+            let key = self.key.borrow();
+            let mut poly0 = (*key.quotient_polynomial_parts[0]).borrow_mut();
+            let mut poly_sliced0 = [poly0.index_mut(0)];
+            quotient_poly_parts.push(&mut poly_sliced0);
+            let mut poly1 = (*key.quotient_polynomial_parts[1]).borrow_mut();
+            let mut poly_sliced1 = [poly1.index_mut(0)];
+            quotient_poly_parts.push(&mut poly_sliced1);
+            let mut poly2 = (*key.quotient_polynomial_parts[2]).borrow_mut();
+            let mut poly_sliced2 = [poly2.index_mut(0)];
+            quotient_poly_parts.push(&mut poly_sliced2);
+            let mut poly3 = (*key.quotient_polynomial_parts[3]).borrow_mut();
+            let mut poly_sliced3 = [poly3.index_mut(0)];
+            quotient_poly_parts.push(&mut poly_sliced3);
 
-        self.key
-            .borrow()
-            .small_domain
-            .divide_by_pseudo_vanishing_polynomial(
-                quotient_poly_parts.as_mut_slice(),
-                &self.key.borrow().large_domain,
-                0,
-            );
+            self.key
+                .borrow()
+                .small_domain
+                .divide_by_pseudo_vanishing_polynomial(
+                    &quotient_poly_parts,
+                    &self.key.borrow().large_domain,
+                    0,
+                );
 
-        self.key
-            .borrow()
-            .large_domain
-            .coset_ifft_vec(quotient_poly_parts.as_mut_slice());
-
+            self.key
+                .borrow()
+                .large_domain
+                .coset_ifft_vec(quotient_poly_parts.as_mut_slice());
+        }
         // Manually copy the (n + 1)th coefficient of t_3 for StandardPlonk from t_4.
         // This is because the degree of t_3 for StandardPlonk is n.
         if self.settings.program_width() == 3 {
@@ -383,10 +390,10 @@ impl<
 
         self.compute_quotient_commitments();
     }
-    fn execute_fifth_round(&mut self) {
+    fn execute_fifth_round(&mut self) -> Result<()> {
         self.queue.flush_queue();
         (*self.transcript).borrow_mut().apply_fiat_shamir("z"); // end of 4th round
-        self.compute_quotient_evaluation();
+        self.compute_quotient_evaluation()
     }
 
     fn execute_sixth_round(&mut self) {
@@ -641,36 +648,36 @@ impl<
         }
     }
 
-    pub(crate) fn construct_proof(&mut self) -> Proof {
+    pub(crate) fn construct_proof(&mut self) -> Result<Proof> {
         // Execute init round. Randomize witness polynomials.
-        self.execute_preamble_round();
-        self.queue.process_queue();
+        self.execute_preamble_round()?;
+        self.queue.process_queue()?;
 
         // Compute wire precommitments and sometimes random widget round commitments
-        self.execute_first_round();
-        self.queue.process_queue();
+        self.execute_first_round()?;
+        self.queue.process_queue()?;
 
         // Fiat-Shamir eta + execute random widgets.
-        self.execute_second_round();
-        self.queue.process_queue();
+        self.execute_second_round()?;
+        self.queue.process_queue()?;
 
         // Fiat-Shamir beta & gamma, execute random widgets (Permutation widget is executed here)
         // and fft the witnesses
         self.execute_third_round();
-        self.queue.process_queue();
+        self.queue.process_queue()?;
 
         // Fiat-Shamir alpha, compute & commit to quotient polynomial.
         self.execute_fourth_round();
-        self.queue.process_queue();
+        self.queue.process_queue()?;
 
-        self.execute_fifth_round();
+        self.execute_fifth_round()?;
 
         self.execute_sixth_round();
-        self.queue.process_queue();
+        self.queue.process_queue()?;
 
         self.queue.flush_queue();
 
-        return self.export_proof();
+        Ok(self.export_proof())
     }
 
     fn get_circuit_size(&self) -> usize {

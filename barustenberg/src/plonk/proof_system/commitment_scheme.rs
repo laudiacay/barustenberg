@@ -1,4 +1,4 @@
-use std::cell::{RefCell, Ref};
+use std::cell::{Ref, RefCell};
 use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::rc::Rc;
@@ -15,6 +15,8 @@ use super::types::proof::CommitmentOpenProof;
 use super::types::prover_settings::Settings;
 use super::verification_key::VerificationKey;
 
+/// A polynomial commitment scheme defined over two fields, a group, a hash function.
+/// kate commitments are one example
 pub(crate) trait CommitmentScheme<
     Fq: Field,
     Fr: Field + FftField,
@@ -22,17 +24,18 @@ pub(crate) trait CommitmentScheme<
     H: BarretenHasher,
 >
 {
-    fn commit<'a>(
+    fn commit(
         &mut self,
         coefficients: Rc<RefCell<Polynomial<Fr>>>,
         tag: String,
         item_constant: Fr,
-        queue: &mut WorkQueue<'a, H, Fr, G1Affine>,
+        queue: &mut WorkQueue<'_, H, Fr, G1Affine>,
     );
 
     fn compute_opening_polynomial(&self, src: &[Fr], dest: &mut [Fr], z: &Fr, n: usize);
 
-    fn generic_batch_open<'a>(
+    #[allow(clippy::too_many_arguments)]
+    fn generic_batch_open(
         &mut self,
         src: &[Fr],
         dest: Rc<RefCell<Polynomial<Fr>>>,
@@ -43,7 +46,7 @@ pub(crate) trait CommitmentScheme<
         n: usize,
         tags: &[String],
         item_constants: &[Fr],
-        queue: &mut WorkQueue<'a, H, Fr, G1Affine>,
+        queue: &mut WorkQueue<'_, H, Fr, G1Affine>,
     );
 
     fn batch_open<'a>(
@@ -71,19 +74,19 @@ pub(crate) trait CommitmentScheme<
 
 #[derive(Default)]
 pub(crate) struct KateCommitmentScheme<H: BarretenHasher, S: Settings<H>> {
-    kate_open_proof: CommitmentOpenProof,
+    _kate_open_proof: CommitmentOpenProof,
     phantom: PhantomData<(H, S)>,
 }
 
 impl<Fq: Field, Fr: Field + FftField, G1Affine: AffineRepr, H: BarretenHasher, S: Settings<H>>
     CommitmentScheme<Fq, Fr, G1Affine, H> for KateCommitmentScheme<H, S>
 {
-    fn commit<'a>(
+    fn commit(
         &mut self,
         coefficients: Rc<RefCell<Polynomial<Fr>>>,
         tag: String,
         item_constant: Fr,
-        queue: &mut WorkQueue<'a, H, Fr, G1Affine>,
+        queue: &mut WorkQueue<'_, H, Fr, G1Affine>,
     ) {
         queue.add_to_queue(WorkItem {
             work: Work::ScalarMultiplication {
@@ -107,7 +110,7 @@ impl<Fq: Field, Fr: Field + FftField, G1Affine: AffineRepr, H: BarretenHasher, S
         todo!()
     }
 
-    fn generic_batch_open<'a>(
+    fn generic_batch_open(
         &mut self,
         src: &[Fr],
         dest: Rc<RefCell<Polynomial<Fr>>>,
@@ -118,7 +121,7 @@ impl<Fq: Field, Fr: Field + FftField, G1Affine: AffineRepr, H: BarretenHasher, S
         n: usize,
         tags: &[String],
         item_constants: &[Fr],
-        queue: &mut WorkQueue<'a, H, Fr, G1Affine>,
+        queue: &mut WorkQueue<'_, H, Fr, G1Affine>,
     ) {
         // In this function, we compute the opening polynomials using Kate scheme for multiple input
         // polynomials with multiple evaluation points. The input polynomials are separated according
