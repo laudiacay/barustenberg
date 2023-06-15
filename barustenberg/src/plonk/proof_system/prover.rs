@@ -629,7 +629,7 @@ impl<
         {
             let key = self.key.borrow();
             key.small_domain
-                .compute_lagrange_polynomial_fft(&lagrange_1_fft, &key.large_domain);
+                .compute_lagrange_polynomial_fft(&mut lagrange_1_fft, &key.large_domain);
             for i in 0..8 {
                 lagrange_1_fft[4 * self.circuit_size + i] = lagrange_1_fft[i];
             }
