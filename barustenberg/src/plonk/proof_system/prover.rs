@@ -9,9 +9,7 @@ use super::{
     types::{prover_settings::Settings, Proof},
     widgets::{
         random_widgets::random_widget::ProverRandomWidget,
-        transition_widgets::{
-            arithmetic_widget::ProverArithmeticWidget, transition_widget::TransitionWidget,
-        },
+        transition_widgets::transition_widget::TransitionWidgetBase,
     },
 };
 
@@ -42,8 +40,8 @@ pub(crate) struct Prover<
     pub(crate) transcript: Rc<RefCell<Transcript<H, Fr, G1Affine>>>,
     pub(crate) key: Rc<RefCell<ProvingKey<'a, Fr, G1Affine>>>,
     pub(crate) queue: WorkQueue<'a, H, Fr, G1Affine>,
-    pub(crate) random_widgets: Vec<ProverRandomWidget<'a, H, Fr, G1Affine>>,
-    pub(crate) transition_widgets: Vec<ProverArithmeticWidget<'a, Fr, G1Affine, H, S>>,
+    pub(crate) random_widgets: Vec<Box<dyn ProverRandomWidget<'a, H, Fr, G1Affine>>>,
+    pub(crate) transition_widgets: Vec<Box<dyn TransitionWidgetBase<'a, H, Fr, G1Affine>>>,
     pub(crate) commitment_scheme: CS,
     pub(crate) settings: S,
     pub(crate) rng: Box<dyn rand::RngCore>,
