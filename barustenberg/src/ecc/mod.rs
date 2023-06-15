@@ -3,6 +3,7 @@ use std::marker::PhantomData;
 use ark_bn254::{Fq12, G1Affine};
 use ark_ec::AffineRepr;
 use ark_ff::Field;
+use num_bigint::BigUint;
 
 // TODO todo - stubs to get the compiler to cooperate.
 pub(crate) mod curves;
@@ -45,4 +46,24 @@ impl<Fr: Field, G1Affine: AffineRepr> PippengerRuntimeState<Fr, G1Affine> {
     ) -> G1Affine {
         todo!()
     }
+}
+
+#[inline]
+pub(crate) fn conditionally_subtract_from_double_modulus<Fr: Field>(
+    this: &Fr,
+    predicate: u64,
+) -> Fr {
+    todo!("see comment")
+    // yikes man
+}
+
+#[inline]
+pub(crate) fn tag_coset_generator<Fr: Field>() -> Fr {
+    todo!("see comment")
+    // yikes man
+}
+#[inline]
+pub(crate) fn coset_generator<Fr: Field>(_n: u8) -> Fr {
+    todo!("see comment")
+    // yikes man
 }

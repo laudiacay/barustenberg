@@ -6,7 +6,7 @@ impl<Fq: Field, Fr: Field + FftField, G1Affine: AffineRepr, H: BarretenHasher, P
     Verifier<'_, Fq, Fr, G1Affine, H, PS>
 {
     pub fn generate_verifier(circuit_proving_key: Arc<ProvingKey<'_, Fr, G1Affine>>) -> Self {
-        let mut poly_coefficients = [None; 8];
+        let mut poly_coefficients = vec![[]; 8];
         poly_coefficients[0] = circuit_proving_key
             .polynomial_store
             .get("q_1".to_owned())?
@@ -22,7 +22,8 @@ impl<Fq: Field, Fr: Field + FftField, G1Affine: AffineRepr, H: BarretenHasher, P
         poly_coefficients[3] = circuit_proving_key
             .polynomial_store
             .get("q_m".to_owned())?
-            .map(|p| p.coefficients());
+            .borrow_mut()
+            .coefficients;
         poly_coefficients[4] = circuit_proving_key
             .polynomial_store
             .get("q_c".to_owned())?
