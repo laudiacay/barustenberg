@@ -297,8 +297,12 @@ impl<Fq: Field, Fr: Field + FftField, G1Affine: AffineRepr, H: BarretenHasher, S
     }
 }
 
+<<<<<<< HEAD
 fn generate_test_data<'a, Fq: Field + FftField, Fr: Field + FftField, G1Affine: AffineRepr, H: BarretenHasher>(n: usize) -> Prover<'a, Fq, Fr, G1Affine, H, StandardSettings<H>, KateCommitmentScheme<H, StandardSettings<H>>> {
 
+=======
+fn generate_test_data<'a>(n: usize) -> Prover<'a, Fq, Fr, G1Affine, H, Settings<H>, KateCommitmentScheme<H, S>> {
+>>>>>>> 2daa2f9 (more)
     // create some constraints that satisfy our arithmetic circuit relation
     let crs = Rc::new(FileReferenceString::new(n + 1, "../srs_db/ignition"));
     let key = Rc::new(ProvingKey::new(n, 0, crs, ComposerType::Standard));
