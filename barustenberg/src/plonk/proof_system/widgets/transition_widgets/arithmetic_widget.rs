@@ -21,8 +21,8 @@ use std::{
 
 use super::{
     containers::{ChallengeArray, CoefficientArray, PolyContainer, CHALLENGE_BIT_ALPHA},
-    getters::{BaseGetter, EvaluationGetter},
-    transition_widget::{GenericVerifierWidget, KernelBase, TransitionWidget},
+    getters::BaseGetter,
+    transition_widget::KernelBase,
 };
 
 pub(crate) struct ArithmeticKernel<H: BarretenHasher, F: Field, S: Settings<H>> {
@@ -195,50 +195,4 @@ impl<H: BarretenHasher, F: Field, S: Settings<H>> KernelBase<H, S, F, U1>
 pub(crate) struct ProverArithmeticWidget<'a, Fr: Field + FftField, G1Affine: AffineRepr, H, S> {
     key: Arc<ProvingKey<'a, Fr, G1Affine>>,
     phantom: PhantomData<(H, S)>,
-}
-
-impl<'a, H: BarretenHasher, F: Field + FftField, G1Affine: AffineRepr, S: Settings<H>>
-    TransitionWidget<'a, H, F, G1Affine, S, U1, ArithmeticKernel<H, F, S>>
-    for ProverArithmeticWidget<'a, F, G1Affine, H, S>
-{
-    fn get_key(&self) -> Arc<ProvingKey<'a, F, G1Affine>> {
-        self.key.clone()
-    }
-}
-
-// kernelbase is a trait that takes 3 parameters
-// those parameters need to be generic
-// something is really wrong here
-// you need a kernelbase that can work over
-
-pub(crate) struct VerifierArithmeticWidget<
-    H: BarretenHasher,
-    F: Field,
-    //Group,
-    NWidgetRelations: generic_array::ArrayLength<F>,
-    Getters: EvaluationGetter<H, F, S, NWidgetRelations>,
-    PC,
-    S: Settings<H>,
-> {
-    phantom: PhantomData<(
-        H,
-        F,
-        //Group,
-        NWidgetRelations,
-        Getters,
-        PC,
-        S,
-    )>,
-}
-
-impl<
-        'a,
-        H: BarretenHasher,
-        S: Settings<H>,
-        F: Field + FftField,
-        PC: PolyContainer<F>,
-        Get: EvaluationGetter<H, F, S, U1>,
-    > GenericVerifierWidget<'a, F, H, Get, U1, S, ArithmeticKernel<H, F, S>>
-    for VerifierArithmeticWidget<H, F, U1, Get, PC, S>
-{
 }

@@ -31,7 +31,11 @@ fn copy_polynomial<Fr: Copy + Default>(
 
     if num_target_coefficients > num_src_coefficients {
         // fill out the polynomial coefficients with zeroes
-        for item in dest.iter_mut().take(num_target_coefficients).skip(num_src_coefficients) {
+        for item in dest
+            .iter_mut()
+            .take(num_target_coefficients)
+            .skip(num_src_coefficients)
+        {
             *item = Fr::default();
         }
     }

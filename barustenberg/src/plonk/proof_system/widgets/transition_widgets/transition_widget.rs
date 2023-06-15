@@ -1,5 +1,7 @@
 use std::{
     collections::{HashMap, HashSet},
+    marker::PhantomData,
+    rc::Rc,
     sync::Arc,
 };
 
@@ -62,7 +64,22 @@ pub(crate) trait KernelBase<
     );
 }
 
-pub(crate) trait TransitionWidget<
+pub(crate) trait TransitionWidgetBase<
+    'a,
+    H: BarretenHasher,
+    F: Field + FftField,
+    G1Affine: AffineRepr,
+>
+{
+    fn compute_quotient_contribution(
+        &self,
+        alpha_base: F,
+        transcript: &Transcript<H, F, G1Affine>,
+        rng: &mut Box<dyn rand::RngCore>,
+    ) -> F;
+}
+
+pub(crate) struct TransitionWidget<
     'a,
     H: BarretenHasher,
     F: Field + FftField,
@@ -74,22 +91,33 @@ pub(crate) trait TransitionWidget<
     NIndependentRelations: generic_array::ArrayLength<F>,
     KB: KernelBase<H, S, F, NIndependentRelations>,
 {
-    /// make sure to inline me...
-    fn get_key(&self) -> Arc<ProvingKey<'a, F, G1Affine>>;
-
+    key: Rc<ProvingKey<'a, F, G1Affine>>,
+    phantom: PhantomData<(H, F, S, NIndependentRelations, KB)>,
+}
+impl<
+        'a,
+        H: BarretenHasher,
+        F: Field + FftField,
+        G1Affine: AffineRepr,
+        S: Settings<H>,
+        NIndependentRelations: generic_array::ArrayLength<F>,
+        KB,
+    > TransitionWidgetBase<'a, H, F, G1Affine>
+    for TransitionWidget<'a, H, F, G1Affine, S, NIndependentRelations, KB>
+where
+    KB: KernelBase<H, S, F, NIndependentRelations>,
+{
     // other methods and trait implementations
     fn compute_quotient_contribution(
         &self,
         alpha_base: F,
         transcript: &Transcript<H, F, G1Affine>,
-        rng: &mut impl rand::RngCore,
+        rng: &mut Box<dyn rand::RngCore>,
     ) -> F {
-        let key = self.get_key();
-
         let required_polynomial_ids = KB::get_required_polynomial_ids();
         let polynomials =
             FFTGetterImpl::<H, F, G1Affine, S, NIndependentRelations>::get_polynomials(
-                &key,
+                &self.key,
                 &required_polynomial_ids,
             );
 
@@ -104,7 +132,7 @@ pub(crate) trait TransitionWidget<
         let mut quotient_term;
 
         // TODO: hidden missing multithreading here
-        for i in 0..key.large_domain.size {
+        for i in 0..self.key.large_domain.size {
             let mut linear_terms = CoefficientArray::default();
             KB::compute_linear_terms::<
                 PolyPtrMap<F>,
@@ -115,8 +143,9 @@ pub(crate) trait TransitionWidget<
                 FFTGetterImpl<H, F, G1Affine, S, NIndependentRelations>,
             >(&polynomials, &challenges, &linear_terms, i);
 
-            quotient_term = key.quotient_polynomial_parts[i >> key.small_domain.log2_size].borrow()
-                [i & (key.circuit_size - 1)];
+            quotient_term = self.key.quotient_polynomial_parts
+                [i >> self.key.small_domain.log2_size]
+                .borrow()[i & (self.key.circuit_size - 1)];
             quotient_term += sum_of_linear_terms;
             KB::compute_non_linear_terms::<
                 PolyPtrMap<F>,
@@ -145,7 +174,7 @@ pub(crate) trait GenericVerifierWidget<
         alpha_base: F,
         transcript: &Transcript<H, F, G1Affine>,
         quotient_numerator_eval: &mut F,
-        rng: &mut impl rand::RngCore,
+        rng: &mut Box<dyn rand::RngCore>,
     ) -> F {
         let polynomial_evaluations = G::get_polynomial_evaluations::<G1Affine>(
             &key.as_ref().polynomial_manifest,
@@ -191,7 +220,7 @@ pub(crate) trait GenericVerifierWidget<
         alpha_base: F,
         transcript: &Transcript<H, F, G1Affine>,
         _scalar_mult_inputs: &mut HashMap<String, F>,
-        rng: &mut impl rand::RngCore,
+        rng: &mut Box<dyn rand::RngCore>,
     ) -> F {
         let challenges = G::get_challenges::<G1Affine>(
             transcript,

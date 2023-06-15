@@ -95,8 +95,7 @@ fn compute_lookup_table_single<Fr: Field>(
         let round_root = input_root.pow(exponent);
         roots[*round_root_i] = Fr::one();
         for j in 1..m {
-            roots[round_root_i + j] =
-                roots[round_root_i + j - 1] * round_root;
+            roots[round_root_i + j] = roots[round_root_i + j - 1] * round_root;
         }
     }
 }

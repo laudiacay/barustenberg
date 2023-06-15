@@ -1,17 +1,3 @@
-// use crate::barretenberg::common::throw_or_abort;
-// use crate::barretenberg::ecc::curves::bn254::{
-//     fq12::Fq12, g1::AffineElement as G1AffineElement, pairing,
-// };
-// use crate::barretenberg::plonk::proof_system::constants::{
-//     standard_verifier_settings, turbo_verifier_settings, ultra_to_standard_verifier_settings,
-//     ultra_verifier_settings, ultra_with_keccak_verifier_settings, ProgramSettings,
-// };
-// use crate::barretenberg::plonk::proof_system::verifier::{KateVerificationScheme, Verifier};
-// use crate::barretenberg::plonk::proof_system::PlonkProof;
-// use crate::barretenberg::plonk::public_inputs::PublicInputs;
-// use crate::barretenberg::polynomials::polynomial_arithmetic;
-// use crate::barretenberg::scalar_multiplication;
-
 use crate::transcript::{BarretenHasher, Manifest};
 
 use ark_ec::AffineRepr;

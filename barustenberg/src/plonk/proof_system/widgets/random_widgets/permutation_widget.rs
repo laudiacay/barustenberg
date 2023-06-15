@@ -6,6 +6,7 @@ use crate::plonk::proof_system::widgets::random_widgets::random_widget::ProverRa
 use crate::proof_system::work_queue::WorkQueue;
 use crate::transcript::{BarretenHasher, Transcript};
 use std::marker::PhantomData;
+use std::rc::Rc;
 use std::sync::Arc;
 
 use ark_ec::AffineRepr;
@@ -277,7 +278,45 @@ pub(crate) struct ProverPermutationWidget<
     const IDPOLYS: bool,
     const NUM_ROOTS_CUT_OUT_OF_VANISHING_POLYNOMIAL: usize,
 > {
-    prover_random_widget: ProverRandomWidget<'a, Hash, Fr, G1Affine>,
+    pub(crate) key: Rc<ProvingKey<'a, Fr, G1Affine>>,
+    phantom: PhantomData<(Hash, Fr, G1Affine)>,
+}
+
+impl<
+        'a,
+        Fr: Field + FftField,
+        Hash: BarretenHasher,
+        G1Affine: AffineRepr,
+        const PROGRAM_WIDTH: usize,
+        const IDPOLYS: bool,
+        const NUM_ROOTS_CUT_OUT_OF_VANISHING_POLYNOMIAL: usize,
+    > ProverRandomWidget<'a, Hash, Fr, G1Affine>
+    for ProverPermutationWidget<
+        'a,
+        Fr,
+        Hash,
+        G1Affine,
+        PROGRAM_WIDTH,
+        IDPOLYS,
+        NUM_ROOTS_CUT_OUT_OF_VANISHING_POLYNOMIAL,
+    >
+{
+    fn compute_round_commitments(
+        &self,
+        _transcript: &mut Transcript<Hash, Fr, G1Affine>,
+        _size: usize,
+        _work_queue: &mut WorkQueue<'a, Hash, Fr, G1Affine>,
+    ) {
+        todo!()
+    }
+
+    fn compute_quotient_contribution(
+        &self,
+        _alpha_base: Fr,
+        _transcript: &Transcript<Hash, Fr, G1Affine>,
+    ) -> Fr {
+        todo!()
+    }
 }
 
 impl<
@@ -299,9 +338,10 @@ impl<
         NUM_ROOTS_CUT_OUT_OF_VANISHING_POLYNOMIAL,
     >
 {
-    pub(crate) fn new(proving_key: Arc<ProvingKey<'a, Fr, G1Affine>>) -> Self {
+    pub(crate) fn new(proving_key: Rc<ProvingKey<'a, Fr, G1Affine>>) -> Self {
         Self {
-            prover_random_widget: ProverRandomWidget::new(&proving_key),
+            key: proving_key,
+            phantom: PhantomData,
         }
     }
 

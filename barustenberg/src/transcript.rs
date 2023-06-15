@@ -189,7 +189,7 @@ impl<H: BarretenHasher, Fr: Field, G1Affine: AffineRepr> Transcript<H, Fr, G1Aff
     /// challenge_bytes: The number of bytes per challenge to generate.
     pub(crate) fn new(input_manifest: Option<Manifest>, num_challenge_bytes: usize) -> Self {
         let mut ret = Transcript::<H, Fr, G1Affine> {
-            num_challenge_bytes: num_challenge_bytes,
+            num_challenge_bytes,
             manifest: input_manifest.unwrap_or_default(),
             ..Default::default()
         };
