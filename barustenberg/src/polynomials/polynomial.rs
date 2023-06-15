@@ -5,6 +5,8 @@ use std::{
 
 use ark_ff::Field;
 
+use crate::polynomials::polynomial_arithmetic::compute_efficient_interpolation;
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(crate) struct Polynomial<F: Field> {
     size: usize,
@@ -13,8 +15,20 @@ pub(crate) struct Polynomial<F: Field> {
 }
 
 impl<F: Field> Polynomial<F> {
-    pub(crate) fn from_interpolations(_interpolation_points: &[F], _values: &[F]) -> Self {
-        todo!("unimplemented, see comment below");
+    pub(crate) fn from_interpolations(interpolation_points: &[F], evaluations: &[F]) -> Self {
+        assert!(!interpolation_points.is_empty());
+        let mut coefficients = vec![F::zero(); interpolation_points.len()];
+        compute_efficient_interpolation(
+            evaluations,
+            &mut coefficients,
+            interpolation_points,
+            interpolation_points.len(),
+        );
+        Self {
+            size: interpolation_points.len(),
+            coefficients,
+            phantom: PhantomData,
+        }
     }
 
     #[inline]
@@ -26,14 +40,9 @@ impl<F: Field> Polynomial<F> {
             phantom: PhantomData,
         }
     }
-    /// TODO Question to Claudia: Aren't these functionally the same?
-    #[inline]
-    pub(crate) fn get_degree(&self) -> usize {
-        todo!("unimplemented, see comment below");
-    }
     #[inline]
     pub(crate) fn size(&self) -> usize {
-        todo!("unimplemented, see comment below");
+        self.size
     }
     #[inline]
     pub(crate) fn set_coefficient(&mut self, idx: usize, v: F) {
@@ -46,20 +55,34 @@ impl<F: Field> Polynomial<F> {
 }
 
 impl<F: Field> AddAssign for Polynomial<F> {
-    fn add_assign(&mut self, _rhs: Self) {
-        todo!("unimplemented, see comment below");
+    fn add_assign(&mut self, rhs: Self) {
+        // pad the smaller polynomial with zeros
+        if self.size < rhs.size {
+            self.resize(rhs.size, F::zero());
+        }
+        for i in 0..rhs.size {
+            self.coefficients[i] += rhs.coefficients[i];
+        }
     }
 }
 
 impl<F: Field> SubAssign for Polynomial<F> {
-    fn sub_assign(&mut self, _rhs: Self) {
-        todo!("unimplemented, see comment below");
+    fn sub_assign(&mut self, rhs: Self) {
+        // pad the smaller polynomial with zeros
+        if self.size < rhs.size {
+            self.resize(rhs.size, F::zero());
+        }
+        for i in 0..rhs.size {
+            self.coefficients[i] -= rhs.coefficients[i];
+        }
     }
 }
 
 impl<F: Field> MulAssign<F> for Polynomial<F> {
-    fn mul_assign(&mut self, _rhs: F) {
-        todo!("unimplemented, see comment below");
+    fn mul_assign(&mut self, rhs: F) {
+        for i in 0..self.size {
+            self.coefficients[i] *= rhs;
+        }
     }
 }
 
@@ -68,7 +91,7 @@ impl<F: Field> IntoIterator for Polynomial<F> {
     type IntoIter = std::vec::IntoIter<Self::Item>;
 
     fn into_iter(self) -> Self::IntoIter {
-        todo!("unimplemented, see comment below");
+        self.coefficients.into_iter()
     }
 }
 
