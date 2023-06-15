@@ -1,9 +1,9 @@
-use ark_bn254::Fq12;
+use ark_bn254::{Fq12, Fq, Fr, G1Affine, G1Projective};
 
 use super::*;
 
-impl<Fq: Field, Fr: Field + FftField, G1Affine: AffineRepr, H: BarretenHasher, PS: Settings<H>>
-    Verifier<'_, Fq, Fr, G1Affine, H, PS>
+impl<Fq: Field, Fr: Field + FftField, G1Affine: AffineRepr, H: BarretenHasher, S: Settings<H>>
+    Verifier<'_, Fq, Fr, G1Affine, H, S>
 {
     pub fn generate_verifier(circuit_proving_key: Arc<ProvingKey<'_, Fr, G1Affine>>) -> Self {
         let mut poly_coefficients = vec![[]; 8];
@@ -296,7 +296,7 @@ impl<Fq: Field, Fr: Field + FftField, G1Affine: AffineRepr, H: BarretenHasher, P
     }
 }
 
-fn generate_test_data<'a>(n: usize) -> Prover<'a, Fr, StandardSettings> {
+fn generate_test_data<'a>(n: usize) -> Prover<'a, Fq, Fr, G1Affine, H, Settings<H>, KateCommitmentScheme<H, S>> {
     // create some constraints that satisfy our arithmetic circuit relation
     let crs = Rc::new(FileReferenceString::new(n + 1, "../srs_db/ignition"));
     let key = Rc::new(ProvingKey::new(n, 0, crs, ComposerType::Standard));
@@ -426,11 +426,11 @@ fn generate_test_data<'a>(n: usize) -> Prover<'a, Fr, StandardSettings> {
     q_m.ifft(&key.small_domain);
     q_c.ifft(&key.small_domain);
 
-    let q_1_fft = Polynomial::new_from(q_l, n_times_4);
-    let q_2_fft = Polynomial::new_from(q_r, n_times_4);
-    let q_3_fft = Polynomial::new_from(q_o, n_times_4);
-    let q_m_fft = Polynomial::new_from(q_m, n_times_4);
-    let q_c_fft = Polynomial::new_from(q_c, n_times_4);
+    let q_1_fft = Polynomial::new_from(q_l, n * 4);
+    let q_2_fft = Polynomial::new_from(q_r, n * 4);
+    let q_3_fft = Polynomial::new_from(q_o, n * 4);
+    let q_m_fft = Polynomial::new_from(q_m, n * 4);
+    let q_c_fft = Polynomial::new_from(q_c, n * 4);
 
     q_1_fft.coset_fft(&key.large_domain);
     q_2_fft.coset_fft(&key.large_domain);
@@ -450,11 +450,11 @@ fn generate_test_data<'a>(n: usize) -> Prover<'a, Fr, StandardSettings> {
     key.polynomial_store.insert("q_m_fft", q_m_fft);
     key.polynomial_store.insert("q_c_fft", q_c_fft);
 
-    let permutation_widget: Box<ProverPermutationWidget> =
+    let permutation_widget: Box<ProverPermutationWidget<'_>> =
         Box::new(ProverPermutationWidget::<3>::new(key.clone()));
 
-    let widget: Box<ProverArithmeticWidget<StandardSettings>> =
-        Box::new(ProverArithmeticWidget::<StandardSettings>::new(key.clone()));
+    let widget: Box<ProverArithmeticWidget<'_, StandardSettings>> =
+        Box::new(ProverArithmeticWidget::<_, StandardSettings>::new(key.clone()));
 
     let kate_commitment_scheme = Box::new(KateCommitmentScheme::<StandardSettings>::new());
 
@@ -473,16 +473,7 @@ use std::rc::Rc;
 
 use crate::{
     ecc::{
-        curves::bn254::{
-            fq::Fq,
-            fr::Fr,
-            g1::{G1Affine, G1},
-            scalar_multiplication::{
-                runtime_states::PippengerRuntimeState,
-                scalar_multiplication::generate_pippenger_point_table,
-            },
-        },
-        reduced_ate_pairing_batch_precomputed,
+        reduced_ate_pairing_batch_precomputed, PippengerRuntimeState,
     },
     plonk::{
         composer::composer_base::ComposerType,
@@ -495,7 +486,7 @@ use crate::{
             widgets::{
                 random_widgets::permutation_widget::ProverPermutationWidget,
                 transition_widgets::arithmetic_widget::ProverArithmeticWidget,
-            },
+            }, utils::permutation::compute_permutation_lagrange_base_single,
         },
     },
     polynomials::Polynomial,
