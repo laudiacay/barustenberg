@@ -1,6 +1,6 @@
 use ark_ff::{FftField, Field};
 
-use crate::numeric::bitop::Msb;
+use crate::{common::max_threads::compute_num_threads, numeric::bitop::Msb};
 
 #[inline]
 fn reverse_bits(x: u32, bit_length: u32) -> u32 {
@@ -574,21 +574,219 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
         unimplemented!()
     }
 
-    /// For L_1(X) = (X^{n} - 1 / (X - 1)) * (1 / n)
-    /// Compute the size k*n-fft of L_1(X), where k is determined by the target domain (e.g. large_domain -> 4*n)
-    /// We can use this to compute the k*n-fft evaluations of any L_i(X).
+    /// Compute evaluations of lagrange polynomial L_1(X) on the specified domain.
+    ///
+    /// # Arguments
+    ///
+    /// - `l_1_coefficients`: A mutable pointer to a buffer of type `Fr` representing the evaluations of L_1(X) for all X = k*n'th roots of unity.
+    /// - `src_domain`: The source domain multiplicative generator g.
+    /// - `target_domain`: The target domain (kn'th) root of unity w'.
+    ///
+    /// # Details
+    ///
+    /// Let the size of the target domain be k*n, where k is a power of 2.
+    /// Evaluate L_1(X) = (X^{n} - 1 / (X - 1)) * (1 / n) at the k*n points X_i = w'^i.g,
+    /// i = 0, 1,..., k*n-1, where w' is the target domain (kn'th) root of unity, and g is the
+    /// source domain multiplicative generator. The evaluation domain is taken to be the coset
+    /// w'^i.g, rather than just the kn'th roots, to avoid division by zero in L_1(X).
+    /// The computation is done in three steps:
+    /// Step 1) (Parallelized) Compute the evaluations of 1/denominator of L_1 at X_i using
+    /// Montgomery batch inversion.
+    /// Step 2) Compute the evaluations of the numerator of L_1 using the fact that (X_i)^n forms
+    /// a subgroup of order k.
+    /// Step 3) (Parallelized) Construct the evaluations of L_1 on X_i using the numerator and
+    /// denominator evaluations from Steps 1 and 2.
+    ///
+    /// Note 1: Let w = n'th root of unity. When evaluated at the k*n'th roots of unity, the term
+    /// X^{n} forms a subgroup of order k, since (w'^i)^n = w^{in/k} = w^{1/k}. Similarly, for X_i
+    /// we have (X_i)^n = (w'^i.g)^n = w^{in/k}.g^n = w^{1/k}.g^n.
+    /// For example, if k = 2:
+    /// for even powers of w', X^{n} = w^{2in/2} = 1
+    /// for odd powers of w', X = w^{i}w^{n/2} -> X^{n} = w^{in}w^{n/2} = -1
+    /// The numerator term, therefore, can only take two values (for k = 2):
+    /// For even indices: (X^{n} - 1)/n = (g^n - 1)/n
+    /// For odd indices: (X^{n} - 1)/n = (-g^n - 1)/n
+    ///
+    /// Note 2: We can use the evaluations of L_1 to compute the k*n-fft evaluations of any L_i(X).
     /// We can consider `l_1_coefficients` to be a k*n-sized vector of the evaluations of L_1(X),
-    /// for all X = k*n'th roots of unity.
-    /// To compute the vector for the k*n-fft transform of L_i(X), we perform a (k*i)-left-shift of this vector
+    /// for all X = k*n'th roots of unity. To compute the vector for the k*n-fft transform of
+    /// L_i(X), we perform a (k*i)-left-shift of this vector.
     pub(crate) fn compute_lagrange_polynomial_fft(
         &self,
-        _l_1_coefficients: &Polynomial<Fr>,
-        _target_domain: &EvaluationDomain<'a, Fr>,
+        l_1_coefficients: &mut Polynomial<Fr>,
+        target_domain: &EvaluationDomain<'a, Fr>,
     ) {
-        todo!("hiii")
+        // Step 1: Compute the 1/denominator for each evaluation: 1 / (X_i - 1)
+        let multiplicand = target_domain.root; // kn'th root of unity w'
+
+        // First compute X_i - 1, i = 0,...,kn-1
+        for j in 0..target_domain.num_threads {
+            let root_shift = multiplicand.pow([(j * target_domain.thread_size) as u64]);
+            let mut work_root = self.generator * root_shift; // g.(w')^{j*thread_size}
+            let offset = j * target_domain.thread_size;
+            for i in offset..offset + target_domain.thread_size {
+                l_1_coefficients[i] = work_root - Fr::one(); // (w')^{j*thread_size + i}.g - 1
+                work_root *= multiplicand; // (w')^{j*thread_size + i + 1}
+            }
+        }
+
+        // Compute 1/(X_i - 1) using Montgomery batch inversion
+        // Note: This is a placeholder, replace with actual batch invert function.
+        // TODO add batch invert
+        // invert them all
+        l_1_coefficients
+            .coefficients
+            .iter_mut()
+            .map(|x| *x = x.inverse().unwrap())
+            .for_each(drop);
+
+        // Step 2: Compute numerator (1/n)*(X_i^n - 1)
+        // First compute X_i^n (which forms a multiplicative subgroup of order k)
+        let log2_subgroup_size = target_domain.log2_size - self.log2_size; // log_2(k)
+        let subgroup_size = 1usize << log2_subgroup_size; // k
+        assert!(target_domain.log2_size >= self.log2_size);
+        let mut subgroup_roots = vec![Fr::one(); subgroup_size];
+        // Note: compute_multiplicative_subgroup function is missing, replace this with your own.
+        self.compute_multiplicative_subgroup(log2_subgroup_size, &mut subgroup_roots);
+
+        // Subtract 1 and divide by n to get the k elements (1/n)*(X_i^n - 1)
+        for root in &mut subgroup_roots {
+            *root -= Fr::one();
+            *root *= self.domain_inverse;
+        }
+        // Step 3: Construct L_1(X_i) by multiplying the 1/denominator evaluations in
+        // l_1_coefficients by the numerator evaluations in subgroup_roots
+        let subgroup_mask = subgroup_size - 1;
+        for i in 0..target_domain.num_threads {
+            for j in 0..target_domain.thread_size {
+                let eval_idx = i * target_domain.thread_size + j;
+                l_1_coefficients[eval_idx] *= subgroup_roots[eval_idx & subgroup_mask];
+            }
+        }
+    }
+}
+fn compute_sum<Fr: Field>(slice: &[Fr]) -> Fr {
+    slice.iter().copied().fold(Fr::zero(), Add::add)
+}
+
+pub(crate) fn compute_linear_polynomial_product<Fr: Field>(
+    roots: &[Fr],
+    dest: &mut [Fr],
+    n: usize,
+) {
+    // Equivalent of getting scratch_space
+    let mut scratch_space = vec![Fr::default(); n];
+    scratch_space.clone_from_slice(&roots[0..n]);
+
+    dest[n] = Fr::one();
+    dest[n - 1] = -compute_sum(&scratch_space[..n]);
+
+    let mut temp;
+    let mut constant = Fr::one();
+    for i in 0..n - 1 {
+        temp = Fr::default();
+        for j in 0..n - 1 - i {
+            scratch_space[j] = roots[j] * compute_sum(&scratch_space[j + 1..n - 1 - i - j]);
+            temp += scratch_space[j];
+        }
+        dest[n - 2 - i] = temp * constant;
+        constant = constant.neg();
     }
 }
 
-pub(crate) fn evaluate<F: Field>(_coeffs: &[F], _z: &F, _n: usize) -> F {
-    todo!()
+pub(crate) fn compute_efficient_interpolation<Fr: Field>(
+    src: &[Fr],
+    dest: &mut [Fr],
+    evaluation_points: &[Fr],
+    n: usize,
+) {
+    /*
+        We use Lagrange technique to compute polynomial interpolation.
+        Given: (x_i, y_i) for i ∈ {0, 1, ..., n} =: [n]
+        Compute function f(X) such that f(x_i) = y_i for all i ∈ [n].
+                   (X - x1)(X - x2)...(X - xn)             (X - x0)(X - x2)...(X - xn)
+        F(X) = y0--------------------------------  +  y1----------------------------------  + ...
+                 (x0 - x_1)(x0 - x_2)...(x0 - xn)       (x1 - x_0)(x1 - x_2)...(x1 - xn)
+        We write this as:
+                      [          yi        ]
+        F(X) = N(X) * |∑_i --------------- |
+                      [     (X - xi) * di  ]
+        where:
+        N(X) = ∏_{i \in [n]} (X - xi),
+        di = ∏_{j != i} (xi - xj)
+        For division of N(X) by (X - xi), we use the same trick that was used in compute_opening_polynomial()
+        function in the kate commitment scheme.
+    */
+    let mut numerator_polynomial = vec![Fr::zero(); n + 1];
+
+    compute_linear_polynomial_product(evaluation_points, &mut numerator_polynomial, n);
+
+    let mut roots_and_denominators = vec![Fr::zero(); 2 * n];
+    let mut temp_src = vec![Fr::zero(); n];
+
+    for i in 0..n {
+        roots_and_denominators[i] = -evaluation_points[i];
+        temp_src[i] = src[i];
+        dest[i] = Fr::zero();
+
+        // compute constant denominator
+        roots_and_denominators[n + i] = Fr::one();
+        for j in 0..n {
+            if j == i {
+                continue;
+            }
+            roots_and_denominators[n + i] *= evaluation_points[i] - evaluation_points[j];
+        }
+    }
+
+    // TODO make this a batch_invert
+    // invert them all
+    roots_and_denominators
+        .iter_mut()
+        .map(|x| *x = x.inverse().unwrap())
+        .for_each(drop);
+
+    let mut z;
+    let mut multiplier;
+    let mut temp_dest = vec![Fr::zero(); n];
+    for i in 0..n {
+        z = roots_and_denominators[i];
+        multiplier = temp_src[i] * roots_and_denominators[n + i];
+        temp_dest[0] = multiplier * numerator_polynomial[0];
+        temp_dest[0] *= z;
+        dest[0] += temp_dest[0];
+        for j in 1..n {
+            temp_dest[j] = multiplier * numerator_polynomial[j] - temp_dest[j - 1];
+            temp_dest[j] *= z;
+            dest[j] += temp_dest[j];
+        }
+    }
+}
+
+pub(crate) fn evaluate<F: Field>(coeffs: &[F], z: &F, n: usize) -> F {
+    // let num_threads = compute_num_threads();
+    let num_threads = compute_num_threads();
+    let range_per_thread = n / num_threads;
+    let leftovers = n - (range_per_thread * num_threads);
+    let mut evaluations = vec![F::default(); num_threads];
+    for (j, eval_j) in evaluations.iter_mut().enumerate().take(num_threads) {
+        let mut z_acc = z.pow([(j * range_per_thread) as u64]);
+        let offset = j * range_per_thread;
+        *eval_j = F::default();
+        let end = if j == num_threads - 1 {
+            offset + range_per_thread + leftovers
+        } else {
+            offset + range_per_thread
+        };
+        for coeffs_i in coeffs.iter().take(end).skip(offset) {
+            let work_var = z_acc * coeffs_i;
+            *eval_j += work_var;
+            z_acc *= z;
+        }
+    }
+    let mut r = F::default();
+    for evaluation in evaluations {
+        r += evaluation;
+    }
+    r
 }
