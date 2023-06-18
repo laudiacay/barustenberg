@@ -1,3 +1,4 @@
+use anyhow::ensure;
 use ark_ff::{FftField, Field};
 
 use crate::{common::max_threads::compute_num_threads, numeric::bitop::Msb};
@@ -121,11 +122,12 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
         &self,
         log2_subgroup_size: usize,
         subgroup_roots: &mut [Fr],
-    ) {
+    ) -> anyhow::Result<()> {
         let subgroup_size = 1 << log2_subgroup_size;
 
         // Step 1: get primitive 4th root of unity
-        let subgroup_root = Fr::get_root_of_unity(log2_subgroup_size.try_into().unwrap()).unwrap();
+        let subgroup_root = Fr::get_root_of_unity(log2_subgroup_size as u64)
+            .ok_or_else(|| anyhow::anyhow!("Failed to find root of unity"))?;
 
         // Step 2: compute the cofactor term g^n
         let mut accumulator = self.generator;
@@ -138,6 +140,7 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
         for i in 1..subgroup_size {
             subgroup_roots[i] = subgroup_roots[i - 1] * subgroup_root;
         }
+        Ok(())
     }
 
     // TODO readd pragma omp parallel
@@ -485,14 +488,11 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
         small_domain: &Self,
         _large_domain: &Self,
         domain_extension: usize,
-    ) {
+    ) -> anyhow::Result<()> {
         let log2_domain_extension = domain_extension.get_msb();
-        let primitive_root = Fr::get_root_of_unity(
-            (small_domain.log2_size + log2_domain_extension)
-                .try_into()
-                .unwrap(),
-        )
-        .unwrap();
+        let primitive_root =
+            Fr::get_root_of_unity(((small_domain.log2_size + log2_domain_extension) as u64))
+                .ok_or_else(|| anyhow::anyhow!("Failed to get root of unity"))?;
 
         let scratch_space_len = small_domain.size * domain_extension;
         let mut scratch_space = vec![Fr::zero(); scratch_space_len];
@@ -551,6 +551,7 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
                 }
             }
         }
+        Ok(())
     }
     pub(crate) fn coset_fft_inplace(&self, _coeffs: &mut [Fr]) {
         unimplemented!()
@@ -615,7 +616,7 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
         &self,
         l_1_coefficients: &mut Polynomial<Fr>,
         target_domain: &EvaluationDomain<'a, Fr>,
-    ) {
+    ) -> anyhow::Result<()> {
         // Step 1: Compute the 1/denominator for each evaluation: 1 / (X_i - 1)
         let multiplicand = target_domain.root; // kn'th root of unity w'
 
@@ -634,11 +635,18 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
         // Note: This is a placeholder, replace with actual batch invert function.
         // TODO add batch invert
         // invert them all
-        l_1_coefficients
+        let result: Result<(), anyhow::Error> = l_1_coefficients
             .coefficients
             .iter_mut()
-            .map(|x| *x = x.inverse().unwrap())
-            .for_each(drop);
+            .map(|x| {
+                let inverse = x
+                    .inverse()
+                    .ok_or_else(|| anyhow::anyhow!("Failed to find inverse"))?;
+                *x = inverse;
+                Ok(())
+            })
+            .collect();
+        result?;
 
         // Step 2: Compute numerator (1/n)*(X_i^n - 1)
         // First compute X_i^n (which forms a multiplicative subgroup of order k)
@@ -647,7 +655,7 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
         assert!(target_domain.log2_size >= self.log2_size);
         let mut subgroup_roots = vec![Fr::one(); subgroup_size];
         // Note: compute_multiplicative_subgroup function is missing, replace this with your own.
-        self.compute_multiplicative_subgroup(log2_subgroup_size, &mut subgroup_roots);
+        self.compute_multiplicative_subgroup(log2_subgroup_size, &mut subgroup_roots)?;
 
         // Subtract 1 and divide by n to get the k elements (1/n)*(X_i^n - 1)
         for root in &mut subgroup_roots {
@@ -663,6 +671,7 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
                 l_1_coefficients[eval_idx] *= subgroup_roots[eval_idx & subgroup_mask];
             }
         }
+        Ok(())
     }
 }
 fn compute_sum<Fr: Field>(slice: &[Fr]) -> Fr {
@@ -699,7 +708,7 @@ pub(crate) fn compute_efficient_interpolation<Fr: Field>(
     dest: &mut [Fr],
     evaluation_points: &[Fr],
     n: usize,
-) {
+) -> anyhow::Result<()> {
     /*
         We use Lagrange technique to compute polynomial interpolation.
         Given: (x_i, y_i) for i ∈ {0, 1, ..., n} =: [n]
@@ -741,10 +750,17 @@ pub(crate) fn compute_efficient_interpolation<Fr: Field>(
 
     // TODO make this a batch_invert
     // invert them all
-    roots_and_denominators
+    let result: Result<(), anyhow::Error> = roots_and_denominators
         .iter_mut()
-        .map(|x| *x = x.inverse().unwrap())
-        .for_each(drop);
+        .map(|x| {
+            let inverse = x
+                .inverse()
+                .ok_or_else(|| anyhow::anyhow!("Failed to find inverse"))?;
+            *x = inverse;
+            Ok(())
+        })
+        .collect();
+    result?;
 
     let mut z;
     let mut multiplier;
@@ -761,6 +777,7 @@ pub(crate) fn compute_efficient_interpolation<Fr: Field>(
             dest[j] += temp_dest[j];
         }
     }
+    Ok(())
 }
 
 pub(crate) fn evaluate<F: Field>(coeffs: &[F], z: &F, n: usize) -> F {
