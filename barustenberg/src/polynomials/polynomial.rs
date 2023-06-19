@@ -3,6 +3,8 @@ use std::{
     ops::{AddAssign, Index, IndexMut, MulAssign, Range, SubAssign},
 };
 
+use anyhow::Result;
+
 use ark_ff::Field;
 
 use crate::polynomials::polynomial_arithmetic::compute_efficient_interpolation;
@@ -15,7 +17,10 @@ pub(crate) struct Polynomial<F: Field> {
 }
 
 impl<F: Field> Polynomial<F> {
-    pub(crate) fn from_interpolations(interpolation_points: &[F], evaluations: &[F]) -> Self {
+    pub(crate) fn from_interpolations(
+        interpolation_points: &[F],
+        evaluations: &[F],
+    ) -> Result<Self> {
         assert!(!interpolation_points.is_empty());
         let mut coefficients = vec![F::zero(); interpolation_points.len()];
         compute_efficient_interpolation(
@@ -23,12 +28,12 @@ impl<F: Field> Polynomial<F> {
             &mut coefficients,
             interpolation_points,
             interpolation_points.len(),
-        );
-        Self {
+        )?;
+        Ok(Self {
             size: interpolation_points.len(),
             coefficients,
             phantom: PhantomData,
-        }
+        })
     }
 
     #[inline]
