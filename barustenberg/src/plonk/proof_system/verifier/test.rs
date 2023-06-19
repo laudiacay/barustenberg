@@ -1,4 +1,4 @@
-use ark_bn254::{Fq12, Fq, Fr, G1Affine, G1Projective};
+use ark_bn254::{Fq12, G1Projective};
 use ark_ff::One;
 
 use super::*;
@@ -6,62 +6,91 @@ use super::*;
 impl<Fq: Field, Fr: Field + FftField, G1Affine: AffineRepr, H: BarretenHasher, S: Settings<H>>
     Verifier<'_, Fq, Fr, G1Affine, H, S>
 {
-    pub fn generate_verifier(circuit_proving_key: Rc<ProvingKey<'_, Fr, G1Affine>>) -> Self {
-        let mut poly_coefficients = vec![[]; 8];
+    pub fn generate_verifier(circuit_proving_key: Rc<RefCell<ProvingKey<'_, Fr, G1Affine>>>) -> Self {
+        let mut poly_coefficients: Vec<&mut [Fr]> = vec![&mut []; 8];
         poly_coefficients[0] = circuit_proving_key
+            .borrow()
             .polynomial_store
-            .get(&"q_1".to_owned())?
-            .map(|p| p.coefficients());
-        poly_coefficients[1] = circuit_proving_key
-            .polynomial_store
-            .get(&"q_2".to_owned())?
-            .map(|p| p.coefficients());
-        poly_coefficients[2] = circuit_proving_key
-            .polynomial_store
-            .get(&"q_3".to_owned())?
-            .map(|p| p.coefficients());
-        poly_coefficients[3] = circuit_proving_key
-            .polynomial_store
-            .get(&"q_m".to_owned())?
+            .get(&"q_1".to_owned())
+            .unwrap()
             .borrow_mut()
-            .coefficients;
+            .coefficients
+            .as_mut_slice();
+        poly_coefficients[1] = circuit_proving_key
+            .borrow()
+            .polynomial_store
+            .get(&"q_2".to_owned())
+            .unwrap()
+            .borrow_mut()
+            .coefficients
+            .as_mut_slice();
+        poly_coefficients[2] = circuit_proving_key
+            .borrow()
+            .polynomial_store
+            .get(&"q_3".to_owned())
+            .unwrap()
+            .borrow_mut()
+            .coefficients
+            .as_mut_slice();
+        poly_coefficients[3] = circuit_proving_key
+            .borrow()
+            .polynomial_store
+            .get(&"q_m".to_owned())
+            .unwrap()
+            .borrow_mut()
+            .coefficients
+            .as_mut_slice();
         poly_coefficients[4] = circuit_proving_key
+            .borrow()
             .polynomial_store
-            .get("q_c".to_owned())?
-            .map(|p| p.coefficients());
+            .get(&"q_c".to_owned())
+            .unwrap()
+            .borrow_mut()
+            .coefficients
+            .as_mut_slice();
         poly_coefficients[5] = circuit_proving_key
+            .borrow()
             .polynomial_store
-            .get("sigma_1".to_owned())?
-            .map(|p| p.coefficients());
+            .get(&"sigma_1".to_owned())
+            .unwrap()
+            .borrow_mut()
+            .coefficients
+            .as_mut_slice();
         poly_coefficients[6] = circuit_proving_key
+            .borrow()
             .polynomial_store
-            .get("sigma_2".to_owned())?
-            .map(|p| p.coefficients());
+            .get(&"sigma_2".to_owned())
+            .unwrap()
+            .borrow_mut()
+            .coefficients
+            .as_mut_slice();
         poly_coefficients[7] = circuit_proving_key
+            .borrow()
             .polynomial_store
-            .get("sigma_3".to_owned())?
-            .map(|p| p.coefficients());
+            .get(&"sigma_3".to_owned())
+            .unwrap()
+            .borrow_mut()
+            .coefficients
+            .as_mut_slice();
 
         let mut commitments = vec![G1Affine::default(); 8];
-        let mut state = PippengerRuntimeState::new(circuit_proving_key.circuit_size);
+        let mut state = PippengerRuntimeState::new(circuit_proving_key.borrow().circuit_size);
 
         for i in 0..8 {
-            if let Some(poly_coeffs) = &poly_coefficients[i] {
-                commitments[i] = G1Affine::from_projective(state.pippenger(
-                    poly_coeffs,
-                    circuit_proving_key.reference_string.monomial_points(),
-                    circuit_proving_key.circuit_size,
-                ));
-            }
+            commitments[i] = G1Affine::from_projective(state.pippenger(
+                &poly_coefficients[i],
+                circuit_proving_key.borrow().reference_string.borrow().get_monomial_points(),
+                circuit_proving_key.borrow().circuit_size,
+            ));
         }
 
         // TODOL: this number of points in arbitrary and needs to be checked with the reference string
         let crs = Arc::new(FileReferenceString::new(32, "../srs_db/ignition"));
         let circuit_verification_key = Arc::new(VerificationKey::new(
-            circuit_proving_key.circuit_size,
-            circuit_proving_key.num_public_inputs,
+            circuit_proving_key.borrow().circuit_size,
+            circuit_proving_key.borrow().num_public_inputs,
             crs,
-            circuit_proving_key.composer_type,
+            circuit_proving_key.borrow().composer_type,
         ));
 
         circuit_verification_key
@@ -112,14 +141,13 @@ impl<Fq: Field, Fr: Field + FftField, G1Affine: AffineRepr, H: BarretenHasher, S
         //                  q_l_eval, q_r_eval, q_o_eval, q_m_eval, q_c_eval, z_eval_omega \in F }
         //
         // Proof π_SNARK must first be added to the transcript with the other program_settings.
-        self.key.program_width = S::PROGRAM_WIDTH;
+        self.key.program_width = self.settings.program_width();
 
         // Initialize the transcript.
-        let mut transcript = Transcript::StandardTranscript::new(
-            proof.proof_data.clone(),
+        let mut transcript = Transcript::new_from_transcript(
+            proof.proof_data.as_ref(),
             self.manifest.clone(),
-            S::HASH_TYPE,
-            S::NUM_CHALLENGE_BYTES,
+            S.num_challenge_bytes(),
         );
 
         // Add circuit size and public input size to the transcript.
@@ -137,8 +165,8 @@ impl<Fq: Field, Fr: Field + FftField, G1Affine: AffineRepr, H: BarretenHasher, S
         transcript.apply_fiat_shamir("z");
 
         // Deserialize alpha and zeta from the transcript.
-        let alpha = Fr::deserialize_from_buffer(transcript.get_challenge("alpha"));
-        let zeta = Fr::deserialize_from_buffer(transcript.get_challenge("z"));
+        let alpha = transcript.get_challenge_field_element("alpha", None);
+        let zeta = transcript.get_challenge_field_element("z", None);
 
         todo!("fail here- are you sure this is the right function?");
         // Compute the evaluations of the Lagrange polynomials and the vanishing polynomial.
@@ -158,8 +186,7 @@ impl<Fq: Field, Fr: Field + FftField, G1Affine: AffineRepr, H: BarretenHasher, S
         // Compute nu and separator challenges.
         transcript.apply_fiat_shamir("nu");
         transcript.apply_fiat_shamir("separator");
-        let separator_challenge =
-            Fr::deserialize_from_buffer(transcript.get_challenge("separator"));
+        let separator_challenge = transcript.get_challenge_field_element("separator");
 
         // Verify the commitments using Kate commitment scheme.
         self.commitment_scheme.batch_verify(
@@ -167,7 +194,7 @@ impl<Fq: Field, Fr: Field + FftField, G1Affine: AffineRepr, H: BarretenHasher, S
             &mut self.kate_g1_elements,
             &mut self.kate_fr_elements,
             &self.key,
-        )?;
+        );
 
         // Append scalar multiplication inputs.
         S::append_scalar_multiplication_inputs(
@@ -178,8 +205,8 @@ impl<Fq: Field, Fr: Field + FftField, G1Affine: AffineRepr, H: BarretenHasher, S
         );
 
         // Get PI_Z and PI_Z_OMEGA from the transcript.
-        let pi_z = G1Affine::deserialize_from_buffer(transcript.get_element("PI_Z"));
-        let pi_z_omega = G1Affine::deserialize_from_buffer(transcript.get_element("PI_Z_OMEGA"));
+        let pi_z = transcript.get_group_element("PI_Z");
+        let pi_z_omega = transcript.get_group_element("PI_Z_OMEGA");
 
         // Check if PI_Z and PI_Z_OMEGA are valid points.
         if !pi_z.on_curve() || pi_z.is_point_at_infinity() {
@@ -297,12 +324,23 @@ impl<Fq: Field, Fr: Field + FftField, G1Affine: AffineRepr, H: BarretenHasher, S
     }
 }
 
-<<<<<<< HEAD
-fn generate_test_data<'a, Fq: Field + FftField, Fr: Field + FftField, G1Affine: AffineRepr, H: BarretenHasher>(n: usize) -> Prover<'a, Fq, Fr, G1Affine, H, StandardSettings<H>, KateCommitmentScheme<H, StandardSettings<H>>> {
-
-=======
-fn generate_test_data<'a>(n: usize) -> Prover<'a, Fq, Fr, G1Affine, H, Settings<H>, KateCommitmentScheme<H, S>> {
->>>>>>> 2daa2f9 (more)
+fn generate_test_data<
+    'a,
+    Fq: Field + FftField,
+    Fr: Field + FftField,
+    G1Affine: AffineRepr,
+    H: BarretenHasher,
+>(
+    n: usize,
+) -> Prover<
+    'a,
+    Fq,
+    Fr,
+    G1Affine,
+    H,
+    StandardSettings<H>,
+    KateCommitmentScheme<H, StandardSettings<H>>,
+> {
     // create some constraints that satisfy our arithmetic circuit relation
     let crs = Rc::new(FileReferenceString::new(n + 1, "../srs_db/ignition"));
     let key = Rc::new(ProvingKey::new(n, 0, crs, ComposerType::Standard));
@@ -315,7 +353,7 @@ fn generate_test_data<'a>(n: usize) -> Prover<'a, Fq, Fr, G1Affine, H, Settings<
     let mut q_l = Polynomial::new(n);
     let mut q_r = Polynomial::new(n);
     let mut q_o = Polynomial::new(n);
-    let mut q_c : Polynomial<Fr> = Polynomial::new(n);
+    let mut q_c: Polynomial<Fr> = Polynomial::new(n);
     let mut q_m = Polynomial::new(n);
 
     let mut t0;
@@ -338,7 +376,7 @@ fn generate_test_data<'a>(n: usize) -> Prover<'a, Fq, Fr, G1Affine, H, Settings<
 
         t0 = w_l.coefficients[2 * i + 1] + w_r.coefficients[2 * i + 1];
         q_c[2 * i + 1] = t0 + w_o[2 * i + 1];
-        q_c[2 * i + 1].self_neg();
+        q_c[2 * i + 1] = -q_c[2 * i + 1];
         q_l[2 * i + 1] = Fr::one();
         q_r[2 * i + 1] = Fr::one();
         q_o[2 * i + 1] = Fr::one();
@@ -397,11 +435,11 @@ fn generate_test_data<'a>(n: usize) -> Prover<'a, Fq, Fr, G1Affine, H, Settings<
     let sigma_3_lagrange_base = sigma_3.clone();
 
     key.polynomial_store
-        .insert("sigma_1_lagrange", sigma_1_lagrange_base);
+        .insert(&"sigma_1_lagrange".to_string(), sigma_1_lagrange_base);
     key.polynomial_store
-        .insert("sigma_2_lagrange", sigma_2_lagrange_base);
+        .insert(&"sigma_2_lagrange".to_string(), sigma_2_lagrange_base);
     key.polynomial_store
-        .insert("sigma_3_lagrange", sigma_3_lagrange_base);
+        .insert(&"sigma_3_lagrange".to_string(), sigma_3_lagrange_base);
 
     key.small_domain.ifft_inplace(&mut sigma_1);
     key.small_domain.ifft_inplace(&mut sigma_2);
@@ -416,17 +454,23 @@ fn generate_test_data<'a>(n: usize) -> Prover<'a, Fq, Fr, G1Affine, H, Settings<
     sigma_2_fft.coset_fft(&key.large_domain);
     sigma_3_fft.coset_fft(&key.large_domain);
 
-    key.polynomial_store.insert("sigma_1", sigma_1);
-    key.polynomial_store.insert("sigma_2", sigma_2);
-    key.polynomial_store.insert("sigma_3", sigma_3);
+    key.polynomial_store.insert(&"sigma_1".to_string(), sigma_1);
+    key.polynomial_store.insert(&"sigma_2".to_string(), sigma_2);
+    key.polynomial_store.insert(&"sigma_3".to_string(), sigma_3);
 
-    key.polynomial_store.insert("sigma_1_fft", sigma_1_fft);
-    key.polynomial_store.insert("sigma_2_fft", sigma_2_fft);
-    key.polynomial_store.insert("sigma_3_fft", sigma_3_fft);
+    key.polynomial_store
+        .insert(&"sigma_1_fft".to_string(), sigma_1_fft);
+    key.polynomial_store
+        .insert(&"sigma_2_fft".to_string(), sigma_2_fft);
+    key.polynomial_store
+        .insert(&"sigma_3_fft".to_string(), sigma_3_fft);
 
-    key.polynomial_store.insert("w_1_lagrange", w_l);
-    key.polynomial_store.insert("w_2_lagrange", w_r);
-    key.polynomial_store.insert("w_3_lagrange", w_o);
+    key.polynomial_store
+        .insert(&"w_1_lagrange".to_string(), w_l);
+    key.polynomial_store
+        .insert(&"w_2_lagrange".to_string(), w_r);
+    key.polynomial_store
+        .insert(&"w_3_lagrange".to_string(), w_o);
 
     key.small_domain.ifft_inplace(&mut q_l);
     key.small_domain.ifft_inplace(&mut q_r);
@@ -461,8 +505,9 @@ fn generate_test_data<'a>(n: usize) -> Prover<'a, Fq, Fr, G1Affine, H, Settings<
     let permutation_widget: Box<ProverPermutationWidget<'_>> =
         Box::new(ProverPermutationWidget::<3>::new(key.clone()));
 
-    let widget: Box<ProverArithmeticWidget<'_, StandardSettings>> =
-        Box::new(ProverArithmeticWidget::<_, StandardSettings>::new(key.clone()));
+    let widget: Box<ProverArithmeticWidget<'_, StandardSettings>> = Box::new(
+        ProverArithmeticWidget::<_, StandardSettings>::new(key.clone()),
+    );
 
     let kate_commitment_scheme = Box::new(KateCommitmentScheme::<StandardSettings>::new());
 
@@ -477,12 +522,10 @@ fn generate_test_data<'a>(n: usize) -> Prover<'a, Fq, Fr, G1Affine, H, Settings<
     state
 }
 
-use std::rc::Rc;
+use std::{rc::Rc, cell::RefCell};
 
 use crate::{
-    ecc::{
-        reduced_ate_pairing_batch_precomputed, PippengerRuntimeState,
-    },
+    ecc::{reduced_ate_pairing_batch_precomputed, PippengerRuntimeState},
     plonk::{
         composer::composer_base::ComposerType,
         proof_system::{
@@ -491,10 +534,11 @@ use crate::{
             prover::Prover,
             proving_key::ProvingKey,
             types::prover_settings::StandardSettings,
+            utils::permutation::compute_permutation_lagrange_base_single,
             widgets::{
                 random_widgets::permutation_widget::ProverPermutationWidget,
                 transition_widgets::arithmetic_widget::ProverArithmeticWidget,
-            }, utils::permutation::compute_permutation_lagrange_base_single,
+            },
         },
     },
     polynomials::Polynomial,
