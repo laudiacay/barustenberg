@@ -1,4 +1,3 @@
-use anyhow::ensure;
 use ark_ff::{FftField, Field};
 
 use crate::{common::max_threads::compute_num_threads, numeric::bitop::Msb};
@@ -491,7 +490,7 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
     ) -> anyhow::Result<()> {
         let log2_domain_extension = domain_extension.get_msb();
         let primitive_root =
-            Fr::get_root_of_unity(((small_domain.log2_size + log2_domain_extension) as u64))
+            Fr::get_root_of_unity((small_domain.log2_size + log2_domain_extension) as u64)
                 .ok_or_else(|| anyhow::anyhow!("Failed to get root of unity"))?;
 
         let scratch_space_len = small_domain.size * domain_extension;
@@ -573,6 +572,15 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
         _num_roots_cut_out_of_vanishing_poly: usize,
     ) {
         unimplemented!()
+    }
+
+    pub(crate) fn get_lagrange_evaluations(
+        &self,
+        z: &Fr,
+        num_roots_cut_out_of_vanishing_poly: Option<usize>,
+    ) -> Fr {
+        let num_roots_cut_out_of_vanishing_poly = num_roots_cut_out_of_vanishing_poly.unwrap_or(4);
+        todo!();
     }
 
     /// Compute evaluations of lagrange polynomial L_1(X) on the specified domain.

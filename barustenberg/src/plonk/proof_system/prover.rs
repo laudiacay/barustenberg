@@ -316,7 +316,7 @@ impl<
     }
 
     /// Computes the quotient polynomial, then commits to its degree-n split parts.
-    fn execute_fourth_round(&mut self) {
+    fn execute_fourth_round(&mut self) -> Result<()> {
         self.queue.flush_queue();
         (*self.transcript).borrow_mut().apply_fiat_shamir("alpha");
 
@@ -325,7 +325,7 @@ impl<
             .get_challenge_field_element("alpha", None);
 
         // Compute FFT of lagrange polynomial L_1 (needed in random widgets only)
-        self.compute_lagrange_1_fft();
+        self.compute_lagrange_1_fft()?;
 
         for widget in &mut self.random_widgets {
             alpha_base =
@@ -387,6 +387,7 @@ impl<
         self.add_blinding_to_quotient_polynomial_parts();
 
         self.compute_quotient_commitments();
+        Ok(())
     }
     fn execute_fifth_round(&mut self) -> Result<()> {
         self.queue.flush_queue();
@@ -623,13 +624,13 @@ impl<
     }
 
     /// Compute FFT of lagrange polynomial L_1 needed in random widgets only
-    fn compute_lagrange_1_fft(&self) {
+    fn compute_lagrange_1_fft(&self) -> Result<()> {
         let mut lagrange_1_fft: Polynomial<Fr> = Polynomial::new(4 * self.circuit_size + 8);
 
         {
             let key = self.key.borrow();
             key.small_domain
-                .compute_lagrange_polynomial_fft(&mut lagrange_1_fft, &key.large_domain);
+                .compute_lagrange_polynomial_fft(&mut lagrange_1_fft, &key.large_domain)?;
             for i in 0..8 {
                 lagrange_1_fft[4 * self.circuit_size + i] = lagrange_1_fft[i];
             }
@@ -638,6 +639,8 @@ impl<
             .borrow_mut()
             .polynomial_store
             .put("lagrange_1_fft".to_string(), lagrange_1_fft);
+
+        Ok(())
     }
 
     fn export_proof(&self) -> Proof {
@@ -665,7 +668,7 @@ impl<
         self.queue.process_queue()?;
 
         // Fiat-Shamir alpha, compute & commit to quotient polynomial.
-        self.execute_fourth_round();
+        self.execute_fourth_round()?;
         self.queue.process_queue()?;
 
         self.execute_fifth_round()?;
