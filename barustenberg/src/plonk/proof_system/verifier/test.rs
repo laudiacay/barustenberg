@@ -1,65 +1,96 @@
-use ark_bn254::Fq12;
+use ark_bn254::{Fq12, G1Projective};
+use ark_ff::One;
 
 use super::*;
 
-impl<Fq: Field, Fr: Field + FftField, G1Affine: AffineRepr, H: BarretenHasher, PS: Settings<H>>
-    Verifier<'_, Fq, Fr, G1Affine, H, PS>
+impl<Fq: Field, Fr: Field + FftField, G1Affine: AffineRepr, H: BarretenHasher, S: Settings<H>>
+    Verifier<'_, Fq, Fr, G1Affine, H, S>
 {
-    pub fn generate_verifier(circuit_proving_key: Arc<ProvingKey<'_, Fr, G1Affine>>) -> Self {
-        let mut poly_coefficients = [None; 8];
+    pub fn generate_verifier(circuit_proving_key: Rc<RefCell<ProvingKey<'_, Fr, G1Affine>>>) -> Self {
+        let mut poly_coefficients: Vec<&mut [Fr]> = vec![&mut []; 8];
         poly_coefficients[0] = circuit_proving_key
+            .borrow()
             .polynomial_store
-            .get("q_1".to_owned())?
-            .map(|p| p.coefficients());
+            .get(&"q_1".to_owned())
+            .unwrap()
+            .borrow_mut()
+            .coefficients
+            .as_mut_slice();
         poly_coefficients[1] = circuit_proving_key
+            .borrow()
             .polynomial_store
-            .get("q_2".to_owned())?
-            .map(|p| p.coefficients());
+            .get(&"q_2".to_owned())
+            .unwrap()
+            .borrow_mut()
+            .coefficients
+            .as_mut_slice();
         poly_coefficients[2] = circuit_proving_key
+            .borrow()
             .polynomial_store
-            .get("q_3".to_owned())?
-            .map(|p| p.coefficients());
+            .get(&"q_3".to_owned())
+            .unwrap()
+            .borrow_mut()
+            .coefficients
+            .as_mut_slice();
         poly_coefficients[3] = circuit_proving_key
+            .borrow()
             .polynomial_store
-            .get("q_m".to_owned())?
-            .map(|p| p.coefficients());
+            .get(&"q_m".to_owned())
+            .unwrap()
+            .borrow_mut()
+            .coefficients
+            .as_mut_slice();
         poly_coefficients[4] = circuit_proving_key
+            .borrow()
             .polynomial_store
-            .get("q_c".to_owned())?
-            .map(|p| p.coefficients());
+            .get(&"q_c".to_owned())
+            .unwrap()
+            .borrow_mut()
+            .coefficients
+            .as_mut_slice();
         poly_coefficients[5] = circuit_proving_key
+            .borrow()
             .polynomial_store
-            .get("sigma_1".to_owned())?
-            .map(|p| p.coefficients());
+            .get(&"sigma_1".to_owned())
+            .unwrap()
+            .borrow_mut()
+            .coefficients
+            .as_mut_slice();
         poly_coefficients[6] = circuit_proving_key
+            .borrow()
             .polynomial_store
-            .get("sigma_2".to_owned())?
-            .map(|p| p.coefficients());
+            .get(&"sigma_2".to_owned())
+            .unwrap()
+            .borrow_mut()
+            .coefficients
+            .as_mut_slice();
         poly_coefficients[7] = circuit_proving_key
+            .borrow()
             .polynomial_store
-            .get("sigma_3".to_owned())?
-            .map(|p| p.coefficients());
+            .get(&"sigma_3".to_owned())
+            .unwrap()
+            .borrow_mut()
+            .coefficients
+            .as_mut_slice();
 
         let mut commitments = vec![G1Affine::default(); 8];
-        let mut state = PippengerRuntimeState::new(circuit_proving_key.circuit_size);
+        let mut state = PippengerRuntimeState::new(circuit_proving_key.borrow().circuit_size);
 
         for i in 0..8 {
-            if let Some(poly_coeffs) = &poly_coefficients[i] {
-                commitments[i] = G1Affine::from_projective(state.pippenger(
-                    poly_coeffs,
-                    circuit_proving_key.reference_string.monomial_points(),
-                    circuit_proving_key.circuit_size,
-                ));
-            }
+            commitments[i] = G1Affine::from_projective(state.pippenger(
+                &poly_coefficients[i],
+                circuit_proving_key.borrow().reference_string.borrow().get_monomial_points(),
+                circuit_proving_key.borrow().circuit_size,
+            ));
         }
 
         // TODOL: this number of points in arbitrary and needs to be checked with the reference string
         let crs = Arc::new(FileReferenceString::new(32, "../srs_db/ignition"));
         let circuit_verification_key = Arc::new(VerificationKey::new(
-            circuit_proving_key.circuit_size,
-            circuit_proving_key.num_public_inputs,
+            circuit_proving_key.borrow().circuit_size,
+            circuit_proving_key.borrow().num_public_inputs,
             crs,
-            circuit_proving_key.composer_type,
+            circuit_proving_key.borrow().composer_type,
         ));
 
         circuit_verification_key
@@ -110,14 +141,13 @@ impl<Fq: Field, Fr: Field + FftField, G1Affine: AffineRepr, H: BarretenHasher, P
         //                  q_l_eval, q_r_eval, q_o_eval, q_m_eval, q_c_eval, z_eval_omega \in F }
         //
         // Proof π_SNARK must first be added to the transcript with the other program_settings.
-        self.key.program_width = S::PROGRAM_WIDTH;
+        self.key.program_width = self.settings.program_width();
 
         // Initialize the transcript.
-        let mut transcript = Transcript::StandardTranscript::new(
-            proof.proof_data.clone(),
+        let mut transcript = Transcript::new_from_transcript(
+            proof.proof_data.as_ref(),
             self.manifest.clone(),
-            S::HASH_TYPE,
-            S::NUM_CHALLENGE_BYTES,
+            S.num_challenge_bytes(),
         );
 
         // Add circuit size and public input size to the transcript.
@@ -135,8 +165,8 @@ impl<Fq: Field, Fr: Field + FftField, G1Affine: AffineRepr, H: BarretenHasher, P
         transcript.apply_fiat_shamir("z");
 
         // Deserialize alpha and zeta from the transcript.
-        let alpha = Fr::deserialize_from_buffer(transcript.get_challenge("alpha"));
-        let zeta = Fr::deserialize_from_buffer(transcript.get_challenge("z"));
+        let alpha = transcript.get_challenge_field_element("alpha", None);
+        let zeta = transcript.get_challenge_field_element("z", None);
 
         todo!("fail here- are you sure this is the right function?");
         // Compute the evaluations of the Lagrange polynomials and the vanishing polynomial.
@@ -156,8 +186,7 @@ impl<Fq: Field, Fr: Field + FftField, G1Affine: AffineRepr, H: BarretenHasher, P
         // Compute nu and separator challenges.
         transcript.apply_fiat_shamir("nu");
         transcript.apply_fiat_shamir("separator");
-        let separator_challenge =
-            Fr::deserialize_from_buffer(transcript.get_challenge("separator"));
+        let separator_challenge = transcript.get_challenge_field_element("separator");
 
         // Verify the commitments using Kate commitment scheme.
         self.commitment_scheme.batch_verify(
@@ -165,7 +194,7 @@ impl<Fq: Field, Fr: Field + FftField, G1Affine: AffineRepr, H: BarretenHasher, P
             &mut self.kate_g1_elements,
             &mut self.kate_fr_elements,
             &self.key,
-        )?;
+        );
 
         // Append scalar multiplication inputs.
         S::append_scalar_multiplication_inputs(
@@ -176,8 +205,8 @@ impl<Fq: Field, Fr: Field + FftField, G1Affine: AffineRepr, H: BarretenHasher, P
         );
 
         // Get PI_Z and PI_Z_OMEGA from the transcript.
-        let pi_z = G1Affine::deserialize_from_buffer(transcript.get_element("PI_Z"));
-        let pi_z_omega = G1Affine::deserialize_from_buffer(transcript.get_element("PI_Z_OMEGA"));
+        let pi_z = transcript.get_group_element("PI_Z");
+        let pi_z_omega = transcript.get_group_element("PI_Z_OMEGA");
 
         // Check if PI_Z and PI_Z_OMEGA are valid points.
         if !pi_z.on_curve() || pi_z.is_point_at_infinity() {
@@ -295,10 +324,28 @@ impl<Fq: Field, Fr: Field + FftField, G1Affine: AffineRepr, H: BarretenHasher, P
     }
 }
 
-fn generate_test_data<'a>(n: usize) -> Prover<'a, Fr, StandardSettings> {
+fn generate_test_data<
+    'a,
+    Fq: Field + FftField,
+    Fr: Field + FftField,
+    G1Affine: AffineRepr,
+    H: BarretenHasher,
+>(
+    n: usize,
+) -> Prover<
+    'a,
+    Fq,
+    Fr,
+    G1Affine,
+    H,
+    StandardSettings<H>,
+    KateCommitmentScheme<H, StandardSettings<H>>,
+> {
     // create some constraints that satisfy our arithmetic circuit relation
     let crs = Rc::new(FileReferenceString::new(n + 1, "../srs_db/ignition"));
     let key = Rc::new(ProvingKey::new(n, 0, crs, ComposerType::Standard));
+
+    let mut rand = rand::thread_rng();
 
     let mut w_l = Polynomial::new(n);
     let mut w_r = Polynomial::new(n);
@@ -306,30 +353,30 @@ fn generate_test_data<'a>(n: usize) -> Prover<'a, Fr, StandardSettings> {
     let mut q_l = Polynomial::new(n);
     let mut q_r = Polynomial::new(n);
     let mut q_o = Polynomial::new(n);
-    let mut q_c = Polynomial::new(n);
+    let mut q_c: Polynomial<Fr> = Polynomial::new(n);
     let mut q_m = Polynomial::new(n);
 
     let mut t0;
     for i in 0..n / 4 {
-        w_l.coeffs[2 * i] = Fr::random_element();
-        w_r.coeffs[2 * i] = Fr::random_element();
-        w_o.coeffs[2 * i] = w_l.coeffs[2 * i] * w_r.coeffs[2 * i];
-        w_o.coeffs[2 * i] += w_l.coeffs[2 * i];
-        w_o.coeffs[2 * i] += w_r.coeffs[2 * i];
-        w_o.coeffs[2 * i] += Fr::one();
-        q_l.coeffs[2 * i] = Fr::one();
-        q_r.coeffs[2 * i] = Fr::one();
-        q_o.coeffs[2 * i] = Fr::neg_one();
-        q_c.coeffs[2 * i] = Fr::one();
-        q_m.coeffs[2 * i] = Fr::one();
+        w_l.coefficients[2 * i] = Fr::rand(&mut rand);
+        w_r.coefficients[2 * i] = Fr::rand(&mut rand);
+        w_o.coefficients[2 * i] = w_l.coefficients[2 * i] * w_r.coefficients[2 * i];
+        w_o.coefficients[2 * i] += w_l.coefficients[2 * i];
+        w_o.coefficients[2 * i] += w_r.coefficients[2 * i];
+        w_o.coefficients[2 * i] += Fr::one();
+        q_l.coefficients[2 * i] = Fr::one();
+        q_r.coefficients[2 * i] = Fr::one();
+        q_o.coefficients[2 * i] = -Fr::one();
+        q_c.coefficients[2 * i] = Fr::one();
+        q_m.coefficients[2 * i] = Fr::one();
 
-        w_l.coeffs[2 * i + 1] = Fr::random_element();
-        w_r.coeffs[2 * i + 1] = Fr::random_element();
-        w_o.coeffs[2 * i + 1] = Fr::random_element();
+        w_l.coefficients[2 * i + 1] = Fr::rand(&mut rand);
+        w_r.coefficients[2 * i + 1] = Fr::rand(&mut rand);
+        w_o.coefficients[2 * i + 1] = Fr::rand(&mut rand);
 
-        t0 = w_l.coeffs[2 * i + 1] + w_r.coeffs[2 * i + 1];
+        t0 = w_l.coefficients[2 * i + 1] + w_r.coefficients[2 * i + 1];
         q_c[2 * i + 1] = t0 + w_o[2 * i + 1];
-        q_c[2 * i + 1].self_neg();
+        q_c[2 * i + 1] = -q_c[2 * i + 1];
         q_l[2 * i + 1] = Fr::one();
         q_r[2 * i + 1] = Fr::one();
         q_o[2 * i + 1] = Fr::one();
@@ -337,14 +384,14 @@ fn generate_test_data<'a>(n: usize) -> Prover<'a, Fr, StandardSettings> {
     }
 
     let shift = n / 2;
-    w_l.coeffs[shift..].copy_from_slice(&w_l.coeffs[..shift]);
-    w_r.coeffs[shift..].copy_from_slice(&w_r.coeffs[..shift]);
-    w_o.coeffs[shift..].copy_from_slice(&w_o.coeffs[..shift]);
-    q_m.coeffs[shift..].copy_from_slice(&q_m.coeffs[..shift]);
-    q_l.coeffs[shift..].copy_from_slice(&q_l.coeffs[..shift]);
-    q_r.coeffs[shift..].copy_from_slice(&q_r.coeffs[..shift]);
-    q_o.coeffs[shift..].copy_from_slice(&q_o.coeffs[..shift]);
-    q_c.coeffs[shift..].copy_from_slice(&q_c.coeffs[..shift]);
+    w_l.coefficients[shift..].copy_from_slice(&w_l.coefficients[..shift]);
+    w_r.coefficients[shift..].copy_from_slice(&w_r.coefficients[..shift]);
+    w_o.coefficients[shift..].copy_from_slice(&w_o.coefficients[..shift]);
+    q_m.coefficients[shift..].copy_from_slice(&q_m.coefficients[..shift]);
+    q_l.coefficients[shift..].copy_from_slice(&q_l.coefficients[..shift]);
+    q_r.coefficients[shift..].copy_from_slice(&q_r.coefficients[..shift]);
+    q_o.coefficients[shift..].copy_from_slice(&q_o.coefficients[..shift]);
+    q_c.coefficients[shift..].copy_from_slice(&q_c.coefficients[..shift]);
 
     let mut sigma_1_mapping: Vec<u32> = vec![0; n];
     let mut sigma_2_mapping: Vec<u32> = vec![0; n];
@@ -383,20 +430,20 @@ fn generate_test_data<'a>(n: usize) -> Prover<'a, Fr, StandardSettings> {
     compute_permutation_lagrange_base_single(&mut sigma_2, &sigma_2_mapping, &key.small_domain);
     compute_permutation_lagrange_base_single(&mut sigma_3, &sigma_3_mapping, &key.small_domain);
 
-    let sigma_1_lagrange_base = Polynomial::new_from(sigma_1, key.circuit_size);
-    let sigma_2_lagrange_base = Polynomial::new_from(sigma_2, key.circuit_size);
-    let sigma_3_lagrange_base = Polynomial::new_from(sigma_3, key.circuit_size);
+    let sigma_1_lagrange_base = sigma_1.clone();
+    let sigma_2_lagrange_base = sigma_2.clone();
+    let sigma_3_lagrange_base = sigma_3.clone();
 
     key.polynomial_store
-        .insert("sigma_1_lagrange", sigma_1_lagrange_base);
+        .insert(&"sigma_1_lagrange".to_string(), sigma_1_lagrange_base);
     key.polynomial_store
-        .insert("sigma_2_lagrange", sigma_2_lagrange_base);
+        .insert(&"sigma_2_lagrange".to_string(), sigma_2_lagrange_base);
     key.polynomial_store
-        .insert("sigma_3_lagrange", sigma_3_lagrange_base);
+        .insert(&"sigma_3_lagrange".to_string(), sigma_3_lagrange_base);
 
-    sigma_1.ifft(&key.small_domain);
-    sigma_2.ifft(&key.small_domain);
-    sigma_3.ifft(&key.small_domain);
+    key.small_domain.ifft_inplace(&mut sigma_1);
+    key.small_domain.ifft_inplace(&mut sigma_2);
+    key.small_domain.ifft_inplace(&mut sigma_3);
 
     const WIDTH: usize = 4;
     let sigma_1_fft = Polynomial::new_from(sigma_1, key.circuit_size * WIDTH);
@@ -407,29 +454,35 @@ fn generate_test_data<'a>(n: usize) -> Prover<'a, Fr, StandardSettings> {
     sigma_2_fft.coset_fft(&key.large_domain);
     sigma_3_fft.coset_fft(&key.large_domain);
 
-    key.polynomial_store.insert("sigma_1", sigma_1);
-    key.polynomial_store.insert("sigma_2", sigma_2);
-    key.polynomial_store.insert("sigma_3", sigma_3);
+    key.polynomial_store.insert(&"sigma_1".to_string(), sigma_1);
+    key.polynomial_store.insert(&"sigma_2".to_string(), sigma_2);
+    key.polynomial_store.insert(&"sigma_3".to_string(), sigma_3);
 
-    key.polynomial_store.insert("sigma_1_fft", sigma_1_fft);
-    key.polynomial_store.insert("sigma_2_fft", sigma_2_fft);
-    key.polynomial_store.insert("sigma_3_fft", sigma_3_fft);
+    key.polynomial_store
+        .insert(&"sigma_1_fft".to_string(), sigma_1_fft);
+    key.polynomial_store
+        .insert(&"sigma_2_fft".to_string(), sigma_2_fft);
+    key.polynomial_store
+        .insert(&"sigma_3_fft".to_string(), sigma_3_fft);
 
-    key.polynomial_store.insert("w_1_lagrange", w_l);
-    key.polynomial_store.insert("w_2_lagrange", w_r);
-    key.polynomial_store.insert("w_3_lagrange", w_o);
+    key.polynomial_store
+        .insert(&"w_1_lagrange".to_string(), w_l);
+    key.polynomial_store
+        .insert(&"w_2_lagrange".to_string(), w_r);
+    key.polynomial_store
+        .insert(&"w_3_lagrange".to_string(), w_o);
 
-    q_l.ifft(&key.small_domain);
-    q_r.ifft(&key.small_domain);
-    q_o.ifft(&key.small_domain);
-    q_m.ifft(&key.small_domain);
-    q_c.ifft(&key.small_domain);
+    key.small_domain.ifft_inplace(&mut q_l);
+    key.small_domain.ifft_inplace(&mut q_r);
+    key.small_domain.ifft_inplace(&mut q_o);
+    key.small_domain.ifft_inplace(&mut q_m);
+    key.small_domain.ifft_inplace(&mut q_c);
 
-    let q_1_fft = Polynomial::new_from(q_l, n_times_4);
-    let q_2_fft = Polynomial::new_from(q_r, n_times_4);
-    let q_3_fft = Polynomial::new_from(q_o, n_times_4);
-    let q_m_fft = Polynomial::new_from(q_m, n_times_4);
-    let q_c_fft = Polynomial::new_from(q_c, n_times_4);
+    let q_1_fft = Polynomial::new_from(q_l, n * 4);
+    let q_2_fft = Polynomial::new_from(q_r, n * 4);
+    let q_3_fft = Polynomial::new_from(q_o, n * 4);
+    let q_m_fft = Polynomial::new_from(q_m, n * 4);
+    let q_c_fft = Polynomial::new_from(q_c, n * 4);
 
     q_1_fft.coset_fft(&key.large_domain);
     q_2_fft.coset_fft(&key.large_domain);
@@ -437,23 +490,24 @@ fn generate_test_data<'a>(n: usize) -> Prover<'a, Fr, StandardSettings> {
     q_m_fft.coset_fft(&key.large_domain);
     q_c_fft.coset_fft(&key.large_domain);
 
-    key.polynomial_store.insert("q_1", q_l);
-    key.polynomial_store.insert("q_2", q_r);
-    key.polynomial_store.insert("q_3", q_o);
-    key.polynomial_store.insert("q_m", q_m);
-    key.polynomial_store.insert("q_c", q_c);
+    key.polynomial_store.insert(&"q_1".to_string(), q_l);
+    key.polynomial_store.insert(&"q_2".to_string(), q_r);
+    key.polynomial_store.insert(&"q_3".to_string(), q_o);
+    key.polynomial_store.insert(&"q_m".to_string(), q_m);
+    key.polynomial_store.insert(&"q_c".to_string(), q_c);
 
-    key.polynomial_store.insert("q_1_fft", q_1_fft);
-    key.polynomial_store.insert("q_2_fft", q_2_fft);
-    key.polynomial_store.insert("q_3_fft", q_3_fft);
-    key.polynomial_store.insert("q_m_fft", q_m_fft);
-    key.polynomial_store.insert("q_c_fft", q_c_fft);
+    key.polynomial_store.insert(&"q_1_fft".to_string(), q_1_fft);
+    key.polynomial_store.insert(&"q_2_fft".to_string(), q_2_fft);
+    key.polynomial_store.insert(&"q_3_fft".to_string(), q_3_fft);
+    key.polynomial_store.insert(&"q_m_fft".to_string(), q_m_fft);
+    key.polynomial_store.insert(&"q_c_fft".to_string(), q_c_fft);
 
-    let permutation_widget: Box<ProverPermutationWidget> =
+    let permutation_widget: Box<ProverPermutationWidget<'_>> =
         Box::new(ProverPermutationWidget::<3>::new(key.clone()));
 
-    let widget: Box<ProverArithmeticWidget<StandardSettings>> =
-        Box::new(ProverArithmeticWidget::<StandardSettings>::new(key.clone()));
+    let widget: Box<ProverArithmeticWidget<'_, StandardSettings>> = Box::new(
+        ProverArithmeticWidget::<_, StandardSettings>::new(key.clone()),
+    );
 
     let kate_commitment_scheme = Box::new(KateCommitmentScheme::<StandardSettings>::new());
 
@@ -468,21 +522,10 @@ fn generate_test_data<'a>(n: usize) -> Prover<'a, Fr, StandardSettings> {
     state
 }
 
-use std::rc::Rc;
+use std::{rc::Rc, cell::RefCell};
 
 use crate::{
-    ecc::{
-        curves::bn254::{
-            fq::Fq,
-            fr::Fr,
-            g1::{G1Affine, G1},
-            scalar_multiplication::{
-                runtime_states::PippengerRuntimeState,
-                scalar_multiplication::generate_pippenger_point_table,
-            },
-        },
-        reduced_ate_pairing_batch_precomputed,
-    },
+    ecc::{reduced_ate_pairing_batch_precomputed, PippengerRuntimeState},
     plonk::{
         composer::composer_base::ComposerType,
         proof_system::{
@@ -491,6 +534,7 @@ use crate::{
             prover::Prover,
             proving_key::ProvingKey,
             types::prover_settings::StandardSettings,
+            utils::permutation::compute_permutation_lagrange_base_single,
             widgets::{
                 random_widgets::permutation_widget::ProverPermutationWidget,
                 transition_widgets::arithmetic_widget::ProverArithmeticWidget,
