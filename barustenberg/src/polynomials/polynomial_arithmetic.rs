@@ -1,6 +1,34 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![warn(missing_debug_implementations, missing_docs)]
 #![deny(unreachable_pub, private_in_public)]
+//! This module provides various functions to perform operations on polynomials, with a focus on 
+//! arithmetic and evaluation functionality. 
+//!
+//! Polynomials are represented as vectors of field elements where each element is a coefficient 
+//! in the polynomial. The i-th element of the vector represents the coefficient for the x^i term.
+//! 
+//! # Main Functions
+//! 
+//! - `compute_efficient_interpolation`: Computes the polynomial that interpolates a given set 
+//! of points in an efficient manner using the Lagrange Interpolation formula.
+//! 
+//! - `evaluate`: Evaluates a given polynomial at a specific point. This function can use parallel 
+//! computation to speed up the evaluation.
+//!
+//! - `*_fft_*`: Computes the Fast Fourier Transform (FFT) of a polynomial in multiple different ways.
+//!
+//! # Helper Functions
+//! 
+//! - `compute_linear_polynomial_product`, `compute_num_threads`, `reverse_bits`, 
+//! `is_power_of_two_usize`, `compute_barycentric_lagrange_weights`, `compute_multiexp`, 
+//! `compute_inner_product`: These functions are used as helpers for the main functions to 
+//! perform operations such as product of linear terms, computation of weights for interpolation, 
+//! computing multi-exponentiation and inner products, as well as bit manipulation for the FFT.
+//!
+//! This module forms the computational backbone for performing operations on polynomials, 
+//! including interpolation, evaluation, and transformations like the FFT. It is built with 
+//! performance in mind, leveraging concurrent processing where possible.
+
 use anyhow::ensure;
 use ark_ff::{FftField, Field};
 
