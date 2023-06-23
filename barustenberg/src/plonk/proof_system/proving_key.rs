@@ -6,8 +6,8 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::vec::Vec;
 
+use crate::ecc::curves::bn254_scalar_multiplication::PippengerRuntimeState;
 use crate::ecc::fieldext::FieldExt;
-use crate::ecc::PippengerRuntimeState;
 use crate::plonk::proof_system::constants::NUM_QUOTIENT_PARTS;
 
 use crate::plonk::composer::composer_base::ComposerType;

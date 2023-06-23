@@ -1,4 +1,5 @@
 //pub(crate) mod grumpkin;
+pub(crate) mod bn254_scalar_multiplication;
 
 use super::fieldext::FieldExt;
 

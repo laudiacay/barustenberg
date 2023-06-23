@@ -1,5 +1,3 @@
-use std::marker::PhantomData;
-
 use ark_bn254::Fq12;
 use ark_ec::Group;
 
@@ -28,25 +26,6 @@ pub(crate) fn reduced_ate_pairing_batch_precomputed<G: Group>(
 ) -> Fq12 {
     // TODO compilation placeholder come back here bb
     todo!("see comment")
-}
-
-#[derive(Clone, Default)]
-pub(crate) struct PippengerRuntimeState<Fr: FieldExt, G: Group> {
-    phantom: PhantomData<(Fr, G)>,
-}
-
-impl<Fr: FieldExt, G: Group> PippengerRuntimeState<Fr, G> {
-    pub(crate) fn new(_size: usize) -> Self {
-        todo!()
-    }
-    pub(crate) fn pippenger_unsafe(
-        &mut self,
-        _mul_scalars: &mut [Fr],
-        _srs_points: &[G],
-        _msm_size: usize,
-    ) -> G {
-        todo!()
-    }
 }
 
 #[inline]

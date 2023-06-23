@@ -2,6 +2,12 @@ use crate::{
     common::max_threads::compute_num_threads, ecc::fieldext::FieldExt, numeric::bitop::Msb,
 };
 
+pub(crate) struct LagrangeEvaluations<Fr: ark_ff::Field + ark_ff::FftField + FieldExt> {
+    pub vanishing_poly: Fr,
+    pub l_start: Fr,
+    pub l_end: Fr,
+}
+
 #[inline]
 fn reverse_bits(x: u32, bit_length: u32) -> u32 {
     let x = ((x & 0xaaaaaaaa) >> 1) | ((x & 0x55555555) << 1);
@@ -578,7 +584,7 @@ impl<'a, Fr: ark_ff::Field + ark_ff::FftField + FieldExt> EvaluationDomain<'a, F
         &self,
         z: &Fr,
         num_roots_cut_out_of_vanishing_poly: Option<usize>,
-    ) -> Fr {
+    ) -> LagrangeEvaluations<Fr> {
         let num_roots_cut_out_of_vanishing_poly = num_roots_cut_out_of_vanishing_poly.unwrap_or(4);
         todo!();
     }

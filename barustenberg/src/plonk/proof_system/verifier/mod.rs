@@ -1,5 +1,11 @@
 use crate::{
-    ecc::{fieldext::FieldExt, reduced_ate_pairing_batch_precomputed, PippengerRuntimeState},
+    ecc::{
+        curves::bn254_scalar_multiplication::{
+            generate_pippenger_point_table, is_on_curve, is_point_at_infinity,
+        },
+        fieldext::FieldExt,
+        reduced_ate_pairing_batch_precomputed,
+    },
     plonk::proof_system::constants::NUM_LIMB_BITS_IN_FieldExt_SIMULATION,
     transcript::{BarretenHasher, Manifest, Transcript},
 };
@@ -129,7 +135,7 @@ impl<
             &transcript,
             &mut t_numerator_eval,
         );
-        let t_eval = t_numerator_eval * *lagrange_evals.vanishing_poly.inverse();
+        let t_eval = t_numerator_eval * lagrange_evals.vanishing_poly.inverse().unwrap();
         transcript.add_FieldExt_element("t", &t_eval);
 
         // Compute nu and separator challenges.
@@ -185,12 +191,12 @@ impl<
 
         // Validate PI_Z, PI_Z_OMEGA are valid ecc points.
         // N.B. we check that witness commitments are valid points in KateCommitmentScheme<settings>::batch_verify
-        if !pi_z.on_curve() || pi_z.is_point_at_infinity() {
+        if !is_on_curve(&pi_z) || is_point_at_infinity(&pi_z) {
             return Err(anyhow!(
                 "opening proof group element PI_Z not a valid point"
             ));
         }
-        if !pi_z_omega.on_curve() || pi_z_omega.is_point_at_infinity() {
+        if !is_on_curve(&pi_z_omega) || is_point_at_infinity(&pi_z_omega) {
             return Err(anyhow!(
                 "opening proof group element PI_Z_OMEGA not a valid point"
             ));
@@ -213,7 +219,7 @@ impl<
 
         // Iterate through the kate_g1_elements and accumulate scalars and elements
         for (key, element) in &self.kate_g1_elements {
-            if element.is_on_curve() && !element.is_point_at_infinity() {
+            if is_on_curve(element) && !is_point_at_infinity(element) {
                 // TODO: perhaps we should throw if not on curve or if infinity?
                 scalars.push(self.kate_fr_elements[key]);
                 elements.push(*element);
@@ -225,7 +231,8 @@ impl<
 
         // Generate Pippenger point table
         //     this was: barretenberg::scalar_multiplication::generate_pippenger_point_table(&elements[0], &elements[0], num_elements);
-        generate_pippenger_point_table(&mut elements[..]);
+        let mut elements_clone = elements.clone();
+        generate_pippenger_point_table(&mut elements_clone[..], &mut elements[..], elements.len());
         let mut state = PippengerRuntimeState::new(n);
 
         let mut p: [G; 2] = [G::zero(); 2];
