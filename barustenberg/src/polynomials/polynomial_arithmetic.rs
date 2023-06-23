@@ -8,6 +8,12 @@ pub(crate) struct LagrangeEvaluations<Fr: Field + FftField> {
     pub(crate) l_end: Fr,
 }
 
+pub(crate) struct LagrangeEvaluations<Fr: ark_ff::Field + ark_ff::FftField + FieldExt> {
+    pub vanishing_poly: Fr,
+    pub l_start: Fr,
+    pub l_end: Fr,
+}
+
 #[inline]
 fn reverse_bits(x: u32, bit_length: u32) -> u32 {
     let x = ((x & 0xaaaaaaaa) >> 1) | ((x & 0x55555555) << 1);
