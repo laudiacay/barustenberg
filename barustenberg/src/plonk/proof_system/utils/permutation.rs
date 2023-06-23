@@ -1,9 +1,9 @@
-use ark_ff::{FftField, Field};
+use ark_ec::Group;
 
 use crate::{
     ecc::{
         conditionally_subtract_from_double_modulus, coset_generator,
-        curves::external_coset_generator, tag_coset_generator,
+        curves::external_coset_generator, fieldext::FieldExt, tag_coset_generator,
     },
     numeric::bitop::Msb,
     plonk::proof_system::types::prover_settings::Settings,
@@ -20,8 +20,9 @@ pub(crate) struct PermutationSubgroupElement {
 
 pub(crate) fn compute_permutation_lagrange_base_single<
     H: BarretenHasher,
-    Fr: Field + FftField,
-    S: Settings<H>,
+    Fr: ark_ff::Field + ark_ff::FftField + FieldExt,
+    G: Group,
+    S: Settings<H, Fr, G>,
 >(
     output: &mut Polynomial<Fr>,
     permutation: &[u32],
@@ -41,7 +42,7 @@ pub(crate) fn compute_permutation_lagrange_base_single<
         })
         .collect();
 
-    compute_permutation_lagrange_base_single_helper::<H, Fr, S>(
+    compute_permutation_lagrange_base_single_helper::<H, Fr, G, S>(
         output,
         &subgroup_elements,
         small_domain,
@@ -50,8 +51,9 @@ pub(crate) fn compute_permutation_lagrange_base_single<
 
 pub(crate) fn compute_permutation_lagrange_base_single_helper<
     H: BarretenHasher,
-    Fr: Field + FftField,
-    S: Settings<H>,
+    Fr: ark_ff::Field + ark_ff::FftField + FieldExt,
+    G: Group,
+    S: Settings<H, Fr, G>,
 >(
     output: &mut Polynomial<Fr>,
     permutation: &[PermutationSubgroupElement],

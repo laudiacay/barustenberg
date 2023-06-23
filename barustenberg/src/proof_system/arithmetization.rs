@@ -30,98 +30,97 @@ pub(crate) trait Standard: Arithmetization<NumWires = U3, NumSelectors = U5> {}
 trait Turbo: Arithmetization<NumWires = U4, NumSelectors = U11> {}
 trait Ultra: Arithmetization<NumWires = U4, NumSelectors = U11> {}
 
-pub(crate) mod gate_data {
-    use ark_ff::Field;
-    use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 
-    struct AddTriple<Fr: Field> {
-        a: u32,
-        b: u32,
-        c: u32,
-        a_scaling: Fr,
-        b_scaling: Fr,
-        c_scaling: Fr,
-        const_scaling: Fr,
-    }
+use crate::ecc::fieldext::FieldExt;
 
-    struct AddQuad<Fr: Field> {
-        a: u32,
-        b: u32,
-        c: u32,
-        d: u32,
-        a_scaling: Fr,
-        b_scaling: Fr,
-        c_scaling: Fr,
-        d_scaling: Fr,
-        const_scaling: Fr,
-    }
+struct AddTriple<Fr: FieldExt> {
+    a: u32,
+    b: u32,
+    c: u32,
+    a_scaling: Fr,
+    b_scaling: Fr,
+    c_scaling: Fr,
+    const_scaling: Fr,
+}
 
-    struct MulQuad<Fr: Field> {
-        a: u32,
-        b: u32,
-        c: u32,
-        d: u32,
-        mul_scaling: Fr,
-        a_scaling: Fr,
-        b_scaling: Fr,
-        c_scaling: Fr,
-        d_scaling: Fr,
-        const_scaling: Fr,
-    }
+struct AddQuad<Fr: FieldExt> {
+    a: u32,
+    b: u32,
+    c: u32,
+    d: u32,
+    a_scaling: Fr,
+    b_scaling: Fr,
+    c_scaling: Fr,
+    d_scaling: Fr,
+    const_scaling: Fr,
+}
 
-    struct MulTriple<Fr: Field> {
-        a: u32,
-        b: u32,
-        c: u32,
-        mul_scaling: Fr,
-        c_scaling: Fr,
-        const_scaling: Fr,
-    }
+struct MulQuad<Fr: FieldExt> {
+    a: u32,
+    b: u32,
+    c: u32,
+    d: u32,
+    mul_scaling: Fr,
+    a_scaling: Fr,
+    b_scaling: Fr,
+    c_scaling: Fr,
+    d_scaling: Fr,
+    const_scaling: Fr,
+}
 
-    #[derive(PartialEq, Eq, Serialize, Deserialize)]
-    struct PolyTriple<Fr: Field> {
-        a: u32,
-        b: u32,
-        c: u32,
-        q_m: Fr,
-        q_l: Fr,
-        q_r: Fr,
-        q_o: Fr,
-        q_c: Fr,
-    }
+struct MulTriple<Fr: FieldExt> {
+    a: u32,
+    b: u32,
+    c: u32,
+    mul_scaling: Fr,
+    c_scaling: Fr,
+    const_scaling: Fr,
+}
 
-    struct FixedGroupAddQuad<Fr: Field> {
-        a: u32,
-        b: u32,
-        c: u32,
-        d: u32,
-        q_x_1: Fr,
-        q_x_2: Fr,
-        q_y_1: Fr,
-        q_y_2: Fr,
-    }
+#[derive(PartialEq, Eq, Serialize, Deserialize)]
+struct PolyTriple<Fr: FieldExt> {
+    a: u32,
+    b: u32,
+    c: u32,
+    q_m: Fr,
+    q_l: Fr,
+    q_r: Fr,
+    q_o: Fr,
+    q_c: Fr,
+}
 
-    struct FixedGroupInitQuad<Fr: Field> {
-        q_x_1: Fr,
-        q_x_2: Fr,
-        q_y_1: Fr,
-        q_y_2: Fr,
-    }
+struct FixedGroupAddQuad<Fr: FieldExt> {
+    a: u32,
+    b: u32,
+    c: u32,
+    d: u32,
+    q_x_1: Fr,
+    q_x_2: Fr,
+    q_y_1: Fr,
+    q_y_2: Fr,
+}
 
-    struct AccumulatorTriple {
-        left: Vec<u32>,
-        right: Vec<u32>,
-        out: Vec<u32>,
-    }
+struct FixedGroupInitQuad<Fr: FieldExt> {
+    q_x_1: Fr,
+    q_x_2: Fr,
+    q_y_1: Fr,
+    q_y_2: Fr,
+}
 
-    struct EccAddGate<Fr: Field> {
-        x1: u32,
-        y1: u32,
-        x2: u32,
-        y2: u32,
-        x3: u32,
-        y3: u32,
-        endomorphism_coefficient: Fr,
-        sign_coefficient: Fr,
-    }
+struct AccumulatorTriple {
+    left: Vec<u32>,
+    right: Vec<u32>,
+    out: Vec<u32>,
+}
+
+struct EccAddGate<Fr: FieldExt> {
+    x1: u32,
+    y1: u32,
+    x2: u32,
+    y2: u32,
+    x3: u32,
+    y3: u32,
+    endomorphism_coefficient: Fr,
+    sign_coefficient: Fr,
 }

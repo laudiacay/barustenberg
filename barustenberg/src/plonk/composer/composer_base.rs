@@ -1,18 +1,19 @@
 use std::{collections::HashMap, sync::Arc};
 
-use ark_ec::AffineRepr;
+use ark_ec::Group;
+use ark_ff::FftField;
+use ark_ff::Field;
 use rand::RngCore;
 use std::default::Default;
 
 use crate::{
+    ecc::fieldext::FieldExt,
     plonk::proof_system::{proving_key::ProvingKey, verification_key::VerificationKey},
     srs::reference_string::{
         file_reference_string::FileReferenceStringFactory, BaseReferenceStringFactory,
         ReferenceStringFactory,
     },
 };
-
-use ark_ff::{FftField, Field};
 
 pub(crate) const DUMMY_TAG: u32 = 0;
 pub(crate) const REAL_VARIABLE: u32 = u32::MAX - 1;
@@ -55,15 +56,14 @@ impl CycleNode {
     }
 }
 
-pub(crate) struct ComposerBase<'a, F: Field + FftField, G1Affine: AffineRepr, G2Affine: AffineRepr>
-{
+pub(crate) struct ComposerBase<'a, F: Field + FftField + FieldExt, G: Group, G2Affine: Group> {
     pub(crate) num_gates: usize,
-    crs_factory: Arc<dyn ReferenceStringFactory<G1Affine, G2Affine>>,
+    crs_factory: Arc<dyn ReferenceStringFactory<G, G2Affine>>,
     num_selectors: usize,
     selectors: Vec<Vec<F>>,
     selector_properties: Vec<SelectorProperties>,
     rand_engine: Option<Box<dyn RngCore>>,
-    circuit_proving_key: Option<Arc<ProvingKey<'a, F, G1Affine>>>,
+    circuit_proving_key: Option<Arc<ProvingKey<'a, F, G>>>,
     circuit_verification_key: Option<Arc<VerificationKey<'a, F>>>,
     w_l: Vec<u32>,
     w_r: Vec<u32>,
@@ -90,8 +90,8 @@ pub(crate) struct ComposerBase<'a, F: Field + FftField, G1Affine: AffineRepr, G2
     computed_witness: bool,
 }
 
-impl<'a, F: Field + FftField, G1Affine: AffineRepr, G2Affine: AffineRepr>
-    ComposerBase<'a, F, G1Affine, G2Affine>
+impl<'a, F: Field + FftField + FieldExt, G: Group, G2Affine: Group>
+    ComposerBase<'a, F, G, G2Affine>
 {
     pub(crate) fn new(
         num_selectors: usize,
@@ -107,7 +107,7 @@ impl<'a, F: Field + FftField, G1Affine: AffineRepr, G2Affine: AffineRepr>
     pub(crate) fn default() -> Self {
         Self {
             num_gates: 0,
-            crs_factory: Arc::new(BaseReferenceStringFactory::<G1Affine, G2Affine>::default()),
+            crs_factory: Arc::new(BaseReferenceStringFactory::<G, G2Affine>::default()),
             num_selectors: 0,
             selectors: Default::default(),
             selector_properties: Default::default(),
@@ -135,7 +135,7 @@ impl<'a, F: Field + FftField, G1Affine: AffineRepr, G2Affine: AffineRepr>
     }
 
     pub(crate) fn with_crs_factory(
-        crs_factory: Arc<dyn ReferenceStringFactory<G1Affine, G2Affine>>,
+        crs_factory: Arc<dyn ReferenceStringFactory<G, G2Affine>>,
         num_selectors: usize,
         size_hint: usize,
         selector_properties: Vec<SelectorProperties>,
@@ -152,7 +152,7 @@ impl<'a, F: Field + FftField, G1Affine: AffineRepr, G2Affine: AffineRepr>
         selfie
     }
     pub(crate) fn with_keys(
-        p_key: Arc<ProvingKey<'a, F, G1Affine>>,
+        p_key: Arc<ProvingKey<'a, F, G>>,
         v_key: Arc<VerificationKey<'a, F>>,
         num_selectors: usize,
         size_hint: usize,
@@ -395,7 +395,7 @@ impl<'a, F: Field + FftField, G1Affine: AffineRepr, G2Affine: AffineRepr>
 //  ****************************************************************************************************************
 //  *
 //  * Notation as per this codebase is different from the Plonk paper:
-//  * This example is reproduced exactly in the stdlib field test `test_field_pythagorean`.
+//  * This example is reproduced exactly in the stdlib FieldExt test `test_FieldExt_pythagorean`.
 //  *
 //  * variables[0] = 0 for all circuits <-- this gate is not shown in this diagram.
 //  *                   ______________________

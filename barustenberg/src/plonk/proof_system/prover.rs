@@ -1,7 +1,6 @@
 use std::{cell::RefCell, marker::PhantomData, ops::IndexMut, rc::Rc};
 
-use ark_ec::AffineRepr;
-use ark_ff::{FftField, Field};
+use ark_ec::Group;
 
 use super::{
     commitment_scheme::{CommitmentScheme, KateCommitmentScheme},
@@ -16,6 +15,7 @@ use super::{
 use typenum::Unsigned;
 
 use crate::{
+    ecc::fieldext::FieldExt,
     polynomials::{polynomial_arithmetic, Polynomial},
     proof_system::work_queue::{self, Work, WorkItem},
     transcript::{BarretenHasher, Manifest, Transcript},
@@ -29,19 +29,19 @@ use crate::proof_system::work_queue::WorkQueue;
 
 pub(crate) struct Prover<
     'a,
-    Fq: Field,
-    Fr: Field + FftField,
-    G1Affine: AffineRepr,
+    Fq: ark_ff::Field + ark_ff::FftField + FieldExt,
+    Fr: ark_ff::Field + ark_ff::FftField + FieldExt,
+    G: Group,
     H: BarretenHasher,
-    S: Settings<H>,
-    CS: CommitmentScheme<Fq, Fr, G1Affine, H>,
+    S: Settings<H, Fr, G>,
+    CS: CommitmentScheme<Fq, Fr, G, H>,
 > {
     pub(crate) circuit_size: usize,
-    pub(crate) transcript: Rc<RefCell<Transcript<H, Fr, G1Affine>>>,
-    pub(crate) key: Rc<RefCell<ProvingKey<'a, Fr, G1Affine>>>,
-    pub(crate) queue: WorkQueue<'a, H, Fr, G1Affine>,
-    pub(crate) random_widgets: Vec<Box<dyn ProverRandomWidget<'a, H, Fr, G1Affine>>>,
-    pub(crate) transition_widgets: Vec<Box<dyn TransitionWidgetBase<'a, H, Fr, G1Affine>>>,
+    pub(crate) transcript: Rc<RefCell<Transcript<H, Fr, G>>>,
+    pub(crate) key: Rc<RefCell<ProvingKey<'a, Fr, G>>>,
+    pub(crate) queue: WorkQueue<'a, H, Fr, G>,
+    pub(crate) random_widgets: Vec<Box<dyn ProverRandomWidget<'a, H, Fr, G>>>,
+    pub(crate) transition_widgets: Vec<Box<dyn TransitionWidgetBase<'a, H, Fr, G>>>,
     pub(crate) commitment_scheme: CS,
     pub(crate) settings: S,
     pub(crate) rng: Box<dyn rand::RngCore>,
@@ -50,15 +50,15 @@ pub(crate) struct Prover<
 
 impl<
         'a,
-        Fq: Field,
-        Fr: Field + FftField,
-        G1Affine: AffineRepr,
+        Fq: ark_ff::Field + ark_ff::FftField + FieldExt,
+        Fr: ark_ff::Field + ark_ff::FftField + FieldExt,
+        G: Group,
         H: BarretenHasher + Default,
-        S: Settings<H> + Default,
-    > Prover<'a, Fq, Fr, G1Affine, H, S, KateCommitmentScheme<H, S>>
+        S: Settings<H, Fr, G> + Default,
+    > Prover<'a, Fq, Fr, G, H, S, KateCommitmentScheme<H, Fr, G, S>>
 {
     pub(crate) fn new(
-        input_key: Option<Rc<RefCell<ProvingKey<'a, Fr, G1Affine>>>>,
+        input_key: Option<Rc<RefCell<ProvingKey<'a, Fr, G>>>>,
         input_manifest: Option<Manifest>,
         input_settings: Option<S>,
     ) -> Self {
@@ -83,7 +83,7 @@ impl<
             queue,
             random_widgets: Vec::new(),
             transition_widgets: Vec::new(),
-            commitment_scheme: KateCommitmentScheme::<H, S>::default(),
+            commitment_scheme: KateCommitmentScheme::<H, Fr, G, S>::default(),
             settings,
             phantom: PhantomData,
             rng: Box::new(rand::thread_rng()),
@@ -93,13 +93,13 @@ impl<
 
 impl<
         'a,
-        Fq: Field,
-        Fr: Field + FftField,
-        G1Affine: AffineRepr,
+        Fq: ark_ff::Field + ark_ff::FftField + FieldExt,
+        Fr: ark_ff::Field + ark_ff::FftField + FieldExt,
+        G: Group,
         H: BarretenHasher + Default,
-        S: Settings<H> + Default,
-        CS: CommitmentScheme<Fq, Fr, G1Affine, H>,
-    > Prover<'a, Fq, Fr, G1Affine, H, S, CS>
+        S: Settings<H, Fr, G> + Default,
+        CS: CommitmentScheme<Fq, Fr, G, H>,
+    > Prover<'a, Fq, Fr, G, H, S, CS>
 {
     fn copy_placeholder(&self) {
         todo!("LOOK AT THE COMMENTS IN PROVERBASE");
@@ -162,7 +162,7 @@ impl<
             // and the permutation polynomial look uniformly random to an adversary. To make the witness polynomials
             // a(X), b(X) and c(X) uniformly random, we need to add 2 random blinding factors into each of them.
             // i.e. a'(X) = a(X) + (r_1X + r_2)
-            // where r_1 and r_2 are uniformly random scalar field elements. A natural question is:
+            // where r_1 and r_2 are uniformly random scalar FieldExt elements. A natural question is:
             // Why do we need 2 random scalars in witness polynomials? The reason is: our witness polynomials are
             // evaluated at only 1 point (\scripted{z}), so adding a random degree-1 polynomial suffices.
             //
@@ -322,7 +322,7 @@ impl<
 
         let mut alpha_base = (*self.transcript)
             .borrow_mut()
-            .get_challenge_field_element("alpha", None);
+            .get_challenge_FieldExt_element("alpha", None);
 
         // Compute FFT of lagrange polynomial L_1 (needed in random widgets only)
         self.compute_lagrange_1_fft()?;
@@ -446,7 +446,7 @@ impl<
         }
         (*self.transcript)
             .borrow_mut()
-            .put_field_element_vector("public_inputs", &public_wires);
+            .put_FieldExt_element_vector("public_inputs", &public_wires);
         Ok(())
     }
 
@@ -519,7 +519,7 @@ impl<
         // We can only compute memory record values once W_1, W_2, W_3 have been comitted to,
         // due to the dependence on the `eta` challenge.
 
-        let eta = (*self.transcript).borrow_mut().get_field_element("eta");
+        let eta = (*self.transcript).borrow_mut().get_FieldExt_element("eta");
         let key = self.key.borrow();
 
         // We need the lagrange-base forms of the first 3 wires to compute the plookup memory record
@@ -556,7 +556,7 @@ impl<
     fn compute_quotient_evaluation(&self) -> Result<()> {
         let key = self.key.borrow();
 
-        let zeta = (*self.transcript).borrow_mut().get_field_element("zeta");
+        let zeta = (*self.transcript).borrow_mut().get_FieldExt_element("zeta");
 
         self.commitment_scheme
             .add_opening_evaluations_to_transcript(
@@ -593,7 +593,7 @@ impl<
 
         (*self.transcript)
             .borrow_mut()
-            .add_field_element("t", &t_eval);
+            .add_FieldExt_element("t", &t_eval);
         Ok(())
     }
 
@@ -604,7 +604,7 @@ impl<
         //
         //        t = t_1' + X^n*t_2' + X^2n*t_3' + X^3n*t_4' = t_1 + X^n*t_2 + X^2n*t_3 + X^3n*t_4
         //
-        // Blinding is done as follows, where b_i are random field elements:
+        // Blinding is done as follows, where b_i are random FieldExt elements:
         //
         //              t_1 = t_1' +       b_0*X^n
         //              t_2 = t_2' - b_0 + b_1*X^n
@@ -686,7 +686,7 @@ impl<
     }
     fn reset(&mut self) {
         let manifest = (*self.transcript).borrow_mut().get_manifest();
-        *(*self.transcript).borrow_mut() = Transcript::<H, Fr, G1Affine>::new(
+        *(*self.transcript).borrow_mut() = Transcript::<H, Fr, G>::new(
             Some(manifest),
             (*self.transcript).borrow().num_challenge_bytes,
         );

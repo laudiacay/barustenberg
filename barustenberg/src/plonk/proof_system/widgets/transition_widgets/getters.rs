@@ -8,10 +8,10 @@
 
 use std::{collections::HashSet, marker::PhantomData};
 
-use ark_ec::AffineRepr;
-use ark_ff::{FftField, Field};
+use ark_ec::Group;
 
 use crate::{
+    ecc::fieldext::FieldExt,
     plonk::proof_system::{
         proving_key::ProvingKey,
         types::{
@@ -31,14 +31,15 @@ use super::containers::{
 /// Implements loading challenges from the transcript and computing powers of α, which are later used in widgets.
 ///
 /// # Type Parameters
-/// - `Field`: Base field
+/// - `FieldExt`: Base FieldExt
 /// - `Transcript`: Transcript struct
 /// - `Settings`: Configuration
 /// - `NUM_WIDGET_RELATIONS`: How many powers of α are needed
 pub(crate) trait BaseGetter<
     H: BarretenHasher,
-    F: Field,
-    S: Settings<H>,
+    F: ark_ff::Field + ark_ff::FftField + FieldExt,
+    G: Group,
+    S: Settings<H, F, G>,
     PC: PolyContainer<F>,
     NWidgetRelations: generic_array::ArrayLength<F>,
 >
@@ -53,8 +54,8 @@ pub(crate) trait BaseGetter<
     ///
     /// # Returns
     /// A structure with an array of challenge values and powers of α
-    fn get_challenges<G1Affine: AffineRepr>(
-        transcript: &Transcript<H, F, G1Affine>,
+    fn get_challenges(
+        transcript: &Transcript<H, F, G>,
         alpha_base: F,
         required_challenges: u8,
         rng: &mut Box<dyn rand::RngCore>,
@@ -64,7 +65,8 @@ pub(crate) trait BaseGetter<
             assert!(!required || transcript.has_challenge(label));
             if transcript.has_challenge(label) {
                 assert!(index < transcript.get_num_challenges(label));
-                result.elements[tag] = transcript.get_challenge_field_element(label, Some(index));
+                result.elements[tag] =
+                    transcript.get_challenge_FieldExt_element(label, Some(index));
             } else {
                 let mut random_bytes = vec![0u8; std::mem::size_of::<F>()];
                 // TODO should you really have an unwrap here?
@@ -128,22 +130,23 @@ pub(crate) trait BaseGetter<
     ) -> F;
 }
 
-pub(crate) struct EvaluationGetterImpl<H, F, S, NWidgetRelations>
+pub(crate) struct EvaluationGetterImpl<H, F, G, S, NWidgetRelations>
 where
-    F: Field + FftField,
+    F: ark_ff::Field + ark_ff::FftField + FieldExt,
+    G: Group,
     H: BarretenHasher,
-    S: Settings<H>,
+    S: Settings<H, F, G>,
     NWidgetRelations: generic_array::ArrayLength<F>,
 {
-    phantom: PhantomData<(F, H, S, NWidgetRelations)>,
+    phantom: PhantomData<(F, H, G, S, NWidgetRelations)>,
 }
 
-impl<H, F, S, NWidgetRelations> BaseGetter<H, F, S, PolyArray<F>, NWidgetRelations>
-    for EvaluationGetterImpl<H, F, S, NWidgetRelations>
+impl<H, F: ark_ff::Field + ark_ff::FftField + FieldExt, G: Group, S, NWidgetRelations>
+    BaseGetter<H, F, G, S, PolyArray<F>, NWidgetRelations>
+    for EvaluationGetterImpl<H, F, G, S, NWidgetRelations>
 where
-    F: Field + FftField,
     H: BarretenHasher,
-    S: Settings<H>,
+    S: Settings<H, F, G>,
     NWidgetRelations: generic_array::ArrayLength<F>,
 {
     fn get_value(
@@ -160,12 +163,12 @@ where
     }
 }
 
-impl<H, F, S, NWidgetRelations> EvaluationGetter<H, F, S, NWidgetRelations>
-    for EvaluationGetterImpl<H, F, S, NWidgetRelations>
+impl<H, F: ark_ff::Field + ark_ff::FftField + FieldExt, G: Group, S, NWidgetRelations>
+    EvaluationGetter<H, F, G, S, NWidgetRelations>
+    for EvaluationGetterImpl<H, F, G, S, NWidgetRelations>
 where
-    F: Field + FftField,
     H: BarretenHasher,
-    S: Settings<H>,
+    S: Settings<H, F, G>,
     NWidgetRelations: generic_array::ArrayLength<F>,
 {
 }
@@ -174,10 +177,11 @@ where
 /// loading challenges from the transcript and computing powers of α
 pub(crate) trait EvaluationGetter<
     H: BarretenHasher,
-    F: Field,
-    S: Settings<H>,
+    F: ark_ff::Field + ark_ff::FftField + FieldExt,
+    G: Group,
+    S: Settings<H, F, G>,
     NWidgetRelations: generic_array::ArrayLength<F>,
->: BaseGetter<H, F, S, PolyArray<F>, NWidgetRelations>
+>: BaseGetter<H, F, G, S, PolyArray<F>, NWidgetRelations>
 {
     // fn get_value(
     //     polynomials: &PolyArray<F>,
@@ -228,18 +232,18 @@ pub(crate) trait EvaluationGetter<
     /// # Returns
     ///
     /// `PolyArray`
-    fn get_polynomial_evaluations<G1Affine: AffineRepr>(
+    fn get_polynomial_evaluations(
         polynomial_manifest: &PolynomialManifest,
-        transcript: &Transcript<H, F, G1Affine>,
+        transcript: &Transcript<H, F, G>,
     ) -> PolyArray<F> {
         let mut result: PolyArray<F> = Default::default();
         for i in 0..polynomial_manifest.len() {
             let info = &polynomial_manifest[i.into()];
             let label = info.polynomial_label.clone();
-            result[i.into()].0 = transcript.get_field_element(&label);
+            result[i.into()].0 = transcript.get_FieldExt_element(&label);
 
             if info.requires_shifted_evaluation {
-                result[info.index].1 = transcript.get_field_element(&(label + "_omega"));
+                result[info.index].1 = transcript.get_FieldExt_element(&(label + "_omega"));
             } else {
                 result[info.index].1 = F::zero();
             }
@@ -248,24 +252,24 @@ pub(crate) trait EvaluationGetter<
     }
 }
 
-pub(crate) struct FFTGetterImpl<H, F, G1Affine, S, NWidgetRelations>
+pub(crate) struct FFTGetterImpl<H, F, G, S, NWidgetRelations>
 where
-    F: Field + FftField,
+    F: ark_ff::Field + ark_ff::FftField + FieldExt,
     H: BarretenHasher,
-    S: Settings<H>,
-    G1Affine: AffineRepr,
+    S: Settings<H, F, G>,
+    G: Group,
     NWidgetRelations: generic_array::ArrayLength<F>,
 {
-    phantom: PhantomData<(F, H, S, G1Affine, NWidgetRelations)>,
+    phantom: PhantomData<(F, H, S, G, NWidgetRelations)>,
 }
 
-impl<H, F, G1Affine, S, NWidgetRelations> BaseGetter<H, F, S, PolyPtrMap<F>, NWidgetRelations>
-    for FFTGetterImpl<H, F, G1Affine, S, NWidgetRelations>
+impl<H, F, G, S, NWidgetRelations> BaseGetter<H, F, G, S, PolyPtrMap<F>, NWidgetRelations>
+    for FFTGetterImpl<H, F, G, S, NWidgetRelations>
 where
-    F: Field + FftField,
+    F: ark_ff::Field + ark_ff::FftField + FieldExt,
     H: BarretenHasher,
-    S: Settings<H>,
-    G1Affine: AffineRepr,
+    S: Settings<H, F, G>,
+    G: Group,
     NWidgetRelations: generic_array::ArrayLength<F>,
 {
     fn get_value(
@@ -286,33 +290,28 @@ where
     }
 }
 
-impl<'a, H, F, G1Affine, S, NWidgetRelations> FFTGetter<'a, H, F, G1Affine, S, NWidgetRelations>
-    for FFTGetterImpl<H, F, G1Affine, S, NWidgetRelations>
+impl<'a, H, F, G, S, NWidgetRelations> FFTGetter<'a, H, F, G, S, NWidgetRelations>
+    for FFTGetterImpl<H, F, G, S, NWidgetRelations>
 where
-    F: Field + FftField,
+    F: ark_ff::Field + ark_ff::FftField + FieldExt,
     H: BarretenHasher,
-    S: Settings<H>,
-    G1Affine: AffineRepr,
+    S: Settings<H, F, G>,
+    G: Group,
     NWidgetRelations: generic_array::ArrayLength<F>,
 {
 }
 
 /// Provides access to polynomials (monomial or coset FFT) for use in widgets
 /// Coset FFT access is needed in quotient construction.
-pub(crate) trait FFTGetter<
-    'a,
-    H,
-    F,
-    G1Affine: AffineRepr,
-    S,
-    NWidgetRelations: generic_array::ArrayLength<F>,
->: BaseGetter<H, F, S, PolyPtrMap<F>, NWidgetRelations> where
-    F: Field + FftField,
+pub(crate) trait FFTGetter<'a, H, F, G: Group, S, NWidgetRelations: generic_array::ArrayLength<F>>:
+    BaseGetter<H, F, G, S, PolyPtrMap<F>, NWidgetRelations>
+where
+    F: ark_ff::Field + ark_ff::FftField + FieldExt,
     H: BarretenHasher,
-    S: Settings<H>,
+    S: Settings<H, F, G>,
 {
     fn get_polynomials(
-        key: &ProvingKey<'a, F, G1Affine>,
+        key: &ProvingKey<'a, F, G>,
         required_polynomial_ids: &HashSet<PolynomialIndex>,
     ) -> PolyPtrMap<F> {
         let mut result = PolyPtrMap::new();

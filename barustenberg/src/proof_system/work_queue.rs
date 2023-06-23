@@ -1,17 +1,17 @@
-use ark_ec::AffineRepr;
-use ark_ff::{FftField, Field};
+use ark_ec::Group;
 use std::cell::RefCell;
 use std::rc::Rc;
 
 use anyhow::Result;
 
+use crate::ecc::fieldext::FieldExt;
 use crate::ecc::PippengerRuntimeState;
 use crate::plonk::proof_system::proving_key::ProvingKey;
 use crate::polynomials::Polynomial;
 use crate::transcript::{BarretenHasher, Transcript};
 
 #[derive(PartialEq, Eq, Clone)]
-pub(crate) enum Work<Fr: Field> {
+pub(crate) enum Work<Fr: ark_ff::Field + ark_ff::FftField + FieldExt> {
     Fft {
         index: usize,
     },
@@ -32,47 +32,54 @@ pub(crate) struct WorkItemInfo {
     num_iffts: usize,
 }
 
-pub(crate) enum WorkItemConstant<Fr: Field> {
+pub(crate) enum WorkItemConstant<Fr: ark_ff::Field + ark_ff::FftField + FieldExt> {
     Fr(Fr),
     USize(usize),
 }
 
-impl<Fr: Field> From<usize> for WorkItemConstant<Fr> {
+impl<Fr: ark_ff::Field + ark_ff::FftField + FieldExt> From<usize> for WorkItemConstant<Fr> {
     fn from(item: usize) -> Self {
         WorkItemConstant::USize(item)
     }
 }
 
-pub(crate) struct WorkItem<Fr: Field> {
+pub(crate) struct WorkItem<Fr: ark_ff::Field + ark_ff::FftField + FieldExt> {
     pub(crate) work: Work<Fr>,
     pub(crate) tag: String,
 }
 
-pub(crate) struct QueuedFftInputs<Fr: Field> {
+pub(crate) struct QueuedFftInputs<Fr: ark_ff::Field + ark_ff::FftField + FieldExt> {
     data: Rc<RefCell<Polynomial<Fr>>>,
     shift_factor: Fr,
 }
 
-pub(crate) struct WorkQueue<'a, H: BarretenHasher, Fr: Field + FftField, G1Affine: AffineRepr> {
-    key: Rc<RefCell<ProvingKey<'a, Fr, G1Affine>>>,
-    transcript: Rc<RefCell<Transcript<H, Fr, G1Affine>>>,
+pub(crate) struct WorkQueue<
+    'a,
+    H: BarretenHasher,
+    Fr: ark_ff::Field + ark_ff::FftField + FieldExt,
+    G: Group,
+> {
+    key: Rc<RefCell<ProvingKey<'a, Fr, G>>>,
+    transcript: Rc<RefCell<Transcript<H, Fr, G>>>,
     work_items: Vec<WorkItem<Fr>>,
 }
 
 /// super fucked up...
-unsafe fn field_element_to_usize<F: Field>(element: F) -> usize {
+unsafe fn FieldExt_element_to_usize<F: ark_ff::Field + ark_ff::FftField + FieldExt>(
+    element: F,
+) -> usize {
     // pretending to be this: static_cast<size_t>(static_cast<uint256_t>(item.constant));
     // first turn it into a u256 (by memtransmute into a slice!)
     let u256_bytes: [u8; 32] = std::mem::transmute_copy(&element);
     std::mem::transmute_copy(&u256_bytes)
 }
 
-impl<'a, H: BarretenHasher, Fr: Field + FftField, G1Affine: AffineRepr>
-    WorkQueue<'a, H, Fr, G1Affine>
+impl<'a, H: BarretenHasher, Fr: ark_ff::Field + ark_ff::FftField + FieldExt, G: Group>
+    WorkQueue<'a, H, Fr, G>
 {
     pub(crate) fn new(
-        prover_key: Option<Rc<RefCell<ProvingKey<'a, Fr, G1Affine>>>>,
-        prover_transcript: Option<Rc<RefCell<Transcript<H, Fr, G1Affine>>>>,
+        prover_key: Option<Rc<RefCell<ProvingKey<'a, Fr, G>>>>,
+        prover_transcript: Option<Rc<RefCell<Transcript<H, Fr, G>>>>,
     ) -> Self {
         WorkQueue {
             key: prover_key.unwrap_or_default(),
@@ -122,7 +129,7 @@ impl<'a, H: BarretenHasher, Fr: Field + FftField, G1Affine: AffineRepr>
         for item in self.work_items.iter() {
             if let Work::ScalarMultiplication { constant, .. } = item.work {
                 if count == work_item_number {
-                    return unsafe { field_element_to_usize(constant) };
+                    return unsafe { FieldExt_element_to_usize(constant) };
                 };
                 count += 1;
             }
@@ -215,7 +222,7 @@ impl<'a, H: BarretenHasher, Fr: Field + FftField, G1Affine: AffineRepr>
 
     pub(crate) fn put_scalar_multiplication_data(
         &self,
-        result: G1Affine,
+        result: G,
         work_item_number: usize,
     ) -> Result<()> {
         for (idx, item) in self.work_items.iter().enumerate() {
@@ -269,7 +276,7 @@ impl<'a, H: BarretenHasher, Fr: Field + FftField, G1Affine: AffineRepr>
                     constant,
                     mul_scalars,
                 } => {
-                    let msm_size = unsafe { field_element_to_usize(*constant) };
+                    let msm_size = unsafe { FieldExt_element_to_usize(*constant) };
 
                     assert!(
                         msm_size
@@ -282,9 +289,9 @@ impl<'a, H: BarretenHasher, Fr: Field + FftField, G1Affine: AffineRepr>
                         .borrow_mut()
                         .get_monomial_points();
 
-                    let mut runtime_state: PippengerRuntimeState<Fr, G1Affine> =
+                    let mut runtime_state: PippengerRuntimeState<Fr, G> =
                         PippengerRuntimeState::new(msm_size);
-                    let result = G1Affine::from(
+                    let result = G::from(
                         runtime_state
                             .pippenger_unsafe(
                                 (*mul_scalars).borrow_mut().coefficients.as_mut_slice(),

@@ -1,12 +1,10 @@
-use ark_ff::{FftField, Field};
-
-use crate::numeric::bitop::Msb;
+use crate::{ecc::fieldext::FieldExt, numeric::bitop::Msb};
 use std::vec::Vec;
 
 pub(crate) const MIN_GROUP_PER_THREAD: usize = 4;
 
 #[derive(Default)]
-pub(crate) struct EvaluationDomain<'a, F: Field + FftField> {
+pub(crate) struct EvaluationDomain<'a, F: FieldExt> {
     /// n, always a power of 2
     pub(crate) size: usize,
     /// num_threads * thread_size = size
@@ -51,9 +49,9 @@ fn compute_num_threads(size: usize) -> usize {
 ///
 /// # Arguments
 ///
-/// * `input_root` - An element of the field `Fr` that represents the root of the polynomial.
+/// * `input_root` - An element of the FieldExt `Fr` that represents the root of the polynomial.
 /// * `size` - The size of the polynomial. This is used to determine the number of rounds needed for computation.
-/// * `roots` - A mutable vector of elements from the field `Fr`. This vector is used to store the roots computed in each round.
+/// * `roots` - A mutable vector of elements from the FieldExt `Fr`. This vector is used to store the roots computed in each round.
 /// * `round_roots` - A mutable vector of `usize` values representing indices into `roots`. After each round, the index of the newly computed root is stored in this vector.
 ///
 /// # Description
@@ -76,7 +74,7 @@ fn compute_num_threads(size: usize) -> usize {
 /// let mut round_roots = Vec::new();
 /// compute_lookup_table_single(&input_root, size, &mut roots, &mut round_roots);
 /// ```
-fn compute_lookup_table_single<Fr: Field>(
+fn compute_lookup_table_single<Fr: ark_ff::Field + ark_ff::FftField + FieldExt>(
     input_root: &Fr,
     size: usize,
     roots: &mut [Fr],
@@ -99,7 +97,7 @@ fn compute_lookup_table_single<Fr: Field>(
         }
     }
 }
-impl<'a, F: Field + FftField> EvaluationDomain<'a, F> {
+impl<'a, F: FieldExt> EvaluationDomain<'a, F> {
     pub(crate) fn new(domain_size: usize, _target_generator_size: Option<usize>) -> Self {
         // TODO: implement constructor logic
 
