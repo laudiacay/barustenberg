@@ -1,14 +1,11 @@
-use ark_bn254::{Fq12, G1Projective};
 use ark_ff::One;
 
 use super::*;
 
-impl<Fq: Field, Fr: Field + FftField, G1Affine: AffineRepr, H: BarretenHasher, S: Settings<H>>
-    Verifier<'_, Fq, Fr, G1Affine, H, S>
+impl<Fq: FieldExt, Fr: FieldExt, G: Group, H: BarretenHasher, S: Settings<H, Fr, G>>
+    Verifier<'_, Fq, Fr, G, H, S>
 {
-    pub fn generate_verifier(
-        circuit_proving_key: Rc<RefCell<ProvingKey<'_, Fr, G1Affine>>>,
-    ) -> Self {
+    pub fn generate_verifier(circuit_proving_key: Rc<RefCell<ProvingKey<'_, Fr, G>>>) -> Self {
         let mut poly_coefficients: Vec<&mut [Fr]> = vec![&mut []; 8];
         poly_coefficients[0] = circuit_proving_key
             .borrow()
@@ -75,11 +72,11 @@ impl<Fq: Field, Fr: Field + FftField, G1Affine: AffineRepr, H: BarretenHasher, S
             .coefficients
             .as_mut_slice();
 
-        let mut commitments = vec![G1Affine::default(); 8];
+        let mut commitments = vec![G::default(); 8];
         let mut state = PippengerRuntimeState::new(circuit_proving_key.borrow().circuit_size);
 
         for i in 0..8 {
-            commitments[i] = G1Affine::from_projective(
+            commitments[i] = G::from_projective(
                 state.pippenger(
                     &poly_coefficients[i],
                     circuit_proving_key
@@ -143,9 +140,9 @@ impl<Fq: Field, Fr: Field + FftField, G1Affine: AffineRepr, H: BarretenHasher, S
 
 fn generate_test_data<
     'a,
-    Fq: Field + FftField,
-    Fr: Field + FftField,
-    G1Affine: AffineRepr,
+    Fq: ark_ff::Field + ark_ff::FftField + FieldExt,
+    Fr: ark_ff::Field + ark_ff::FftField + FieldExt,
+    G: Group,
     H: BarretenHasher,
 >(
     n: usize,
@@ -153,10 +150,10 @@ fn generate_test_data<
     'a,
     Fq,
     Fr,
-    G1Affine,
+    G,
     H,
     StandardSettings<H>,
-    KateCommitmentScheme<H, StandardSettings<H>>,
+    KateCommitmentScheme<H, Fr, G, StandardSettings<H>>,
 > {
     // create some constraints that satisfy our arithmetic circuit relation
     let crs = Rc::new(FileReferenceString::new(n + 1, "../srs_db/ignition"));
@@ -342,12 +339,11 @@ fn generate_test_data<
 use std::{cell::RefCell, rc::Rc};
 
 use crate::{
-    ecc::{reduced_ate_pairing_batch_precomputed, PippengerRuntimeState},
+    ecc::PippengerRuntimeState,
     plonk::{
         composer::composer_base::ComposerType,
         proof_system::{
             commitment_scheme::KateCommitmentScheme,
-            constants::NUM_LIMB_BITS_IN_FIELD_SIMULATION,
             prover::Prover,
             proving_key::ProvingKey,
             types::prover_settings::StandardSettings,
@@ -360,7 +356,6 @@ use crate::{
     },
     polynomials::Polynomial,
     srs::reference_string::file_reference_string::FileReferenceString,
-    transcript::Transcript,
 };
 
 #[test]

@@ -1,6 +1,5 @@
-use crate::polynomials::Polynomial;
+use crate::{ecc::fieldext::FieldExt, polynomials::Polynomial};
 use anyhow::{anyhow, Result};
-use ark_ff::Field;
 use std::{
     cell::RefCell,
     collections::HashMap,
@@ -10,12 +9,12 @@ use std::{
 };
 
 #[derive(Debug, Clone, Default)]
-pub(crate) struct PolynomialStore<Fr: Field> {
+pub(crate) struct PolynomialStore<Fr: ark_ff::Field + ark_ff::FftField + FieldExt> {
     polynomial_map: HashMap<String, Rc<RefCell<Polynomial<Fr>>>>,
     phantom: PhantomData<Fr>,
 }
 
-impl<Fr: Field> PolynomialStore<Fr> {
+impl<Fr: ark_ff::Field + ark_ff::FftField + FieldExt> PolynomialStore<Fr> {
     pub(crate) fn new() -> Self {
         Self {
             polynomial_map: HashMap::new(),
@@ -91,7 +90,7 @@ impl<Fr: Field> PolynomialStore<Fr> {
     // TODO: "allow for const range based for loop"
 }
 
-impl<Fr: Field> Display for PolynomialStore<Fr> {
+impl<Fr: ark_ff::Field + ark_ff::FftField + FieldExt> Display for PolynomialStore<Fr> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let size_in_mb = (self.get_size_in_bytes() / 1_000_000) as f32;
         write!(f, "PolynomialStore contents total size: {} MB", size_in_mb)?;

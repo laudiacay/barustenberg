@@ -1,18 +1,20 @@
 use std::{cell::RefCell, marker::PhantomData, rc::Rc};
 
-use ark_ec::AffineRepr;
+use ark_ec::Group;
+
+use crate::ecc::MillerLines;
 
 use super::{
-    pippenger_reference_string::Pippenger, MillerLines, ProverReferenceString,
-    ReferenceStringFactory, VerifierReferenceString,
+    pippenger_reference_string::Pippenger, ProverReferenceString, ReferenceStringFactory,
+    VerifierReferenceString,
 };
 
-pub(crate) struct VerifierFileReferenceString<G2Affine: AffineRepr> {
+pub(crate) struct VerifierFileReferenceString<G2Affine: Group> {
     g2_x: G2Affine,
     precomputed_g2_lines: Rc<Vec<MillerLines>>,
 }
 
-impl<G2Affine: AffineRepr> VerifierFileReferenceString<G2Affine> {
+impl<G2Affine: Group> VerifierFileReferenceString<G2Affine> {
     pub(crate) fn new(_path: &str) -> Self {
         // Please replace the actual types and functions with ones that you have in your Rust codebase.
         // let g2_x: G2Affine = read_transcript_g2(path);
@@ -28,9 +30,7 @@ impl<G2Affine: AffineRepr> VerifierFileReferenceString<G2Affine> {
     }
 }
 
-impl<G2Affine: AffineRepr> VerifierReferenceString<G2Affine>
-    for VerifierFileReferenceString<G2Affine>
-{
+impl<G2Affine: Group> VerifierReferenceString<G2Affine> for VerifierFileReferenceString<G2Affine> {
     fn get_g2x(&self) -> G2Affine {
         self.g2_x
     }
@@ -40,13 +40,13 @@ impl<G2Affine: AffineRepr> VerifierReferenceString<G2Affine>
     }
 }
 
-pub(crate) struct FileReferenceString<G1Affine: AffineRepr> {
+pub(crate) struct FileReferenceString<G: Group> {
     num_points: usize,
     pippenger: Pippenger,
-    phantom: PhantomData<G1Affine>,
+    phantom: PhantomData<G>,
 }
 
-impl<G1Affine: AffineRepr> FileReferenceString<G1Affine> {
+impl<G: Group> FileReferenceString<G> {
     pub(crate) fn new(_num_points: usize, _path: &str) -> Self {
         // Implementation depends on your project.
         todo!("FileReferenceString::new")
@@ -58,7 +58,7 @@ impl<G1Affine: AffineRepr> FileReferenceString<G1Affine> {
     }
 }
 
-impl<G1Affine: AffineRepr> Default for FileReferenceString<G1Affine> {
+impl<G: Group> Default for FileReferenceString<G> {
     fn default() -> Self {
         Self {
             num_points: 0,
@@ -68,8 +68,8 @@ impl<G1Affine: AffineRepr> Default for FileReferenceString<G1Affine> {
     }
 }
 
-impl<G1Affine: AffineRepr> ProverReferenceString<G1Affine> for FileReferenceString<G1Affine> {
-    fn get_monomial_points(&mut self) -> Rc<Vec<G1Affine>> {
+impl<G: Group> ProverReferenceString<G> for FileReferenceString<G> {
+    fn get_monomial_points(&mut self) -> Rc<Vec<G>> {
         // Implementation depends on your project.
         todo!()
     }
@@ -79,12 +79,12 @@ impl<G1Affine: AffineRepr> ProverReferenceString<G1Affine> for FileReferenceStri
     }
 }
 
-pub(crate) struct FileReferenceStringFactory<G1Affine: AffineRepr, G2Affine: AffineRepr> {
+pub(crate) struct FileReferenceStringFactory<G: Group, G2Affine: Group> {
     path: String,
-    phantom: PhantomData<(G1Affine, G2Affine)>,
+    phantom: PhantomData<(G, G2Affine)>,
 }
 
-impl<G1Affine: AffineRepr, G2Affine: AffineRepr> FileReferenceStringFactory<G1Affine, G2Affine> {
+impl<G: Group, G2Affine: Group> FileReferenceStringFactory<G, G2Affine> {
     pub(crate) fn new(path: String) -> Self {
         Self {
             path,
@@ -92,13 +92,11 @@ impl<G1Affine: AffineRepr, G2Affine: AffineRepr> FileReferenceStringFactory<G1Af
         }
     }
 }
-impl<G1Affine: AffineRepr, G2Affine: AffineRepr> ReferenceStringFactory<G1Affine, G2Affine>
-    for FileReferenceStringFactory<G1Affine, G2Affine>
+impl<G: Group, G2Affine: Group> ReferenceStringFactory<G, G2Affine>
+    for FileReferenceStringFactory<G, G2Affine>
 {
-    fn get_prover_crs(&self, degree: usize) -> Option<Rc<dyn ProverReferenceString<G1Affine>>> {
-        Some(Rc::new(FileReferenceString::<G1Affine>::new(
-            degree, &self.path,
-        )))
+    fn get_prover_crs(&self, degree: usize) -> Option<Rc<dyn ProverReferenceString<G>>> {
+        Some(Rc::new(FileReferenceString::<G>::new(degree, &self.path)))
     }
 
     fn get_verifier_crs(&self) -> Option<Rc<dyn VerifierReferenceString<G2Affine>>> {
@@ -106,20 +104,18 @@ impl<G1Affine: AffineRepr, G2Affine: AffineRepr> ReferenceStringFactory<G1Affine
     }
 }
 
-pub(crate) struct DynamicFileReferenceStringFactory<G1Affine: AffineRepr, G2Affine: AffineRepr> {
+pub(crate) struct DynamicFileReferenceStringFactory<G: Group, G2Affine: Group> {
     path: String,
     degree: RefCell<usize>,
-    prover_crs: RefCell<Rc<FileReferenceString<G1Affine>>>,
+    prover_crs: RefCell<Rc<FileReferenceString<G>>>,
     verifier_crs: Rc<VerifierFileReferenceString<G2Affine>>,
-    phantom: PhantomData<(G1Affine, G2Affine)>,
+    phantom: PhantomData<(G, G2Affine)>,
 }
 
-impl<G1Affine: AffineRepr, G2Affine: AffineRepr>
-    DynamicFileReferenceStringFactory<G1Affine, G2Affine>
-{
+impl<G: Group, G2Affine: Group> DynamicFileReferenceStringFactory<G, G2Affine> {
     pub(crate) fn new(path: String, initial_degree: usize) -> Self {
         let verifier_crs = Rc::new(VerifierFileReferenceString::new(&path));
-        let prover_crs = RefCell::new(Rc::new(FileReferenceString::<G1Affine>::new(
+        let prover_crs = RefCell::new(Rc::new(FileReferenceString::<G>::new(
             initial_degree,
             &path,
         )));
@@ -133,13 +129,13 @@ impl<G1Affine: AffineRepr, G2Affine: AffineRepr>
     }
 }
 
-impl<G1Affine: AffineRepr, G2Affine: AffineRepr> ReferenceStringFactory<G1Affine, G2Affine>
-    for DynamicFileReferenceStringFactory<G1Affine, G2Affine>
+impl<G: Group, G2Affine: Group> ReferenceStringFactory<G, G2Affine>
+    for DynamicFileReferenceStringFactory<G, G2Affine>
 {
-    fn get_prover_crs(&self, degree: usize) -> Option<Rc<dyn ProverReferenceString<G1Affine>>> {
+    fn get_prover_crs(&self, degree: usize) -> Option<Rc<dyn ProverReferenceString<G>>> {
         if degree != *self.degree.borrow() {
             *self.prover_crs.borrow_mut() =
-                Rc::new(FileReferenceString::<G1Affine>::new(degree, &self.path));
+                Rc::new(FileReferenceString::<G>::new(degree, &self.path));
             *self.degree.borrow_mut() = degree;
         }
         Some((self.prover_crs.borrow_mut()).clone())

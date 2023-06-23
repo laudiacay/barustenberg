@@ -1,5 +1,4 @@
-use ark_ec::AffineRepr;
-use ark_ff::{FftField, Field};
+use ark_ec::Group;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::cell::RefCell;
 use std::io::Read;
@@ -7,6 +6,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::vec::Vec;
 
+use crate::ecc::fieldext::FieldExt;
 use crate::ecc::PippengerRuntimeState;
 use crate::plonk::proof_system::constants::NUM_QUOTIENT_PARTS;
 
@@ -21,7 +21,7 @@ use super::types::PolynomialManifest;
 
 const MIN_THREAD_BLOCK: usize = 4;
 
-pub(crate) struct ProvingKeyData<F: Field> {
+pub(crate) struct ProvingKeyData<F: ark_ff::Field + ark_ff::FftField + FieldExt> {
     composer_type: u32,
     circuit_size: u32,
     num_public_inputs: u32,
@@ -32,7 +32,7 @@ pub(crate) struct ProvingKeyData<F: Field> {
     polynomial_store: PolynomialStore<F>,
 }
 
-pub(crate) struct ProvingKey<'a, Fr: Field + FftField, G1Affine: AffineRepr> {
+pub(crate) struct ProvingKey<'a, Fr: ark_ff::Field + ark_ff::FftField + FieldExt, G: Group> {
     pub(crate) composer_type: u32,
     pub(crate) circuit_size: usize,
     pub(crate) log_circuit_size: usize,
@@ -48,14 +48,16 @@ pub(crate) struct ProvingKey<'a, Fr: Field + FftField, G1Affine: AffineRepr> {
     pub(crate) large_domain: EvaluationDomain<'a, Fr>,
     /// The reference_string object contains the monomial SRS. We can access it using:
     /// Monomial SRS: reference_string->get_monomial_points()
-    pub(crate) reference_string: Rc<RefCell<dyn ProverReferenceString<G1Affine>>>,
+    pub(crate) reference_string: Rc<RefCell<dyn ProverReferenceString<G>>>,
     pub(crate) quotient_polynomial_parts:
         [Rc<RefCell<Polynomial<Fr>>>; NUM_QUOTIENT_PARTS as usize],
-    pub(crate) pippenger_runtime_state: PippengerRuntimeState<Fr, G1Affine>,
+    pub(crate) pippenger_runtime_state: PippengerRuntimeState<Fr, G>,
     pub(crate) polynomial_manifest: PolynomialManifest,
 }
 
-impl<'a, Fr: Field + FftField, G1Affine: AffineRepr> Default for ProvingKey<'a, Fr, G1Affine> {
+impl<'a, Fr: ark_ff::Field + ark_ff::FftField + FieldExt, G: Group> Default
+    for ProvingKey<'a, Fr, G>
+{
     fn default() -> Self {
         Self {
             composer_type: 0,
@@ -69,7 +71,7 @@ impl<'a, Fr: Field + FftField, G1Affine: AffineRepr> Default for ProvingKey<'a, 
             polynomial_store: PolynomialStore::new(),
             small_domain: EvaluationDomain::new(0, None),
             large_domain: EvaluationDomain::new(0, None),
-            reference_string: Rc::new(RefCell::new(FileReferenceString::<G1Affine>::default())),
+            reference_string: Rc::new(RefCell::new(FileReferenceString::<G>::default())),
             quotient_polynomial_parts: Default::default(),
             pippenger_runtime_state: PippengerRuntimeState::default(),
             polynomial_manifest: PolynomialManifest::default(),
@@ -77,10 +79,10 @@ impl<'a, Fr: Field + FftField, G1Affine: AffineRepr> Default for ProvingKey<'a, 
     }
 }
 
-impl<'a, Fr: Field + FftField, G1Affine: AffineRepr> ProvingKey<'a, Fr, G1Affine> {
+impl<'a, Fr: ark_ff::Field + ark_ff::FftField + FieldExt, G: Group> ProvingKey<'a, Fr, G> {
     pub(crate) fn new_with_data(
         data: ProvingKeyData<Fr>,
-        crs: Rc<RefCell<dyn ProverReferenceString<G1Affine>>>,
+        crs: Rc<RefCell<dyn ProverReferenceString<G>>>,
     ) -> Self {
         let ProvingKeyData {
             composer_type,
@@ -121,7 +123,7 @@ impl<'a, Fr: Field + FftField, G1Affine: AffineRepr> ProvingKey<'a, Fr, G1Affine
     pub(crate) fn new(
         num_gates: usize,
         num_inputs: usize,
-        crs: Rc<RefCell<dyn ProverReferenceString<G1Affine>>>,
+        crs: Rc<RefCell<dyn ProverReferenceString<G>>>,
         type_: ComposerType,
     ) -> Self {
         let data = ProvingKeyData {
@@ -167,12 +169,14 @@ impl<'a, Fr: Field + FftField, G1Affine: AffineRepr> ProvingKey<'a, Fr, G1Affine
         _reader: &mut R,
         crs_path: &str,
     ) -> Result<Self, std::io::Error> {
-        let _crs = Arc::new(FileReferenceString::<G1Affine>::read_from_path(crs_path)?);
+        let _crs = Arc::new(FileReferenceString::<G>::read_from_path(crs_path)?);
         todo!();
     }
 }
 
-impl<'a, Fr: Field + FftField, G1Affine: AffineRepr> Serialize for ProvingKey<'a, Fr, G1Affine> {
+impl<'a, Fr: ark_ff::Field + ark_ff::FftField + FieldExt, G: Group> Serialize
+    for ProvingKey<'a, Fr, G>
+{
     fn serialize<S: Serializer>(&self, _serializer: S) -> Result<S::Ok, S::Error> {
         // TODO
         /*
@@ -237,8 +241,8 @@ impl<'a, Fr: Field + FftField, G1Affine: AffineRepr> Serialize for ProvingKey<'a
     }
 }
 
-impl<'a, 'de, Fr: Field + FftField, G1Affine: AffineRepr> Deserialize<'de>
-    for ProvingKey<'a, Fr, G1Affine>
+impl<'a, 'de, Fr: ark_ff::Field + ark_ff::FftField + FieldExt, G: Group> Deserialize<'de>
+    for ProvingKey<'a, Fr, G>
 {
     fn deserialize<D>(_deserializer: D) -> Result<Self, D::Error>
     where

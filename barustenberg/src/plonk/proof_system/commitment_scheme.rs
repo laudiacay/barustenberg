@@ -3,9 +3,9 @@ use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::rc::Rc;
 
-use ark_ec::AffineRepr;
-use ark_ff::{FftField, Field};
+use ark_ec::Group;
 
+use crate::ecc::fieldext::FieldExt;
 use crate::polynomials::{polynomial_arithmetic, Polynomial};
 use crate::proof_system::work_queue::{Work, WorkItem, WorkQueue};
 use crate::transcript::{BarretenHasher, Transcript};
@@ -15,12 +15,12 @@ use super::types::proof::CommitmentOpenProof;
 use super::types::prover_settings::Settings;
 use super::verification_key::VerificationKey;
 
-/// A polynomial commitment scheme defined over two fields, a group, a hash function.
+/// A polynomial commitment scheme defined over two FieldExts, a group, a hash function.
 /// kate commitments are one example
 pub(crate) trait CommitmentScheme<
-    Fq: Field,
-    Fr: Field + FftField,
-    G1Affine: AffineRepr,
+    Fq: ark_ff::Field + ark_ff::FftField + FieldExt,
+    Fr: ark_ff::Field + ark_ff::FftField + FieldExt,
+    G: Group,
     H: BarretenHasher,
 >
 {
@@ -29,7 +29,7 @@ pub(crate) trait CommitmentScheme<
         coefficients: Rc<RefCell<Polynomial<Fr>>>,
         tag: String,
         item_constant: Fr,
-        queue: &mut WorkQueue<'_, H, Fr, G1Affine>,
+        queue: &mut WorkQueue<'_, H, Fr, G>,
     );
 
     fn compute_opening_polynomial(&self, src: &[Fr], dest: &mut [Fr], z: &Fr, n: usize);
@@ -46,47 +46,57 @@ pub(crate) trait CommitmentScheme<
         n: usize,
         tags: &[String],
         item_constants: &[Fr],
-        queue: &mut WorkQueue<'_, H, Fr, G1Affine>,
+        queue: &mut WorkQueue<'_, H, Fr, G>,
     );
 
     fn batch_open<'a>(
         &mut self,
-        transcript: &Transcript<H, Fr, G1Affine>,
-        queue: &mut WorkQueue<'a, H, Fr, G1Affine>,
-        input_key: Option<Ref<'_, ProvingKey<'a, Fr, G1Affine>>>,
+        transcript: &Transcript<H, Fr, G>,
+        queue: &mut WorkQueue<'a, H, Fr, G>,
+        input_key: Option<Ref<'_, ProvingKey<'a, Fr, G>>>,
     );
 
     fn batch_verify<'a>(
         &self,
-        transcript: &Transcript<H, Fr, G1Affine>,
-        kate_g1_elements: &mut HashMap<String, G1Affine>,
+        transcript: &Transcript<H, Fr, G>,
+        kate_g1_elements: &mut HashMap<String, G>,
         kate_fr_elements: &mut HashMap<String, Fr>,
         input_key: Option<&'a VerificationKey<'a, Fr>>,
     );
 
     fn add_opening_evaluations_to_transcript<'a>(
         &self,
-        transcript: &mut Transcript<H, Fr, G1Affine>,
-        input_key: Option<&'a ProvingKey<'a, Fr, G1Affine>>,
+        transcript: &mut Transcript<H, Fr, G>,
+        input_key: Option<&'a ProvingKey<'a, Fr, G>>,
         in_lagrange_form: bool,
     );
 }
 
 #[derive(Default)]
-pub(crate) struct KateCommitmentScheme<H: BarretenHasher, S: Settings<H>> {
+pub(crate) struct KateCommitmentScheme<
+    H: BarretenHasher,
+    Fr: ark_ff::Field + ark_ff::FftField + FieldExt,
+    G: Group,
+    S: Settings<H, Fr, G>,
+> {
     _kate_open_proof: CommitmentOpenProof,
-    phantom: PhantomData<(H, S)>,
+    phantom: PhantomData<(H, S, Fr, G)>,
 }
 
-impl<Fq: Field, Fr: Field + FftField, G1Affine: AffineRepr, H: BarretenHasher, S: Settings<H>>
-    CommitmentScheme<Fq, Fr, G1Affine, H> for KateCommitmentScheme<H, S>
+impl<
+        Fq: ark_ff::Field + ark_ff::FftField + FieldExt,
+        Fr: ark_ff::Field + ark_ff::FftField + FieldExt,
+        G: Group,
+        H: BarretenHasher,
+        S: Settings<H, Fr, G>,
+    > CommitmentScheme<Fq, Fr, G, H> for KateCommitmentScheme<H, Fr, G, S>
 {
     fn commit(
         &mut self,
         coefficients: Rc<RefCell<Polynomial<Fr>>>,
         tag: String,
         item_constant: Fr,
-        queue: &mut WorkQueue<'_, H, Fr, G1Affine>,
+        queue: &mut WorkQueue<'_, H, Fr, G>,
     ) {
         queue.add_to_queue(WorkItem {
             work: Work::ScalarMultiplication {
@@ -99,8 +109,8 @@ impl<Fq: Field, Fr: Field + FftField, G1Affine: AffineRepr, H: BarretenHasher, S
 
     fn add_opening_evaluations_to_transcript<'a>(
         &self,
-        _transcript: &mut Transcript<H, Fr, G1Affine>,
-        _input_key: Option<&'a ProvingKey<'a, Fr, G1Affine>>,
+        _transcript: &mut Transcript<H, Fr, G>,
+        _input_key: Option<&'a ProvingKey<'a, Fr, G>>,
         _in_lagrange_form: bool,
     ) {
         todo!()
@@ -121,7 +131,7 @@ impl<Fq: Field, Fr: Field + FftField, G1Affine: AffineRepr, H: BarretenHasher, S
         n: usize,
         tags: &[String],
         item_constants: &[Fr],
-        queue: &mut WorkQueue<'_, H, Fr, G1Affine>,
+        queue: &mut WorkQueue<'_, H, Fr, G>,
     ) {
         // In this function, we compute the opening polynomials using Kate scheme for multiple input
         // polynomials with multiple evaluation points. The input polynomials are separated according
@@ -189,7 +199,7 @@ impl<Fq: Field, Fr: Field + FftField, G1Affine: AffineRepr, H: BarretenHasher, S
                 }
             }
             // commit to the i-th opened polynomial
-            <KateCommitmentScheme<H, S> as CommitmentScheme<Fq, Fr, G1Affine, H>>::commit(
+            <KateCommitmentScheme<H, Fr, G, S> as CommitmentScheme<Fq, Fr, G, H>>::commit(
                 self,
                 dest.clone(),
                 tags[i].clone(),
@@ -201,17 +211,17 @@ impl<Fq: Field, Fr: Field + FftField, G1Affine: AffineRepr, H: BarretenHasher, S
 
     fn batch_open<'a>(
         &mut self,
-        _transcript: &Transcript<H, Fr, G1Affine>,
-        _queue: &mut WorkQueue<'a, H, Fr, G1Affine>,
-        _input_key: Option<Ref<'_, ProvingKey<'a, Fr, G1Affine>>>,
+        _transcript: &Transcript<H, Fr, G>,
+        _queue: &mut WorkQueue<'a, H, Fr, G>,
+        _input_key: Option<Ref<'_, ProvingKey<'a, Fr, G>>>,
     ) {
         todo!()
     }
 
     fn batch_verify<'a>(
         &self,
-        _transcript: &Transcript<H, Fr, G1Affine>,
-        _kate_g1_elements: &mut HashMap<String, G1Affine>,
+        _transcript: &Transcript<H, Fr, G>,
+        _kate_g1_elements: &mut HashMap<String, G>,
         _kate_fr_elements: &mut HashMap<String, Fr>,
         _input_key: Option<&'a VerificationKey<'a, Fr>>,
     ) {

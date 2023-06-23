@@ -1,6 +1,6 @@
 use std::{marker::PhantomData, rc::Rc, sync::Arc};
 
-use ark_ec::AffineRepr;
+use ark_ec::Group;
 
 use crate::srs::reference_string::{
     ProverReferenceString, ReferenceStringFactory, VerifierReferenceString,
@@ -17,12 +17,12 @@ impl Pippenger {
     }
 }
 
-pub(crate) struct PippengerReferenceString<G1Affine: AffineRepr> {
+pub(crate) struct PippengerReferenceString<G: Group> {
     pippenger: Arc<Pippenger>,
-    phantom: PhantomData<G1Affine>,
+    phantom: PhantomData<G>,
 }
 
-impl<G1Affine: AffineRepr> PippengerReferenceString<G1Affine> {
+impl<G: Group> PippengerReferenceString<G> {
     pub(crate) fn new(pippenger: Arc<Pippenger>) -> Self {
         PippengerReferenceString {
             pippenger,
@@ -31,26 +31,24 @@ impl<G1Affine: AffineRepr> PippengerReferenceString<G1Affine> {
     }
 }
 
-impl<G1Affine: AffineRepr> ProverReferenceString<G1Affine> for PippengerReferenceString<G1Affine> {
+impl<G: Group> ProverReferenceString<G> for PippengerReferenceString<G> {
     // TODO
     fn get_monomial_size(&self) -> usize {
         todo!()
     }
 
-    fn get_monomial_points(&mut self) -> Rc<Vec<G1Affine>> {
+    fn get_monomial_points(&mut self) -> Rc<Vec<G>> {
         todo!()
     }
 }
 
-pub(crate) struct PippengerReferenceStringFactory<'a, G1Affine: AffineRepr, G2Affine: AffineRepr> {
+pub(crate) struct PippengerReferenceStringFactory<'a, G: Group, G2Affine: Group> {
     pippenger: Arc<Pippenger>,
     g2x: &'a [u8],
-    phantom: PhantomData<(G1Affine, G2Affine)>,
+    phantom: PhantomData<(G, G2Affine)>,
 }
 
-impl<'a, G1Affine: AffineRepr, G2Affine: AffineRepr>
-    PippengerReferenceStringFactory<'a, G1Affine, G2Affine>
-{
+impl<'a, G: Group, G2Affine: Group> PippengerReferenceStringFactory<'a, G, G2Affine> {
     pub(crate) fn new(pippenger: Arc<Pippenger>, g2x: &'a [u8]) -> Self {
         PippengerReferenceStringFactory {
             pippenger,
@@ -60,10 +58,10 @@ impl<'a, G1Affine: AffineRepr, G2Affine: AffineRepr>
     }
 }
 
-impl<'a, G1Affine: AffineRepr, G2Affine: AffineRepr> ReferenceStringFactory<G1Affine, G2Affine>
-    for PippengerReferenceStringFactory<'a, G1Affine, G2Affine>
+impl<'a, G: Group, G2Affine: Group> ReferenceStringFactory<G, G2Affine>
+    for PippengerReferenceStringFactory<'a, G, G2Affine>
 {
-    fn get_prover_crs(&self, degree: usize) -> Option<Rc<dyn ProverReferenceString<G1Affine>>> {
+    fn get_prover_crs(&self, degree: usize) -> Option<Rc<dyn ProverReferenceString<G>>> {
         assert!(degree <= self.pippenger.get_num_points());
         Some(Rc::new(PippengerReferenceString::new(
             self.pippenger.clone(),

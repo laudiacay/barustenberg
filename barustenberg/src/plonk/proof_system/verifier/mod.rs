@@ -1,13 +1,12 @@
 use crate::{
-    ecc::{reduced_ate_pairing_batch_precomputed, PippengerRuntimeState},
-    plonk::proof_system::constants::NUM_LIMB_BITS_IN_FIELD_SIMULATION,
+    ecc::{fieldext::FieldExt, reduced_ate_pairing_batch_precomputed, PippengerRuntimeState},
+    plonk::proof_system::constants::NUM_LIMB_BITS_IN_FieldExt_SIMULATION,
     transcript::{BarretenHasher, Manifest, Transcript},
 };
 
 use ark_bn254::Fq12;
-
-use ark_ec::AffineRepr;
-use ark_ff::{FftField, Field, One};
+use ark_ec::Group;
+use ark_ff::One;
 
 use super::{
     commitment_scheme::CommitmentScheme,
@@ -26,28 +25,28 @@ mod test;
 
 pub(crate) struct Verifier<
     'a,
-    Fq: Field,
-    Fr: Field + FftField,
-    G1Affine: AffineRepr,
+    Fq: ark_ff::Field + ark_ff::FftField + FieldExt,
+    Fr: ark_ff::Field + ark_ff::FftField + FieldExt,
+    G: Group,
     H: BarretenHasher,
-    PS: Settings<H>,
+    PS: Settings<H, Fr, G>,
 > {
     settings: PS,
     key: Rc<VerificationKey<'a, Fr>>,
     manifest: Manifest,
-    kate_g1_elements: HashMap<String, G1Affine>,
+    kate_g1_elements: HashMap<String, G>,
     kate_fr_elements: HashMap<String, Fr>,
-    commitment_scheme: Box<dyn CommitmentScheme<Fq, Fr, G1Affine, H>>,
+    commitment_scheme: Box<dyn CommitmentScheme<Fq, Fr, G, H>>,
 }
 
 impl<
         'a,
-        Fq: Field,
-        Fr: Field + FftField,
-        G1Affine: AffineRepr,
+        Fq: ark_ff::Field + ark_ff::FftField + FieldExt,
+        Fr: ark_ff::Field + ark_ff::FftField + FieldExt,
+        G: Group,
         H: BarretenHasher,
-        PS: Settings<H>,
-    > Verifier<'a, Fq, Fr, G1Affine, H, PS>
+        PS: Settings<H, Fr, G>,
+    > Verifier<'a, Fq, Fr, G, H, PS>
 {
     fn new(_verifier_key: Option<Arc<VerificationKey<'a, Fr>>>, _manifest: Manifest) -> Self {
         // Implement constructor logic here.
@@ -101,8 +100,8 @@ impl<
         transcript.apply_fiat_shamir("z");
 
         // Deserialize alpha and zeta from the transcript.
-        let alpha = transcript.get_challenge_field_element("alpha", None);
-        let zeta = transcript.get_challenge_field_element("z", None);
+        let alpha = transcript.get_challenge_FieldExt_element("alpha", None);
+        let zeta = transcript.get_challenge_FieldExt_element("z", None);
 
         // Compute the evaluations of the lagrange polynomials L_1(X) and L_{n - k}(X) at X = ʓ.
         // Also computes the evaluation of the vanishing polynomial Z_H*(X) at X = ʓ.
@@ -124,20 +123,20 @@ impl<
 
         // compute the quotient polynomial numerator contribution
         let mut t_numerator_eval = Fr::zero();
-        self.settings.compute_quotient_evaluation_contribution(
+        PS::compute_quotient_evaluation_contribution(
             &self.key,
-            alpha,
+            &alpha,
             &transcript,
             &mut t_numerator_eval,
         );
         let t_eval = t_numerator_eval * *lagrange_evals.vanishing_poly.inverse();
-        transcript.add_field_element("t", &t_eval);
+        transcript.add_FieldExt_element("t", &t_eval);
 
         // Compute nu and separator challenges.
         transcript.apply_fiat_shamir("nu");
         transcript.apply_fiat_shamir("separator");
         // a.k.a. `u` in the plonk paper
-        let separator_challenge = transcript.get_challenge_field_element("separator", None);
+        let separator_challenge = transcript.get_challenge_FieldExt_element("separator", None);
 
         // In the following function, we do the following computation.
         // Step 10: Compute batch opening commitment [F]_1
@@ -159,7 +158,7 @@ impl<
             &transcript,
             &mut self.kate_g1_elements,
             &mut self.kate_fr_elements,
-            &self.key,
+            Some(&self.key),
         );
 
         // Step 9: Compute the partial opening batch commitment [D]_1:
@@ -210,7 +209,7 @@ impl<
 
         // Initialize vectors for scalars and elements
         let mut scalars: Vec<Fr> = Vec::new();
-        let mut elements: Vec<G1Affine> = Vec::new();
+        let mut elements: Vec<G> = Vec::new();
 
         // Iterate through the kate_g1_elements and accumulate scalars and elements
         for (key, element) in &self.kate_g1_elements {
@@ -222,25 +221,20 @@ impl<
         }
 
         let n = elements.len();
-        elements.resize(2 * n, G1Affine::zero());
+        elements.resize(2 * n, G::zero());
 
         // Generate Pippenger point table
         //     this was: barretenberg::scalar_multiplication::generate_pippenger_point_table(&elements[0], &elements[0], num_elements);
         generate_pippenger_point_table(&mut elements[..]);
         let mut state = PippengerRuntimeState::new(n);
 
-        let mut p = [G1Affine::zero(); 2];
-        p[0] = barretenberg::scalar_multiplication::pippenger(
-            &scalars[0],
-            &elements[0],
-            n,
-            &mut state,
-        );
-        p[1] = -(G1Affine::identity() * separator_challenge + pi_z);
+        let mut p: [G; 2] = [G::zero(); 2];
+        p[0] = pippenger(&scalars[0], &elements[0], n, &mut state);
+        p[1] = -(G::identity() * separator_challenge + pi_z);
 
         if self.key.contains_recursive_proof {
             assert!(self.key.recursive_proof_public_input_indices.len() == 16);
-            let inputs = transcript.get_field_element_vector("public_inputs");
+            let inputs = transcript.get_FieldExt_element_vector("public_inputs");
             let recover_fq_from_public_inputs =
                 |idx0: usize, idx1: usize, idx2: usize, idx3: usize| {
                     let l0 = inputs[idx0];
@@ -249,14 +243,14 @@ impl<
                     let l3 = inputs[idx3];
 
                     let limb = l0
-                        + (l1 << NUM_LIMB_BITS_IN_FIELD_SIMULATION)
-                        + (l2 << (NUM_LIMB_BITS_IN_FIELD_SIMULATION * 2))
-                        + (l3 << (NUM_LIMB_BITS_IN_FIELD_SIMULATION * 3));
+                        + (l1 << NUM_LIMB_BITS_IN_FieldExt_SIMULATION)
+                        + (l2 << (NUM_LIMB_BITS_IN_FieldExt_SIMULATION * 2))
+                        + (l3 << (NUM_LIMB_BITS_IN_FieldExt_SIMULATION * 3));
                     limb
                 };
 
             let recursion_separator_challenge = transcript
-                .get_challenge_field_element("separator", None)
+                .get_challenge_FieldExt_element("separator", None)
                 .square();
 
             let x0 = recover_fq_from_public_inputs(
@@ -283,14 +277,17 @@ impl<
                 self.key.recursive_proof_public_input_indices[14] as usize,
                 self.key.recursive_proof_public_input_indices[15] as usize,
             );
-            p[0] += g1::from_xy(x0, y0, 1) * recursion_separator_challenge;
-            p[1] += g1::from_xy(x1, y1, 1) * recursion_separator_challenge;
+            p[0] += G::from_xy(x0, y0, 1) * recursion_separator_challenge;
+            p[1] += G::from_xy(x1, y1, 1) * recursion_separator_challenge;
         }
 
         // The final pairing check of step 12.
         let result: Fq12 = reduced_ate_pairing_batch_precomputed(
-            p,
-            self.key.reference_string.get_precomputed_g2_lines(),
+            &p,
+            self.key
+                .reference_string
+                .get_precomputed_g2_lines()
+                .as_ref(),
             2,
         );
 

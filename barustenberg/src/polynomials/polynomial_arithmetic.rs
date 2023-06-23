@@ -102,7 +102,7 @@ fn fft_inner_serial<Fr: Copy + Default + Add<Output = Fr> + Sub<Output = Fr> + M
     }
 }
 
-impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
+impl<'a, Fr: ark_ff::Field + ark_ff::FftField + FieldExt> EvaluationDomain<'a, Fr> {
     /// modifies target[..generator_size]
     fn scale_by_generator(
         &self,
@@ -812,7 +812,7 @@ fn compute_sum<Fr: Field>(slice: &[Fr]) -> Fr {
     slice.iter().copied().fold(Fr::zero(), Add::add)
 }
 
-pub(crate) fn compute_linear_polynomial_product<Fr: Field>(
+pub(crate) fn compute_linear_polynomial_product<Fr: ark_ff::Field + ark_ff::FftField + FieldExt>(
     roots: &[Fr],
     dest: &mut [Fr],
     n: usize,
@@ -837,7 +837,7 @@ pub(crate) fn compute_linear_polynomial_product<Fr: Field>(
     }
 }
 
-pub(crate) fn compute_efficient_interpolation<Fr: Field>(
+pub(crate) fn compute_efficient_interpolation<Fr: ark_ff::Field + ark_ff::FftField + FieldExt>(
     src: &[Fr],
     dest: &mut [Fr],
     evaluation_points: &[Fr],
