@@ -1,4 +1,5 @@
-use ark_ec::Group;
+use ark_bn254::G1Affine;
+use ark_ec::AffineRepr;
 
 use crate::{
     ecc::fieldext::FieldExt,
@@ -11,7 +12,7 @@ use crate::{
 pub(crate) trait Settings<
     H: BarretenHasher,
     F: ark_ff::Field + ark_ff::FftField + FieldExt,
-    G: Group,
+    G: AffineRepr,
 >
 {
     #[inline]
@@ -28,7 +29,7 @@ pub(crate) trait Settings<
     fn compute_quotient_evaluation_contribution(
         verification_key: &VerificationKey<'_, F>,
         alpha_base: &F,
-        transcript: &Transcript<H, F, G>,
+        transcript: &Transcript<H>,
         quotient_numerator_eval: &F,
     ) -> F;
     fn is_plookup(&self) -> bool;
@@ -45,7 +46,7 @@ impl<H: BarretenHasher> StandardSettings<H> {
     }
 }
 
-impl<H: BarretenHasher> Settings<H, ark_bn254::Fr, <ark_ec::short_weierstrass::Affine<<ark_bn254::Config as ark_ec::bn::BnConfig>::G1Config> as ark_ec::AffineRepr>::Group> for StandardSettings<H> {
+impl<H: BarretenHasher> Settings<H, ark_bn254::Fr, G1Affine> for StandardSettings<H> {
     #[inline]
     fn num_challenge_bytes(&self) -> usize {
         16
@@ -92,7 +93,7 @@ impl<H: BarretenHasher> Settings<H, ark_bn254::Fr, <ark_ec::short_weierstrass::A
     fn compute_quotient_evaluation_contribution(
         verification_key: &VerificationKey<'_, ark_bn254::Fr>,
         alpha_base: &ark_bn254::Fr,
-        transcript: &Transcript<H, ark_bn254::Fr, <ark_ec::short_weierstrass::Affine<<ark_bn254::Config as ark_ec::bn::BnConfig>::G1Config> as ark_ec::AffineRepr>::Group>,
+        transcript: &Transcript<H>,
         quotient_numerator_eval: &ark_bn254::Fr,
     ) -> ark_bn254::Fr {
         unimplemented!("todo");
@@ -119,7 +120,7 @@ impl TurboSettings {
     }
 }
 
-impl Settings<PedersenBlake3s, ark_bn254::Fr, <ark_ec::short_weierstrass::Affine<<ark_bn254::Config as ark_ec::bn::BnConfig>::G1Config> as ark_ec::AffineRepr>::Group> for TurboSettings {
+impl Settings<PedersenBlake3s, ark_bn254::Fr, G1Affine> for TurboSettings {
     #[inline]
     fn num_challenge_bytes(&self) -> usize {
         16
@@ -160,7 +161,7 @@ impl Settings<PedersenBlake3s, ark_bn254::Fr, <ark_ec::short_weierstrass::Affine
     fn compute_quotient_evaluation_contribution(
         verification_key: &VerificationKey<'_, ark_bn254::Fr>,
         alpha_base: &ark_bn254::Fr,
-        transcript: &Transcript<PedersenBlake3s, ark_bn254::Fr, <ark_ec::short_weierstrass::Affine<<ark_bn254::Config as ark_ec::bn::BnConfig>::G1Config> as ark_ec::AffineRepr>::Group>,
+        transcript: &Transcript<PedersenBlake3s>,
         quotient_numerator_eval: &ark_bn254::Fr,
     ) -> ark_bn254::Fr {
         unimplemented!();
@@ -184,7 +185,7 @@ impl Settings<PedersenBlake3s, ark_bn254::Fr, <ark_ec::short_weierstrass::Affine
 
 pub(crate) struct UltraSettings {}
 
-impl Settings<PlookupPedersenBlake3s, ark_bn254::Fr, <ark_ec::short_weierstrass::Affine<<ark_bn254::Config as ark_ec::bn::BnConfig>::G1Config> as ark_ec::AffineRepr>::Group> for UltraSettings {
+impl Settings<PlookupPedersenBlake3s, ark_bn254::Fr, G1Affine> for UltraSettings {
     #[inline]
     fn num_challenge_bytes(&self) -> usize {
         16
@@ -226,7 +227,7 @@ impl Settings<PlookupPedersenBlake3s, ark_bn254::Fr, <ark_ec::short_weierstrass:
     fn compute_quotient_evaluation_contribution(
         verification_key: &VerificationKey<'_, ark_bn254::Fr>,
         alpha_base: &ark_bn254::Fr,
-        transcript: &Transcript<PlookupPedersenBlake3s, ark_bn254::Fr, <ark_ec::short_weierstrass::Affine<<ark_bn254::Config as ark_ec::bn::BnConfig>::G1Config> as ark_ec::AffineRepr>::Group>,
+        transcript: &Transcript<PlookupPedersenBlake3s>,
         quotient_numerator_eval: &ark_bn254::Fr,
     ) -> ark_bn254::Fr {
         /*
@@ -251,7 +252,7 @@ impl Settings<PlookupPedersenBlake3s, ark_bn254::Fr, <ark_ec::short_weierstrass:
 
 pub(crate) struct UltraToStandardSettings {}
 
-impl Settings<PedersenBlake3s, ark_bn254::Fr, <ark_ec::short_weierstrass::Affine<<ark_bn254::Config as ark_ec::bn::BnConfig>::G1Config> as ark_ec::AffineRepr>::Group> for UltraToStandardSettings {
+impl Settings<PedersenBlake3s, ark_bn254::Fr, G1Affine> for UltraToStandardSettings {
     #[inline]
     fn num_challenge_bytes(&self) -> usize {
         16
@@ -292,7 +293,7 @@ impl Settings<PedersenBlake3s, ark_bn254::Fr, <ark_ec::short_weierstrass::Affine
     fn compute_quotient_evaluation_contribution(
         verification_key: &VerificationKey<'_, ark_bn254::Fr>,
         alpha_base: &ark_bn254::Fr,
-        transcript: &Transcript<PedersenBlake3s, ark_bn254::Fr, <ark_ec::short_weierstrass::Affine<<ark_bn254::Config as ark_ec::bn::BnConfig>::G1Config> as ark_ec::AffineRepr>::Group>,
+        transcript: &Transcript<PedersenBlake3s>,
         quotient_numerator_eval: &ark_bn254::Fr,
     ) -> ark_bn254::Fr {
         // UltraSettings::compute_quotient_evaluation_contribution(verification_key, alpha_base, transcript, quotient_numerator_eval)
@@ -302,7 +303,7 @@ impl Settings<PedersenBlake3s, ark_bn254::Fr, <ark_ec::short_weierstrass::Affine
 
 pub(crate) struct UltraWithKeccakSettings {}
 
-impl Settings<Keccak256, ark_bn254::Fr, <ark_ec::short_weierstrass::Affine<<ark_bn254::Config as ark_ec::bn::BnConfig>::G1Config> as ark_ec::AffineRepr>::Group> for UltraWithKeccakSettings {
+impl Settings<Keccak256, ark_bn254::Fr, G1Affine> for UltraWithKeccakSettings {
     #[inline]
     fn num_challenge_bytes(&self) -> usize {
         32
@@ -343,7 +344,7 @@ impl Settings<Keccak256, ark_bn254::Fr, <ark_ec::short_weierstrass::Affine<<ark_
     fn compute_quotient_evaluation_contribution(
         verification_key: &VerificationKey<'_, ark_bn254::Fr>,
         alpha_base: &ark_bn254::Fr,
-        transcript: &Transcript<Keccak256, ark_bn254::Fr, <ark_ec::short_weierstrass::Affine<<ark_bn254::Config as ark_ec::bn::BnConfig>::G1Config> as ark_ec::AffineRepr>::Group>,
+        transcript: &Transcript<Keccak256>,
         quotient_numerator_eval: &ark_bn254::Fr,
     ) -> ark_bn254::Fr {
         //UltraSettings::compute_quotient_evaluation_contribution(verification_key, alpha_base, transcript, quotient_numerator_eval)

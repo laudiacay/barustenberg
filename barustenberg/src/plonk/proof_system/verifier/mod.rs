@@ -9,7 +9,7 @@ use crate::{
     transcript::{BarretenHasher, Manifest, Transcript},
 };
 
-use ark_bn254::{Fq, Fq12, Fr, G1Projective};
+use ark_bn254::{Fq, Fq12, Fr, G1Affine};
 use ark_ff::{Field, One, Zero};
 
 use super::{
@@ -27,10 +27,6 @@ use anyhow::{anyhow, Result};
 #[cfg(test)]
 mod test;
 
-type G1Affine = <ark_ec::short_weierstrass::Affine<
-    <ark_bn254::Config as ark_ec::bn::BnConfig>::G1Config,
-> as ark_ec::AffineRepr>::Group;
-
 pub(crate) struct Verifier<'a, H: BarretenHasher, PS: Settings<H, Fr, G1Affine>> {
     settings: PS,
     key: Rc<VerificationKey<'a, Fr>>,
@@ -40,18 +36,7 @@ pub(crate) struct Verifier<'a, H: BarretenHasher, PS: Settings<H, Fr, G1Affine>>
     commitment_scheme: Box<dyn CommitmentScheme<Fq, Fr, G1Affine, H>>,
 }
 
-impl<
-        'a,
-        H: BarretenHasher,
-        PS: Settings<
-            H,
-            Fr,
-            <ark_ec::short_weierstrass::Affine<
-                <ark_bn254::Config as ark_ec::bn::BnConfig>::G1Config,
-            > as ark_ec::AffineRepr>::Group,
-        >,
-    > Verifier<'a, H, PS>
-{
+impl<'a, H: BarretenHasher, PS: Settings<H, Fr, G1Affine>> Verifier<'a, H, PS> {
     fn new(_verifier_key: Option<Arc<VerificationKey<'a, Fr>>>, _manifest: Manifest) -> Self {
         // Implement constructor logic here.
         todo!("Verifier::new")
@@ -80,7 +65,7 @@ impl<
 
         // Add the proof data to the transcript, according to the manifest. Also initialise the transcript's hash type and
         // challenge bytes.
-        let mut transcript: Transcript<_, Fr, _> = Transcript::new_from_transcript(
+        let mut transcript: Transcript<_> = Transcript::new_from_transcript(
             proof.proof_data.as_ref(),
             self.manifest.clone(),
             self.settings.num_challenge_bytes(),
@@ -225,7 +210,7 @@ impl<
         }
 
         let n = elements.len();
-        elements.resize(2 * n, G::zero());
+        elements.resize(2 * n, G1Affine::zero());
 
         // Generate Pippenger point table
         //     this was: barretenberg::scalar_multiplication::generate_pippenger_point_table(&elements[0], &elements[0], num_elements);
@@ -233,9 +218,9 @@ impl<
         generate_pippenger_point_table(&mut elements_clone[..], &mut elements[..], elements.len());
         let mut state = PippengerRuntimeState::new(n);
 
-        let mut p: [G; 2] = [G::zero(); 2];
+        let mut p: [G1Affine; 2] = [G1Affine::zero(); 2];
         p[0] = state.pippenger(&mut [scalars[0]], &elements[0], n, false);
-        p[1] = -(G::identity() * separator_challenge + pi_z);
+        p[1] = -(G1Affine::identity() * separator_challenge + pi_z);
 
         if self.key.contains_recursive_proof {
             assert!(self.key.recursive_proof_public_input_indices.len() == 16);
@@ -254,7 +239,7 @@ impl<
                     limb
                 };
 
-            let recursion_separator_challenge = transcript
+            let recursion_separator_challenge: Fr = transcript
                 .get_challenge_FieldExt_element("separator", None)
                 .square();
 

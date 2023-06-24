@@ -1,6 +1,6 @@
 use std::{cell::RefCell, marker::PhantomData, ops::IndexMut, rc::Rc};
 
-use ark_bn254::{Fq, Fr};
+use ark_bn254::{Fq, Fr, G1Affine};
 use ark_ff::{Field, One, UniformRand, Zero};
 
 use super::{
@@ -27,10 +27,6 @@ use crate::proof_system::work_queue::WorkQueue;
 
 // todo https://doc.rust-lang.org/reference/const_eval.html
 
-type G1Affine = <ark_ec::short_weierstrass::Affine<
-    <ark_bn254::Config as ark_ec::bn::BnConfig>::G1Config,
-> as ark_ec::AffineRepr>::Group;
-
 pub(crate) struct Prover<
     'a,
     H: BarretenHasher,
@@ -38,7 +34,7 @@ pub(crate) struct Prover<
     CS: CommitmentScheme<Fq, Fr, G1Affine, H>,
 > {
     pub(crate) circuit_size: usize,
-    pub(crate) transcript: Rc<RefCell<Transcript<H, Fr, G1Affine>>>,
+    pub(crate) transcript: Rc<RefCell<Transcript<H>>>,
     pub(crate) key: Rc<RefCell<ProvingKey<'a, Fr, G1Affine>>>,
     pub(crate) queue: WorkQueue<'a, H, Fr, G1Affine>,
     pub(crate) random_widgets: Vec<Box<dyn ProverRandomWidget<'a, H, Fr, G1Affine>>>,
@@ -511,7 +507,7 @@ impl<
         // We can only compute memory record values once W_1, W_2, W_3 have been comitted to,
         // due to the dependence on the `eta` challenge.
 
-        let eta = (*self.transcript).borrow_mut().get_FieldExt_element("eta");
+        let eta: Fr = (*self.transcript).borrow_mut().get_FieldExt_element("eta");
         let key = self.key.borrow();
 
         // We need the lagrange-base forms of the first 3 wires to compute the plookup memory record
@@ -678,7 +674,7 @@ impl<
     }
     fn reset(&mut self) {
         let manifest = (*self.transcript).borrow_mut().get_manifest();
-        *(*self.transcript).borrow_mut() = Transcript::<H, Fr, G1Affine>::new(
+        *(*self.transcript).borrow_mut() = Transcript::<H>::new(
             Some(manifest),
             (*self.transcript).borrow().num_challenge_bytes,
         );
