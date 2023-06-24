@@ -10,7 +10,7 @@ use std::marker::PhantomData;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use ark_ec::{CurveGroup, Group};
+use ark_ec::{AffineRepr, Group};
 
 pub(crate) struct VerifierPermutationWidget<
     H: BarretenHasher,
@@ -18,7 +18,7 @@ pub(crate) struct VerifierPermutationWidget<
     G: Group,
     const NUM_ROOTS_CUT_OUT_OF_VANISHING_POLYNOMIAL: usize,
 > {
-    transcript: Transcript<H, F, G>,
+    transcript: Transcript<H>,
     phantom: PhantomData<(F, G)>,
 }
 
@@ -31,7 +31,7 @@ where
 {
     pub(crate) fn new() -> Self {
         Self {
-            transcript: Transcript::<H, F, G>::default(),
+            transcript: Transcript::<H>::default(),
             phantom: PhantomData,
         }
     }
@@ -39,7 +39,7 @@ where
     pub(crate) fn compute_quotient_evaluation_contribution(
         key: &Arc<VerificationKey<'_, F>>,
         alpha: F,
-        transcript: &Transcript<H, F, G>,
+        transcript: &Transcript<H>,
         quotient_numerator_eval: &mut F,
         idpolys: bool,
     ) -> F {
@@ -262,7 +262,7 @@ where
 
     pub(crate) fn append_scalar_multiplication_inputs(
         alpha_base: F,
-        transcript: &Transcript<H, F, G>,
+        transcript: &Transcript<H>,
     ) -> F {
         let alpha_step: F = transcript.get_challenge_FieldExt_element("alpha", None);
         alpha_base * alpha_step.square() * alpha_step
@@ -273,7 +273,7 @@ pub(crate) struct ProverPermutationWidget<
     'a,
     Fr: ark_ff::Field + ark_ff::FftField + FieldExt,
     Hash: BarretenHasher,
-    G: Group,
+    G: AffineRepr,
     const PROGRAM_WIDTH: usize,
     const IDPOLYS: bool,
     const NUM_ROOTS_CUT_OUT_OF_VANISHING_POLYNOMIAL: usize,
@@ -286,7 +286,7 @@ impl<
         'a,
         Fr: ark_ff::Field + ark_ff::FftField + FieldExt,
         Hash: BarretenHasher,
-        G: CurveGroup,
+        G: AffineRepr,
         const PROGRAM_WIDTH: usize,
         const IDPOLYS: bool,
         const NUM_ROOTS_CUT_OUT_OF_VANISHING_POLYNOMIAL: usize,
@@ -303,18 +303,14 @@ impl<
 {
     fn compute_round_commitments(
         &self,
-        _transcript: &mut Transcript<Hash, Fr, G>,
+        _transcript: &mut Transcript<Hash>,
         _size: usize,
         _work_queue: &mut WorkQueue<'a, Hash, Fr, G>,
     ) {
         todo!()
     }
 
-    fn compute_quotient_contribution(
-        &self,
-        _alpha_base: Fr,
-        _transcript: &Transcript<Hash, Fr, G>,
-    ) -> Fr {
+    fn compute_quotient_contribution(&self, _alpha_base: Fr, _transcript: &Transcript<Hash>) -> Fr {
         todo!()
     }
 }
@@ -322,7 +318,7 @@ impl<
 impl<
         'a,
         Fr: ark_ff::Field + ark_ff::FftField + FieldExt,
-        G: CurveGroup,
+        G: AffineRepr,
         Hash: BarretenHasher,
         const PROGRAM_WIDTH: usize,
         const IDPOLYS: bool,
@@ -347,7 +343,7 @@ impl<
 
     pub(crate) fn compute_round_commitments(
         &mut self,
-        _transcript: &mut Transcript<Hash, Fr, G>,
+        _transcript: &mut Transcript<Hash>,
         _round_number: usize,
         _queue: &mut WorkQueue<'a, Hash, Fr, G>,
     ) {
@@ -357,7 +353,7 @@ impl<
     pub(crate) fn compute_quotient_contribution(
         &self,
         _alpha_base: Fr,
-        _transcript: &Transcript<Hash, Fr, G>,
+        _transcript: &Transcript<Hash>,
     ) -> Fr {
         // ...
         todo!("ProverPermutationWidget::compute_quotient_contribution")

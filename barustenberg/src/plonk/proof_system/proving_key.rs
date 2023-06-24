@@ -1,4 +1,4 @@
-use ark_ec::Group;
+use ark_ec::AffineRepr;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::cell::RefCell;
 use std::io::Read;
@@ -32,7 +32,7 @@ pub(crate) struct ProvingKeyData<F: ark_ff::Field + ark_ff::FftField + FieldExt>
     polynomial_store: PolynomialStore<F>,
 }
 
-pub(crate) struct ProvingKey<'a, Fr: ark_ff::Field + ark_ff::FftField + FieldExt, G: Group> {
+pub(crate) struct ProvingKey<'a, Fr: ark_ff::Field + ark_ff::FftField + FieldExt, G: AffineRepr> {
     pub(crate) composer_type: u32,
     pub(crate) circuit_size: usize,
     pub(crate) log_circuit_size: usize,
@@ -55,7 +55,7 @@ pub(crate) struct ProvingKey<'a, Fr: ark_ff::Field + ark_ff::FftField + FieldExt
     pub(crate) polynomial_manifest: PolynomialManifest,
 }
 
-impl<'a, Fr: ark_ff::Field + ark_ff::FftField + FieldExt, G: Group> Default
+impl<'a, Fr: ark_ff::Field + ark_ff::FftField + FieldExt, G: AffineRepr> Default
     for ProvingKey<'a, Fr, G>
 {
     fn default() -> Self {
@@ -71,7 +71,7 @@ impl<'a, Fr: ark_ff::Field + ark_ff::FftField + FieldExt, G: Group> Default
             polynomial_store: PolynomialStore::new(),
             small_domain: EvaluationDomain::new(0, None),
             large_domain: EvaluationDomain::new(0, None),
-            reference_string: Rc::new(RefCell::new(FileReferenceString::<G>::default())),
+            reference_string: Rc::new(RefCell::new(FileReferenceString::default())),
             quotient_polynomial_parts: Default::default(),
             pippenger_runtime_state: PippengerRuntimeState::default(),
             polynomial_manifest: PolynomialManifest::default(),
@@ -79,7 +79,7 @@ impl<'a, Fr: ark_ff::Field + ark_ff::FftField + FieldExt, G: Group> Default
     }
 }
 
-impl<'a, Fr: ark_ff::Field + ark_ff::FftField + FieldExt, G: Group> ProvingKey<'a, Fr, G> {
+impl<'a, Fr: ark_ff::Field + ark_ff::FftField + FieldExt, G: AffineRepr> ProvingKey<'a, Fr, G> {
     pub(crate) fn new_with_data(
         data: ProvingKeyData<Fr>,
         crs: Rc<RefCell<dyn ProverReferenceString>>,
@@ -169,12 +169,12 @@ impl<'a, Fr: ark_ff::Field + ark_ff::FftField + FieldExt, G: Group> ProvingKey<'
         _reader: &mut R,
         crs_path: &str,
     ) -> Result<Self, std::io::Error> {
-        let _crs = Arc::new(FileReferenceString::<G>::read_from_path(crs_path)?);
+        let _crs = Arc::new(FileReferenceString::read_from_path(crs_path)?);
         todo!();
     }
 }
 
-impl<'a, Fr: ark_ff::Field + ark_ff::FftField + FieldExt, G: Group> Serialize
+impl<'a, Fr: ark_ff::Field + ark_ff::FftField + FieldExt, G: AffineRepr> Serialize
     for ProvingKey<'a, Fr, G>
 {
     fn serialize<S: Serializer>(&self, _serializer: S) -> Result<S::Ok, S::Error> {
@@ -241,7 +241,7 @@ impl<'a, Fr: ark_ff::Field + ark_ff::FftField + FieldExt, G: Group> Serialize
     }
 }
 
-impl<'a, 'de, Fr: ark_ff::Field + ark_ff::FftField + FieldExt, G: Group> Deserialize<'de>
+impl<'a, 'de, Fr: ark_ff::Field + ark_ff::FftField + FieldExt, G: AffineRepr> Deserialize<'de>
     for ProvingKey<'a, Fr, G>
 {
     fn deserialize<D>(_deserializer: D) -> Result<Self, D::Error>

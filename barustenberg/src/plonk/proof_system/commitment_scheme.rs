@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::rc::Rc;
 
-use ark_ec::CurveGroup;
+use ark_ec::AffineRepr;
 
 use crate::ecc::fieldext::FieldExt;
 use crate::polynomials::{polynomial_arithmetic, Polynomial};
@@ -20,7 +20,7 @@ use super::verification_key::VerificationKey;
 pub(crate) trait CommitmentScheme<
     Fq: ark_ff::Field + ark_ff::FftField + FieldExt,
     Fr: ark_ff::Field + ark_ff::FftField + FieldExt,
-    G: CurveGroup,
+    G: AffineRepr,
     H: BarretenHasher,
 >
 {
@@ -51,14 +51,14 @@ pub(crate) trait CommitmentScheme<
 
     fn batch_open<'a>(
         &mut self,
-        transcript: &Transcript<H, Fr, G>,
+        transcript: &Transcript<H>,
         queue: &mut WorkQueue<'a, H, Fr, G>,
         input_key: Option<Ref<'_, ProvingKey<'a, Fr, G>>>,
     );
 
     fn batch_verify<'a>(
         &self,
-        transcript: &Transcript<H, Fr, G>,
+        transcript: &Transcript<H>,
         kate_g1_elements: &mut HashMap<String, G>,
         kate_fr_elements: &mut HashMap<String, Fr>,
         input_key: Option<&'a VerificationKey<'a, Fr>>,
@@ -66,7 +66,7 @@ pub(crate) trait CommitmentScheme<
 
     fn add_opening_evaluations_to_transcript<'a>(
         &self,
-        transcript: &mut Transcript<H, Fr, G>,
+        transcript: &mut Transcript<H>,
         input_key: Option<&'a ProvingKey<'a, Fr, G>>,
         in_lagrange_form: bool,
     );
@@ -76,7 +76,7 @@ pub(crate) trait CommitmentScheme<
 pub(crate) struct KateCommitmentScheme<
     H: BarretenHasher,
     Fr: ark_ff::Field + ark_ff::FftField + FieldExt,
-    G: CurveGroup,
+    G: AffineRepr,
     S: Settings<H, Fr, G>,
 > {
     _kate_open_proof: CommitmentOpenProof,
@@ -86,7 +86,7 @@ pub(crate) struct KateCommitmentScheme<
 impl<
         Fq: ark_ff::Field + ark_ff::FftField + FieldExt,
         Fr: ark_ff::Field + ark_ff::FftField + FieldExt,
-        G: CurveGroup,
+        G: AffineRepr,
         H: BarretenHasher,
         S: Settings<H, Fr, G>,
     > CommitmentScheme<Fq, Fr, G, H> for KateCommitmentScheme<H, Fr, G, S>
@@ -109,7 +109,7 @@ impl<
 
     fn add_opening_evaluations_to_transcript<'a>(
         &self,
-        _transcript: &mut Transcript<H, Fr, G>,
+        _transcript: &mut Transcript<H>,
         _input_key: Option<&'a ProvingKey<'a, Fr, G>>,
         _in_lagrange_form: bool,
     ) {
@@ -211,7 +211,7 @@ impl<
 
     fn batch_open<'a>(
         &mut self,
-        _transcript: &Transcript<H, Fr, G>,
+        _transcript: &Transcript<H>,
         _queue: &mut WorkQueue<'a, H, Fr, G>,
         _input_key: Option<Ref<'_, ProvingKey<'a, Fr, G>>>,
     ) {
@@ -220,7 +220,7 @@ impl<
 
     fn batch_verify<'a>(
         &self,
-        _transcript: &Transcript<H, Fr, G>,
+        _transcript: &Transcript<H>,
         _kate_g1_elements: &mut HashMap<String, G>,
         _kate_fr_elements: &mut HashMap<String, Fr>,
         _input_key: Option<&'a VerificationKey<'a, Fr>>,

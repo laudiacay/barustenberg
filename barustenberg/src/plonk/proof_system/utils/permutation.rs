@@ -1,4 +1,4 @@
-use ark_ec::Group;
+use ark_ec::AffineRepr;
 
 use crate::{
     ecc::{
@@ -21,7 +21,7 @@ pub(crate) struct PermutationSubgroupElement {
 pub(crate) fn compute_permutation_lagrange_base_single<
     H: BarretenHasher,
     Fr: ark_ff::Field + ark_ff::FftField + FieldExt,
-    G: Group,
+    G: AffineRepr,
     S: Settings<H, Fr, G>,
 >(
     output: &mut Polynomial<Fr>,
@@ -52,7 +52,7 @@ pub(crate) fn compute_permutation_lagrange_base_single<
 pub(crate) fn compute_permutation_lagrange_base_single_helper<
     H: BarretenHasher,
     Fr: ark_ff::Field + ark_ff::FftField + FieldExt,
-    G: Group,
+    G: AffineRepr,
     S: Settings<H, Fr, G>,
 >(
     output: &mut Polynomial<Fr>,

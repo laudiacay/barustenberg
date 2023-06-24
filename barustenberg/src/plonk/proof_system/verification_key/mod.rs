@@ -1,15 +1,16 @@
 use std::{collections::HashMap, rc::Rc};
 
-use ark_bn254::{G1Affine, G2Affine};
+use ark_bn254::G1Affine;
+use ark_ff::{FftField, Field};
 
 use crate::{
-    ecc::fieldext::FieldExt, polynomials::evaluation_domain::EvaluationDomain,
+    polynomials::evaluation_domain::EvaluationDomain,
     srs::reference_string::VerifierReferenceString,
 };
 
 use super::types::PolynomialManifest;
 
-pub(crate) struct VerificationKey<'a, Fr: FieldExt> {
+pub(crate) struct VerificationKey<'a, Fr: Field + FftField> {
     composer_type: u32,
     pub(crate) circuit_size: usize,
     log_circuit_size: usize,

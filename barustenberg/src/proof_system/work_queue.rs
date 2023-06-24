@@ -1,8 +1,10 @@
-use ark_ec::CurveGroup;
+use ark_ec::AffineRepr;
 use std::cell::RefCell;
 use std::rc::Rc;
 
 use anyhow::Result;
+
+use ark_bn254::G1Affine;
 
 use crate::ecc::curves::bn254_scalar_multiplication::PippengerRuntimeState;
 use crate::ecc::fieldext::FieldExt;
@@ -57,10 +59,10 @@ pub(crate) struct WorkQueue<
     'a,
     H: BarretenHasher,
     Fr: ark_ff::Field + ark_ff::FftField + FieldExt,
-    G: CurveGroup,
+    G: AffineRepr,
 > {
     key: Rc<RefCell<ProvingKey<'a, Fr, G>>>,
-    transcript: Rc<RefCell<Transcript<H, Fr, G>>>,
+    transcript: Rc<RefCell<Transcript<H>>>,
     work_items: Vec<WorkItem<Fr>>,
 }
 
@@ -74,12 +76,12 @@ unsafe fn FieldExt_element_to_usize<F: ark_ff::Field + ark_ff::FftField + FieldE
     std::mem::transmute_copy(&u256_bytes)
 }
 
-impl<'a, H: BarretenHasher, Fr: ark_ff::Field + ark_ff::FftField + FieldExt, G: CurveGroup>
+impl<'a, H: BarretenHasher, Fr: ark_ff::Field + ark_ff::FftField + FieldExt, G: AffineRepr>
     WorkQueue<'a, H, Fr, G>
 {
     pub(crate) fn new(
         prover_key: Option<Rc<RefCell<ProvingKey<'a, Fr, G>>>>,
-        prover_transcript: Option<Rc<RefCell<Transcript<H, Fr, G>>>>,
+        prover_transcript: Option<Rc<RefCell<Transcript<H>>>>,
     ) -> Self {
         WorkQueue {
             key: prover_key.unwrap_or_default(),
@@ -285,21 +287,17 @@ impl<'a, H: BarretenHasher, Fr: ark_ff::Field + ark_ff::FftField + FieldExt, G: 
                                 .get_monomial_size()
                     );
 
-                    let srs_points = (*self.key.borrow().reference_string)
+                    let srs_points: Rc<Vec<G1Affine>> = (*self.key.borrow().reference_string)
                         .borrow_mut()
                         .get_monomial_points();
 
-                    let mut runtime_state: PippengerRuntimeState<Fr, G> =
+                    let mut runtime_state: PippengerRuntimeState<Fr, G1Affine> =
                         PippengerRuntimeState::new(msm_size);
-                    let result = G::from(
-                        runtime_state
-                            .pippenger_unsafe(
-                                (*mul_scalars).borrow_mut().coefficients.as_mut_slice(),
-                                srs_points.as_slice(),
-                                msm_size,
-                            )
-                            .into(),
-                    );
+                    let result = G1Affine::from(runtime_state.pippenger_unsafe(
+                        (*mul_scalars).borrow_mut().coefficients.as_mut_slice(),
+                        &(*srs_points)[..],
+                        msm_size,
+                    ));
 
                     (*self.transcript)
                         .borrow_mut()

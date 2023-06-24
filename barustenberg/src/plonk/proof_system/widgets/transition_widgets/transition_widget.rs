@@ -5,7 +5,7 @@ use std::{
     sync::Arc,
 };
 
-use ark_ec::Group;
+use ark_ec::AffineRepr;
 
 use crate::{
     ecc::fieldext::FieldExt,
@@ -26,7 +26,7 @@ pub(crate) trait KernelBase<
     H: BarretenHasher,
     S: Settings<H, F, G>,
     F: ark_ff::Field + ark_ff::FftField + FieldExt,
-    G: Group,
+    G: AffineRepr,
     NumIndependentRelations: generic_array::ArrayLength<F>,
 >
 {
@@ -71,13 +71,13 @@ pub(crate) trait TransitionWidgetBase<
     'a,
     H: BarretenHasher,
     F: ark_ff::Field + ark_ff::FftField + FieldExt,
-    G: Group,
+    G: AffineRepr,
 >
 {
     fn compute_quotient_contribution(
         &self,
         alpha_base: F,
-        transcript: &Transcript<H, F, G>,
+        transcript: &Transcript<H>,
         rng: &mut Box<dyn rand::RngCore>,
     ) -> F;
 }
@@ -86,7 +86,7 @@ pub(crate) struct TransitionWidget<
     'a,
     H: BarretenHasher,
     F: ark_ff::Field + ark_ff::FftField + FieldExt,
-    G: Group,
+    G: AffineRepr,
     S: Settings<H, F, G>,
     NIndependentRelations,
     KB,
@@ -101,7 +101,7 @@ impl<
         'a,
         H: BarretenHasher,
         F: ark_ff::Field + ark_ff::FftField + FieldExt,
-        G: Group,
+        G: AffineRepr,
         S: Settings<H, F, G>,
         NIndependentRelations: generic_array::ArrayLength<F>,
         KB,
@@ -114,7 +114,7 @@ where
     fn compute_quotient_contribution(
         &self,
         alpha_base: F,
-        transcript: &Transcript<H, F, G>,
+        transcript: &Transcript<H>,
         rng: &mut Box<dyn rand::RngCore>,
     ) -> F {
         let required_polynomial_ids = KB::get_required_polynomial_ids();
@@ -162,7 +162,7 @@ pub(crate) trait GenericVerifierWidget<
     'a,
     F: ark_ff::Field + ark_ff::FftField + FieldExt,
     H: BarretenHasher,
-    G: Group,
+    G: AffineRepr,
     Get: EvaluationGetter<H, F, G, S, NIndependentRelations>,
     NIndependentRelations,
     S: Settings<H, F, G>,
@@ -174,7 +174,7 @@ pub(crate) trait GenericVerifierWidget<
     fn compute_quotient_evaluation_contribution(
         key: &Arc<VerificationKey<'a, F>>,
         alpha_base: F,
-        transcript: &Transcript<H, F, G>,
+        transcript: &Transcript<H>,
         quotient_numerator_eval: &mut F,
         rng: &mut Box<dyn rand::RngCore>,
     ) -> F {
@@ -213,7 +213,7 @@ pub(crate) trait GenericVerifierWidget<
     fn append_scalar_multiplication_inputs(
         _key: &Arc<VerificationKey<'_, F>>,
         alpha_base: F,
-        transcript: &Transcript<H, F, G>,
+        transcript: &Transcript<H>,
         _scalar_mult_inputs: &mut HashMap<String, F>,
         rng: &mut Box<dyn rand::RngCore>,
     ) -> F {

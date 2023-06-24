@@ -1,13 +1,11 @@
 use anyhow::{Error, Ok};
-use ark_ec::Group;
+use ark_ec::AffineRepr;
 use generic_array::{ArrayLength, GenericArray};
 use sha3::{Digest, Sha3_256};
 
-use std::{collections::HashMap, marker::PhantomData};
+use std::collections::HashMap;
 use tracing::info;
 use typenum::{Unsigned, U16, U32};
-
-use crate::ecc::fieldext::FieldExt;
 
 /// BarretenHasher is a trait that defines the hash function used for Fiat-Shamir.
 pub(crate) trait BarretenHasher {
@@ -148,11 +146,7 @@ struct Challenge<H: BarretenHasher> {
     data: GenericArray<u8, H::PrngOutputSize>,
 }
 
-pub(crate) struct Transcript<
-    H: BarretenHasher,
-    Fr: ark_ff::Field + ark_ff::FftField + FieldExt,
-    G: Group,
-> {
+pub(crate) struct Transcript<H: BarretenHasher> {
     current_round: usize,
     pub(crate) num_challenge_bytes: usize,
     elements: HashMap<String, Vec<u8>>,
@@ -160,12 +154,9 @@ pub(crate) struct Transcript<
     current_challenge: Challenge<H>,
     manifest: Manifest,
     challenge_map: HashMap<String, i32>,
-    phantom: PhantomData<(Fr, G)>,
 }
 
-impl<H: BarretenHasher, Fr: ark_ff::Field + ark_ff::FftField + FieldExt, G: Group> Default
-    for Transcript<H, Fr, G>
-{
+impl<H: BarretenHasher> Default for Transcript<H> {
     fn default() -> Self {
         Self {
             current_round: 0,
@@ -177,14 +168,11 @@ impl<H: BarretenHasher, Fr: ark_ff::Field + ark_ff::FftField + FieldExt, G: Grou
             },
             manifest: Manifest::default(),
             challenge_map: HashMap::new(),
-            phantom: PhantomData,
         }
     }
 }
 
-impl<H: BarretenHasher, Fr: ark_ff::Field + ark_ff::FftField + FieldExt, G: Group>
-    Transcript<H, Fr, G>
-{
+impl<H: BarretenHasher> Transcript<H> {
     pub(crate) fn add_element(&mut self, element_name: &str, buffer: Vec<u8>) {
         info!("Adding element {} to transcript", element_name);
         // from elements.insert({ element_name, buffer });
@@ -197,7 +185,7 @@ impl<H: BarretenHasher, Fr: ark_ff::Field + ark_ff::FftField + FieldExt, G: Grou
     /// hash_type: The hash used for Fiat-Shamir.
     /// challenge_bytes: The number of bytes per challenge to generate.
     pub(crate) fn new(input_manifest: Option<Manifest>, num_challenge_bytes: usize) -> Self {
-        let mut ret = Transcript::<H, Fr, G> {
+        let mut ret = Transcript::<H> {
             num_challenge_bytes,
             manifest: input_manifest.unwrap_or_default(),
             ..Default::default()
@@ -261,7 +249,6 @@ impl<H: BarretenHasher, Fr: ark_ff::Field + ark_ff::FftField + FieldExt, G: Grou
                 data: GenericArray::default(),
             },
             challenge_map: std::collections::HashMap::new(),
-            phantom: PhantomData,
         };
         transcript.compute_challenge_map();
         transcript
@@ -637,26 +624,33 @@ impl<H: BarretenHasher, Fr: ark_ff::Field + ark_ff::FftField + FieldExt, G: Grou
         }
     }
 
-    pub(crate) fn add_FieldExt_element(&mut self, element_name: &str, element: &Fr) {
+    pub(crate) fn add_FieldExt_element<Fr: ark_ff::Field>(
+        &mut self,
+        element_name: &str,
+        element: &Fr,
+    ) {
         let mut buf = vec![0u8; Fr::serialized_size(element, ark_serialize::Compress::No)];
         Fr::serialize_uncompressed(element, &mut buf).unwrap();
         self.add_element(element_name, buf);
     }
 
-    pub(crate) fn add_group_element(&mut self, element_name: &str, element: &G) {
+    pub(crate) fn add_group_element<G: AffineRepr>(&mut self, element_name: &str, element: &G) {
         let mut buf = vec![0u8; G::serialized_size(element, ark_serialize::Compress::No)];
         G::serialize_uncompressed(element, &mut buf).unwrap();
         self.add_element(element_name, buf);
     }
-    pub(crate) fn get_FieldExt_element(&self, element_name: &str) -> Fr {
+    pub(crate) fn get_FieldExt_element<Fr: ark_ff::Field>(&self, element_name: &str) -> Fr {
         let buf = self.get_element(element_name);
         Fr::deserialize_uncompressed(buf.as_slice()).unwrap()
     }
-    pub(crate) fn get_group_element(&self, element_name: &str) -> G {
+    pub(crate) fn get_group_element<G: AffineRepr>(&self, element_name: &str) -> G {
         let buf = self.get_element(element_name);
         G::deserialize_uncompressed(buf.as_slice()).unwrap()
     }
-    pub(crate) fn get_FieldExt_element_vector(&self, element_name: &str) -> Vec<Fr> {
+    pub(crate) fn get_FieldExt_element_vector<Fr: ark_ff::Field>(
+        &self,
+        element_name: &str,
+    ) -> Vec<Fr> {
         // TODO is this right
         let serialized_size = Fr::serialized_size(&Fr::ONE, ark_serialize::Compress::No);
         let buf = self.get_element(element_name);
@@ -669,7 +663,11 @@ impl<H: BarretenHasher, Fr: ark_ff::Field + ark_ff::FftField + FieldExt, G: Grou
         }
         res
     }
-    pub(crate) fn put_FieldExt_element_vector(&mut self, element_name: &str, elements: &[Fr]) {
+    pub(crate) fn put_FieldExt_element_vector<Fr: ark_ff::Field>(
+        &mut self,
+        element_name: &str,
+        elements: &[Fr],
+    ) {
         let mut buf = Vec::new();
         for element in elements {
             let mut tmp = vec![0u8; Fr::serialized_size(element, ark_serialize::Compress::No)];
@@ -679,7 +677,7 @@ impl<H: BarretenHasher, Fr: ark_ff::Field + ark_ff::FftField + FieldExt, G: Grou
         self.add_element(element_name, buf);
     }
 
-    pub(crate) fn get_challenge_FieldExt_element(
+    pub(crate) fn get_challenge_FieldExt_element<Fr: ark_ff::Field>(
         &self,
         challenge_name: &str,
         idx: Option<usize>,
@@ -687,7 +685,7 @@ impl<H: BarretenHasher, Fr: ark_ff::Field + ark_ff::FftField + FieldExt, G: Grou
         let buf = self.get_challenge(challenge_name, idx);
         Fr::deserialize_uncompressed(buf.unwrap().as_slice()).unwrap()
     }
-    fn get_challenge_FieldExt_element_from_map(
+    fn get_challenge_FieldExt_element_from_map<Fr: ark_ff::Field>(
         &self,
         challenge_name: &str,
         challenge_map_name: &str,
