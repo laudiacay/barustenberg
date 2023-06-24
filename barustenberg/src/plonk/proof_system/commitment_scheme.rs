@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::rc::Rc;
 
-use ark_ec::Group;
+use ark_ec::CurveGroup;
 
 use crate::ecc::fieldext::FieldExt;
 use crate::polynomials::{polynomial_arithmetic, Polynomial};
@@ -20,7 +20,7 @@ use super::verification_key::VerificationKey;
 pub(crate) trait CommitmentScheme<
     Fq: ark_ff::Field + ark_ff::FftField + FieldExt,
     Fr: ark_ff::Field + ark_ff::FftField + FieldExt,
-    G: Group,
+    G: CurveGroup,
     H: BarretenHasher,
 >
 {
@@ -76,7 +76,7 @@ pub(crate) trait CommitmentScheme<
 pub(crate) struct KateCommitmentScheme<
     H: BarretenHasher,
     Fr: ark_ff::Field + ark_ff::FftField + FieldExt,
-    G: Group,
+    G: CurveGroup,
     S: Settings<H, Fr, G>,
 > {
     _kate_open_proof: CommitmentOpenProof,
@@ -86,7 +86,7 @@ pub(crate) struct KateCommitmentScheme<
 impl<
         Fq: ark_ff::Field + ark_ff::FftField + FieldExt,
         Fr: ark_ff::Field + ark_ff::FftField + FieldExt,
-        G: Group,
+        G: CurveGroup,
         H: BarretenHasher,
         S: Settings<H, Fr, G>,
     > CommitmentScheme<Fq, Fr, G, H> for KateCommitmentScheme<H, Fr, G, S>

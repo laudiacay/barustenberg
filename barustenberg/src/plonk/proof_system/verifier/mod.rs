@@ -1,18 +1,16 @@
 use crate::{
     ecc::{
         curves::bn254_scalar_multiplication::{
-            generate_pippenger_point_table, is_on_curve, is_point_at_infinity,
+            generate_pippenger_point_table, is_point_at_infinity, PippengerRuntimeState,
         },
-        fieldext::FieldExt,
         reduced_ate_pairing_batch_precomputed,
     },
     plonk::proof_system::constants::NUM_LIMB_BITS_IN_FieldExt_SIMULATION,
     transcript::{BarretenHasher, Manifest, Transcript},
 };
 
-use ark_bn254::Fq12;
-use ark_ec::Group;
-use ark_ff::One;
+use ark_bn254::{Fq, Fq12, Fr, G1Projective};
+use ark_ff::{Field, One, Zero};
 
 use super::{
     commitment_scheme::CommitmentScheme,
@@ -29,30 +27,30 @@ use anyhow::{anyhow, Result};
 #[cfg(test)]
 mod test;
 
-pub(crate) struct Verifier<
-    'a,
-    Fq: ark_ff::Field + ark_ff::FftField + FieldExt,
-    Fr: ark_ff::Field + ark_ff::FftField + FieldExt,
-    G: Group,
-    H: BarretenHasher,
-    PS: Settings<H, Fr, G>,
-> {
+type G1Affine = <ark_ec::short_weierstrass::Affine<
+    <ark_bn254::Config as ark_ec::bn::BnConfig>::G1Config,
+> as ark_ec::AffineRepr>::Group;
+
+pub(crate) struct Verifier<'a, H: BarretenHasher, PS: Settings<H, Fr, G1Affine>> {
     settings: PS,
     key: Rc<VerificationKey<'a, Fr>>,
     manifest: Manifest,
-    kate_g1_elements: HashMap<String, G>,
+    kate_g1_elements: HashMap<String, G1Affine>,
     kate_fr_elements: HashMap<String, Fr>,
-    commitment_scheme: Box<dyn CommitmentScheme<Fq, Fr, G, H>>,
+    commitment_scheme: Box<dyn CommitmentScheme<Fq, Fr, G1Affine, H>>,
 }
 
 impl<
         'a,
-        Fq: ark_ff::Field + ark_ff::FftField + FieldExt,
-        Fr: ark_ff::Field + ark_ff::FftField + FieldExt,
-        G: Group,
         H: BarretenHasher,
-        PS: Settings<H, Fr, G>,
-    > Verifier<'a, Fq, Fr, G, H, PS>
+        PS: Settings<
+            H,
+            Fr,
+            <ark_ec::short_weierstrass::Affine<
+                <ark_bn254::Config as ark_ec::bn::BnConfig>::G1Config,
+            > as ark_ec::AffineRepr>::Group,
+        >,
+    > Verifier<'a, H, PS>
 {
     fn new(_verifier_key: Option<Arc<VerificationKey<'a, Fr>>>, _manifest: Manifest) -> Self {
         // Implement constructor logic here.
@@ -191,12 +189,12 @@ impl<
 
         // Validate PI_Z, PI_Z_OMEGA are valid ecc points.
         // N.B. we check that witness commitments are valid points in KateCommitmentScheme<settings>::batch_verify
-        if !is_on_curve(&pi_z) || is_point_at_infinity(&pi_z) {
+        if !pi_z.is_on_curve() || is_point_at_infinity(&pi_z) {
             return Err(anyhow!(
                 "opening proof group element PI_Z not a valid point"
             ));
         }
-        if !is_on_curve(&pi_z_omega) || is_point_at_infinity(&pi_z_omega) {
+        if !pi_z_omega.is_on_curve() || is_point_at_infinity(&pi_z_omega) {
             return Err(anyhow!(
                 "opening proof group element PI_Z_OMEGA not a valid point"
             ));
@@ -204,22 +202,22 @@ impl<
 
         // Accumulate pairs of scalars and group elements which would be used in the final pairing check.
         self.kate_g1_elements
-            .insert("PI_Z_OMEGA".to_string(), pi_z_omega);
+            .insert("PI_Z_OMEGA".to_string(), pi_z_omega.into());
         self.kate_fr_elements.insert(
             "PI_Z_OMEGA".to_string(),
             zeta * self.key.domain.root * separator_challenge,
         );
 
-        self.kate_g1_elements.insert("PI_Z".to_owned(), pi_z);
+        self.kate_g1_elements.insert("PI_Z".to_owned(), pi_z.into());
         self.kate_fr_elements.insert("PI_Z".to_owned(), zeta);
 
         // Initialize vectors for scalars and elements
         let mut scalars: Vec<Fr> = Vec::new();
-        let mut elements: Vec<G> = Vec::new();
+        let mut elements: Vec<G1Affine> = Vec::new();
 
         // Iterate through the kate_g1_elements and accumulate scalars and elements
         for (key, element) in &self.kate_g1_elements {
-            if is_on_curve(element) && !is_point_at_infinity(element) {
+            if element.is_on_curve() && !is_point_at_infinity(element) {
                 // TODO: perhaps we should throw if not on curve or if infinity?
                 scalars.push(self.kate_fr_elements[key]);
                 elements.push(*element);
@@ -236,7 +234,7 @@ impl<
         let mut state = PippengerRuntimeState::new(n);
 
         let mut p: [G; 2] = [G::zero(); 2];
-        p[0] = pippenger(&scalars[0], &elements[0], n, &mut state);
+        p[0] = state.pippenger(&mut [scalars[0]], &elements[0], n, false);
         p[1] = -(G::identity() * separator_challenge + pi_z);
 
         if self.key.contains_recursive_proof {
@@ -284,8 +282,8 @@ impl<
                 self.key.recursive_proof_public_input_indices[14] as usize,
                 self.key.recursive_proof_public_input_indices[15] as usize,
             );
-            p[0] += G::from_xy(x0, y0, 1) * recursion_separator_challenge;
-            p[1] += G::from_xy(x1, y1, 1) * recursion_separator_challenge;
+            p[0] += G1Affine::new_unchecked(x0, y0) * recursion_separator_challenge;
+            p[1] += G1Affine::new_unchecked(x1, y1) * recursion_separator_challenge;
         }
 
         // The final pairing check of step 12.

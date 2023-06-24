@@ -2,9 +2,7 @@ use ark_ff::One;
 
 use super::*;
 
-impl<Fq: FieldExt, Fr: FieldExt, G: Group, H: BarretenHasher, S: Settings<H, Fr, G>>
-    Verifier<'_, Fq, Fr, G, H, S>
-{
+impl<H: BarretenHasher, S: Settings<H, Fr, G1Affine>> Verifier<'_, H, S> {
     pub fn generate_verifier(circuit_proving_key: Rc<RefCell<ProvingKey<'_, Fr, G>>>) -> Self {
         let mut poly_coefficients: Vec<&mut [Fr]> = vec![&mut []; 8];
         poly_coefficients[0] = circuit_proving_key

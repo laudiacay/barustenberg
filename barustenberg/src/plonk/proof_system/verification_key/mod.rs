@@ -15,7 +15,7 @@ pub(crate) struct VerificationKey<'a, Fr: FieldExt> {
     log_circuit_size: usize,
     pub(crate) num_public_inputs: usize,
     pub(crate) domain: EvaluationDomain<'a, Fr>,
-    pub(crate) reference_string: Rc<dyn VerifierReferenceString<G2Affine>>,
+    pub(crate) reference_string: Rc<dyn VerifierReferenceString>,
     commitments: HashMap<String, G1Affine>,
     pub(crate) polynomial_manifest: PolynomialManifest,
     /// This is a member variable so as to avoid recomputing it in the different places of the verifier algorithm.

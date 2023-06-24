@@ -10,7 +10,7 @@ use std::marker::PhantomData;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use ark_ec::Group;
+use ark_ec::{CurveGroup, Group};
 
 pub(crate) struct VerifierPermutationWidget<
     H: BarretenHasher,
@@ -286,7 +286,7 @@ impl<
         'a,
         Fr: ark_ff::Field + ark_ff::FftField + FieldExt,
         Hash: BarretenHasher,
-        G: Group,
+        G: CurveGroup,
         const PROGRAM_WIDTH: usize,
         const IDPOLYS: bool,
         const NUM_ROOTS_CUT_OUT_OF_VANISHING_POLYNOMIAL: usize,
@@ -322,7 +322,7 @@ impl<
 impl<
         'a,
         Fr: ark_ff::Field + ark_ff::FftField + FieldExt,
-        G: Group,
+        G: CurveGroup,
         Hash: BarretenHasher,
         const PROGRAM_WIDTH: usize,
         const IDPOLYS: bool,

@@ -48,7 +48,7 @@ pub(crate) struct ProvingKey<'a, Fr: ark_ff::Field + ark_ff::FftField + FieldExt
     pub(crate) large_domain: EvaluationDomain<'a, Fr>,
     /// The reference_string object contains the monomial SRS. We can access it using:
     /// Monomial SRS: reference_string->get_monomial_points()
-    pub(crate) reference_string: Rc<RefCell<dyn ProverReferenceString<G>>>,
+    pub(crate) reference_string: Rc<RefCell<dyn ProverReferenceString>>,
     pub(crate) quotient_polynomial_parts:
         [Rc<RefCell<Polynomial<Fr>>>; NUM_QUOTIENT_PARTS as usize],
     pub(crate) pippenger_runtime_state: PippengerRuntimeState<Fr, G>,
@@ -82,7 +82,7 @@ impl<'a, Fr: ark_ff::Field + ark_ff::FftField + FieldExt, G: Group> Default
 impl<'a, Fr: ark_ff::Field + ark_ff::FftField + FieldExt, G: Group> ProvingKey<'a, Fr, G> {
     pub(crate) fn new_with_data(
         data: ProvingKeyData<Fr>,
-        crs: Rc<RefCell<dyn ProverReferenceString<G>>>,
+        crs: Rc<RefCell<dyn ProverReferenceString>>,
     ) -> Self {
         let ProvingKeyData {
             composer_type,
@@ -123,7 +123,7 @@ impl<'a, Fr: ark_ff::Field + ark_ff::FftField + FieldExt, G: Group> ProvingKey<'
     pub(crate) fn new(
         num_gates: usize,
         num_inputs: usize,
-        crs: Rc<RefCell<dyn ProverReferenceString<G>>>,
+        crs: Rc<RefCell<dyn ProverReferenceString>>,
         type_: ComposerType,
     ) -> Self {
         let data = ProvingKeyData {

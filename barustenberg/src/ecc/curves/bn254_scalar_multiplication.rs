@@ -1,8 +1,9 @@
 use std::marker::PhantomData;
 
 use crate::ecc::fieldext::FieldExt;
-use ark_bn254::G1Affine;
-use ark_ec::Group;
+use ark_bn254::{G1Affine, G1Projective};
+use ark_ec::{CurveGroup, Group};
+use ark_ff::{One, Zero};
 
 #[inline]
 fn cube_root_of_unity<F: ark_ff::Field>() -> F {
@@ -22,13 +23,8 @@ fn cube_root_of_unity<F: ark_ff::Field>() -> F {
     // return result;
     //}
 }
-
-pub(crate) fn is_on_curve<G: Group>(point: &G) -> bool {
-    todo!("is_on_curve")
-}
-
-pub(crate) fn is_point_at_infinity<G: Group>(point: &G) -> bool {
-    todo!("is_point_at_infinity")
+pub(crate) fn is_point_at_infinity(point: &G1Projective) -> bool {
+    point.x.is_zero() && point.y.is_one() && point.z.is_zero()
 }
 
 #[derive(Clone, Default)]
@@ -36,7 +32,7 @@ pub(crate) struct PippengerRuntimeState<Fr: ark_ff::FftField + ark_ff::Field + F
     phantom: PhantomData<(Fr, G)>,
 }
 
-impl<Fr: ark_ff::FftField + ark_ff::Field + FieldExt, G: Group> PippengerRuntimeState<Fr, G> {
+impl<Fr: ark_ff::FftField + ark_ff::Field + FieldExt, G: CurveGroup> PippengerRuntimeState<Fr, G> {
     pub(crate) fn new(_size: usize) -> Self {
         todo!()
     }
@@ -48,9 +44,18 @@ impl<Fr: ark_ff::FftField + ark_ff::Field + FieldExt, G: Group> PippengerRuntime
     ) -> G {
         todo!()
     }
-}
 
-pub fn generate_pippenger_point_table(
+    pub(crate) fn pippenger(
+        &mut self,
+        _scalars: &mut [Fr],
+        _points: &[G],
+        _num_initial_points: usize,
+        _handle_edge_cases: bool,
+    ) -> G {
+        todo!()
+    }
+}
+pub(crate) fn generate_pippenger_point_table(
     points: &mut [G1Affine],
     table: &mut [G1Affine],
     num_points: usize,
