@@ -1,9 +1,8 @@
 use std::marker::PhantomData;
 
-use crate::ecc::fieldext::FieldExt;
 use ark_bn254::{G1Affine, G1Projective};
 use ark_ec::AffineRepr;
-use ark_ff::{One, Zero};
+use ark_ff::{FftField, Field, One, Zero};
 
 pub(crate) type G1AffineGroup = <ark_ec::short_weierstrass::Affine<
     <ark_bn254::Config as ark_ec::bn::BnConfig>::G1Config,
@@ -32,14 +31,11 @@ pub(crate) fn is_point_at_infinity(point: &G1Projective) -> bool {
 }
 
 #[derive(Clone, Default)]
-pub(crate) struct PippengerRuntimeState<
-    Fr: ark_ff::FftField + ark_ff::Field + FieldExt,
-    G: AffineRepr,
-> {
+pub(crate) struct PippengerRuntimeState<Fr: Field + FftField, G: AffineRepr> {
     phantom: PhantomData<(Fr, G)>,
 }
 
-impl<Fr: ark_ff::FftField + ark_ff::Field + FieldExt, G: AffineRepr> PippengerRuntimeState<Fr, G> {
+impl<Fr: Field + FftField, G: AffineRepr> PippengerRuntimeState<Fr, G> {
     pub(crate) fn new(_size: usize) -> Self {
         todo!()
     }

@@ -1,10 +1,12 @@
-use crate::{ecc::fieldext::FieldExt, numeric::bitop::Msb};
+use ark_ff::{FftField, Field};
+
+use crate::numeric::bitop::Msb;
 use std::vec::Vec;
 
 pub(crate) const MIN_GROUP_PER_THREAD: usize = 4;
 
 #[derive(Default)]
-pub(crate) struct EvaluationDomain<'a, F: FieldExt> {
+pub(crate) struct EvaluationDomain<'a, F: Field + FftField> {
     /// n, always a power of 2
     pub(crate) size: usize,
     /// num_threads * thread_size = size
@@ -74,7 +76,7 @@ fn compute_num_threads(size: usize) -> usize {
 /// let mut round_roots = Vec::new();
 /// compute_lookup_table_single(&input_root, size, &mut roots, &mut round_roots);
 /// ```
-fn compute_lookup_table_single<Fr: ark_ff::Field + ark_ff::FftField + FieldExt>(
+fn compute_lookup_table_single<Fr: Field + FftField>(
     input_root: &Fr,
     size: usize,
     roots: &mut [Fr],
@@ -97,7 +99,7 @@ fn compute_lookup_table_single<Fr: ark_ff::Field + ark_ff::FftField + FieldExt>(
         }
     }
 }
-impl<'a, F: FieldExt> EvaluationDomain<'a, F> {
+impl<'a, F: Field + FftField> EvaluationDomain<'a, F> {
     pub(crate) fn new(domain_size: usize, _target_generator_size: Option<usize>) -> Self {
         // TODO: implement constructor logic
 

@@ -1,9 +1,10 @@
 use ark_ec::AffineRepr;
+use ark_ff::{FftField, Field};
 
 use crate::{
     ecc::{
         conditionally_subtract_from_double_modulus, coset_generator,
-        curves::external_coset_generator, fieldext::FieldExt, tag_coset_generator,
+        curves::external_coset_generator, tag_coset_generator,
     },
     numeric::bitop::Msb,
     plonk::proof_system::types::prover_settings::Settings,
@@ -20,7 +21,7 @@ pub(crate) struct PermutationSubgroupElement {
 
 pub(crate) fn compute_permutation_lagrange_base_single<
     H: BarretenHasher,
-    Fr: ark_ff::Field + ark_ff::FftField + FieldExt,
+    Fr: Field + FftField,
     G: AffineRepr,
     S: Settings<H, Fr, G>,
 >(
@@ -51,7 +52,7 @@ pub(crate) fn compute_permutation_lagrange_base_single<
 
 pub(crate) fn compute_permutation_lagrange_base_single_helper<
     H: BarretenHasher,
-    Fr: ark_ff::Field + ark_ff::FftField + FieldExt,
+    Fr: Field + FftField,
     G: AffineRepr,
     S: Settings<H, Fr, G>,
 >(

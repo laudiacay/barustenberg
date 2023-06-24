@@ -1,5 +1,4 @@
 use crate::ecc::curves::coset_generator;
-use crate::ecc::fieldext::FieldExt;
 use crate::plonk::proof_system::proving_key::ProvingKey;
 use crate::plonk::proof_system::public_inputs::compute_public_input_delta;
 use crate::plonk::proof_system::verification_key::VerificationKey;
@@ -11,10 +10,11 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use ark_ec::{AffineRepr, Group};
+use ark_ff::{FftField, Field};
 
 pub(crate) struct VerifierPermutationWidget<
     H: BarretenHasher,
-    F: ark_ff::Field + ark_ff::FftField + FieldExt,
+    F: Field + FftField,
     G: Group,
     const NUM_ROOTS_CUT_OUT_OF_VANISHING_POLYNOMIAL: usize,
 > {
@@ -26,7 +26,7 @@ impl<H, F, G, const NUM_ROOTS_CUT_OUT_OF_VANISHING_POLYNOMIAL: usize>
     VerifierPermutationWidget<H, F, G, NUM_ROOTS_CUT_OUT_OF_VANISHING_POLYNOMIAL>
 where
     H: BarretenHasher,
-    F: ark_ff::Field + ark_ff::FftField + FieldExt,
+    F: Field + FftField,
     G: Group,
 {
     pub(crate) fn new() -> Self {
@@ -46,9 +46,9 @@ where
         let alpha_squared: F = alpha.square();
         let alpha_cubed = alpha_squared * alpha;
         // a.k.a. zeta or ʓ
-        let z: F = transcript.get_challenge_FieldExt_element("z", None);
-        let beta: F = transcript.get_challenge_FieldExt_element("beta", Some(0));
-        let gamma: F = transcript.get_challenge_FieldExt_element("beta", Some(1));
+        let z: F = transcript.get_challenge_field_element("z", None);
+        let beta: F = transcript.get_challenge_field_element("beta", Some(0));
+        let gamma: F = transcript.get_challenge_field_element("beta", Some(1));
         let z_beta: F = z * beta;
 
         // We need wire polynomials' and sigma polynomials' evaluations at zeta which we fetch from the transcript.
@@ -60,14 +60,14 @@ where
             let index = (i + 1).to_string();
             // S_σ_i(ʓ)
             sigma_evaluations
-                .push(transcript.get_FieldExt_element(format!("sigma_{}", &index).as_str()));
+                .push(transcript.get_field_element(format!("sigma_{}", &index).as_str()));
         }
 
         for i in 0..key.program_width {
             // w_i(ʓ)
             // (Note: in the Plonk paper, these polys are called a, b, c. We interchangeably call
             // them a,b,c or w_l, w_r, w_o, or w_1, w_2, w_3,... depending on the context).
-            wire_evaluations.push(transcript.get_FieldExt_element(format!("w_{}", i + 1).as_str()));
+            wire_evaluations.push(transcript.get_field_element(format!("w_{}", i + 1).as_str()));
         }
 
         // Compute evaluations of lagrange polynomials L_1(X) and L_{n-k} at ʓ.
@@ -95,7 +95,7 @@ where
         // [ʓ^n - 1] / [n.(ʓ.ω^{k+1} - 1)] =: L_{n-k}(ʓ)
         let l_end: F = numerator / ((z * l_end_root) - F::one());
 
-        let z_1_shifted_eval: F = transcript.get_FieldExt_element("z_perm_omega");
+        let z_1_shifted_eval: F = transcript.get_field_element("z_perm_omega");
 
         // Recall that the full quotient numerator is the polynomial
         // t(X) =
@@ -132,7 +132,7 @@ where
         // (z(ʓ.ω) - ∆_{PI}).L_{n-k}(ʓ).α^2
         //
         // (See the separate paper which alters the 'public inputs' component of the plonk protocol)
-        let public_inputs = transcript.get_FieldExt_element_vector("public_inputs");
+        let public_inputs = transcript.get_field_element_vector("public_inputs");
         let public_input_delta: F =
             compute_public_input_delta(&public_inputs, beta, gamma, key.domain.root);
 
@@ -191,7 +191,7 @@ where
         *quotient_numerator_eval +=
             sigma_last_multiplicand * sigma_evaluations[key.program_width - 1];
 
-        let z_eval: F = transcript.get_FieldExt_element("z_perm");
+        let z_eval: F = transcript.get_field_element("z_perm");
         if idpolys {
             // Part 5.1: If idpolys = true, it indicates that we are not using the identity polynomials to
             // represent identity permutations. In that case, we need to use the pre-defined values for
@@ -206,7 +206,7 @@ where
             let mut id_contribution = F::one();
             for (i, eval_i) in wire_evaluations.iter().enumerate().take(key.program_width) {
                 let id_evaluation: F =
-                    transcript.get_FieldExt_element(format!("id_{}", i + 1).as_str());
+                    transcript.get_field_element(format!("id_{}", i + 1).as_str());
                 t0 = id_evaluation * beta;
                 t0 += eval_i;
                 t0 += gamma;
@@ -264,14 +264,14 @@ where
         alpha_base: F,
         transcript: &Transcript<H>,
     ) -> F {
-        let alpha_step: F = transcript.get_challenge_FieldExt_element("alpha", None);
+        let alpha_step: F = transcript.get_challenge_field_element("alpha", None);
         alpha_base * alpha_step.square() * alpha_step
     }
 }
 
 pub(crate) struct ProverPermutationWidget<
     'a,
-    Fr: ark_ff::Field + ark_ff::FftField + FieldExt,
+    Fr: Field + FftField,
     Hash: BarretenHasher,
     G: AffineRepr,
     const PROGRAM_WIDTH: usize,
@@ -284,7 +284,7 @@ pub(crate) struct ProverPermutationWidget<
 
 impl<
         'a,
-        Fr: ark_ff::Field + ark_ff::FftField + FieldExt,
+        Fr: Field + FftField,
         Hash: BarretenHasher,
         G: AffineRepr,
         const PROGRAM_WIDTH: usize,
@@ -317,7 +317,7 @@ impl<
 
 impl<
         'a,
-        Fr: ark_ff::Field + ark_ff::FftField + FieldExt,
+        Fr: Field + FftField,
         G: AffineRepr,
         Hash: BarretenHasher,
         const PROGRAM_WIDTH: usize,

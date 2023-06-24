@@ -1,20 +1,15 @@
 use ark_bn254::G1Affine;
 use ark_ec::AffineRepr;
+use ark_ff::{FftField, Field};
 
 use crate::{
-    ecc::fieldext::FieldExt,
     plonk::proof_system::verification_key::VerificationKey,
     transcript::{BarretenHasher, Keccak256, PedersenBlake3s, PlookupPedersenBlake3s, Transcript},
 };
 
 // TODO bevy_reflect? or what
 // or inline everything!
-pub(crate) trait Settings<
-    H: BarretenHasher,
-    F: ark_ff::Field + ark_ff::FftField + FieldExt,
-    G: AffineRepr,
->
-{
+pub(crate) trait Settings<H: BarretenHasher, F: Field + FftField, G: AffineRepr> {
     #[inline]
     fn requires_shifted_wire(wire_shift_settings: u64, wire_index: u64) -> bool {
         ((wire_shift_settings >> wire_index) & 1u64) == 1u64

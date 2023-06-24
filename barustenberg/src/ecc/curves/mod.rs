@@ -1,9 +1,9 @@
+use ark_ff::{FftField, Field};
+
 //pub(crate) mod grumpkin;
 pub(crate) mod bn254_scalar_multiplication;
 
-use super::fieldext::FieldExt;
-
-pub(crate) fn coset_generator<F: FieldExt>(idx: usize) -> F {
+pub(crate) fn coset_generator<F: Field + FftField>(idx: usize) -> F {
     /*
         ASSERT(idx < 7);
     const FieldExt result{
@@ -16,6 +16,6 @@ pub(crate) fn coset_generator<F: FieldExt>(idx: usize) -> F {
     unimplemented!("coset_generator")
 }
 
-pub(crate) fn external_coset_generator<F: FieldExt>() -> F {
+pub(crate) fn external_coset_generator<F: Field + FftField>() -> F {
     unimplemented!("external_coset_generator")
 }

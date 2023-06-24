@@ -1,4 +1,5 @@
 use ark_ec::AffineRepr;
+use ark_ff::{FftField, Field};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::cell::RefCell;
 use std::io::Read;
@@ -7,7 +8,6 @@ use std::sync::Arc;
 use std::vec::Vec;
 
 use crate::ecc::curves::bn254_scalar_multiplication::PippengerRuntimeState;
-use crate::ecc::fieldext::FieldExt;
 use crate::plonk::proof_system::constants::NUM_QUOTIENT_PARTS;
 
 use crate::plonk::composer::composer_base::ComposerType;
@@ -21,7 +21,7 @@ use super::types::PolynomialManifest;
 
 const MIN_THREAD_BLOCK: usize = 4;
 
-pub(crate) struct ProvingKeyData<F: ark_ff::Field + ark_ff::FftField + FieldExt> {
+pub(crate) struct ProvingKeyData<F: Field + FftField> {
     composer_type: u32,
     circuit_size: u32,
     num_public_inputs: u32,
@@ -32,7 +32,7 @@ pub(crate) struct ProvingKeyData<F: ark_ff::Field + ark_ff::FftField + FieldExt>
     polynomial_store: PolynomialStore<F>,
 }
 
-pub(crate) struct ProvingKey<'a, Fr: ark_ff::Field + ark_ff::FftField + FieldExt, G: AffineRepr> {
+pub(crate) struct ProvingKey<'a, Fr: Field + FftField, G: AffineRepr> {
     pub(crate) composer_type: u32,
     pub(crate) circuit_size: usize,
     pub(crate) log_circuit_size: usize,
@@ -55,9 +55,7 @@ pub(crate) struct ProvingKey<'a, Fr: ark_ff::Field + ark_ff::FftField + FieldExt
     pub(crate) polynomial_manifest: PolynomialManifest,
 }
 
-impl<'a, Fr: ark_ff::Field + ark_ff::FftField + FieldExt, G: AffineRepr> Default
-    for ProvingKey<'a, Fr, G>
-{
+impl<'a, Fr: Field + FftField, G: AffineRepr> Default for ProvingKey<'a, Fr, G> {
     fn default() -> Self {
         Self {
             composer_type: 0,
@@ -79,7 +77,7 @@ impl<'a, Fr: ark_ff::Field + ark_ff::FftField + FieldExt, G: AffineRepr> Default
     }
 }
 
-impl<'a, Fr: ark_ff::Field + ark_ff::FftField + FieldExt, G: AffineRepr> ProvingKey<'a, Fr, G> {
+impl<'a, Fr: Field + FftField, G: AffineRepr> ProvingKey<'a, Fr, G> {
     pub(crate) fn new_with_data(
         data: ProvingKeyData<Fr>,
         crs: Rc<RefCell<dyn ProverReferenceString>>,
@@ -174,9 +172,7 @@ impl<'a, Fr: ark_ff::Field + ark_ff::FftField + FieldExt, G: AffineRepr> Proving
     }
 }
 
-impl<'a, Fr: ark_ff::Field + ark_ff::FftField + FieldExt, G: AffineRepr> Serialize
-    for ProvingKey<'a, Fr, G>
-{
+impl<'a, Fr: Field + FftField, G: AffineRepr> Serialize for ProvingKey<'a, Fr, G> {
     fn serialize<S: Serializer>(&self, _serializer: S) -> Result<S::Ok, S::Error> {
         // TODO
         /*
@@ -241,9 +237,7 @@ impl<'a, Fr: ark_ff::Field + ark_ff::FftField + FieldExt, G: AffineRepr> Seriali
     }
 }
 
-impl<'a, 'de, Fr: ark_ff::Field + ark_ff::FftField + FieldExt, G: AffineRepr> Deserialize<'de>
-    for ProvingKey<'a, Fr, G>
-{
+impl<'a, 'de, Fr: Field + FftField, G: AffineRepr> Deserialize<'de> for ProvingKey<'a, Fr, G> {
     fn deserialize<D>(_deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,

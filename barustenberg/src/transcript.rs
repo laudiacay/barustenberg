@@ -624,7 +624,7 @@ impl<H: BarretenHasher> Transcript<H> {
         }
     }
 
-    pub(crate) fn add_FieldExt_element<Fr: ark_ff::Field>(
+    pub(crate) fn add_field_element<Fr: ark_ff::Field>(
         &mut self,
         element_name: &str,
         element: &Fr,
@@ -639,7 +639,7 @@ impl<H: BarretenHasher> Transcript<H> {
         G::serialize_uncompressed(element, &mut buf).unwrap();
         self.add_element(element_name, buf);
     }
-    pub(crate) fn get_FieldExt_element<Fr: ark_ff::Field>(&self, element_name: &str) -> Fr {
+    pub(crate) fn get_field_element<Fr: ark_ff::Field>(&self, element_name: &str) -> Fr {
         let buf = self.get_element(element_name);
         Fr::deserialize_uncompressed(buf.as_slice()).unwrap()
     }
@@ -647,7 +647,7 @@ impl<H: BarretenHasher> Transcript<H> {
         let buf = self.get_element(element_name);
         G::deserialize_uncompressed(buf.as_slice()).unwrap()
     }
-    pub(crate) fn get_FieldExt_element_vector<Fr: ark_ff::Field>(
+    pub(crate) fn get_field_element_vector<Fr: ark_ff::Field>(
         &self,
         element_name: &str,
     ) -> Vec<Fr> {
@@ -663,7 +663,7 @@ impl<H: BarretenHasher> Transcript<H> {
         }
         res
     }
-    pub(crate) fn put_FieldExt_element_vector<Fr: ark_ff::Field>(
+    pub(crate) fn put_field_element_vector<Fr: ark_ff::Field>(
         &mut self,
         element_name: &str,
         elements: &[Fr],
@@ -677,7 +677,7 @@ impl<H: BarretenHasher> Transcript<H> {
         self.add_element(element_name, buf);
     }
 
-    pub(crate) fn get_challenge_FieldExt_element<Fr: ark_ff::Field>(
+    pub(crate) fn get_challenge_field_element<Fr: ark_ff::Field>(
         &self,
         challenge_name: &str,
         idx: Option<usize>,
@@ -685,7 +685,7 @@ impl<H: BarretenHasher> Transcript<H> {
         let buf = self.get_challenge(challenge_name, idx);
         Fr::deserialize_uncompressed(buf.unwrap().as_slice()).unwrap()
     }
-    fn get_challenge_FieldExt_element_from_map<Fr: ark_ff::Field>(
+    fn get_challenge_field_element_from_map<Fr: ark_ff::Field>(
         &self,
         challenge_name: &str,
         challenge_map_name: &str,

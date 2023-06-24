@@ -1,18 +1,12 @@
 use ark_ec::AffineRepr;
+use ark_ff::{FftField, Field};
 
 use crate::{
-    ecc::fieldext::FieldExt,
     proof_system::work_queue::WorkQueue,
     transcript::{BarretenHasher, Transcript},
 };
 
-pub(crate) trait ProverRandomWidget<
-    'a,
-    H: BarretenHasher,
-    Fr: ark_ff::Field + ark_ff::FftField + FieldExt,
-    G: AffineRepr,
->
-{
+pub(crate) trait ProverRandomWidget<'a, H: BarretenHasher, Fr: Field + FftField, G: AffineRepr> {
     fn compute_round_commitments(
         &self,
         _transcript: &mut Transcript<H>,

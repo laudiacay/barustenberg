@@ -1,3 +1,4 @@
+use ark_ff::{FftField, Field};
 use generic_array::GenericArray;
 use once_cell::sync::Lazy;
 use std::{
@@ -8,8 +9,7 @@ use std::{
 use typenum::Unsigned;
 
 use crate::{
-    ecc::fieldext::FieldExt, plonk::proof_system::types::polynomial_manifest::PolynomialIndex,
-    polynomials::Polynomial,
+    plonk::proof_system::types::polynomial_manifest::PolynomialIndex, polynomials::Polynomial,
 };
 
 use std::collections::HashMap;
@@ -40,22 +40,19 @@ static _MAX_NUM_CHALLENGES_CHECK: Lazy<()> = Lazy::new(|| {
     );
 });
 
-pub(crate) trait PolyContainer<F: ark_ff::Field + ark_ff::FftField + FieldExt> {}
+pub(crate) trait PolyContainer<F: Field + FftField> {}
 
 #[derive(Default)]
-pub(crate) struct ChallengeArray<
-    F: ark_ff::Field + ark_ff::FftField + FieldExt,
-    NumRelations: generic_array::ArrayLength<F>,
-> {
+pub(crate) struct ChallengeArray<F: Field + FftField, NumRelations: generic_array::ArrayLength<F>> {
     pub(crate) elements: GenericArray<F, MaxNumChallengesTN>,
     pub(crate) alpha_powers: GenericArray<F, NumRelations>,
 }
 
-pub(crate) struct PolyArray<F: ark_ff::Field + ark_ff::FftField + FieldExt>(
+pub(crate) struct PolyArray<F: Field + FftField>(
     pub(crate) [(F, F); PolynomialIndex::MaxNumPolynomials as usize],
 );
 
-impl<F: ark_ff::Field + ark_ff::FftField + FieldExt> Index<PolynomialIndex> for PolyArray<F> {
+impl<F: Field + FftField> Index<PolynomialIndex> for PolyArray<F> {
     type Output = (F, F);
 
     fn index(&self, index: PolynomialIndex) -> &Self::Output {
@@ -63,27 +60,27 @@ impl<F: ark_ff::Field + ark_ff::FftField + FieldExt> Index<PolynomialIndex> for 
     }
 }
 
-impl<F: ark_ff::Field + ark_ff::FftField + FieldExt> IndexMut<PolynomialIndex> for PolyArray<F> {
+impl<F: Field + FftField> IndexMut<PolynomialIndex> for PolyArray<F> {
     fn index_mut(&mut self, index: PolynomialIndex) -> &mut Self::Output {
         &mut self.0[index as usize]
     }
 }
 
-impl<F: ark_ff::Field + ark_ff::FftField + FieldExt> Default for PolyArray<F> {
+impl<F: Field + FftField> Default for PolyArray<F> {
     fn default() -> Self {
         Self([(F::zero(), F::zero()); PolynomialIndex::MaxNumPolynomials as usize])
     }
 }
 
-impl<F: ark_ff::Field + ark_ff::FftField + FieldExt> PolyContainer<F> for PolyArray<F> {}
+impl<F: Field + FftField> PolyContainer<F> for PolyArray<F> {}
 
-pub(crate) struct PolyPtrMap<F: ark_ff::Field + ark_ff::FftField + FieldExt> {
+pub(crate) struct PolyPtrMap<F: Field + FftField> {
     pub(crate) coefficients: HashMap<PolynomialIndex, Rc<RefCell<Polynomial<F>>>>,
     pub(crate) block_mask: usize,
     pub(crate) index_shift: usize,
 }
 
-impl<F: ark_ff::Field + ark_ff::FftField + FieldExt> PolyPtrMap<F> {
+impl<F: Field + FftField> PolyPtrMap<F> {
     pub(crate) fn new() -> Self {
         Self {
             coefficients: HashMap::new(),
@@ -93,36 +90,32 @@ impl<F: ark_ff::Field + ark_ff::FftField + FieldExt> PolyPtrMap<F> {
     }
 }
 
-impl<F: ark_ff::Field + ark_ff::FftField + FieldExt> PolyContainer<F> for PolyPtrMap<F> {}
+impl<F: Field + FftField> PolyContainer<F> for PolyPtrMap<F> {}
 
-impl<F: ark_ff::Field + ark_ff::FftField + FieldExt> Index<PolynomialIndex> for PolyPtrMap<F> {
+impl<F: Field + FftField> Index<PolynomialIndex> for PolyPtrMap<F> {
     type Output = Rc<RefCell<Polynomial<F>>>;
     fn index(&self, index: PolynomialIndex) -> &Self::Output {
         &self.coefficients[&index]
     }
 }
 
-pub(crate) struct CoefficientArray<F: ark_ff::Field + ark_ff::FftField + FieldExt>(
+pub(crate) struct CoefficientArray<F: Field + FftField>(
     [F; PolynomialIndex::MaxNumPolynomials as usize],
 );
-impl<F: ark_ff::Field + ark_ff::FftField + FieldExt> Index<PolynomialIndex>
-    for CoefficientArray<F>
-{
+impl<F: Field + FftField> Index<PolynomialIndex> for CoefficientArray<F> {
     type Output = F;
 
     fn index(&self, index: PolynomialIndex) -> &Self::Output {
         &self.0[index as usize]
     }
 }
-impl<F: ark_ff::Field + ark_ff::FftField + FieldExt> IndexMut<PolynomialIndex>
-    for CoefficientArray<F>
-{
+impl<F: Field + FftField> IndexMut<PolynomialIndex> for CoefficientArray<F> {
     fn index_mut(&mut self, index: PolynomialIndex) -> &mut Self::Output {
         &mut self.0[index as usize]
     }
 }
 
-impl<F: ark_ff::Field + ark_ff::FftField + FieldExt> Default for CoefficientArray<F> {
+impl<F: Field + FftField> Default for CoefficientArray<F> {
     fn default() -> Self {
         Self([F::zero(); PolynomialIndex::MaxNumPolynomials as usize])
     }
