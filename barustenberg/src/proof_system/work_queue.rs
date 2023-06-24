@@ -1,11 +1,11 @@
-use ark_ec::Group;
+use ark_ec::CurveGroup;
 use std::cell::RefCell;
 use std::rc::Rc;
 
 use anyhow::Result;
 
+use crate::ecc::curves::bn254_scalar_multiplication::PippengerRuntimeState;
 use crate::ecc::fieldext::FieldExt;
-use crate::ecc::PippengerRuntimeState;
 use crate::plonk::proof_system::proving_key::ProvingKey;
 use crate::polynomials::Polynomial;
 use crate::transcript::{BarretenHasher, Transcript};
@@ -57,7 +57,7 @@ pub(crate) struct WorkQueue<
     'a,
     H: BarretenHasher,
     Fr: ark_ff::Field + ark_ff::FftField + FieldExt,
-    G: Group,
+    G: CurveGroup,
 > {
     key: Rc<RefCell<ProvingKey<'a, Fr, G>>>,
     transcript: Rc<RefCell<Transcript<H, Fr, G>>>,
@@ -74,7 +74,7 @@ unsafe fn FieldExt_element_to_usize<F: ark_ff::Field + ark_ff::FftField + FieldE
     std::mem::transmute_copy(&u256_bytes)
 }
 
-impl<'a, H: BarretenHasher, Fr: ark_ff::Field + ark_ff::FftField + FieldExt, G: Group>
+impl<'a, H: BarretenHasher, Fr: ark_ff::Field + ark_ff::FftField + FieldExt, G: CurveGroup>
     WorkQueue<'a, H, Fr, G>
 {
     pub(crate) fn new(
@@ -295,7 +295,7 @@ impl<'a, H: BarretenHasher, Fr: ark_ff::Field + ark_ff::FftField + FieldExt, G: 
                         runtime_state
                             .pippenger_unsafe(
                                 (*mul_scalars).borrow_mut().coefficients.as_mut_slice(),
-                                &srs_points,
+                                srs_points.as_slice(),
                                 msm_size,
                             )
                             .into(),

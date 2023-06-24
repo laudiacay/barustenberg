@@ -4,35 +4,32 @@ pub(crate) mod pippenger_reference_string;
 
 use std::{marker::PhantomData, rc::Rc};
 
-use ark_ec::Group;
+use ark_bn254::{G1Affine, G2Affine};
 
 use crate::ecc::MillerLines;
 
-pub(crate) trait VerifierReferenceString<G2Affine: Group> {
+pub(crate) trait VerifierReferenceString {
     fn get_g2x(&self) -> G2Affine;
     fn get_precomputed_g2_lines(&self) -> Rc<Vec<MillerLines>>;
 }
 
-pub(crate) trait ProverReferenceString<G: Group> {
-    fn get_monomial_points(&mut self) -> Rc<Vec<G>>;
+pub(crate) trait ProverReferenceString {
+    fn get_monomial_points(&mut self) -> Rc<Vec<G1Affine>>;
     fn get_monomial_size(&self) -> usize;
 }
-pub(crate) trait ReferenceStringFactory<G: Group, G2Affine: Group> {
-    fn get_prover_crs(&self, _size: usize) -> Option<Rc<dyn ProverReferenceString<G>>> {
+pub(crate) trait ReferenceStringFactory {
+    fn get_prover_crs(&self, _size: usize) -> Option<Rc<dyn ProverReferenceString>> {
         todo!()
     }
 
-    fn get_verifier_crs(&self) -> Option<Rc<dyn VerifierReferenceString<G2Affine>>> {
+    fn get_verifier_crs(&self) -> Option<Rc<dyn VerifierReferenceString>> {
         todo!()
     }
 }
 
 #[derive(Clone, Default)]
-pub(crate) struct BaseReferenceStringFactory<G: Group, G2Affine: Group> {
-    phantom: PhantomData<(G, G2Affine)>,
+pub(crate) struct BaseReferenceStringFactory {
+    phantom: PhantomData<(G1Affine, G2Affine)>,
 }
 
-impl<G: Group, G2Affine: Group> ReferenceStringFactory<G, G2Affine>
-    for BaseReferenceStringFactory<G, G2Affine>
-{
-}
+impl ReferenceStringFactory for BaseReferenceStringFactory {}

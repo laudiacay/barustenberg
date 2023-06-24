@@ -1,6 +1,7 @@
 use std::{cell::RefCell, marker::PhantomData, ops::IndexMut, rc::Rc};
 
-use ark_ec::Group;
+use ark_bn254::{Fq, Fr};
+use ark_ff::{Field, One, UniformRand, Zero};
 
 use super::{
     commitment_scheme::{CommitmentScheme, KateCommitmentScheme},
@@ -15,7 +16,6 @@ use super::{
 use typenum::Unsigned;
 
 use crate::{
-    ecc::fieldext::FieldExt,
     polynomials::{polynomial_arithmetic, Polynomial},
     proof_system::work_queue::{self, Work, WorkItem},
     transcript::{BarretenHasher, Manifest, Transcript},
@@ -27,38 +27,33 @@ use crate::proof_system::work_queue::WorkQueue;
 
 // todo https://doc.rust-lang.org/reference/const_eval.html
 
+type G1Affine = <ark_ec::short_weierstrass::Affine<
+    <ark_bn254::Config as ark_ec::bn::BnConfig>::G1Config,
+> as ark_ec::AffineRepr>::Group;
+
 pub(crate) struct Prover<
     'a,
-    Fq: ark_ff::Field + ark_ff::FftField + FieldExt,
-    Fr: ark_ff::Field + ark_ff::FftField + FieldExt,
-    G: Group,
     H: BarretenHasher,
-    S: Settings<H, Fr, G>,
-    CS: CommitmentScheme<Fq, Fr, G, H>,
+    S: Settings<H, Fr, G1Affine>,
+    CS: CommitmentScheme<Fq, Fr, G1Affine, H>,
 > {
     pub(crate) circuit_size: usize,
-    pub(crate) transcript: Rc<RefCell<Transcript<H, Fr, G>>>,
-    pub(crate) key: Rc<RefCell<ProvingKey<'a, Fr, G>>>,
-    pub(crate) queue: WorkQueue<'a, H, Fr, G>,
-    pub(crate) random_widgets: Vec<Box<dyn ProverRandomWidget<'a, H, Fr, G>>>,
-    pub(crate) transition_widgets: Vec<Box<dyn TransitionWidgetBase<'a, H, Fr, G>>>,
+    pub(crate) transcript: Rc<RefCell<Transcript<H, Fr, G1Affine>>>,
+    pub(crate) key: Rc<RefCell<ProvingKey<'a, Fr, G1Affine>>>,
+    pub(crate) queue: WorkQueue<'a, H, Fr, G1Affine>,
+    pub(crate) random_widgets: Vec<Box<dyn ProverRandomWidget<'a, H, Fr, G1Affine>>>,
+    pub(crate) transition_widgets: Vec<Box<dyn TransitionWidgetBase<'a, H, Fr, G1Affine>>>,
     pub(crate) commitment_scheme: CS,
     pub(crate) settings: S,
     pub(crate) rng: Box<dyn rand::RngCore>,
     phantom: PhantomData<Fq>,
 }
 
-impl<
-        'a,
-        Fq: ark_ff::Field + ark_ff::FftField + FieldExt,
-        Fr: ark_ff::Field + ark_ff::FftField + FieldExt,
-        G: Group,
-        H: BarretenHasher + Default,
-        S: Settings<H, Fr, G> + Default,
-    > Prover<'a, Fq, Fr, G, H, S, KateCommitmentScheme<H, Fr, G, S>>
+impl<'a, H: BarretenHasher + Default, S: Settings<H, Fr, G1Affine> + Default>
+    Prover<'a, H, S, KateCommitmentScheme<H, Fr, G1Affine, S>>
 {
     pub(crate) fn new(
-        input_key: Option<Rc<RefCell<ProvingKey<'a, Fr, G>>>>,
+        input_key: Option<Rc<RefCell<ProvingKey<'a, Fr, G1Affine>>>>,
         input_manifest: Option<Manifest>,
         input_settings: Option<S>,
     ) -> Self {
@@ -83,7 +78,7 @@ impl<
             queue,
             random_widgets: Vec::new(),
             transition_widgets: Vec::new(),
-            commitment_scheme: KateCommitmentScheme::<H, Fr, G, S>::default(),
+            commitment_scheme: KateCommitmentScheme::<H, Fr, G1Affine, S>::default(),
             settings,
             phantom: PhantomData,
             rng: Box::new(rand::thread_rng()),
@@ -93,13 +88,10 @@ impl<
 
 impl<
         'a,
-        Fq: ark_ff::Field + ark_ff::FftField + FieldExt,
-        Fr: ark_ff::Field + ark_ff::FftField + FieldExt,
-        G: Group,
         H: BarretenHasher + Default,
-        S: Settings<H, Fr, G> + Default,
-        CS: CommitmentScheme<Fq, Fr, G, H>,
-    > Prover<'a, Fq, Fr, G, H, S, CS>
+        PS: Settings<H, Fr, G1Affine>,
+        CS: CommitmentScheme<Fq, Fr, G1Affine, H>,
+    > Prover<'a, H, PS, CS>
 {
     fn copy_placeholder(&self) {
         todo!("LOOK AT THE COMMENTS IN PROVERBASE");
@@ -686,7 +678,7 @@ impl<
     }
     fn reset(&mut self) {
         let manifest = (*self.transcript).borrow_mut().get_manifest();
-        *(*self.transcript).borrow_mut() = Transcript::<H, Fr, G>::new(
+        *(*self.transcript).borrow_mut() = Transcript::<H, Fr, G1Affine>::new(
             Some(manifest),
             (*self.transcript).borrow().num_challenge_bytes,
         );

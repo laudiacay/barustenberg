@@ -1,4 +1,4 @@
-use ark_ec::Group;
+use ark_ec::CurveGroup;
 
 use crate::{
     ecc::fieldext::FieldExt,
@@ -10,7 +10,7 @@ pub(crate) trait ProverRandomWidget<
     'a,
     H: BarretenHasher,
     Fr: ark_ff::Field + ark_ff::FftField + FieldExt,
-    G: Group,
+    G: CurveGroup,
 >
 {
     fn compute_round_commitments(
