@@ -1,3 +1,4 @@
+use ark_ff::{FftField, Field};
 use typenum::{U11, U3, U4, U5};
 
 /// Specify the structure of a CircuitConstructor
@@ -32,9 +33,7 @@ trait Ultra: Arithmetization<NumWires = U4, NumSelectors = U11> {}
 
 use serde::{Deserialize, Serialize};
 
-use crate::ecc::fieldext::FieldExt;
-
-struct AddTriple<Fr: FieldExt> {
+struct AddTriple<Fr: Field + FftField> {
     a: u32,
     b: u32,
     c: u32,
@@ -44,7 +43,7 @@ struct AddTriple<Fr: FieldExt> {
     const_scaling: Fr,
 }
 
-struct AddQuad<Fr: FieldExt> {
+struct AddQuad<Fr: Field + FftField> {
     a: u32,
     b: u32,
     c: u32,
@@ -56,7 +55,7 @@ struct AddQuad<Fr: FieldExt> {
     const_scaling: Fr,
 }
 
-struct MulQuad<Fr: FieldExt> {
+struct MulQuad<Fr: Field + FftField> {
     a: u32,
     b: u32,
     c: u32,
@@ -69,7 +68,7 @@ struct MulQuad<Fr: FieldExt> {
     const_scaling: Fr,
 }
 
-struct MulTriple<Fr: FieldExt> {
+struct MulTriple<Fr: Field + FftField> {
     a: u32,
     b: u32,
     c: u32,
@@ -79,7 +78,7 @@ struct MulTriple<Fr: FieldExt> {
 }
 
 #[derive(PartialEq, Eq, Serialize, Deserialize)]
-struct PolyTriple<Fr: FieldExt> {
+struct PolyTriple<Fr: Field + FftField> {
     a: u32,
     b: u32,
     c: u32,
@@ -90,7 +89,7 @@ struct PolyTriple<Fr: FieldExt> {
     q_c: Fr,
 }
 
-struct FixedGroupAddQuad<Fr: FieldExt> {
+struct FixedGroupAddQuad<Fr: Field + FftField> {
     a: u32,
     b: u32,
     c: u32,
@@ -101,7 +100,7 @@ struct FixedGroupAddQuad<Fr: FieldExt> {
     q_y_2: Fr,
 }
 
-struct FixedGroupInitQuad<Fr: FieldExt> {
+struct FixedGroupInitQuad<Fr: Field + FftField> {
     q_x_1: Fr,
     q_x_2: Fr,
     q_y_1: Fr,
@@ -114,7 +113,7 @@ struct AccumulatorTriple {
     out: Vec<u32>,
 }
 
-struct EccAddGate<Fr: FieldExt> {
+struct EccAddGate<Fr: Field + FftField> {
     x1: u32,
     y1: u32,
     x2: u32,

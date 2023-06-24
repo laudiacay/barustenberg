@@ -6,9 +6,9 @@ use std::{
 };
 
 use ark_ec::AffineRepr;
+use ark_ff::{FftField, Field};
 
 use crate::{
-    ecc::fieldext::FieldExt,
     plonk::proof_system::{
         proving_key::ProvingKey,
         types::{polynomial_manifest::PolynomialIndex, prover_settings::Settings},
@@ -25,7 +25,7 @@ use super::{
 pub(crate) trait KernelBase<
     H: BarretenHasher,
     S: Settings<H, F, G>,
-    F: ark_ff::Field + ark_ff::FftField + FieldExt,
+    F: Field + FftField,
     G: AffineRepr,
     NumIndependentRelations: generic_array::ArrayLength<F>,
 >
@@ -67,13 +67,7 @@ pub(crate) trait KernelBase<
     );
 }
 
-pub(crate) trait TransitionWidgetBase<
-    'a,
-    H: BarretenHasher,
-    F: ark_ff::Field + ark_ff::FftField + FieldExt,
-    G: AffineRepr,
->
-{
+pub(crate) trait TransitionWidgetBase<'a, H: BarretenHasher, F: Field + FftField, G: AffineRepr> {
     fn compute_quotient_contribution(
         &self,
         alpha_base: F,
@@ -85,7 +79,7 @@ pub(crate) trait TransitionWidgetBase<
 pub(crate) struct TransitionWidget<
     'a,
     H: BarretenHasher,
-    F: ark_ff::Field + ark_ff::FftField + FieldExt,
+    F: Field + FftField,
     G: AffineRepr,
     S: Settings<H, F, G>,
     NIndependentRelations,
@@ -100,7 +94,7 @@ pub(crate) struct TransitionWidget<
 impl<
         'a,
         H: BarretenHasher,
-        F: ark_ff::Field + ark_ff::FftField + FieldExt,
+        F: Field + FftField,
         G: AffineRepr,
         S: Settings<H, F, G>,
         NIndependentRelations: generic_array::ArrayLength<F>,
@@ -160,7 +154,7 @@ where
 
 pub(crate) trait GenericVerifierWidget<
     'a,
-    F: ark_ff::Field + ark_ff::FftField + FieldExt,
+    F: Field + FftField,
     H: BarretenHasher,
     G: AffineRepr,
     Get: EvaluationGetter<H, F, G, S, NIndependentRelations>,

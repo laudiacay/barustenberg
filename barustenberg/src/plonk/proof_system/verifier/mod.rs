@@ -91,8 +91,8 @@ impl<'a, H: BarretenHasher, PS: Settings<H, Fr, G1Affine>> Verifier<'a, H, PS> {
         transcript.apply_fiat_shamir("z");
 
         // Deserialize alpha and zeta from the transcript.
-        let alpha = transcript.get_challenge_FieldExt_element("alpha", None);
-        let zeta = transcript.get_challenge_FieldExt_element("z", None);
+        let alpha = transcript.get_challenge_field_element("alpha", None);
+        let zeta = transcript.get_challenge_field_element("z", None);
 
         // Compute the evaluations of the lagrange polynomials L_1(X) and L_{n - k}(X) at X = ʓ.
         // Also computes the evaluation of the vanishing polynomial Z_H*(X) at X = ʓ.
@@ -121,13 +121,13 @@ impl<'a, H: BarretenHasher, PS: Settings<H, Fr, G1Affine>> Verifier<'a, H, PS> {
             &mut t_numerator_eval,
         );
         let t_eval = t_numerator_eval * lagrange_evals.vanishing_poly.inverse().unwrap();
-        transcript.add_FieldExt_element("t", &t_eval);
+        transcript.add_field_element("t", &t_eval);
 
         // Compute nu and separator challenges.
         transcript.apply_fiat_shamir("nu");
         transcript.apply_fiat_shamir("separator");
         // a.k.a. `u` in the plonk paper
-        let separator_challenge = transcript.get_challenge_FieldExt_element("separator", None);
+        let separator_challenge = transcript.get_challenge_field_element("separator", None);
 
         // In the following function, we do the following computation.
         // Step 10: Compute batch opening commitment [F]_1
@@ -204,7 +204,9 @@ impl<'a, H: BarretenHasher, PS: Settings<H, Fr, G1Affine>> Verifier<'a, H, PS> {
 
         // Iterate through the kate_g1_elements and accumulate scalars and elements
         for (key, element) in &self.kate_g1_elements {
-            if element.is_on_curve() && !is_point_at_infinity(element) {
+            // this used to contain a check for whether the element was the point at infinity
+            // but seeing as it's an affine repr, it can't be. so i removed it.
+            if element.is_on_curve() {
                 // TODO: perhaps we should throw if not on curve or if infinity?
                 scalars.push(self.kate_fr_elements[key]);
                 elements.push(*element);
@@ -226,7 +228,7 @@ impl<'a, H: BarretenHasher, PS: Settings<H, Fr, G1Affine>> Verifier<'a, H, PS> {
 
         if self.key.contains_recursive_proof {
             assert!(self.key.recursive_proof_public_input_indices.len() == 16);
-            let inputs = transcript.get_FieldExt_element_vector("public_inputs");
+            let inputs = transcript.get_field_element_vector("public_inputs");
             let recover_fq_from_public_inputs =
                 |idx0: usize, idx1: usize, idx2: usize, idx3: usize| {
                     let l0 = inputs[idx0];
@@ -242,7 +244,7 @@ impl<'a, H: BarretenHasher, PS: Settings<H, Fr, G1Affine>> Verifier<'a, H, PS> {
                 };
 
             let recursion_separator_challenge: Fr = transcript
-                .get_challenge_FieldExt_element("separator", None)
+                .get_challenge_field_element("separator", None)
                 .square();
 
             let x0 = recover_fq_from_public_inputs(

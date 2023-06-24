@@ -1,8 +1,8 @@
 use ark_ec::AffineRepr;
+use ark_ff::{FftField, Field};
 use typenum::U1;
 
 use crate::{
-    ecc::fieldext::FieldExt,
     plonk::proof_system::{
         proving_key::ProvingKey,
         types::{
@@ -27,7 +27,7 @@ use super::{
 
 pub(crate) struct ArithmeticKernel<
     H: BarretenHasher,
-    F: ark_ff::Field + ark_ff::FftField + FieldExt,
+    F: Field + FftField,
     G: AffineRepr,
     S: Settings<H, F, G>,
 > {
@@ -36,7 +36,7 @@ pub(crate) struct ArithmeticKernel<
 
 impl<H: BarretenHasher, F, G, S: Settings<H, F, G>> ArithmeticKernel<H, F, G, S>
 where
-    F: ark_ff::Field + ark_ff::FftField + FieldExt,
+    F: Field + FftField,
     G: AffineRepr,
 {
     // TODO see all these U1s they should be a named variable but they are not :( inherent associate type problem
@@ -49,12 +49,8 @@ where
     }
 }
 
-impl<
-        H: BarretenHasher,
-        F: ark_ff::Field + ark_ff::FftField + FieldExt,
-        G: AffineRepr,
-        S: Settings<H, F, G>,
-    > KernelBase<H, S, F, G, U1> for ArithmeticKernel<H, F, G, S>
+impl<H: BarretenHasher, F: Field + FftField, G: AffineRepr, S: Settings<H, F, G>>
+    KernelBase<H, S, F, G, U1> for ArithmeticKernel<H, F, G, S>
 {
     #[inline]
     fn get_required_polynomial_ids() -> HashSet<PolynomialIndex> {
@@ -202,13 +198,7 @@ impl<
     }
 }
 
-pub(crate) struct ProverArithmeticWidget<
-    'a,
-    Fr: ark_ff::Field + ark_ff::FftField + FieldExt,
-    G: AffineRepr,
-    H,
-    S,
-> {
+pub(crate) struct ProverArithmeticWidget<'a, Fr: Field + FftField, G: AffineRepr, H, S> {
     key: Arc<ProvingKey<'a, Fr, G>>,
     phantom: PhantomData<(H, S)>,
 }

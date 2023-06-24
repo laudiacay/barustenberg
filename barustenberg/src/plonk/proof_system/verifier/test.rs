@@ -1,4 +1,5 @@
-use ark_ff::One;
+use ark_ec::Group;
+use ark_ff::{FftField, One};
 
 use super::*;
 
@@ -138,8 +139,8 @@ impl<H: BarretenHasher, S: Settings<H, Fr, G1Affine>> Verifier<'_, H, S> {
 
 fn generate_test_data<
     'a,
-    Fq: ark_ff::Field + ark_ff::FftField + FieldExt,
-    Fr: ark_ff::Field + ark_ff::FftField + FieldExt,
+    Fq: Field + FftField,
+    Fr: Field + FftField,
     G: Group,
     H: BarretenHasher,
 >(

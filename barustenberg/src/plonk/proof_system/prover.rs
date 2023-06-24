@@ -310,7 +310,7 @@ impl<
 
         let mut alpha_base = (*self.transcript)
             .borrow_mut()
-            .get_challenge_FieldExt_element("alpha", None);
+            .get_challenge_field_element("alpha", None);
 
         // Compute FFT of lagrange polynomial L_1 (needed in random widgets only)
         self.compute_lagrange_1_fft()?;
@@ -434,7 +434,7 @@ impl<
         }
         (*self.transcript)
             .borrow_mut()
-            .put_FieldExt_element_vector("public_inputs", &public_wires);
+            .put_field_element_vector("public_inputs", &public_wires);
         Ok(())
     }
 
@@ -507,7 +507,7 @@ impl<
         // We can only compute memory record values once W_1, W_2, W_3 have been comitted to,
         // due to the dependence on the `eta` challenge.
 
-        let eta: Fr = (*self.transcript).borrow_mut().get_FieldExt_element("eta");
+        let eta: Fr = (*self.transcript).borrow_mut().get_field_element("eta");
         let key = self.key.borrow();
 
         // We need the lagrange-base forms of the first 3 wires to compute the plookup memory record
@@ -544,7 +544,7 @@ impl<
     fn compute_quotient_evaluation(&self) -> Result<()> {
         let key = self.key.borrow();
 
-        let zeta = (*self.transcript).borrow_mut().get_FieldExt_element("zeta");
+        let zeta = (*self.transcript).borrow_mut().get_field_element("zeta");
 
         self.commitment_scheme
             .add_opening_evaluations_to_transcript(
@@ -581,7 +581,7 @@ impl<
 
         (*self.transcript)
             .borrow_mut()
-            .add_FieldExt_element("t", &t_eval);
+            .add_field_element("t", &t_eval);
         Ok(())
     }
 

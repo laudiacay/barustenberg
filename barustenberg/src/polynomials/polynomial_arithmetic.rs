@@ -1,8 +1,8 @@
-use crate::{
-    common::max_threads::compute_num_threads, ecc::fieldext::FieldExt, numeric::bitop::Msb,
-};
+use ark_ff::{FftField, Field};
 
-pub(crate) struct LagrangeEvaluations<Fr: ark_ff::Field + ark_ff::FftField + FieldExt> {
+use crate::{common::max_threads::compute_num_threads, numeric::bitop::Msb};
+
+pub(crate) struct LagrangeEvaluations<Fr: Field + FftField> {
     pub vanishing_poly: Fr,
     pub l_start: Fr,
     pub l_end: Fr,
@@ -102,7 +102,7 @@ fn fft_inner_serial<Fr: Copy + Default + Add<Output = Fr> + Sub<Output = Fr> + M
     }
 }
 
-impl<'a, Fr: ark_ff::Field + ark_ff::FftField + FieldExt> EvaluationDomain<'a, Fr> {
+impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
     /// modifies target[..generator_size]
     fn scale_by_generator(
         &self,
@@ -688,11 +688,11 @@ impl<'a, Fr: ark_ff::Field + ark_ff::FftField + FieldExt> EvaluationDomain<'a, F
         Ok(())
     }
 }
-fn compute_sum<Fr: ark_ff::Field + ark_ff::FftField + FieldExt>(slice: &[Fr]) -> Fr {
+fn compute_sum<Fr: Field + FftField>(slice: &[Fr]) -> Fr {
     slice.iter().copied().fold(Fr::zero(), Add::add)
 }
 
-pub(crate) fn compute_linear_polynomial_product<Fr: ark_ff::Field + ark_ff::FftField + FieldExt>(
+pub(crate) fn compute_linear_polynomial_product<Fr: Field + FftField>(
     roots: &[Fr],
     dest: &mut [Fr],
     n: usize,
@@ -717,7 +717,7 @@ pub(crate) fn compute_linear_polynomial_product<Fr: ark_ff::Field + ark_ff::FftF
     }
 }
 
-pub(crate) fn compute_efficient_interpolation<Fr: ark_ff::Field + ark_ff::FftField + FieldExt>(
+pub(crate) fn compute_efficient_interpolation<Fr: Field + FftField>(
     src: &[Fr],
     dest: &mut [Fr],
     evaluation_points: &[Fr],
@@ -794,11 +794,7 @@ pub(crate) fn compute_efficient_interpolation<Fr: ark_ff::Field + ark_ff::FftFie
     Ok(())
 }
 
-pub(crate) fn evaluate<F: ark_ff::Field + ark_ff::FftField + FieldExt>(
-    coeffs: &[F],
-    z: &F,
-    n: usize,
-) -> F {
+pub(crate) fn evaluate<F: Field + FftField>(coeffs: &[F], z: &F, n: usize) -> F {
     // let num_threads = compute_num_threads();
     let num_threads = compute_num_threads();
     let range_per_thread = n / num_threads;

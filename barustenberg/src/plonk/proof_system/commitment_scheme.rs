@@ -4,8 +4,8 @@ use std::marker::PhantomData;
 use std::rc::Rc;
 
 use ark_ec::AffineRepr;
+use ark_ff::{FftField, Field};
 
-use crate::ecc::fieldext::FieldExt;
 use crate::polynomials::{polynomial_arithmetic, Polynomial};
 use crate::proof_system::work_queue::{Work, WorkItem, WorkQueue};
 use crate::transcript::{BarretenHasher, Transcript};
@@ -18,8 +18,8 @@ use super::verification_key::VerificationKey;
 /// A polynomial commitment scheme defined over two FieldExts, a group, a hash function.
 /// kate commitments are one example
 pub(crate) trait CommitmentScheme<
-    Fq: ark_ff::Field + ark_ff::FftField + FieldExt,
-    Fr: ark_ff::Field + ark_ff::FftField + FieldExt,
+    Fq: Field + FftField,
+    Fr: Field + FftField,
     G: AffineRepr,
     H: BarretenHasher,
 >
@@ -75,7 +75,7 @@ pub(crate) trait CommitmentScheme<
 #[derive(Default)]
 pub(crate) struct KateCommitmentScheme<
     H: BarretenHasher,
-    Fr: ark_ff::Field + ark_ff::FftField + FieldExt,
+    Fr: Field + FftField,
     G: AffineRepr,
     S: Settings<H, Fr, G>,
 > {
@@ -84,8 +84,8 @@ pub(crate) struct KateCommitmentScheme<
 }
 
 impl<
-        Fq: ark_ff::Field + ark_ff::FftField + FieldExt,
-        Fr: ark_ff::Field + ark_ff::FftField + FieldExt,
+        Fq: Field + FftField,
+        Fr: Field + FftField,
         G: AffineRepr,
         H: BarretenHasher,
         S: Settings<H, Fr, G>,
