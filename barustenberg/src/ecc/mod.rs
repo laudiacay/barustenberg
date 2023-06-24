@@ -1,5 +1,5 @@
 use ark_bn254::Fq12;
-use ark_ec::Group;
+use ark_ec::AffineRepr;
 
 use self::fieldext::FieldExt;
 
@@ -19,7 +19,7 @@ pub(crate) struct MillerLines {
     lines: [EllCoeffs<Fq12>; PRECOMPUTED_COEFFICIENTS_LENGTH],
 }
 
-pub(crate) fn reduced_ate_pairing_batch_precomputed<G: Group>(
+pub(crate) fn reduced_ate_pairing_batch_precomputed<G: AffineRepr>(
     _p_affines: &[G],
     _miller_lines: &Vec<MillerLines>,
     _num_points: usize,

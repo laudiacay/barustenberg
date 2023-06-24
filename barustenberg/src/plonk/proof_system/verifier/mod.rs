@@ -9,7 +9,9 @@ use crate::{
     transcript::{BarretenHasher, Manifest, Transcript},
 };
 
-use ark_bn254::{Fq, Fq12, Fr, G1Affine};
+use ark_bn254::{Fq, Fq12, Fr, G1Affine, G1Projective};
+use ark_ec::AffineRepr;
+use ark_ec::CurveGroup;
 use ark_ff::{Field, One, Zero};
 
 use super::{
@@ -219,8 +221,8 @@ impl<'a, H: BarretenHasher, PS: Settings<H, Fr, G1Affine>> Verifier<'a, H, PS> {
         let mut state = PippengerRuntimeState::new(n);
 
         let mut p: [G1Affine; 2] = [G1Affine::zero(); 2];
-        p[0] = state.pippenger(&mut [scalars[0]], &elements[0], n, false);
-        p[1] = -(G1Affine::identity() * separator_challenge + pi_z);
+        p[0] = state.pippenger(&mut [scalars[0]], &[elements[0]], n, false);
+        p[1] = -(G1Affine::identity() * separator_challenge + pi_z).into();
 
         if self.key.contains_recursive_proof {
             assert!(self.key.recursive_proof_public_input_indices.len() == 16);
@@ -267,8 +269,10 @@ impl<'a, H: BarretenHasher, PS: Settings<H, Fr, G1Affine>> Verifier<'a, H, PS> {
                 self.key.recursive_proof_public_input_indices[14] as usize,
                 self.key.recursive_proof_public_input_indices[15] as usize,
             );
-            p[0] += G1Affine::new_unchecked(x0, y0) * recursion_separator_challenge;
-            p[1] += G1Affine::new_unchecked(x1, y1) * recursion_separator_challenge;
+            p[0] = (p[0] + G1Projective::new(x0, y0, Fq::one()) * recursion_separator_challenge)
+                .into_affine();
+            p[1] = (p[1] + G1Projective::new(x1, y1, Fq::one()) * recursion_separator_challenge)
+                .into_affine();
         }
 
         // The final pairing check of step 12.
