@@ -22,58 +22,80 @@ use super::{
     getters::{BaseGetter, EvaluationGetter, FFTGetter, FFTGetterImpl},
 };
 
-pub(crate) trait KernelBase<
-    H: BarretenHasher,
-    S: Settings<H, F, G>,
-    F: Field + FftField,
-    G: AffineRepr,
-    NumIndependentRelations: generic_array::ArrayLength<F>,
->
-{
+pub(crate) trait KernelBase {
+    type Hasher: BarretenHasher;
+    type Settings: Settings<Self::Hasher, Self::Field, Self::Group>;
+    type Field: Field + FftField;
+    type Group: AffineRepr;
+    type NumIndependentRelations: generic_array::ArrayLength<Self::Field>;
     fn get_required_polynomial_ids() -> HashSet<PolynomialIndex>;
     fn quotient_required_challenges() -> u8;
     fn update_required_challenges() -> u8;
     fn compute_linear_terms<
-        PC: PolyContainer<F>,
-        Get: BaseGetter<H, F, G, S, PC, NumIndependentRelations>,
+        PC: PolyContainer<Self::Field>,
+        Get: BaseGetter<
+            Self::Hasher,
+            Self::Field,
+            Self::Group,
+            Self::Settings,
+            PC,
+            Self::NumIndependentRelations,
+        >,
     >(
         polynomials: &PC,
-        challenges: &ChallengeArray<F, NumIndependentRelations>,
-        linear_terms: &mut CoefficientArray<F>,
+        challenges: &ChallengeArray<Self::Field, Self::NumIndependentRelations>,
+        linear_terms: &mut CoefficientArray<Self::Field>,
         index: Option<usize>,
     );
     fn sum_linear_terms<
-        PC: PolyContainer<F>,
-        Get: BaseGetter<H, F, G, S, PC, NumIndependentRelations>,
+        PC: PolyContainer<Self::Field>,
+        Get: BaseGetter<
+            Self::Hasher,
+            Self::Field,
+            Self::Group,
+            Self::Settings,
+            PC,
+            Self::NumIndependentRelations,
+        >,
     >(
         polynomials: &PC,
-        challenges: &ChallengeArray<F, NumIndependentRelations>,
-        linear_terms: &CoefficientArray<F>,
+        challenges: &ChallengeArray<Self::Field, Self::NumIndependentRelations>,
+        linear_terms: &CoefficientArray<Self::Field>,
         index: usize,
-    ) -> F;
+    ) -> Self::Field;
     fn compute_non_linear_terms<
-        PC: PolyContainer<F>,
-        Get: BaseGetter<H, F, G, S, PC, NumIndependentRelations>,
+        PC: PolyContainer<Self::Field>,
+        Get: BaseGetter<
+            Self::Hasher,
+            Self::Field,
+            Self::Group,
+            Self::Settings,
+            PC,
+            Self::NumIndependentRelations,
+        >,
     >(
         polynomials: &PC,
-        challenges: &ChallengeArray<F, NumIndependentRelations>,
-        quotient_term: &mut F,
+        challenges: &ChallengeArray<Self::Field, Self::NumIndependentRelations>,
+        quotient_term: &mut Self::Field,
         index: usize,
     );
     fn update_kate_opening_scalars(
-        linear_terms: &CoefficientArray<F>,
-        scalars: &mut HashMap<String, F>,
-        challenges: &ChallengeArray<F, NumIndependentRelations>,
+        linear_terms: &CoefficientArray<Self::Field>,
+        scalars: &mut HashMap<String, Self::Field>,
+        challenges: &ChallengeArray<Self::Field, Self::NumIndependentRelations>,
     );
 }
 
-pub(crate) trait TransitionWidgetBase<'a, H: BarretenHasher, F: Field + FftField, G: AffineRepr> {
+pub(crate) trait TransitionWidgetBase<'a> {
+    type Hasher: BarretenHasher;
+    type Field: Field + FftField;
+
     fn compute_quotient_contribution(
         &self,
-        alpha_base: F,
-        transcript: &Transcript<H>,
+        alpha_base: Self::Field,
+        transcript: &Transcript<Self::Hasher>,
         rng: &mut Box<dyn rand::RngCore>,
-    ) -> F;
+    ) -> Self::Field;
 }
 
 pub(crate) struct TransitionWidget<
@@ -86,7 +108,7 @@ pub(crate) struct TransitionWidget<
     KB,
 > where
     NIndependentRelations: generic_array::ArrayLength<F>,
-    KB: KernelBase<H, S, F, G, NIndependentRelations>,
+    KB: KernelBase,
 {
     key: Rc<ProvingKey<'a, F, G>>,
     phantom: PhantomData<(H, F, S, NIndependentRelations, KB)>,
@@ -99,11 +121,19 @@ impl<
         S: Settings<H, F, G>,
         NIndependentRelations: generic_array::ArrayLength<F>,
         KB,
-    > TransitionWidgetBase<'a, H, F, G>
-    for TransitionWidget<'a, H, F, G, S, NIndependentRelations, KB>
+    > TransitionWidgetBase<'a> for TransitionWidget<'a, H, F, G, S, NIndependentRelations, KB>
 where
-    KB: KernelBase<H, S, F, G, NIndependentRelations>,
+    KB: KernelBase<
+        Field = F,
+        Group = G,
+        NumIndependentRelations = NIndependentRelations,
+        Hasher = H,
+        Settings = S,
+    >,
 {
+    type Hasher = H;
+    type Field = F;
+
     // other methods and trait implementations
     fn compute_quotient_contribution(
         &self,
@@ -163,7 +193,13 @@ pub(crate) trait GenericVerifierWidget<
     KB,
 > where
     NIndependentRelations: generic_array::ArrayLength<F>,
-    KB: KernelBase<H, S, F, G, NIndependentRelations>,
+    KB: KernelBase<
+        Field = F,
+        Hasher = H,
+        Settings = S,
+        Group = G,
+        NumIndependentRelations = NIndependentRelations,
+    >,
 {
     fn compute_quotient_evaluation_contribution(
         key: &Arc<VerificationKey<'a, F>>,

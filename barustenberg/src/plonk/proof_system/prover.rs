@@ -38,7 +38,7 @@ pub(crate) struct Prover<
     pub(crate) key: Rc<RefCell<ProvingKey<'a, Fr, G1Affine>>>,
     pub(crate) queue: WorkQueue<'a, H, Fr, G1Affine>,
     pub(crate) random_widgets: Vec<Box<dyn ProverRandomWidget<'a, H, Fr, G1Affine>>>,
-    pub(crate) transition_widgets: Vec<Box<dyn TransitionWidgetBase<'a, H, Fr, G1Affine>>>,
+    pub(crate) transition_widgets: Vec<Box<dyn TransitionWidgetBase<'a, Hasher = H, Field = Fr>>>,
     pub(crate) commitment_scheme: CS,
     pub(crate) settings: S,
     pub(crate) rng: Box<dyn rand::RngCore>,

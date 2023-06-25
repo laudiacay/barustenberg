@@ -1,7 +1,7 @@
 use crate::{
     ecc::{
         curves::bn254_scalar_multiplication::{
-            generate_pippenger_point_table, is_point_at_infinity, PippengerRuntimeState,
+            generate_pippenger_point_table, PippengerRuntimeState,
         },
         reduced_ate_pairing_batch_precomputed,
     },
@@ -127,7 +127,7 @@ impl<'a, H: BarretenHasher, PS: Settings<H, Fr, G1Affine>> Verifier<'a, H, PS> {
         transcript.apply_fiat_shamir("nu");
         transcript.apply_fiat_shamir("separator");
         // a.k.a. `u` in the plonk paper
-        let separator_challenge = transcript.get_challenge_field_element("separator", None);
+        let separator_challenge: Fr = transcript.get_challenge_field_element("separator", None);
 
         // In the following function, we do the following computation.
         // Step 10: Compute batch opening commitment [F]_1
@@ -163,25 +163,26 @@ impl<'a, H: BarretenHasher, PS: Settings<H, Fr, G1Affine>> Verifier<'a, H, PS> {
         // Again, we dont actually compute the MSMs and just accumulate scalars and group elements and postpone MSM to last
         // step.
         //
-        self.settings.append_scalar_multiplication_inputs(
+        PS::append_scalar_multiplication_inputs(
             &self.key,
-            alpha,
+            &alpha,
             &transcript,
             &mut self.kate_fr_elements,
         );
 
         // Fetch the group elements [W_z]_1,[W_zω]_1 from the transcript
-        let pi_z = transcript.get_group_element("PI_Z");
-        let pi_z_omega = transcript.get_group_element("PI_Z_OMEGA");
+        let pi_z: G1Affine = transcript.get_group_element("PI_Z");
+        let pi_z_omega: G1Affine = transcript.get_group_element("PI_Z_OMEGA");
 
         // Validate PI_Z, PI_Z_OMEGA are valid ecc points.
         // N.B. we check that witness commitments are valid points in KateCommitmentScheme<settings>::batch_verify
-        if !pi_z.is_on_curve() || is_point_at_infinity(&pi_z) {
+        // note that we don't check that PI_Z/PI_Z_OMEGA is not the point at infinity, because it's an affine repr, so it can't be.
+        if !pi_z.is_on_curve() {
             return Err(anyhow!(
                 "opening proof group element PI_Z not a valid point"
             ));
         }
-        if !pi_z_omega.is_on_curve() || is_point_at_infinity(&pi_z_omega) {
+        if !pi_z_omega.is_on_curve() {
             return Err(anyhow!(
                 "opening proof group element PI_Z_OMEGA not a valid point"
             ));
@@ -224,7 +225,10 @@ impl<'a, H: BarretenHasher, PS: Settings<H, Fr, G1Affine>> Verifier<'a, H, PS> {
 
         let mut p: [G1Affine; 2] = [G1Affine::zero(); 2];
         p[0] = state.pippenger(&mut [scalars[0]], &[elements[0]], n, false);
-        p[1] = -(G1Affine::identity() * separator_challenge + pi_z).into();
+        p[1] =
+            <ark_ec::short_weierstrass::Projective<ark_bn254::g1::Config> as std::convert::Into<
+                G1Affine,
+            >>::into(-(G1Affine::identity() * separator_challenge + pi_z));
 
         if self.key.contains_recursive_proof {
             assert!(self.key.recursive_proof_public_input_indices.len() == 16);
@@ -244,7 +248,7 @@ impl<'a, H: BarretenHasher, PS: Settings<H, Fr, G1Affine>> Verifier<'a, H, PS> {
                 };
 
             let recursion_separator_challenge: Fr = transcript
-                .get_challenge_field_element("separator", None)
+                .get_challenge_field_element::<Fr>("separator", None)
                 .square();
 
             let x0 = recover_fq_from_public_inputs(
