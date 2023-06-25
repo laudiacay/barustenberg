@@ -31,7 +31,7 @@ pub(crate) struct Prover<
     'a,
     H: BarretenHasher,
     S: Settings<H, Fr, G1Affine>,
-    CS: CommitmentScheme<Fq, Fr, G1Affine, H>,
+    CS: CommitmentScheme<Hasher = H, Fq = Fq, Fr = Fr, Group = G1Affine>,
 > {
     pub(crate) circuit_size: usize,
     pub(crate) transcript: Rc<RefCell<Transcript<H>>>,
@@ -46,7 +46,7 @@ pub(crate) struct Prover<
 }
 
 impl<'a, H: BarretenHasher + Default, S: Settings<H, Fr, G1Affine> + Default>
-    Prover<'a, H, S, KateCommitmentScheme<H, Fr, G1Affine, S>>
+    Prover<'a, H, S, KateCommitmentScheme<H, Fq, Fr, G1Affine, S>>
 {
     pub(crate) fn new(
         input_key: Option<Rc<RefCell<ProvingKey<'a, Fr, G1Affine>>>>,
@@ -74,7 +74,7 @@ impl<'a, H: BarretenHasher + Default, S: Settings<H, Fr, G1Affine> + Default>
             queue,
             random_widgets: Vec::new(),
             transition_widgets: Vec::new(),
-            commitment_scheme: KateCommitmentScheme::<H, Fr, G1Affine, S>::default(),
+            commitment_scheme: KateCommitmentScheme::<H, Fq, Fr, G1Affine, S>::default(),
             settings,
             phantom: PhantomData,
             rng: Box::new(rand::thread_rng()),
@@ -86,7 +86,7 @@ impl<
         'a,
         H: BarretenHasher + Default,
         PS: Settings<H, Fr, G1Affine>,
-        CS: CommitmentScheme<Fq, Fr, G1Affine, H>,
+        CS: CommitmentScheme<Hasher = H, Group = G1Affine, Fq = Fq, Fr = Fr>,
     > Prover<'a, H, PS, CS>
 {
     fn copy_placeholder(&self) {
@@ -389,7 +389,7 @@ impl<
         self.commitment_scheme.batch_open(
             &(*self.transcript).borrow(),
             &mut self.queue,
-            Some(self.key.clone().borrow()),
+            Some(&*(*self.key).borrow()),
         );
     }
 
