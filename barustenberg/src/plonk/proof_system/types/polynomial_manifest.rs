@@ -32,6 +32,12 @@ pub(crate) struct PolynomialManifest {
 }
 
 impl PolynomialManifest {
+    pub(crate) fn new() -> Self {
+        PolynomialManifest {
+            manifest: Vec::new(),
+        }
+    }
+
     pub(crate) fn len(&self) -> usize {
         todo!()
     }
