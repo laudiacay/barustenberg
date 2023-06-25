@@ -1,7 +1,4 @@
-use std::{
-    marker::PhantomData,
-    ops::{AddAssign, Index, IndexMut, MulAssign, Range, SubAssign},
-};
+use std::ops::{AddAssign, Index, IndexMut, MulAssign, Range, SubAssign};
 
 use anyhow::Result;
 use ark_ff::{FftField, Field};
@@ -12,7 +9,6 @@ use crate::polynomials::polynomial_arithmetic::compute_efficient_interpolation;
 pub(crate) struct Polynomial<F: Field + FftField> {
     size: usize,
     pub(crate) coefficients: Vec<F>,
-    phantom: PhantomData<F>,
 }
 
 impl<F: Field + FftField> Polynomial<F> {
@@ -31,7 +27,6 @@ impl<F: Field + FftField> Polynomial<F> {
         Ok(Self {
             size: interpolation_points.len(),
             coefficients,
-            phantom: PhantomData,
         })
     }
 
@@ -41,7 +36,6 @@ impl<F: Field + FftField> Polynomial<F> {
         Self {
             size,
             coefficients: underlying,
-            phantom: PhantomData,
         }
     }
     #[inline]

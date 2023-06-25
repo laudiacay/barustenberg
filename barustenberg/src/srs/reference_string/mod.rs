@@ -2,7 +2,7 @@ pub(crate) mod file_reference_string;
 pub(crate) mod mem_reference_string;
 pub(crate) mod pippenger_reference_string;
 
-use std::{marker::PhantomData, rc::Rc};
+use std::rc::Rc;
 
 use ark_bn254::{G1Affine, G2Affine};
 
@@ -28,8 +28,6 @@ pub(crate) trait ReferenceStringFactory {
 }
 
 #[derive(Clone, Default)]
-pub(crate) struct BaseReferenceStringFactory {
-    phantom: PhantomData<(G1Affine, G2Affine)>,
-}
+pub(crate) struct BaseReferenceStringFactory {}
 
 impl ReferenceStringFactory for BaseReferenceStringFactory {}
