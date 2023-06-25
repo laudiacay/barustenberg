@@ -322,7 +322,7 @@ fn generate_test_data<
         ProverArithmeticWidget::<_, StandardSettings>::new(key.clone()),
     );
 
-    let kate_commitment_scheme = Box::new(KateCommitmentScheme::<H, Fq, Fr, G1Affine>::new());
+    let kate_commitment_scheme = KateCommitmentScheme::<H, Fq, Fr, G1Affine>::new();
 
     let state : Prover<'_, H, StandardSettings<H>> = Prover::new(
         Some(key),

@@ -27,6 +27,7 @@ use anyhow::{ensure, Result};
 use crate::proof_system::work_queue::WorkQueue;
 
 // todo https://doc.rust-lang.org/reference/const_eval.html
+/// Plonk prover.
 #[derive(Debug)]
 pub struct Prover<'a, H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>> {
     pub(crate) circuit_size: usize,
@@ -46,7 +47,14 @@ impl<
         H: BarretenHasher + Default,
         S: Settings<Hasher = H, Field = Fr, Group = G1Affine> + Default,
     > Prover<'a, H, S>
-{
+{   
+    /// Create a new prover.
+    /// Parameters:
+    /// - `input_key` Proving key.
+    /// - `input_manifest` Manifest.
+    /// - `input_settings` Program settings.
+    /// Returns:
+    /// - `Self` Prover.
     pub fn new(
         input_key: Option<Rc<RefCell<ProvingKey<'a, Fr, G1Affine>>>>,
         input_manifest: Option<Manifest>,
@@ -622,12 +630,14 @@ impl<'a, H: BarretenHasher + Default, S: Settings<Hasher = H, Field = Fr, Group 
         Ok(())
     }
 
+    /// export the proof from the prover's transcript
     pub fn export_proof(&self) -> Proof {
         Proof {
             proof_data: (*self.transcript).borrow_mut().export_transcript(),
         }
     }
 
+    /// construct the proof from a fully initialized proof state
     pub fn construct_proof(&mut self) -> Result<Proof> {
         let mut rng = rand::thread_rng();
 
@@ -665,6 +675,8 @@ impl<'a, H: BarretenHasher + Default, S: Settings<Hasher = H, Field = Fr, Group 
     fn get_circuit_size(&self) -> usize {
         todo!("implement me")
     }
+    
+    /// Reset the transcript to the initial state
     fn reset(&mut self) {
         let manifest = (*self.transcript).borrow_mut().get_manifest();
         *(*self.transcript).borrow_mut() = Transcript::<H>::new(
