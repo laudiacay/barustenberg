@@ -75,7 +75,7 @@ pub(crate) trait CommitmentScheme {
     );
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub(crate) struct KateCommitmentScheme<
     H: BarretenHasher,
     Fq: Field + FftField,

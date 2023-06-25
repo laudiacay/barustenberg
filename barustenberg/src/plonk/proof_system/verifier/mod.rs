@@ -15,7 +15,7 @@ use ark_ec::CurveGroup;
 use ark_ff::{BigInteger, Field, One, Zero};
 
 use super::{
-    commitment_scheme::CommitmentScheme,
+    commitment_scheme::{CommitmentScheme, KateCommitmentScheme},
     types::{prover_settings::Settings, Proof},
 };
 
@@ -29,23 +29,20 @@ use anyhow::{anyhow, Result};
 #[cfg(test)]
 mod test;
 
-pub(crate) struct Verifier<
-    'a,
-    H: BarretenHasher,
-    S: Settings<Hasher = H, Field = Fr, Group = G1Affine>,
-> {
+#[derive(Debug)]
+pub struct Verifier<'a, H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>> {
     settings: S,
     key: Rc<RefCell<VerificationKey<'a, Fr>>>,
     manifest: Manifest,
     kate_g1_elements: HashMap<String, G1Affine>,
     kate_fr_elements: HashMap<String, Fr>,
-    commitment_scheme: Box<dyn CommitmentScheme<Fq = Fq, Fr = Fr, Group = G1Affine, Hasher = H>>,
+    commitment_scheme: Box<KateCommitmentScheme<H, Fq, Fr, G1Affine>>,
 }
 
 impl<'a, H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>>
     Verifier<'a, H, S>
 {
-    fn new(_verifier_key: Option<Arc<VerificationKey<'a, Fr>>>, _manifest: Manifest) -> Self {
+    pub fn new(_verifier_key: Option<Arc<VerificationKey<'a, Fr>>>, _manifest: Manifest) -> Self {
         // Implement constructor logic here.
         todo!("Verifier::new")
     }
@@ -60,7 +57,7 @@ impl<'a, H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine
         todo!("Verifier::validate_scalars")
     }
 
-    fn verify_proof(&mut self, proof: &Proof) -> Result<bool> {
+    pub fn verify_proof(&mut self, proof: &Proof) -> Result<bool> {
         // This function verifies a PLONK proof for given program settings.
         // A PLONK proof for standard PLONK is of the form:
         //

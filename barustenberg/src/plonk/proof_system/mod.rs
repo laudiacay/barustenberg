@@ -1,10 +1,10 @@
 pub(crate) mod commitment_scheme;
 pub(crate) mod constants;
-pub(crate) mod prover;
+pub mod prover;
 pub(crate) mod proving_key;
 pub(crate) mod public_inputs;
 pub(crate) mod types;
 pub(crate) mod utils;
 pub(crate) mod verification_key;
-pub(crate) mod verifier;
+pub mod verifier;
 pub(crate) mod widgets;

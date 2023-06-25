@@ -12,7 +12,7 @@ use crate::{
 
 // TODO bevy_reflect? or what
 // or inline everything!
-pub(crate) trait Settings: Sized {
+pub trait Settings: Sized {
     type Hasher: BarretenHasher;
     type Field: Field + FftField;
     type Group: AffineRepr;

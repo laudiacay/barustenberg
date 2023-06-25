@@ -32,7 +32,8 @@ pub(crate) struct ProvingKeyData<F: Field + FftField> {
     polynomial_store: PolynomialStore<F>,
 }
 
-pub(crate) struct ProvingKey<'a, Fr: Field + FftField, G: AffineRepr> {
+#[derive(Debug)]
+pub struct ProvingKey<'a, Fr: Field + FftField, G: AffineRepr> {
     pub(crate) composer_type: u32,
     pub(crate) circuit_size: usize,
     pub(crate) log_circuit_size: usize,

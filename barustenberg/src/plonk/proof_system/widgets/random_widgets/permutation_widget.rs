@@ -269,6 +269,7 @@ where
     }
 }
 
+#[derive(Debug)]
 pub(crate) struct ProverPermutationWidget<
     'a,
     Fr: Field + FftField,
@@ -285,7 +286,7 @@ pub(crate) struct ProverPermutationWidget<
 impl<
         'a,
         Fr: Field + FftField,
-        Hash: BarretenHasher,
+        Hash: BarretenHasher + std::fmt::Debug,
         G: AffineRepr,
         const PROGRAM_WIDTH: usize,
         const IDPOLYS: bool,

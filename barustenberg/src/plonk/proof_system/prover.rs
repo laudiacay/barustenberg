@@ -2,6 +2,7 @@ use std::{cell::RefCell, marker::PhantomData, ops::IndexMut, rc::Rc};
 
 use ark_bn254::{Fq, Fr, G1Affine};
 use ark_ff::{Field, One, UniformRand, Zero};
+use rand::RngCore;
 
 use super::{
     commitment_scheme::{CommitmentScheme, KateCommitmentScheme},
@@ -26,13 +27,8 @@ use anyhow::{ensure, Result};
 use crate::proof_system::work_queue::WorkQueue;
 
 // todo https://doc.rust-lang.org/reference/const_eval.html
-
-pub(crate) struct Prover<
-    'a,
-    H: BarretenHasher,
-    CS: CommitmentScheme<Hasher = H, Fq = Fq, Fr = Fr, Group = G1Affine>,
-    S: Settings<Hasher = H, Field = Fr, Group = G1Affine>,
-> {
+#[derive(Debug)]
+pub struct Prover<'a, H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>> {
     pub(crate) circuit_size: usize,
     pub(crate) transcript: Rc<RefCell<Transcript<H>>>,
     pub(crate) key: Rc<RefCell<ProvingKey<'a, Fr, G1Affine>>>,
@@ -40,9 +36,8 @@ pub(crate) struct Prover<
     pub(crate) random_widgets:
         Vec<Box<dyn ProverRandomWidget<'a, Fr = Fr, G1 = G1Affine, Hasher = H>>>,
     pub(crate) transition_widgets: Vec<Box<dyn TransitionWidgetBase<'a, Hasher = H, Field = Fr>>>,
-    pub(crate) commitment_scheme: CS,
+    pub(crate) commitment_scheme: KateCommitmentScheme<H, Fq, Fr, G1Affine>,
     pub(crate) settings: S,
-    pub(crate) rng: Box<dyn rand::RngCore>,
     phantom: PhantomData<Fq>,
 }
 
@@ -50,9 +45,9 @@ impl<
         'a,
         H: BarretenHasher + Default,
         S: Settings<Hasher = H, Field = Fr, Group = G1Affine> + Default,
-    > Prover<'a, H, KateCommitmentScheme<H, Fq, Fr, G1Affine>, S>
+    > Prover<'a, H, S>
 {
-    pub(crate) fn new(
+    pub fn new(
         input_key: Option<Rc<RefCell<ProvingKey<'a, Fr, G1Affine>>>>,
         input_manifest: Option<Manifest>,
         input_settings: Option<S>,
@@ -81,17 +76,12 @@ impl<
             commitment_scheme: KateCommitmentScheme::<H, Fq, Fr, G1Affine>::default(),
             settings,
             phantom: PhantomData,
-            rng: Box::new(rand::thread_rng()),
         }
     }
 }
 
-impl<
-        'a,
-        H: BarretenHasher + Default,
-        CS: CommitmentScheme<Hasher = H, Group = G1Affine, Fq = Fq, Fr = Fr>,
-        S: Settings<Hasher = H, Field = Fr, Group = G1Affine>,
-    > Prover<'a, H, CS, S>
+impl<'a, H: BarretenHasher + Default, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>>
+    Prover<'a, H, S>
 {
     fn copy_placeholder(&self) {
         todo!("LOOK AT THE COMMENTS IN PROVERBASE");
@@ -104,7 +94,7 @@ impl<
     /// and after they are in monomial form. This is an inconsistency that can mislead developers.
     /// Parameters:
     /// - `settings` Program settings.
-    fn execute_preamble_round(&mut self) -> Result<()> {
+    fn execute_preamble_round(&mut self, rng: &mut dyn RngCore) -> Result<()> {
         self.queue.flush_queue();
 
         (*self.transcript).borrow_mut().add_element(
@@ -174,7 +164,7 @@ impl<
                 wire_lagrange.set_coefficient(
                     self.circuit_size - self.settings.num_roots_cut_out_of_vanishing_polynomial()
                         + k,
-                    Fr::rand(&mut self.rng),
+                    Fr::rand(rng),
                 )
             }
         }
@@ -218,7 +208,7 @@ impl<
     /// - Compute the random_widgets' round commitments that need to be computed at round 2.
     /// - If using plookup, we compute some w_4 values here (for gates which access "memory"), and apply blinding factors,
     ///   before finally committing to w_4.
-    fn execute_second_round(&mut self) -> Result<()> {
+    fn execute_second_round(&mut self, rng: &mut dyn RngCore) -> Result<()> {
         self.queue.flush_queue();
 
         (*self.transcript).borrow_mut().apply_fiat_shamir("eta");
@@ -251,7 +241,7 @@ impl<
                 w_4_lagrange.set_coefficient(
                     self.circuit_size - self.settings.num_roots_cut_out_of_vanishing_polynomial()
                         + k,
-                    Fr::rand(&mut self.rng),
+                    Fr::rand(rng),
                 );
             }
 
@@ -308,7 +298,7 @@ impl<
     }
 
     /// Computes the quotient polynomial, then commits to its degree-n split parts.
-    fn execute_fourth_round(&mut self) -> Result<()> {
+    fn execute_fourth_round(&mut self, rng: &mut dyn RngCore) -> Result<()> {
         self.queue.flush_queue();
         (*self.transcript).borrow_mut().apply_fiat_shamir("alpha");
 
@@ -325,11 +315,8 @@ impl<
         }
 
         for widget in &mut self.transition_widgets {
-            alpha_base = widget.compute_quotient_contribution(
-                alpha_base,
-                &self.transcript.borrow(),
-                &mut self.rng,
-            );
+            alpha_base =
+                widget.compute_quotient_contribution(alpha_base, &self.transcript.borrow(), rng);
         }
 
         // The parts of the quotient polynomial t(X) are stored as 4 separate polynomials in
@@ -376,7 +363,7 @@ impl<
             self.key.borrow().quotient_polynomial_parts[3].borrow_mut()[0] = Fr::zero();
         }
 
-        self.add_blinding_to_quotient_polynomial_parts();
+        self.add_blinding_to_quotient_polynomial_parts(rng);
 
         self.compute_quotient_commitments();
         Ok(())
@@ -590,7 +577,7 @@ impl<
     }
 
     /// Add blinding to the components in such a way that the full quotient would be unchanged if reconstructed
-    fn add_blinding_to_quotient_polynomial_parts(&mut self) {
+    fn add_blinding_to_quotient_polynomial_parts(&mut self, rng: &mut dyn RngCore) {
         // Construct blinded quotient polynomial parts t_i by adding randomness to the unblinded parts t_i' in
         // such a way that the full quotient polynomial t is unchanged upon reconstruction, i.e.
         //
@@ -607,7 +594,7 @@ impl<
         let key = self.key.borrow();
         for i in 0..self.settings.program_width() - 1 {
             // Note that only program_width-1 random elements are required for full blinding
-            let quotient_randomness = Fr::rand(&mut self.rng);
+            let quotient_randomness = Fr::rand(rng);
 
             key.quotient_polynomial_parts[i].borrow_mut()[key.circuit_size] += quotient_randomness; // update coefficient of X^n'th term
             key.quotient_polynomial_parts[i + 1].borrow_mut()[0] -= quotient_randomness;
@@ -635,15 +622,17 @@ impl<
         Ok(())
     }
 
-    fn export_proof(&self) -> Proof {
+    pub fn export_proof(&self) -> Proof {
         Proof {
             proof_data: (*self.transcript).borrow_mut().export_transcript(),
         }
     }
 
-    pub(crate) fn construct_proof(&mut self) -> Result<Proof> {
+    pub fn construct_proof(&mut self) -> Result<Proof> {
+        let mut rng = rand::thread_rng();
+
         // Execute init round. Randomize witness polynomials.
-        self.execute_preamble_round()?;
+        self.execute_preamble_round(&mut rng)?;
         self.queue.process_queue()?;
 
         // Compute wire precommitments and sometimes random widget round commitments
@@ -651,7 +640,7 @@ impl<
         self.queue.process_queue()?;
 
         // Fiat-Shamir eta + execute random widgets.
-        self.execute_second_round()?;
+        self.execute_second_round(&mut rng)?;
         self.queue.process_queue()?;
 
         // Fiat-Shamir beta & gamma, execute random widgets (Permutation widget is executed here)
@@ -660,7 +649,7 @@ impl<
         self.queue.process_queue()?;
 
         // Fiat-Shamir alpha, compute & commit to quotient polynomial.
-        self.execute_fourth_round()?;
+        self.execute_fourth_round(&mut rng)?;
         self.queue.process_queue()?;
 
         self.execute_fifth_round()?;

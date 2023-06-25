@@ -8,7 +8,7 @@ use crate::srs::reference_string::{
 
 use super::mem_reference_string::VerifierMemReferenceString;
 
-#[derive(Clone, Default)]
+#[derive(Clone, Debug, Default)]
 pub(crate) struct Pippenger {}
 
 impl Pippenger {
@@ -17,6 +17,7 @@ impl Pippenger {
     }
 }
 
+#[derive(Debug)]
 pub(crate) struct PippengerReferenceString {
     pippenger: Arc<Pippenger>,
 }

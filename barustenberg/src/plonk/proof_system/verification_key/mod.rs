@@ -10,7 +10,8 @@ use crate::{
 
 use super::types::PolynomialManifest;
 
-pub(crate) struct VerificationKey<'a, Fr: Field + FftField> {
+#[derive(Debug)]
+pub struct VerificationKey<'a, Fr: Field + FftField> {
     composer_type: u32,
     pub(crate) circuit_size: usize,
     log_circuit_size: usize,

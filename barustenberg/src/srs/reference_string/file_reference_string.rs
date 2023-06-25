@@ -9,6 +9,7 @@ use super::{
     VerifierReferenceString,
 };
 
+#[derive(Debug)]
 pub(crate) struct VerifierFileReferenceString {
     g2_x: G2Affine,
     precomputed_g2_lines: Rc<Vec<MillerLines>>,
@@ -40,6 +41,7 @@ impl VerifierReferenceString for VerifierFileReferenceString {
     }
 }
 
+#[derive(Debug)]
 pub(crate) struct FileReferenceString {
     num_points: usize,
     pippenger: Pippenger,

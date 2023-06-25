@@ -6,7 +6,7 @@ use crate::{
     transcript::{BarretenHasher, Transcript},
 };
 
-pub(crate) trait ProverRandomWidget<'a> {
+pub(crate) trait ProverRandomWidget<'a>: std::fmt::Debug {
     type Hasher: BarretenHasher;
     type Fr: Field + FftField;
     type G1: AffineRepr;

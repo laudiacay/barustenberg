@@ -6,6 +6,7 @@ use crate::ecc::MillerLines;
 
 use super::VerifierReferenceString;
 
+#[derive(Debug)]
 pub(crate) struct VerifierMemReferenceString {
     g2_x: G2Affine,
     precomputed_g2_lines: Rc<Vec<MillerLines>>,

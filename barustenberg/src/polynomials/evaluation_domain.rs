@@ -5,7 +5,7 @@ use std::vec::Vec;
 
 pub(crate) const MIN_GROUP_PER_THREAD: usize = 4;
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub(crate) struct EvaluationDomain<'a, F: Field + FftField> {
     /// n, always a power of 2
     pub(crate) size: usize,
