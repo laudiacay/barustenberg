@@ -42,7 +42,7 @@ pub struct Verifier<'a, H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, G
 impl<'a, H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>>
     Verifier<'a, H, S>
 {
-    pub fn new(_verifier_key: Option<Arc<VerificationKey<'a, Fr>>>, _manifest: Manifest) -> Self {
+    pub fn new(_verifier_key: Option<Rc<VerificationKey<'a, Fr>>>, _manifest: Manifest) -> Self {
         // Implement constructor logic here.
         todo!("Verifier::new")
     }

@@ -1,9 +1,8 @@
-use ark_ec::Group;
-use ark_ff::{FftField, One};
+use ark_ff::{FftField};
 
 use super::*;
 
-impl<H: BarretenHasher> Verifier<'_, H> {
+impl<H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>> Verifier<'_, H, S> {
     pub fn generate_verifier(circuit_proving_key: Rc<RefCell<ProvingKey<'_, Fr, G>>>) -> Self {
         let mut poly_coefficients: Vec<&mut [Fr]> = vec![&mut []; 8];
         poly_coefficients[0] = circuit_proving_key
@@ -71,26 +70,27 @@ impl<H: BarretenHasher> Verifier<'_, H> {
             .coefficients
             .as_mut_slice();
 
-        let mut commitments = vec![G::default(); 8];
+        let mut commitments = vec![G1Affine::default(); 8];
         let mut state = PippengerRuntimeState::new(circuit_proving_key.borrow().circuit_size);
 
         for i in 0..8 {
-            commitments[i] = G::from_projective(
+            commitments[i] = G1Affine::from(
                 state.pippenger(
-                    &poly_coefficients[i],
-                    circuit_proving_key
+                    poly_coefficients[i],
+                    *(circuit_proving_key
                         .borrow()
                         .reference_string
                         .borrow()
-                        .get_monomial_points(),
+                        .get_monomial_points())[..],
                     circuit_proving_key.borrow().circuit_size,
+                    false,
                 ),
             );
         }
 
         // TODOL: this number of points in arbitrary and needs to be checked with the reference string
-        let crs = Arc::new(FileReferenceString::new(32, "../srs_db/ignition"));
-        let circuit_verification_key = Arc::new(VerificationKey::new(
+        let crs =Rc::new(FileReferenceString::new(32, "../srs_db/ignition"));
+        let circuit_verification_key = Rc::new(VerificationKey::new(
             circuit_proving_key.borrow().circuit_size,
             circuit_proving_key.borrow().num_public_inputs,
             crs,
@@ -99,38 +99,38 @@ impl<H: BarretenHasher> Verifier<'_, H> {
 
         circuit_verification_key
             .commitments
-            .insert("Q_1", commitments[0]);
+            .insert("Q_1".to_string(), commitments[0]);
         circuit_verification_key
             .commitments
-            .insert("Q_2", commitments[1]);
+            .insert("Q_2".to_string(), commitments[1]);
         circuit_verification_key
             .commitments
-            .insert("Q_3", commitments[2]);
+            .insert("Q_3".to_string(), commitments[2]);
         circuit_verification_key
             .commitments
-            .insert("Q_M", commitments[3]);
+            .insert("Q_M".to_string(), commitments[3]);
         circuit_verification_key
             .commitments
-            .insert("Q_C", commitments[4]);
+            .insert("Q_C".to_string(), commitments[4]);
 
         circuit_verification_key
             .commitments
-            .insert("SIGMA_1", commitments[5]);
+            .insert("SIGMA_1".to_string(), commitments[5]);
         circuit_verification_key
             .commitments
-            .insert("SIGMA_2", commitments[6]);
+            .insert("SIGMA_2".to_string(), commitments[6]);
         circuit_verification_key
             .commitments
-            .insert("SIGMA_3", commitments[7]);
+            .insert("SIGMA_3".to_string(), commitments[7]);
 
         let verifier = Verifier::new(
             Some(circuit_verification_key),
-            ComposerType::StandardComposer::create_manifest(0),
+            ComposerType::Standard.create_manifest(0),
         );
 
         let kate_commitment_scheme = Box::new(KateCommitmentScheme::<
             H,
-            crate::plonk::proof_system::types::polynomial_manifest::PolynomialIndex,
+            Fq, Fr, G1Affine,
         >::new());
         verifier.commitment_scheme = kate_commitment_scheme;
         verifier
@@ -141,11 +141,11 @@ fn generate_test_data<
     'a,
     Fq: Field + FftField,
     Fr: Field + FftField,
-    G: Group,
-    H: BarretenHasher,
+    G: AffineRepr,
+    H: BarretenHasher + Default,
 >(
     n: usize,
-) -> Prover<'a, H, StandardSettings<H>, KateCommitmentScheme<H, Fq, Fr, G, StandardSettings<H>>> {
+) -> Prover<'a, H, StandardSettings<H>> {
     // create some constraints that satisfy our arithmetic circuit relation
     let crs = Rc::new(FileReferenceString::new(n + 1, "../srs_db/ignition"));
     let key = Rc::new(ProvingKey::new(n, 0, crs, ComposerType::Standard));
@@ -251,13 +251,16 @@ fn generate_test_data<
     key.small_domain.ifft_inplace(&mut sigma_3);
 
     const WIDTH: usize = 4;
-    let sigma_1_fft = Polynomial::new_from(sigma_1, key.circuit_size * WIDTH);
-    let sigma_2_fft = Polynomial::new_from(sigma_2, key.circuit_size * WIDTH);
-    let sigma_3_fft = Polynomial::new_from(sigma_3, key.circuit_size * WIDTH);
+    let mut sigma_1_fft = sigma_1.clone();
+    sigma_1_fft.resize(key.circuit_size * WIDTH, Fr::zero());
+    let mut sigma_2_fft = sigma_2.clone();
+    sigma_2_fft.resize(key.circuit_size * WIDTH, Fr::zero());
+    let mut sigma_3_fft = sigma_3.clone();
+    sigma_3_fft.resize(key.circuit_size * WIDTH, Fr::zero());
 
-    sigma_1_fft.coset_fft(&key.large_domain);
-    sigma_2_fft.coset_fft(&key.large_domain);
-    sigma_3_fft.coset_fft(&key.large_domain);
+    key.large_domain.coset_fft_inplace(&mut sigma_1_fft.coefficients[..]);
+    key.large_domain.coset_fft_inplace(&mut sigma_2_fft.coefficients[..]);
+    key.large_domain.coset_fft_inplace(&mut sigma_3_fft.coefficients[..]);
 
     key.polynomial_store.insert(&"sigma_1".to_string(), sigma_1);
     key.polynomial_store.insert(&"sigma_2".to_string(), sigma_2);
@@ -283,17 +286,22 @@ fn generate_test_data<
     key.small_domain.ifft_inplace(&mut q_m);
     key.small_domain.ifft_inplace(&mut q_c);
 
-    let q_1_fft = Polynomial::new_from(q_l, n * 4);
-    let q_2_fft = Polynomial::new_from(q_r, n * 4);
-    let q_3_fft = Polynomial::new_from(q_o, n * 4);
-    let q_m_fft = Polynomial::new_from(q_m, n * 4);
-    let q_c_fft = Polynomial::new_from(q_c, n * 4);
+    let mut q_1_fft = q_l.clone();
+    q_1_fft.resize(n*4, Fr::zero());
+    let mut q_2_fft = q_r.clone();
+    q_2_fft.resize(n*4, Fr::zero());
+    let mut q_3_fft = q_o.clone();
+    q_3_fft.resize(n*4, Fr::zero());
+    let mut q_m_fft = q_m.clone();
+    q_m_fft.resize(n*4, Fr::zero());
+    let mut q_c_fft = q_c.clone();
+    q_c_fft.resize(n*4, Fr::zero());
 
-    q_1_fft.coset_fft(&key.large_domain);
-    q_2_fft.coset_fft(&key.large_domain);
-    q_3_fft.coset_fft(&key.large_domain);
-    q_m_fft.coset_fft(&key.large_domain);
-    q_c_fft.coset_fft(&key.large_domain);
+    key.large_domain.coset_fft_inplace(&mut q_1_fft.coefficients[..]);
+    key.large_domain.coset_fft_inplace(&mut q_2_fft.coefficients[..]);
+    key.large_domain.coset_fft_inplace(&mut q_3_fft.coefficients[..]);
+    key.large_domain.coset_fft_inplace(&mut q_m_fft.coefficients[..]);
+    key.large_domain.coset_fft_inplace(&mut q_c_fft.coefficients[..]);
 
     key.polynomial_store.insert(&"q_1".to_string(), q_l);
     key.polynomial_store.insert(&"q_2".to_string(), q_r);
@@ -307,17 +315,17 @@ fn generate_test_data<
     key.polynomial_store.insert(&"q_m_fft".to_string(), q_m_fft);
     key.polynomial_store.insert(&"q_c_fft".to_string(), q_c_fft);
 
-    let permutation_widget: Box<ProverPermutationWidget<'_>> =
+    let permutation_widget: Box<ProverPermutationWidget<'_, Fr, H, G>> =
         Box::new(ProverPermutationWidget::<3>::new(key.clone()));
 
     let widget: Box<ProverArithmeticWidget<'_, StandardSettings>> = Box::new(
         ProverArithmeticWidget::<_, StandardSettings>::new(key.clone()),
     );
 
-    let kate_commitment_scheme = Box::new(KateCommitmentScheme::<StandardSettings>::new());
+    let kate_commitment_scheme = Box::new(KateCommitmentScheme::<H, Fq, Fr, G1Affine>::new());
 
-    let state = Prover::new(
-        key,
+    let state : Prover<'_, H, StandardSettings<H>> = Prover::new(
+        Some(key),
         Some(ComposerType::StandardComposer::create_manifest(0)),
         None,
     );
@@ -330,7 +338,6 @@ fn generate_test_data<
 use std::{cell::RefCell, rc::Rc};
 
 use crate::{
-    ecc::PippengerRuntimeState,
     plonk::{
         composer::composer_base::ComposerType,
         proof_system::{
@@ -346,18 +353,18 @@ use crate::{
         },
     },
     polynomials::Polynomial,
-    srs::reference_string::file_reference_string::FileReferenceString,
+    srs::reference_string::file_reference_string::FileReferenceString, transcript::Keccak256,
 };
 
 #[test]
 fn verify_arithmetic_proof_small() {
     let n = 8;
 
-    let state = generate_test_data(n);
-    let verifier = Verifier::generate_verifier(&state.key);
-
+    let state = generate_test_data::<Fq, Fr, G1Affine, Keccak256>(n);
+    let verifier : Verifier<'_, Keccak256, StandardSettings<Keccak256>>= Verifier::generate_verifier(&state.key);
+    
     // Construct proof
-    let proof = state.construct_proof();
+    let proof = state.construct_proof().unwrap();
 
     // Verify proof
     let result = verifier.verify_proof(&proof).unwrap();
@@ -369,11 +376,11 @@ fn verify_arithmetic_proof_small() {
 fn verify_arithmetic_proof() {
     let n = 1 << 14;
 
-    let state = generate_test_data(n);
-    let verifier = Verifier::generate_verifier(&state.key);
+    let state = generate_test_data::<Fq, Fr, G1Affine, Keccak256>(n);
+    let verifier : Verifier<'_, Keccak256, StandardSettings<Keccak256>>= Verifier::generate_verifier(&state.key);
 
     // Construct proof
-    let proof = state.construct_proof();
+    let proof = state.construct_proof().unwrap();
 
     // Verify proof
     let result = verifier.verify_proof(&proof).unwrap();
@@ -386,8 +393,8 @@ fn verify_arithmetic_proof() {
 fn verify_damaged_proof() {
     let n = 8;
 
-    let state = generate_test_data(n);
-    let verifier = Verifier::generate_verifier(&state.key);
+    let state = generate_test_data::<Fq, Fr, G1Affine, Keccak256>(n);
+    let verifier : Verifier<'_, Keccak256, StandardSettings<Keccak256>>= Verifier::generate_verifier(&state.key);
 
     // Create empty proof
     let proof = Proof::default();

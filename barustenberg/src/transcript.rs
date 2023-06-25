@@ -20,7 +20,7 @@ pub trait BarretenHasher: std::fmt::Debug {
 }
 
 /// Keccak256 hasher.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub(crate) struct Keccak256 {}
 
 impl BarretenHasher for Keccak256 {

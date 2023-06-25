@@ -27,6 +27,8 @@ pub(crate) enum WireType {
     Output = 1 << 31,
     Fourth = 0xc0000000,
 }
+
+#[derive(Debug)]
 pub(crate) enum ComposerType {
     Standard,
     Turbo,

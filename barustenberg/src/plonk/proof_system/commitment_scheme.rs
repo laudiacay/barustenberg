@@ -67,10 +67,10 @@ pub(crate) trait CommitmentScheme {
         input_key: Option<&'a VerificationKey<'a, Self::Fr>>,
     );
 
-    fn add_opening_evaluations_to_transcript<'a>(
+    fn add_opening_evaluations_to_transcript(
         &self,
         transcript: &mut Transcript<Self::Hasher>,
-        input_key: Option<Rc<RefCell<ProvingKey<'a, Self::Fr, Self::Group>>>>,
+        input_key: Option<Rc<RefCell<ProvingKey<'_, Self::Fr, Self::Group>>>>,
         in_lagrange_form: bool,
     );
 }
@@ -84,6 +84,17 @@ pub(crate) struct KateCommitmentScheme<
 > {
     _kate_open_proof: CommitmentOpenProof,
     phantom: PhantomData<(H, Fr, G, Fq)>,
+}
+
+impl<H: BarretenHasher, Fq: Field + FftField, Fr: Field + FftField, G: AffineRepr>
+    KateCommitmentScheme<H, Fq, Fr, G>
+{
+    pub(crate) fn new() -> Self {
+        Self {
+            _kate_open_proof: CommitmentOpenProof::default(),
+            phantom: PhantomData,
+        }
+    }
 }
 
 impl<Fq: Field + FftField, Fr: Field + FftField, G: AffineRepr, H: BarretenHasher> CommitmentScheme
@@ -110,10 +121,10 @@ impl<Fq: Field + FftField, Fr: Field + FftField, G: AffineRepr, H: BarretenHashe
         })
     }
 
-    fn add_opening_evaluations_to_transcript<'a>(
+    fn add_opening_evaluations_to_transcript(
         &self,
         _transcript: &mut Transcript<H>,
-        _input_key: Option<Rc<RefCell<ProvingKey<'a, Self::Fr, Self::Group>>>>,
+        _input_key: Option<Rc<RefCell<ProvingKey<'_, Self::Fr, Self::Group>>>>,
         _in_lagrange_form: bool,
     ) {
         todo!()

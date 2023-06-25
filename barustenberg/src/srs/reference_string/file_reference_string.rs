@@ -41,7 +41,7 @@ impl VerifierReferenceString for VerifierFileReferenceString {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub(crate) struct FileReferenceString {
     num_points: usize,
     pippenger: Pippenger,
@@ -56,15 +56,6 @@ impl FileReferenceString {
     pub(crate) fn read_from_path(_path: &str) -> Result<Self, std::io::Error> {
         // Implementation depends on your project.
         todo!("FileReferenceString::read_from_path")
-    }
-}
-
-impl Default for FileReferenceString {
-    fn default() -> Self {
-        Self {
-            num_points: 0,
-            pippenger: Pippenger::default(),
-        }
     }
 }
 
