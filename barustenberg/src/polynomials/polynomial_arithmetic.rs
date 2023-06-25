@@ -8,14 +8,6 @@ pub(crate) struct LagrangeEvaluations<Fr: Field + FftField> {
     pub(crate) l_end: Fr,
 }
 
-use crate::{common::max_threads::compute_num_threads, numeric::bitop::Msb};
-
-pub(crate) struct LagrangeEvaluations<Fr: Field + FftField> {
-    pub vanishing_poly: Fr,
-    pub l_start: Fr,
-    pub l_end: Fr,
-}
-
 #[inline]
 fn reverse_bits(x: u32, bit_length: u32) -> u32 {
     let x = ((x & 0xaaaaaaaa) >> 1) | ((x & 0x55555555) << 1);
@@ -490,7 +482,7 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
 
     fn fft_with_constant(&self, coeffs: &mut [Fr], target: &mut [Fr], value: Fr) {
         self.fft_inner_parallel(coeffs, target, &self.root, self.get_round_roots());
-        for mut item in coeffs.iter_mut().take(self.size) {
+        for item in coeffs.iter_mut().take(self.size) {
             *item *= value;
         }
     }

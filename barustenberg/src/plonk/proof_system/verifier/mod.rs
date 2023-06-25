@@ -5,21 +5,21 @@ use crate::{
         },
         reduced_ate_pairing_batch_precomputed,
     },
-    plonk::proof_system::constants::NUM_LIMB_BITS_IN_FieldExt_SIMULATION,
+    plonk::proof_system::constants::NUM_LIMB_BITS_IN_FIELD_SIMULATION,
     transcript::{BarretenHasher, Manifest, Transcript},
 };
 
 use ark_bn254::{Fq, Fq12, Fr, G1Affine, G1Projective};
 use ark_ec::AffineRepr;
 use ark_ec::CurveGroup;
-use ark_ff::{Field, One, Zero};
+use ark_ff::{BigInteger, Field, One, Zero};
 
 use super::{
     commitment_scheme::CommitmentScheme,
     types::{prover_settings::Settings, Proof},
 };
 
-use std::sync::Arc;
+use std::{cell::RefCell, sync::Arc};
 use std::{collections::HashMap, rc::Rc};
 
 use super::verification_key::VerificationKey;
@@ -35,7 +35,7 @@ pub(crate) struct Verifier<
     S: Settings<Hasher = H, Field = Fr, Group = G1Affine>,
 > {
     settings: S,
-    key: Rc<VerificationKey<'a, Fr>>,
+    key: Rc<RefCell<VerificationKey<'a, Fr>>>,
     manifest: Manifest,
     kate_g1_elements: HashMap<String, G1Affine>,
     kate_fr_elements: HashMap<String, Fr>,
@@ -69,7 +69,7 @@ impl<'a, H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine
         //                  q_l_eval, q_r_eval, q_o_eval, q_m_eval, q_c_eval, z_eval_omega \in F }
         //
         // Proof π_SNARK must first be added to the transcript with the other program_settings.
-        self.key.program_width = self.settings.program_width();
+        (*self.key).borrow_mut().program_width = self.settings.program_width();
 
         // Add the proof data to the transcript, according to the manifest. Also initialise the transcript's hash type and
         // challenge bytes.
@@ -80,10 +80,17 @@ impl<'a, H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine
         );
 
         // From the verification key, also add n & l (the circuit size and the number of public inputs) to the transcript.
-        transcript.add_element("circuit_size", self.key.circuit_size.to_le_bytes().to_vec());
+        transcript.add_element(
+            "circuit_size",
+            (*self.key).borrow().circuit_size.to_le_bytes().to_vec(),
+        );
         transcript.add_element(
             "public_input_size",
-            self.key.num_public_inputs.to_le_bytes().to_vec(),
+            (*self.key)
+                .borrow()
+                .num_public_inputs
+                .to_le_bytes()
+                .to_vec(),
         );
 
         // Compute challenges from the proof data, based on the manifest, using the Fiat-Shamir heuristic
@@ -105,7 +112,10 @@ impl<'a, H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine
         // Here k = num_roots_cut_out_of_the_vanishing_polynomial and n is the size of the evaluation domain.
         // TODO: can we add these lagrange evaluations to the transcript? They get recalcualted after this multiple times,
         // by each widget.
-        let lagrange_evals = &self.key.domain.get_lagrange_evaluations(&zeta, None);
+        let lagrange_evals = (*self.key)
+            .borrow()
+            .domain
+            .get_lagrange_evaluations(&zeta, None);
 
         // Step 8: Compute quotient polynomial evaluation at zeta
         //           r_eval − (a_eval + β.sigma1_eval + γ)(b_eval + β.sigma2_eval + γ)(c_eval + γ).z_eval_omega.α −
@@ -116,12 +126,13 @@ impl<'a, H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine
         // where Z_H*(X) is the modified vanishing polynomial.
 
         // Compute ʓ^n.
-        self.key.z_pow_n = zeta.pow(&[self.key.domain.size as u64]);
+        let z_pow_n = zeta.pow(&[(*self.key).borrow().domain.size as u64]);
+        (*self.key).borrow_mut().z_pow_n = z_pow_n;
 
         // compute the quotient polynomial numerator contribution
         let mut t_numerator_eval = Fr::zero();
         S::compute_quotient_evaluation_contribution(
-            &self.key,
+            &(*self.key).borrow(),
             &alpha,
             &transcript,
             &mut t_numerator_eval,
@@ -155,7 +166,7 @@ impl<'a, H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine
             &transcript,
             &mut self.kate_g1_elements,
             &mut self.kate_fr_elements,
-            Some(&self.key),
+            Some(&(*self.key).borrow()),
         );
 
         // Step 9: Compute the partial opening batch commitment [D]_1:
@@ -170,7 +181,7 @@ impl<'a, H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine
         // step.
         //
         S::append_scalar_multiplication_inputs(
-            &self.key,
+            &(*self.key).borrow(),
             &alpha,
             &transcript,
             &mut self.kate_fr_elements,
@@ -199,7 +210,7 @@ impl<'a, H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine
             .insert("PI_Z_OMEGA".to_string(), pi_z_omega.into());
         self.kate_fr_elements.insert(
             "PI_Z_OMEGA".to_string(),
-            zeta * self.key.domain.root * separator_challenge,
+            zeta * (*self.key).borrow().domain.root * separator_challenge,
         );
 
         self.kate_g1_elements.insert("PI_Z".to_owned(), pi_z.into());
@@ -226,7 +237,8 @@ impl<'a, H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine
         // Generate Pippenger point table
         //     this was: barretenberg::scalar_multiplication::generate_pippenger_point_table(&elements[0], &elements[0], num_elements);
         let mut elements_clone = elements.clone();
-        generate_pippenger_point_table(&mut elements_clone[..], &mut elements[..], elements.len());
+        let elements_len = elements.len();
+        generate_pippenger_point_table(&mut elements_clone[..], &mut elements[..], elements_len);
         let mut state = PippengerRuntimeState::new(n);
 
         let mut p: [G1Affine; 2] = [G1Affine::zero(); 2];
@@ -236,50 +248,53 @@ impl<'a, H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine
                 G1Affine,
             >>::into(-(G1Affine::identity() * separator_challenge + pi_z));
 
-        if self.key.contains_recursive_proof {
-            assert!(self.key.recursive_proof_public_input_indices.len() == 16);
-            let inputs = transcript.get_field_element_vector("public_inputs");
+        let key_borrowed = (*self.key).borrow();
+        if key_borrowed.contains_recursive_proof {
+            assert!(key_borrowed.recursive_proof_public_input_indices.len() == 16);
+            let inputs: Vec<Fr> = transcript.get_field_element_vector("public_inputs");
             let recover_fq_from_public_inputs =
                 |idx0: usize, idx1: usize, idx2: usize, idx3: usize| {
-                    let l0 = inputs[idx0];
-                    let l1 = inputs[idx1];
-                    let l2 = inputs[idx2];
-                    let l3 = inputs[idx3];
-
-                    let limb = l0
-                        + (l1 << NUM_LIMB_BITS_IN_FieldExt_SIMULATION)
-                        + (l2 << (NUM_LIMB_BITS_IN_FieldExt_SIMULATION * 2))
-                        + (l3 << (NUM_LIMB_BITS_IN_FieldExt_SIMULATION * 3));
-                    limb
+                    // TODO THIS BADLY NEEDS CHECKING!!
+                    let mut l0: ark_ff::BigInt<4> = inputs[idx0].into();
+                    let mut l1: ark_ff::BigInt<4> = inputs[idx1].into();
+                    let mut l2: ark_ff::BigInt<4> = inputs[idx2].into();
+                    let mut l3: ark_ff::BigInt<4> = inputs[idx3].into();
+                    l1.muln(NUM_LIMB_BITS_IN_FIELD_SIMULATION.try_into().unwrap());
+                    l2.muln((NUM_LIMB_BITS_IN_FIELD_SIMULATION * 2).try_into().unwrap());
+                    l3.muln((NUM_LIMB_BITS_IN_FIELD_SIMULATION * 3).try_into().unwrap());
+                    let _ = l0.add_with_carry(&l1);
+                    let _ = l0.add_with_carry(&l2);
+                    let _ = l0.add_with_carry(&l3);
+                    Fq::new(l0)
                 };
 
-            let recursion_separator_challenge: Fr = transcript
+            let recursion_separator_challenge = transcript
                 .get_challenge_field_element::<Fr>("separator", None)
                 .square();
 
             let x0 = recover_fq_from_public_inputs(
-                self.key.recursive_proof_public_input_indices[0] as usize,
-                self.key.recursive_proof_public_input_indices[1] as usize,
-                self.key.recursive_proof_public_input_indices[2] as usize,
-                self.key.recursive_proof_public_input_indices[3] as usize,
+                key_borrowed.recursive_proof_public_input_indices[0] as usize,
+                key_borrowed.recursive_proof_public_input_indices[1] as usize,
+                key_borrowed.recursive_proof_public_input_indices[2] as usize,
+                key_borrowed.recursive_proof_public_input_indices[3] as usize,
             );
             let y0 = recover_fq_from_public_inputs(
-                self.key.recursive_proof_public_input_indices[4] as usize,
-                self.key.recursive_proof_public_input_indices[5] as usize,
-                self.key.recursive_proof_public_input_indices[6] as usize,
-                self.key.recursive_proof_public_input_indices[7] as usize,
+                key_borrowed.recursive_proof_public_input_indices[4] as usize,
+                key_borrowed.recursive_proof_public_input_indices[5] as usize,
+                key_borrowed.recursive_proof_public_input_indices[6] as usize,
+                key_borrowed.recursive_proof_public_input_indices[7] as usize,
             );
             let x1 = recover_fq_from_public_inputs(
-                self.key.recursive_proof_public_input_indices[8] as usize,
-                self.key.recursive_proof_public_input_indices[9] as usize,
-                self.key.recursive_proof_public_input_indices[10] as usize,
-                self.key.recursive_proof_public_input_indices[11] as usize,
+                key_borrowed.recursive_proof_public_input_indices[8] as usize,
+                key_borrowed.recursive_proof_public_input_indices[9] as usize,
+                key_borrowed.recursive_proof_public_input_indices[10] as usize,
+                key_borrowed.recursive_proof_public_input_indices[11] as usize,
             );
             let y1 = recover_fq_from_public_inputs(
-                self.key.recursive_proof_public_input_indices[12] as usize,
-                self.key.recursive_proof_public_input_indices[13] as usize,
-                self.key.recursive_proof_public_input_indices[14] as usize,
-                self.key.recursive_proof_public_input_indices[15] as usize,
+                key_borrowed.recursive_proof_public_input_indices[12] as usize,
+                key_borrowed.recursive_proof_public_input_indices[13] as usize,
+                key_borrowed.recursive_proof_public_input_indices[14] as usize,
+                key_borrowed.recursive_proof_public_input_indices[15] as usize,
             );
             p[0] = (p[0] + G1Projective::new(x0, y0, Fq::one()) * recursion_separator_challenge)
                 .into_affine();
@@ -290,7 +305,8 @@ impl<'a, H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine
         // The final pairing check of step 12.
         let result: Fq12 = reduced_ate_pairing_batch_precomputed(
             &p,
-            self.key
+            (*self.key)
+                .borrow()
                 .reference_string
                 .get_precomputed_g2_lines()
                 .as_ref(),

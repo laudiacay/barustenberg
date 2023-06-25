@@ -106,10 +106,10 @@ impl<H: BarretenHasher> Settings for StandardSettings<H> {
 
     #[inline]
     fn compute_quotient_evaluation_contribution(
-        verification_key: &VerificationKey<'_, Fr>,
-        alpha_base: &Fr,
-        transcript: &Transcript<H>,
-        quotient_numerator_eval: &Fr,
+        _verification_key: &VerificationKey<'_, Fr>,
+        _alpha_base: &Fr,
+        _transcript: &Transcript<H>,
+        _quotient_numerator_eval: &Fr,
     ) -> Fr {
         unimplemented!("todo");
         /*
@@ -128,10 +128,10 @@ impl<H: BarretenHasher> Settings for StandardSettings<H> {
 
     #[inline]
     fn append_scalar_multiplication_inputs(
-        verification_key: &VerificationKey<'_, Fr>,
-        alpha_base: &Fr,
-        transcript: &Transcript<H>,
-        scalars: &HashMap<String, Fr>,
+        _verification_key: &VerificationKey<'_, Fr>,
+        _alpha_base: &Fr,
+        _transcript: &Transcript<H>,
+        _scalars: &HashMap<String, Fr>,
     ) -> Fr {
         unimplemented!("todo");
     }
@@ -188,10 +188,10 @@ impl Settings for TurboSettings {
     }
     #[inline]
     fn compute_quotient_evaluation_contribution(
-        verification_key: &VerificationKey<'_, Fr>,
-        alpha_base: &Fr,
-        transcript: &Transcript<PedersenBlake3s>,
-        quotient_numerator_eval: &Fr,
+        _verification_key: &VerificationKey<'_, Fr>,
+        _alpha_base: &Fr,
+        _transcript: &Transcript<PedersenBlake3s>,
+        _quotient_numerator_eval: &Fr,
     ) -> Fr {
         unimplemented!();
         /*
@@ -211,10 +211,10 @@ impl Settings for TurboSettings {
          */
     }
     fn append_scalar_multiplication_inputs(
-        verification_key: &VerificationKey<'_, Fr>,
-        alpha_base: &Fr,
-        transcript: &Transcript<PedersenBlake3s>,
-        scalars: &HashMap<String, Fr>,
+        _verification_key: &VerificationKey<'_, Fr>,
+        _alpha_base: &Fr,
+        _transcript: &Transcript<PedersenBlake3s>,
+        _scalars: &HashMap<String, Fr>,
     ) -> Fr {
         unimplemented!("todo");
     }
@@ -266,10 +266,10 @@ impl Settings for UltraSettings {
 
     #[inline]
     fn compute_quotient_evaluation_contribution(
-        verification_key: &VerificationKey<'_, Fr>,
-        alpha_base: &Fr,
-        transcript: &Transcript<PlookupPedersenBlake3s>,
-        quotient_numerator_eval: &Fr,
+        _verification_key: &VerificationKey<'_, Fr>,
+        _alpha_base: &Fr,
+        _transcript: &Transcript<PlookupPedersenBlake3s>,
+        _quotient_numerator_eval: &Fr,
     ) -> Fr {
         /*
                 auto updated_alpha_base = PermutationWidget::compute_quotient_evaluation_contribution(
@@ -291,10 +291,10 @@ impl Settings for UltraSettings {
     }
 
     fn append_scalar_multiplication_inputs(
-        verification_key: &VerificationKey<'_, Fr>,
-        alpha_base: &Fr,
-        transcript: &Transcript<PlookupPedersenBlake3s>,
-        scalars: &HashMap<String, Fr>,
+        _verification_key: &VerificationKey<'_, Fr>,
+        _alpha_base: &Fr,
+        _transcript: &Transcript<PlookupPedersenBlake3s>,
+        _scalars: &HashMap<String, Fr>,
     ) -> Fr {
         unimplemented!("todo");
     }
@@ -345,20 +345,20 @@ impl Settings for UltraToStandardSettings {
     }
     #[inline]
     fn compute_quotient_evaluation_contribution(
-        verification_key: &VerificationKey<'_, Fr>,
-        alpha_base: &Fr,
-        transcript: &Transcript<PedersenBlake3s>,
-        quotient_numerator_eval: &Fr,
+        _verification_key: &VerificationKey<'_, Fr>,
+        _alpha_base: &Fr,
+        _transcript: &Transcript<PedersenBlake3s>,
+        _quotient_numerator_eval: &Fr,
     ) -> Fr {
         // UltraSettings::compute_quotient_evaluation_contribution(verification_key, alpha_base, transcript, quotient_numerator_eval)
         todo!()
     }
 
     fn append_scalar_multiplication_inputs(
-        verification_key: &VerificationKey<'_, Fr>,
-        alpha_base: &Fr,
-        transcript: &Transcript<PedersenBlake3s>,
-        scalars: &HashMap<String, Fr>,
+        _verification_key: &VerificationKey<'_, Fr>,
+        _alpha_base: &Fr,
+        _transcript: &Transcript<PedersenBlake3s>,
+        _scalars: &HashMap<String, Fr>,
     ) -> Fr {
         unimplemented!("todo");
     }
@@ -409,19 +409,19 @@ impl Settings for UltraWithKeccakSettings {
     }
     #[inline]
     fn compute_quotient_evaluation_contribution(
-        verification_key: &VerificationKey<'_, Fr>,
-        alpha_base: &Fr,
-        transcript: &Transcript<Keccak256>,
-        quotient_numerator_eval: &Fr,
+        _verification_key: &VerificationKey<'_, Fr>,
+        _alpha_base: &Fr,
+        _transcript: &Transcript<Keccak256>,
+        _quotient_numerator_eval: &Fr,
     ) -> Fr {
         //UltraSettings::compute_quotient_evaluation_contribution(verification_key, alpha_base, transcript, quotient_numerator_eval)
         todo!()
     }
     fn append_scalar_multiplication_inputs(
-        verification_key: &VerificationKey<'_, Fr>,
-        alpha_base: &Fr,
-        transcript: &Transcript<Keccak256>,
-        scalars: &HashMap<String, Fr>,
+        _verification_key: &VerificationKey<'_, Fr>,
+        _alpha_base: &Fr,
+        _transcript: &Transcript<Keccak256>,
+        _scalars: &HashMap<String, Fr>,
     ) -> Fr {
         unimplemented!("todo");
     }

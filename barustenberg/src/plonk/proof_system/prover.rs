@@ -393,7 +393,7 @@ impl<
         self.commitment_scheme.batch_open(
             &(*self.transcript).borrow(),
             &mut self.queue,
-            Some(&*(*self.key).borrow()),
+            Some(self.key.clone()),
         );
     }
 
@@ -553,7 +553,7 @@ impl<
         self.commitment_scheme
             .add_opening_evaluations_to_transcript(
                 &mut (*self.transcript).borrow_mut(),
-                Some(&self.key.borrow()),
+                Some(self.key.clone()),
                 false,
             );
 
