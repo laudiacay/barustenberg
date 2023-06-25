@@ -35,7 +35,7 @@ pub(crate) struct Verifier<'a, H: BarretenHasher, PS: Settings<H, Fr, G1Affine>>
     manifest: Manifest,
     kate_g1_elements: HashMap<String, G1Affine>,
     kate_fr_elements: HashMap<String, Fr>,
-    commitment_scheme: Box<dyn CommitmentScheme<Fq, Fr, G1Affine, H>>,
+    commitment_scheme: Box<dyn CommitmentScheme<Fq = Fq, Fr = Fr, Group = G1Affine, Hasher = H>>,
 }
 
 impl<'a, H: BarretenHasher, PS: Settings<H, Fr, G1Affine>> Verifier<'a, H, PS> {
