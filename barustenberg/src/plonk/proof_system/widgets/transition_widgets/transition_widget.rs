@@ -10,71 +10,39 @@ use ark_ff::{FftField, Field};
 
 use crate::{
     plonk::proof_system::{
-        proving_key::ProvingKey,
-        types::{polynomial_manifest::PolynomialIndex, prover_settings::Settings},
+        proving_key::ProvingKey, types::polynomial_manifest::PolynomialIndex,
         verification_key::VerificationKey,
     },
     transcript::{BarretenHasher, Transcript},
 };
 
 use super::{
-    containers::{ChallengeArray, CoefficientArray, PolyArray, PolyContainer, PolyPtrMap},
+    containers::{ChallengeArray, CoefficientArray, PolyArray},
     getters::{BaseGetter, EvaluationGetter, FFTGetter, FFTGetterImpl},
 };
 
 pub(crate) trait KernelBase {
     type Hasher: BarretenHasher;
-    type Settings: Settings<Hasher = Self::Hasher, Field = Self::Field, Group = Self::Group>;
     type Field: Field + FftField;
     type Group: AffineRepr;
     type NumIndependentRelations: generic_array::ArrayLength<Self::Field>;
     fn get_required_polynomial_ids() -> HashSet<PolynomialIndex>;
     fn quotient_required_challenges() -> u8;
     fn update_required_challenges() -> u8;
-    fn compute_linear_terms<
-        PC: PolyContainer<Self::Field>,
-        Get: BaseGetter<
-            Self::Hasher,
-            Self::Field,
-            Self::Group,
-            Self::Settings,
-            PC,
-            Self::NumIndependentRelations,
-        >,
-    >(
-        polynomials: &PC,
+    fn compute_linear_terms<Get: BaseGetter<Fr = Self::Field>>(
+        polynomials: &Get::PC,
         challenges: &ChallengeArray<Self::Field, Self::NumIndependentRelations>,
         linear_terms: &mut CoefficientArray<Self::Field>,
         index: Option<usize>,
     );
-    fn sum_linear_terms<
-        PC: PolyContainer<Self::Field>,
-        Get: BaseGetter<
-            Self::Hasher,
-            Self::Field,
-            Self::Group,
-            Self::Settings,
-            PC,
-            Self::NumIndependentRelations,
-        >,
-    >(
-        polynomials: &PC,
+    fn sum_linear_terms<Get: BaseGetter>(
+        polynomials: &Get::PC,
         challenges: &ChallengeArray<Self::Field, Self::NumIndependentRelations>,
         linear_terms: &CoefficientArray<Self::Field>,
         index: usize,
     ) -> Self::Field;
-    fn compute_non_linear_terms<
-        PC: PolyContainer<Self::Field>,
-        Get: BaseGetter<
-            Self::Hasher,
-            Self::Field,
-            Self::Group,
-            Self::Settings,
-            PC,
-            Self::NumIndependentRelations,
-        >,
-    >(
-        polynomials: &PC,
+    fn compute_non_linear_terms<Get: BaseGetter<Fr = Self::Field>>(
+        polynomials: &Get::PC,
         challenges: &ChallengeArray<Self::Field, Self::NumIndependentRelations>,
         quotient_term: &mut Self::Field,
         index: usize,
@@ -103,7 +71,6 @@ pub(crate) struct TransitionWidget<
     H: BarretenHasher,
     F: Field + FftField,
     G: AffineRepr,
-    S: Settings<Hasher = H>,
     NIndependentRelations,
     KB,
 > where
@@ -111,24 +78,22 @@ pub(crate) struct TransitionWidget<
     KB: KernelBase,
 {
     key: Rc<ProvingKey<'a, F, G>>,
-    phantom: PhantomData<(H, F, S, NIndependentRelations, KB)>,
+    phantom: PhantomData<(H, NIndependentRelations, KB)>,
 }
 impl<
         'a,
         H: BarretenHasher,
         F: Field + FftField,
         G: AffineRepr,
-        S: Settings<Hasher = H>,
         NIndependentRelations: generic_array::ArrayLength<F>,
         KB,
-    > TransitionWidgetBase<'a> for TransitionWidget<'a, H, F, G, S, NIndependentRelations, KB>
+    > TransitionWidgetBase<'a> for TransitionWidget<'a, H, F, G, NIndependentRelations, KB>
 where
     KB: KernelBase<
         Field = F,
         Group = G,
         NumIndependentRelations = NIndependentRelations,
         Hasher = H,
-        Settings = S,
     >,
 {
     type Hasher = H;
@@ -142,12 +107,12 @@ where
         rng: &mut Box<dyn rand::RngCore>,
     ) -> F {
         let required_polynomial_ids = KB::get_required_polynomial_ids();
-        let polynomials = FFTGetterImpl::<H, F, G, S, NIndependentRelations>::get_polynomials(
+        let polynomials = FFTGetterImpl::<H, F, G, NIndependentRelations>::get_polynomials(
             &self.key,
             &required_polynomial_ids,
         );
 
-        let challenges = FFTGetterImpl::<H, F, G, S, NIndependentRelations>::get_challenges(
+        let challenges = FFTGetterImpl::<H, F, G, NIndependentRelations>::get_challenges(
             transcript,
             alpha_base,
             KB::quotient_required_challenges(),
@@ -159,101 +124,109 @@ where
         // TODO: hidden missing multithreading here
         for i in 0..self.key.large_domain.size {
             let mut linear_terms = CoefficientArray::default();
-            KB::compute_linear_terms::<
-                PolyPtrMap<F>,
-                FFTGetterImpl<H, F, G, S, NIndependentRelations>,
-            >(&polynomials, &challenges, &mut linear_terms, Some(i));
+            KB::compute_linear_terms::<FFTGetterImpl<H, F, G, NIndependentRelations>>(
+                &polynomials,
+                &challenges,
+                &mut linear_terms,
+                Some(i),
+            );
             let sum_of_linear_terms = KB::sum_linear_terms::<
-                PolyPtrMap<F>,
-                FFTGetterImpl<H, F, G, S, NIndependentRelations>,
+                FFTGetterImpl<H, F, G, NIndependentRelations>,
             >(&polynomials, &challenges, &linear_terms, i);
 
             quotient_term = self.key.quotient_polynomial_parts
                 [i >> self.key.small_domain.log2_size]
                 .borrow()[i & (self.key.circuit_size - 1)];
             quotient_term += sum_of_linear_terms;
-            KB::compute_non_linear_terms::<
-                PolyPtrMap<F>,
-                FFTGetterImpl<H, F, G, S, NIndependentRelations>,
-            >(&polynomials, &challenges, &mut quotient_term, i);
+            KB::compute_non_linear_terms::<FFTGetterImpl<H, F, G, NIndependentRelations>>(
+                &polynomials,
+                &challenges,
+                &mut quotient_term,
+                i,
+            );
         }
 
-        FFTGetterImpl::<H, F, G, S, NIndependentRelations>::update_alpha(&challenges)
+        FFTGetterImpl::<H, F, G, NIndependentRelations>::update_alpha(&challenges)
     }
 }
 
-pub(crate) trait GenericVerifierWidget<
-    'a,
-    F: Field + FftField,
-    H: BarretenHasher,
-    G: AffineRepr,
-    Get: EvaluationGetter<H, F, G, S, NIndependentRelations>,
-    NIndependentRelations,
-    S: Settings<Hasher = H>,
-    KB,
-> where
-    NIndependentRelations: generic_array::ArrayLength<F>,
-    KB: KernelBase<
-        Field = F,
-        Hasher = H,
-        Settings = S,
-        Group = G,
-        NumIndependentRelations = NIndependentRelations,
-    >,
-{
+pub(crate) trait GenericVerifierWidget<'a> {
+    type Hasher: BarretenHasher;
+    type Field: Field + FftField;
+    type Group: AffineRepr;
+    type NumIndependentRelations: generic_array::ArrayLength<Self::Field>;
+    type Get: EvaluationGetter<
+            Hasher = Self::Hasher,
+            Fr = Self::Field,
+            G1 = Self::Group,
+            NWidgetRelations = Self::NumIndependentRelations,
+        > + BaseGetter<
+            Hasher = Self::Hasher,
+            Fr = Self::Field,
+            G1 = Self::Group,
+            NWidgetRelations = Self::NumIndependentRelations,
+            PC = PolyArray<Self::Field>,
+        >;
+    type KB: KernelBase<
+        Field = Self::Field,
+        Hasher = Self::Hasher,
+        Group = Self::Group,
+        NumIndependentRelations = Self::NumIndependentRelations,
+    >;
+
     fn compute_quotient_evaluation_contribution(
-        key: &Arc<VerificationKey<'a, F>>,
-        alpha_base: F,
-        transcript: &Transcript<H>,
-        quotient_numerator_eval: &mut F,
+        key: &Arc<VerificationKey<'a, Self::Field>>,
+        alpha_base: Self::Field,
+        transcript: &Transcript<Self::Hasher>,
+        quotient_numerator_eval: &mut Self::Field,
         rng: &mut Box<dyn rand::RngCore>,
-    ) -> F {
+    ) -> Self::Field {
         let polynomial_evaluations =
-            Get::get_polynomial_evaluations(&key.as_ref().polynomial_manifest, transcript);
-        let challenges = Get::get_challenges(
+            Self::Get::get_polynomial_evaluations(&key.as_ref().polynomial_manifest, transcript);
+        let challenges = Self::Get::get_challenges(
             transcript,
             alpha_base,
-            KB::quotient_required_challenges(),
+            Self::KB::quotient_required_challenges(),
             rng,
         );
 
         let mut linear_terms = CoefficientArray::default();
-        KB::compute_linear_terms::<PolyArray<F>, Get>(
+        Self::KB::compute_linear_terms::<Self::Get>(
             &polynomial_evaluations,
             &challenges,
             &mut linear_terms,
             Some(0),
         );
-        *quotient_numerator_eval += KB::sum_linear_terms::<PolyArray<F>, Get>(
+        *quotient_numerator_eval += Self::KB::sum_linear_terms::<Self::Get>(
             &polynomial_evaluations,
             &challenges,
             &linear_terms,
             0,
         );
-        KB::compute_non_linear_terms::<PolyArray<F>, Get>(
+        Self::KB::compute_non_linear_terms::<Self::Get>(
             &polynomial_evaluations,
             &challenges,
             quotient_numerator_eval,
             0,
         );
 
-        Get::update_alpha(&challenges)
+        Self::Get::update_alpha(&challenges)
     }
 
     fn append_scalar_multiplication_inputs(
-        _key: &Arc<VerificationKey<'_, F>>,
-        alpha_base: F,
-        transcript: &Transcript<H>,
-        _scalar_mult_inputs: &mut HashMap<String, F>,
+        _key: &Arc<VerificationKey<'_, Self::Field>>,
+        alpha_base: Self::Field,
+        transcript: &Transcript<Self::Hasher>,
+        _scalar_mult_inputs: &mut HashMap<String, Self::Field>,
         rng: &mut Box<dyn rand::RngCore>,
-    ) -> F {
-        let challenges = Get::get_challenges(
+    ) -> Self::Field {
+        let challenges = Self::Get::get_challenges(
             transcript,
             alpha_base,
-            KB::quotient_required_challenges() | KB::update_required_challenges(),
+            Self::KB::quotient_required_challenges() | Self::KB::update_required_challenges(),
             rng,
         );
 
-        Get::update_alpha(&challenges)
+        Self::Get::update_alpha(&challenges)
     }
 }

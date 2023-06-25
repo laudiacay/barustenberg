@@ -5,10 +5,7 @@ use typenum::U1;
 use crate::{
     plonk::proof_system::{
         proving_key::ProvingKey,
-        types::{
-            polynomial_manifest::{EvaluationType, PolynomialIndex},
-            prover_settings::Settings,
-        },
+        types::polynomial_manifest::{EvaluationType, PolynomialIndex},
     },
     transcript::BarretenHasher,
 };
@@ -20,21 +17,16 @@ use std::{
 };
 
 use super::{
-    containers::{ChallengeArray, CoefficientArray, PolyContainer, CHALLENGE_BIT_ALPHA},
+    containers::{ChallengeArray, CoefficientArray, CHALLENGE_BIT_ALPHA},
     getters::BaseGetter,
     transition_widget::KernelBase,
 };
 
-pub(crate) struct ArithmeticKernel<
-    H: BarretenHasher,
-    F: Field + FftField,
-    G: AffineRepr,
-    S: Settings<Hasher = H>,
-> {
-    _marker: PhantomData<(H, F, G, S)>,
+pub(crate) struct ArithmeticKernel<H: BarretenHasher, F: Field + FftField, G: AffineRepr> {
+    _marker: PhantomData<(H, F, G)>,
 }
 
-impl<H: BarretenHasher, F, G, S: Settings<Hasher = H>> ArithmeticKernel<H, F, G, S>
+impl<H: BarretenHasher, F, G> ArithmeticKernel<H, F, G>
 where
     F: Field + FftField,
     G: AffineRepr,
@@ -49,16 +41,11 @@ where
     }
 }
 
-impl<
-        H: BarretenHasher,
-        F: Field + FftField,
-        G: AffineRepr,
-        S: Settings<Hasher = H, Group = G, Field = F>,
-    > KernelBase for ArithmeticKernel<H, F, G, S>
+impl<H: BarretenHasher, F: Field + FftField, G: AffineRepr> KernelBase
+    for ArithmeticKernel<H, F, G>
 {
     type Field = F;
     type Group = G;
-    type Settings = S;
     type Hasher = H;
     type NumIndependentRelations = U1;
 
@@ -85,8 +72,8 @@ impl<
     }
 
     #[inline]
-    fn compute_linear_terms<PC: PolyContainer<F>, Get: BaseGetter<H, F, G, S, PC, U1>>(
-        polynomials: &PC,
+    fn compute_linear_terms<Get: BaseGetter<Fr = Self::Field>>(
+        polynomials: &Get::PC,
         _challenges: &ChallengeArray<F, U1>,
         linear_terms: &mut CoefficientArray<F>,
         index: Option<usize>,
@@ -117,8 +104,8 @@ impl<
         linear_terms[3.into()] = w_3;
     }
 
-    fn sum_linear_terms<PC: PolyContainer<F>, Get: BaseGetter<H, F, G, S, PC, U1>>(
-        _polynomials: &PC,
+    fn sum_linear_terms<Get: BaseGetter>(
+        _polynomials: &Get::PC,
         _challenges: &ChallengeArray<F, U1>,
         _linear_terms: &CoefficientArray<F>,
         _index: usize,
@@ -165,8 +152,8 @@ impl<
     }
 
     /// Not being used in arithmetic_widget because there are none
-    fn compute_non_linear_terms<PC: PolyContainer<F>, Get: BaseGetter<H, F, G, S, PC, U1>>(
-        _polynomials: &PC,
+    fn compute_non_linear_terms<Get: BaseGetter<Fr = Self::Field>>(
+        _polynomials: &Get::PC,
         _challenges: &ChallengeArray<F, U1>,
         _quotient_term: &mut F,
         _index: usize,

@@ -12,10 +12,11 @@ use crate::{
 
 // TODO bevy_reflect? or what
 // or inline everything!
-pub(crate) trait Settings {
+pub(crate) trait Settings: Sized {
     type Hasher: BarretenHasher;
     type Field: Field + FftField;
     type Group: AffineRepr;
+
     #[inline]
     fn requires_shifted_wire(wire_shift_settings: u64, wire_index: u64) -> bool {
         ((wire_shift_settings >> wire_index) & 1u64) == 1u64
@@ -32,13 +33,17 @@ pub(crate) trait Settings {
         alpha_base: &Self::Field,
         transcript: &Transcript<Self::Hasher>,
         quotient_numerator_eval: &Self::Field,
-    ) -> Self::Field;
+    ) -> Self::Field
+    where
+        Self: Sized;
     fn append_scalar_multiplication_inputs(
         verification_key: &VerificationKey<'_, Self::Field>,
         alpha_base: &Self::Field,
         transcript: &Transcript<Self::Hasher>,
         scalars: &HashMap<String, Self::Field>,
-    ) -> Self::Field;
+    ) -> Self::Field
+    where
+        Self: Sized;
     fn is_plookup(&self) -> bool;
     fn hasher(&self) -> &Self::Hasher;
 }

@@ -7,7 +7,6 @@ use crate::{
         curves::external_coset_generator, tag_coset_generator,
     },
     numeric::bitop::Msb,
-    plonk::proof_system::types::prover_settings::Settings,
     polynomials::{evaluation_domain::EvaluationDomain, Polynomial},
     transcript::BarretenHasher,
 };
@@ -23,7 +22,6 @@ pub(crate) fn compute_permutation_lagrange_base_single<
     H: BarretenHasher,
     Fr: Field + FftField,
     G: AffineRepr,
-    S: Settings<Hasher = H>,
 >(
     output: &mut Polynomial<Fr>,
     permutation: &[u32],
@@ -43,7 +41,7 @@ pub(crate) fn compute_permutation_lagrange_base_single<
         })
         .collect();
 
-    compute_permutation_lagrange_base_single_helper::<H, Fr, G, S>(
+    compute_permutation_lagrange_base_single_helper::<H, Fr, G>(
         output,
         &subgroup_elements,
         small_domain,
@@ -54,7 +52,6 @@ pub(crate) fn compute_permutation_lagrange_base_single_helper<
     H: BarretenHasher,
     Fr: Field + FftField,
     G: AffineRepr,
-    S: Settings<Hasher = H>,
 >(
     output: &mut Polynomial<Fr>,
     permutation: &[PermutationSubgroupElement],

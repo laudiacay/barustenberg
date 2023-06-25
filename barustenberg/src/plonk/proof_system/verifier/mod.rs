@@ -29,8 +29,12 @@ use anyhow::{anyhow, Result};
 #[cfg(test)]
 mod test;
 
-pub(crate) struct Verifier<'a, H: BarretenHasher, PS: Settings<Hasher = H>> {
-    settings: PS,
+pub(crate) struct Verifier<
+    'a,
+    H: BarretenHasher,
+    S: Settings<Hasher = H, Field = Fr, Group = G1Affine>,
+> {
+    settings: S,
     key: Rc<VerificationKey<'a, Fr>>,
     manifest: Manifest,
     kate_g1_elements: HashMap<String, G1Affine>,
@@ -38,8 +42,8 @@ pub(crate) struct Verifier<'a, H: BarretenHasher, PS: Settings<Hasher = H>> {
     commitment_scheme: Box<dyn CommitmentScheme<Fq = Fq, Fr = Fr, Group = G1Affine, Hasher = H>>,
 }
 
-impl<'a, H: BarretenHasher, PS: Settings<Hasher = H, Field = Fr, Group = G1Affine>>
-    Verifier<'a, H, PS>
+impl<'a, H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>>
+    Verifier<'a, H, S>
 {
     fn new(_verifier_key: Option<Arc<VerificationKey<'a, Fr>>>, _manifest: Manifest) -> Self {
         // Implement constructor logic here.
@@ -116,7 +120,7 @@ impl<'a, H: BarretenHasher, PS: Settings<Hasher = H, Field = Fr, Group = G1Affin
 
         // compute the quotient polynomial numerator contribution
         let mut t_numerator_eval = Fr::zero();
-        PS::compute_quotient_evaluation_contribution(
+        S::compute_quotient_evaluation_contribution(
             &self.key,
             &alpha,
             &transcript,
@@ -165,7 +169,7 @@ impl<'a, H: BarretenHasher, PS: Settings<Hasher = H, Field = Fr, Group = G1Affin
         // Again, we dont actually compute the MSMs and just accumulate scalars and group elements and postpone MSM to last
         // step.
         //
-        PS::append_scalar_multiplication_inputs(
+        S::append_scalar_multiplication_inputs(
             &self.key,
             &alpha,
             &transcript,
