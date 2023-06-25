@@ -23,7 +23,7 @@ pub(crate) fn compute_permutation_lagrange_base_single<
     H: BarretenHasher,
     Fr: Field + FftField,
     G: AffineRepr,
-    S: Settings<H, Fr, G>,
+    S: Settings<Hasher = H>,
 >(
     output: &mut Polynomial<Fr>,
     permutation: &[u32],
@@ -54,7 +54,7 @@ pub(crate) fn compute_permutation_lagrange_base_single_helper<
     H: BarretenHasher,
     Fr: Field + FftField,
     G: AffineRepr,
-    S: Settings<H, Fr, G>,
+    S: Settings<Hasher = H>,
 >(
     output: &mut Polynomial<Fr>,
     permutation: &[PermutationSubgroupElement],

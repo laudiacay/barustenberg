@@ -29,7 +29,7 @@ use anyhow::{anyhow, Result};
 #[cfg(test)]
 mod test;
 
-pub(crate) struct Verifier<'a, H: BarretenHasher, PS: Settings<H, Fr, G1Affine>> {
+pub(crate) struct Verifier<'a, H: BarretenHasher, PS: Settings<Hasher = H>> {
     settings: PS,
     key: Rc<VerificationKey<'a, Fr>>,
     manifest: Manifest,
@@ -38,7 +38,9 @@ pub(crate) struct Verifier<'a, H: BarretenHasher, PS: Settings<H, Fr, G1Affine>>
     commitment_scheme: Box<dyn CommitmentScheme<Fq = Fq, Fr = Fr, Group = G1Affine, Hasher = H>>,
 }
 
-impl<'a, H: BarretenHasher, PS: Settings<H, Fr, G1Affine>> Verifier<'a, H, PS> {
+impl<'a, H: BarretenHasher, PS: Settings<Hasher = H, Field = Fr, Group = G1Affine>>
+    Verifier<'a, H, PS>
+{
     fn new(_verifier_key: Option<Arc<VerificationKey<'a, Fr>>>, _manifest: Manifest) -> Self {
         // Implement constructor logic here.
         todo!("Verifier::new")

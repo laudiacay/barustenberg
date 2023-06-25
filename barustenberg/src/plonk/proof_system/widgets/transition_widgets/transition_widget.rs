@@ -24,7 +24,7 @@ use super::{
 
 pub(crate) trait KernelBase {
     type Hasher: BarretenHasher;
-    type Settings: Settings<Self::Hasher, Self::Field, Self::Group>;
+    type Settings: Settings<Hasher = Self::Hasher, Field = Self::Field, Group = Self::Group>;
     type Field: Field + FftField;
     type Group: AffineRepr;
     type NumIndependentRelations: generic_array::ArrayLength<Self::Field>;
@@ -103,7 +103,7 @@ pub(crate) struct TransitionWidget<
     H: BarretenHasher,
     F: Field + FftField,
     G: AffineRepr,
-    S: Settings<H, F, G>,
+    S: Settings<Hasher = H>,
     NIndependentRelations,
     KB,
 > where
@@ -118,7 +118,7 @@ impl<
         H: BarretenHasher,
         F: Field + FftField,
         G: AffineRepr,
-        S: Settings<H, F, G>,
+        S: Settings<Hasher = H>,
         NIndependentRelations: generic_array::ArrayLength<F>,
         KB,
     > TransitionWidgetBase<'a> for TransitionWidget<'a, H, F, G, S, NIndependentRelations, KB>
@@ -189,7 +189,7 @@ pub(crate) trait GenericVerifierWidget<
     G: AffineRepr,
     Get: EvaluationGetter<H, F, G, S, NIndependentRelations>,
     NIndependentRelations,
-    S: Settings<H, F, G>,
+    S: Settings<Hasher = H>,
     KB,
 > where
     NIndependentRelations: generic_array::ArrayLength<F>,

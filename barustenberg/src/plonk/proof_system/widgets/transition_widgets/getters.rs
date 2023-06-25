@@ -39,7 +39,7 @@ pub(crate) trait BaseGetter<
     H: BarretenHasher,
     F: Field + FftField,
     G: AffineRepr,
-    S: Settings<H, F, G>,
+    S: Settings<Hasher = H>,
     PC: PolyContainer<F>,
     NWidgetRelations: generic_array::ArrayLength<F>,
 >
@@ -134,7 +134,7 @@ where
     F: Field + FftField,
     G: AffineRepr,
     H: BarretenHasher,
-    S: Settings<H, F, G>,
+    S: Settings<Hasher = H>,
     NWidgetRelations: generic_array::ArrayLength<F>,
 {
     phantom: PhantomData<(F, H, G, S, NWidgetRelations)>,
@@ -145,7 +145,7 @@ impl<H, F: Field + FftField, G: AffineRepr, S, NWidgetRelations>
     for EvaluationGetterImpl<H, F, G, S, NWidgetRelations>
 where
     H: BarretenHasher,
-    S: Settings<H, F, G>,
+    S: Settings<Hasher = H>,
     NWidgetRelations: generic_array::ArrayLength<F>,
 {
     fn get_value(
@@ -167,7 +167,7 @@ impl<H, F: Field + FftField, G: AffineRepr, S, NWidgetRelations>
     for EvaluationGetterImpl<H, F, G, S, NWidgetRelations>
 where
     H: BarretenHasher,
-    S: Settings<H, F, G>,
+    S: Settings<Hasher = H>,
     NWidgetRelations: generic_array::ArrayLength<F>,
 {
 }
@@ -178,7 +178,7 @@ pub(crate) trait EvaluationGetter<
     H: BarretenHasher,
     F: Field + FftField,
     G: AffineRepr,
-    S: Settings<H, F, G>,
+    S: Settings<Hasher = H>,
     NWidgetRelations: generic_array::ArrayLength<F>,
 >: BaseGetter<H, F, G, S, PolyArray<F>, NWidgetRelations>
 {
@@ -255,7 +255,7 @@ pub(crate) struct FFTGetterImpl<H, F, G, S, NWidgetRelations>
 where
     F: Field + FftField,
     H: BarretenHasher,
-    S: Settings<H, F, G>,
+    S: Settings<Hasher = H>,
     G: AffineRepr,
     NWidgetRelations: generic_array::ArrayLength<F>,
 {
@@ -267,7 +267,7 @@ impl<H, F, G, S, NWidgetRelations> BaseGetter<H, F, G, S, PolyPtrMap<F>, NWidget
 where
     F: Field + FftField,
     H: BarretenHasher,
-    S: Settings<H, F, G>,
+    S: Settings<Hasher = H>,
     G: AffineRepr,
     NWidgetRelations: generic_array::ArrayLength<F>,
 {
@@ -294,7 +294,7 @@ impl<'a, H, F, G, S, NWidgetRelations> FFTGetter<'a, H, F, G, S, NWidgetRelation
 where
     F: Field + FftField,
     H: BarretenHasher,
-    S: Settings<H, F, G>,
+    S: Settings<Hasher = H>,
     G: AffineRepr,
     NWidgetRelations: generic_array::ArrayLength<F>,
 {
@@ -312,7 +312,7 @@ pub(crate) trait FFTGetter<
 >: BaseGetter<H, F, G, S, PolyPtrMap<F>, NWidgetRelations> where
     F: Field + FftField,
     H: BarretenHasher,
-    S: Settings<H, F, G>,
+    S: Settings<Hasher = H>,
 {
     fn get_polynomials(
         key: &ProvingKey<'a, F, G>,

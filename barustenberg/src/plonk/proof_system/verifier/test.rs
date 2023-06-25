@@ -145,15 +145,7 @@ fn generate_test_data<
     H: BarretenHasher,
 >(
     n: usize,
-) -> Prover<
-    'a,
-    Fq,
-    Fr,
-    G,
-    H,
-    StandardSettings<H>,
-    KateCommitmentScheme<H, Fr, G, StandardSettings<H>>,
-> {
+) -> Prover<'a, H, StandardSettings<H>, KateCommitmentScheme<H, Fq, Fr, G, StandardSettings<H>>> {
     // create some constraints that satisfy our arithmetic circuit relation
     let crs = Rc::new(FileReferenceString::new(n + 1, "../srs_db/ignition"));
     let key = Rc::new(ProvingKey::new(n, 0, crs, ComposerType::Standard));

@@ -30,7 +30,7 @@ use crate::proof_system::work_queue::WorkQueue;
 pub(crate) struct Prover<
     'a,
     H: BarretenHasher,
-    S: Settings<H, Fr, G1Affine>,
+    S: Settings<Hasher = H>,
     CS: CommitmentScheme<Hasher = H, Fq = Fq, Fr = Fr, Group = G1Affine>,
 > {
     pub(crate) circuit_size: usize,
@@ -45,7 +45,7 @@ pub(crate) struct Prover<
     phantom: PhantomData<Fq>,
 }
 
-impl<'a, H: BarretenHasher + Default, S: Settings<H, Fr, G1Affine> + Default>
+impl<'a, H: BarretenHasher + Default, S: Settings<Hasher = H> + Default>
     Prover<'a, H, S, KateCommitmentScheme<H, Fq, Fr, G1Affine, S>>
 {
     pub(crate) fn new(
@@ -85,7 +85,7 @@ impl<'a, H: BarretenHasher + Default, S: Settings<H, Fr, G1Affine> + Default>
 impl<
         'a,
         H: BarretenHasher + Default,
-        PS: Settings<H, Fr, G1Affine>,
+        PS: Settings<Hasher = H>,
         CS: CommitmentScheme<Hasher = H, Group = G1Affine, Fq = Fq, Fr = Fr>,
     > Prover<'a, H, PS, CS>
 {
