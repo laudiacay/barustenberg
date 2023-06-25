@@ -279,7 +279,7 @@ pub(crate) struct ProverPermutationWidget<
     const NUM_ROOTS_CUT_OUT_OF_VANISHING_POLYNOMIAL: usize,
 > {
     pub(crate) key: Rc<ProvingKey<'a, Fr, G>>,
-    phantom: PhantomData<(Hash, Fr, G)>,
+    phantom: PhantomData<Hash>,
 }
 
 impl<

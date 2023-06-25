@@ -5,21 +5,18 @@ use std::{
     cell::RefCell,
     collections::HashMap,
     fmt::{self, Display, Formatter},
-    marker::PhantomData,
     rc::Rc,
 };
 
 #[derive(Debug, Clone, Default)]
 pub(crate) struct PolynomialStore<Fr: Field + FftField> {
     polynomial_map: HashMap<String, Rc<RefCell<Polynomial<Fr>>>>,
-    phantom: PhantomData<Fr>,
 }
 
 impl<Fr: Field + FftField> PolynomialStore<Fr> {
     pub(crate) fn new() -> Self {
         Self {
             polynomial_map: HashMap::new(),
-            phantom: PhantomData,
         }
     }
 
