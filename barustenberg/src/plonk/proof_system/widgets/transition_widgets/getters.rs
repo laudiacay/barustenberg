@@ -57,7 +57,7 @@ pub(crate) trait BaseGetter {
         transcript: &Transcript<Self::Hasher>,
         alpha_base: Self::Fr,
         required_challenges: u8,
-        rng: &mut Box<dyn rand::RngCore>,
+        rng: &mut dyn rand::RngCore,
     ) -> ChallengeArray<Self::Fr, Self::NWidgetRelations> {
         let mut result: ChallengeArray<Self::Fr, _> = ChallengeArray::default();
         let mut add_challenge = |label: &str, tag: usize, required: bool, index: usize| {

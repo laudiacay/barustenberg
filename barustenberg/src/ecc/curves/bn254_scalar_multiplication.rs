@@ -30,7 +30,7 @@ pub(crate) fn is_point_at_infinity(point: &G1Projective) -> bool {
     point.x.is_zero() && point.y.is_one() && point.z.is_zero()
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Debug)]
 pub(crate) struct PippengerRuntimeState<Fr: Field + FftField, G: AffineRepr> {
     phantom: PhantomData<(Fr, G)>,
 }

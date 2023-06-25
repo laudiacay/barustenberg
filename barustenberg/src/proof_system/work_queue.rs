@@ -12,7 +12,7 @@ use crate::plonk::proof_system::proving_key::ProvingKey;
 use crate::polynomials::Polynomial;
 use crate::transcript::{BarretenHasher, Transcript};
 
-#[derive(PartialEq, Eq, Clone)]
+#[derive(PartialEq, Eq, Clone, Debug)]
 pub(crate) enum Work<Fr: Field + FftField> {
     Fft {
         index: usize,
@@ -45,6 +45,7 @@ impl<Fr: Field + FftField> From<usize> for WorkItemConstant<Fr> {
     }
 }
 
+#[derive(Debug)]
 pub(crate) struct WorkItem<Fr: Field + FftField> {
     pub(crate) work: Work<Fr>,
     pub(crate) tag: String,
@@ -55,6 +56,7 @@ pub(crate) struct QueuedFftInputs<Fr: Field + FftField> {
     shift_factor: Fr,
 }
 
+#[derive(Debug)]
 pub(crate) struct WorkQueue<'a, H: BarretenHasher, Fr: Field + FftField, G: AffineRepr> {
     key: Rc<RefCell<ProvingKey<'a, Fr, G>>>,
     transcript: Rc<RefCell<Transcript<H>>>,

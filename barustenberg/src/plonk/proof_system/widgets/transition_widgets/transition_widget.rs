@@ -54,7 +54,7 @@ pub(crate) trait KernelBase {
     );
 }
 
-pub(crate) trait TransitionWidgetBase<'a> {
+pub(crate) trait TransitionWidgetBase<'a>: std::fmt::Debug {
     type Hasher: BarretenHasher;
     type Field: Field + FftField;
 
@@ -62,10 +62,11 @@ pub(crate) trait TransitionWidgetBase<'a> {
         &self,
         alpha_base: Self::Field,
         transcript: &Transcript<Self::Hasher>,
-        rng: &mut Box<dyn rand::RngCore>,
+        rng: &mut dyn rand::RngCore,
     ) -> Self::Field;
 }
 
+#[derive(Debug)]
 pub(crate) struct TransitionWidget<
     'a,
     H: BarretenHasher,
@@ -85,8 +86,8 @@ impl<
         H: BarretenHasher,
         F: Field + FftField,
         G: AffineRepr,
-        NIndependentRelations: generic_array::ArrayLength<F>,
-        KB,
+        NIndependentRelations: generic_array::ArrayLength<F> + std::fmt::Debug,
+        KB: std::fmt::Debug,
     > TransitionWidgetBase<'a> for TransitionWidget<'a, H, F, G, NIndependentRelations, KB>
 where
     KB: KernelBase<
@@ -104,7 +105,7 @@ where
         &self,
         alpha_base: F,
         transcript: &Transcript<H>,
-        rng: &mut Box<dyn rand::RngCore>,
+        rng: &mut dyn rand::RngCore,
     ) -> F {
         let required_polynomial_ids = KB::get_required_polynomial_ids();
         let polynomials = FFTGetterImpl::<H, F, G, NIndependentRelations>::get_polynomials(

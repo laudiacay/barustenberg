@@ -4,15 +4,16 @@ use generic_array::{ArrayLength, GenericArray};
 use sha3::{Digest, Sha3_256};
 
 use std::collections::HashMap;
+use std::fmt::Debug;
 use tracing::info;
 use typenum::{Unsigned, U16, U32};
 
 /// BarretenHasher is a trait that defines the hash function used for Fiat-Shamir.
-pub(crate) trait BarretenHasher {
+pub trait BarretenHasher: std::fmt::Debug {
     /// The size of the security parameter in bytes.
     type SecurityParameterSize: ArrayLength<u8>;
     /// The size of the PRNG output in bytes.
-    type PrngOutputSize: ArrayLength<u8>;
+    type PrngOutputSize: ArrayLength<u8> + Debug;
 
     /// Hashes the given buffer.
     fn hash(buffer: &[u8]) -> GenericArray<u8, Self::PrngOutputSize>;
@@ -118,7 +119,7 @@ impl RoundManifest {
 /// 1. What data is used in each round of the protocols.
 /// 2. Which information is used to create challenges.
 #[derive(Clone, Default, Debug)]
-pub(crate) struct Manifest {
+pub struct Manifest {
     /// The list of round manifests.
     pub(crate) round_manifests: Vec<RoundManifest>,
     /// The number of rounds in the protocol.
@@ -141,12 +142,13 @@ impl Manifest {
     }
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone, Debug, Default)]
 struct Challenge<H: BarretenHasher> {
     data: GenericArray<u8, H::PrngOutputSize>,
 }
 
-pub(crate) struct Transcript<H: BarretenHasher> {
+#[derive(Debug)]
+pub struct Transcript<H: BarretenHasher> {
     current_round: usize,
     pub(crate) num_challenge_bytes: usize,
     elements: HashMap<String, Vec<u8>>,
