@@ -3,9 +3,9 @@ use ark_ff::{FftField, Field};
 use crate::{common::max_threads::compute_num_threads, numeric::bitop::Msb};
 
 pub(crate) struct LagrangeEvaluations<Fr: Field + FftField> {
-    pub vanishing_poly: Fr,
-    pub l_start: Fr,
-    pub l_end: Fr,
+    pub(crate) vanishing_poly: Fr,
+    pub(crate) l_start: Fr,
+    pub(crate) l_end: Fr,
 }
 
 #[inline]
@@ -482,7 +482,7 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
 
     fn fft_with_constant(&self, coeffs: &mut [Fr], target: &mut [Fr], value: Fr) {
         self.fft_inner_parallel(coeffs, target, &self.root, self.get_round_roots());
-        for mut item in coeffs.iter_mut().take(self.size) {
+        for item in coeffs.iter_mut().take(self.size) {
             *item *= value;
         }
     }
@@ -582,10 +582,10 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
 
     pub(crate) fn get_lagrange_evaluations(
         &self,
-        z: &Fr,
+        _z: &Fr,
         num_roots_cut_out_of_vanishing_poly: Option<usize>,
     ) -> LagrangeEvaluations<Fr> {
-        let num_roots_cut_out_of_vanishing_poly = num_roots_cut_out_of_vanishing_poly.unwrap_or(4);
+        let _num_roots_cut_out_of_vanishing_poly = num_roots_cut_out_of_vanishing_poly.unwrap_or(4);
         todo!();
     }
 

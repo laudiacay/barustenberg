@@ -28,8 +28,8 @@ pub(crate) fn reduced_ate_pairing_batch_precomputed<G: AffineRepr>(
 
 #[inline]
 pub(crate) fn conditionally_subtract_from_double_modulus<Fr: Field + FftField>(
-    this: &Fr,
-    predicate: u64,
+    _this: &Fr,
+    _predicate: u64,
 ) -> Fr {
     todo!("see comment")
     // yikes man

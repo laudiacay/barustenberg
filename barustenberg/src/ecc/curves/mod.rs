@@ -3,7 +3,7 @@ use ark_ff::{FftField, Field};
 //pub(crate) mod grumpkin;
 pub(crate) mod bn254_scalar_multiplication;
 
-pub(crate) fn coset_generator<F: Field + FftField>(idx: usize) -> F {
+pub(crate) fn coset_generator<F: Field + FftField>(_idx: usize) -> F {
     /*
         ASSERT(idx < 7);
     const FieldExt result{

@@ -61,8 +61,8 @@ pub(crate) struct WorkQueue<'a, H: BarretenHasher, Fr: Field + FftField, G: Affi
     work_items: Vec<WorkItem<Fr>>,
 }
 
-/// super fucked up...
-unsafe fn FieldExt_element_to_usize<F: Field + FftField>(element: F) -> usize {
+/// TODO this is super fucked up...
+unsafe fn field_element_to_usize<F: Field + FftField>(element: F) -> usize {
     // pretending to be this: static_cast<size_t>(static_cast<uint256_t>(item.constant));
     // first turn it into a u256 (by memtransmute into a slice!)
     let u256_bytes: [u8; 32] = std::mem::transmute_copy(&element);
@@ -122,7 +122,7 @@ impl<'a, H: BarretenHasher, Fr: Field + FftField, G: AffineRepr> WorkQueue<'a, H
         for item in self.work_items.iter() {
             if let Work::ScalarMultiplication { constant, .. } = item.work {
                 if count == work_item_number {
-                    return unsafe { FieldExt_element_to_usize(constant) };
+                    return unsafe { field_element_to_usize(constant) };
                 };
                 count += 1;
             }
@@ -269,7 +269,7 @@ impl<'a, H: BarretenHasher, Fr: Field + FftField, G: AffineRepr> WorkQueue<'a, H
                     constant,
                     mul_scalars,
                 } => {
-                    let msm_size = unsafe { FieldExt_element_to_usize(*constant) };
+                    let msm_size = unsafe { field_element_to_usize(*constant) };
 
                     assert!(
                         msm_size
