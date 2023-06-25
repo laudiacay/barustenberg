@@ -49,9 +49,15 @@ where
     }
 }
 
-impl<H: BarretenHasher, F: Field + FftField, G: AffineRepr, S: Settings<H, F, G>>
-    KernelBase<H, S, F, G, U1> for ArithmeticKernel<H, F, G, S>
+impl<H: BarretenHasher, F: Field + FftField, G: AffineRepr, S: Settings<H, F, G>> KernelBase
+    for ArithmeticKernel<H, F, G, S>
 {
+    type Field = F;
+    type Group = G;
+    type Settings = S;
+    type Hasher = H;
+    type NumIndependentRelations = U1;
+
     #[inline]
     fn get_required_polynomial_ids() -> HashSet<PolynomialIndex> {
         HashSet::from([

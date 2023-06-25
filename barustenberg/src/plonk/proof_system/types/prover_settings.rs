@@ -1,6 +1,10 @@
+use std::collections::HashMap;
+
 use ark_bn254::G1Affine;
 use ark_ec::AffineRepr;
 use ark_ff::{FftField, Field};
+
+use ark_bn254::Fr;
 
 use crate::{
     plonk::proof_system::verification_key::VerificationKey,
@@ -27,6 +31,12 @@ pub(crate) trait Settings<H: BarretenHasher, F: Field + FftField, G: AffineRepr>
         transcript: &Transcript<H>,
         quotient_numerator_eval: &F,
     ) -> F;
+    fn append_scalar_multiplication_inputs(
+        verification_key: &VerificationKey<'_, F>,
+        alpha_base: &F,
+        transcript: &Transcript<H>,
+        scalars: &HashMap<String, F>,
+    ) -> F;
     fn is_plookup(&self) -> bool;
     fn hasher(&self) -> &H;
 }
@@ -41,7 +51,7 @@ impl<H: BarretenHasher> StandardSettings<H> {
     }
 }
 
-impl<H: BarretenHasher> Settings<H, ark_bn254::Fr, G1Affine> for StandardSettings<H> {
+impl<H: BarretenHasher> Settings<H, Fr, G1Affine> for StandardSettings<H> {
     #[inline]
     fn num_challenge_bytes(&self) -> usize {
         16
@@ -86,11 +96,11 @@ impl<H: BarretenHasher> Settings<H, ark_bn254::Fr, G1Affine> for StandardSetting
 
     #[inline]
     fn compute_quotient_evaluation_contribution(
-        verification_key: &VerificationKey<'_, ark_bn254::Fr>,
-        alpha_base: &ark_bn254::Fr,
+        verification_key: &VerificationKey<'_, Fr>,
+        alpha_base: &Fr,
         transcript: &Transcript<H>,
-        quotient_numerator_eval: &ark_bn254::Fr,
-    ) -> ark_bn254::Fr {
+        quotient_numerator_eval: &Fr,
+    ) -> Fr {
         unimplemented!("todo");
         /*
                 auto updated_alpha_base = VerifierPermutationWidget<
@@ -105,6 +115,16 @@ impl<H: BarretenHasher> Settings<H, ark_bn254::Fr, G1Affine> for StandardSetting
             key, updated_alpha_base, transcript, quotient_numerator_eval);
          */
     }
+
+    #[inline]
+    fn append_scalar_multiplication_inputs(
+        verification_key: &VerificationKey<'_, Fr>,
+        alpha_base: &Fr,
+        transcript: &Transcript<H>,
+        scalars: &HashMap<String, Fr>,
+    ) -> Fr {
+        unimplemented!("todo");
+    }
 }
 
 pub(crate) struct TurboSettings {}
@@ -115,7 +135,7 @@ impl TurboSettings {
     }
 }
 
-impl Settings<PedersenBlake3s, ark_bn254::Fr, G1Affine> for TurboSettings {
+impl Settings<PedersenBlake3s, Fr, G1Affine> for TurboSettings {
     #[inline]
     fn num_challenge_bytes(&self) -> usize {
         16
@@ -154,11 +174,11 @@ impl Settings<PedersenBlake3s, ark_bn254::Fr, G1Affine> for TurboSettings {
     }
     #[inline]
     fn compute_quotient_evaluation_contribution(
-        verification_key: &VerificationKey<'_, ark_bn254::Fr>,
-        alpha_base: &ark_bn254::Fr,
+        verification_key: &VerificationKey<'_, Fr>,
+        alpha_base: &Fr,
         transcript: &Transcript<PedersenBlake3s>,
-        quotient_numerator_eval: &ark_bn254::Fr,
-    ) -> ark_bn254::Fr {
+        quotient_numerator_eval: &Fr,
+    ) -> Fr {
         unimplemented!();
         /*
                 auto updated_alpha_base = PermutationWidget::compute_quotient_evaluation_contribution(
@@ -176,11 +196,19 @@ impl Settings<PedersenBlake3s, ark_bn254::Fr, G1Affine> for TurboSettings {
         return updated_alpha_base;
          */
     }
+    fn append_scalar_multiplication_inputs(
+        verification_key: &VerificationKey<'_, Fr>,
+        alpha_base: &Fr,
+        transcript: &Transcript<PedersenBlake3s>,
+        scalars: &HashMap<String, Fr>,
+    ) -> Fr {
+        unimplemented!("todo");
+    }
 }
 
 pub(crate) struct UltraSettings {}
 
-impl Settings<PlookupPedersenBlake3s, ark_bn254::Fr, G1Affine> for UltraSettings {
+impl Settings<PlookupPedersenBlake3s, Fr, G1Affine> for UltraSettings {
     #[inline]
     fn num_challenge_bytes(&self) -> usize {
         16
@@ -220,11 +248,11 @@ impl Settings<PlookupPedersenBlake3s, ark_bn254::Fr, G1Affine> for UltraSettings
 
     #[inline]
     fn compute_quotient_evaluation_contribution(
-        verification_key: &VerificationKey<'_, ark_bn254::Fr>,
-        alpha_base: &ark_bn254::Fr,
+        verification_key: &VerificationKey<'_, Fr>,
+        alpha_base: &Fr,
         transcript: &Transcript<PlookupPedersenBlake3s>,
-        quotient_numerator_eval: &ark_bn254::Fr,
-    ) -> ark_bn254::Fr {
+        quotient_numerator_eval: &Fr,
+    ) -> Fr {
         /*
                 auto updated_alpha_base = PermutationWidget::compute_quotient_evaluation_contribution(
             key, alpha_base, transcript, quotient_numerator_eval, idpolys);
@@ -243,11 +271,20 @@ impl Settings<PlookupPedersenBlake3s, ark_bn254::Fr, G1Affine> for UltraSettings
          */
         unimplemented!()
     }
+
+    fn append_scalar_multiplication_inputs(
+        verification_key: &VerificationKey<'_, Fr>,
+        alpha_base: &Fr,
+        transcript: &Transcript<PlookupPedersenBlake3s>,
+        scalars: &HashMap<String, Fr>,
+    ) -> Fr {
+        unimplemented!("todo");
+    }
 }
 
 pub(crate) struct UltraToStandardSettings {}
 
-impl Settings<PedersenBlake3s, ark_bn254::Fr, G1Affine> for UltraToStandardSettings {
+impl Settings<PedersenBlake3s, Fr, G1Affine> for UltraToStandardSettings {
     #[inline]
     fn num_challenge_bytes(&self) -> usize {
         16
@@ -286,19 +323,28 @@ impl Settings<PedersenBlake3s, ark_bn254::Fr, G1Affine> for UltraToStandardSetti
     }
     #[inline]
     fn compute_quotient_evaluation_contribution(
-        verification_key: &VerificationKey<'_, ark_bn254::Fr>,
-        alpha_base: &ark_bn254::Fr,
+        verification_key: &VerificationKey<'_, Fr>,
+        alpha_base: &Fr,
         transcript: &Transcript<PedersenBlake3s>,
-        quotient_numerator_eval: &ark_bn254::Fr,
-    ) -> ark_bn254::Fr {
+        quotient_numerator_eval: &Fr,
+    ) -> Fr {
         // UltraSettings::compute_quotient_evaluation_contribution(verification_key, alpha_base, transcript, quotient_numerator_eval)
         todo!()
+    }
+
+    fn append_scalar_multiplication_inputs(
+        verification_key: &VerificationKey<'_, Fr>,
+        alpha_base: &Fr,
+        transcript: &Transcript<PedersenBlake3s>,
+        scalars: &HashMap<String, Fr>,
+    ) -> Fr {
+        unimplemented!("todo");
     }
 }
 
 pub(crate) struct UltraWithKeccakSettings {}
 
-impl Settings<Keccak256, ark_bn254::Fr, G1Affine> for UltraWithKeccakSettings {
+impl Settings<Keccak256, Fr, G1Affine> for UltraWithKeccakSettings {
     #[inline]
     fn num_challenge_bytes(&self) -> usize {
         32
@@ -337,12 +383,20 @@ impl Settings<Keccak256, ark_bn254::Fr, G1Affine> for UltraWithKeccakSettings {
     }
     #[inline]
     fn compute_quotient_evaluation_contribution(
-        verification_key: &VerificationKey<'_, ark_bn254::Fr>,
-        alpha_base: &ark_bn254::Fr,
+        verification_key: &VerificationKey<'_, Fr>,
+        alpha_base: &Fr,
         transcript: &Transcript<Keccak256>,
-        quotient_numerator_eval: &ark_bn254::Fr,
-    ) -> ark_bn254::Fr {
+        quotient_numerator_eval: &Fr,
+    ) -> Fr {
         //UltraSettings::compute_quotient_evaluation_contribution(verification_key, alpha_base, transcript, quotient_numerator_eval)
         todo!()
+    }
+    fn append_scalar_multiplication_inputs(
+        verification_key: &VerificationKey<'_, Fr>,
+        alpha_base: &Fr,
+        transcript: &Transcript<Keccak256>,
+        scalars: &HashMap<String, Fr>,
+    ) -> Fr {
+        unimplemented!("todo");
     }
 }
