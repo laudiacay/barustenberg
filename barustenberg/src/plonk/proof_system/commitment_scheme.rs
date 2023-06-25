@@ -82,7 +82,7 @@ pub(crate) struct KateCommitmentScheme<
     Fq: Field + FftField,
     Fr: Field + FftField,
     G: AffineRepr,
-    S: Settings<H, Fr, G>,
+    S: Settings<Hasher = H>,
 > {
     _kate_open_proof: CommitmentOpenProof,
     phantom: PhantomData<(H, S, Fr, G, Fq)>,
@@ -93,7 +93,7 @@ impl<
         Fr: Field + FftField,
         G: AffineRepr,
         H: BarretenHasher,
-        S: Settings<H, Fr, G>,
+        S: Settings<Hasher = H>,
     > CommitmentScheme for KateCommitmentScheme<H, Fq, Fr, G, S>
 {
     type Fq = Fq;

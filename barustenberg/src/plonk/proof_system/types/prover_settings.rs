@@ -1,10 +1,9 @@
 use std::collections::HashMap;
 
-use ark_bn254::G1Affine;
 use ark_ec::AffineRepr;
 use ark_ff::{FftField, Field};
 
-use ark_bn254::Fr;
+use ark_bn254::{Fr, G1Affine};
 
 use crate::{
     plonk::proof_system::verification_key::VerificationKey,
@@ -13,7 +12,10 @@ use crate::{
 
 // TODO bevy_reflect? or what
 // or inline everything!
-pub(crate) trait Settings<H: BarretenHasher, F: Field + FftField, G: AffineRepr> {
+pub(crate) trait Settings {
+    type Hasher: BarretenHasher;
+    type Field: Field + FftField;
+    type Group: AffineRepr;
     #[inline]
     fn requires_shifted_wire(wire_shift_settings: u64, wire_index: u64) -> bool {
         ((wire_shift_settings >> wire_index) & 1u64) == 1u64
@@ -26,19 +28,19 @@ pub(crate) trait Settings<H: BarretenHasher, F: Field + FftField, G: AffineRepr>
     fn permutation_mask(&self) -> u32;
     fn num_roots_cut_out_of_vanishing_polynomial(&self) -> usize;
     fn compute_quotient_evaluation_contribution(
-        verification_key: &VerificationKey<'_, F>,
-        alpha_base: &F,
-        transcript: &Transcript<H>,
-        quotient_numerator_eval: &F,
-    ) -> F;
+        verification_key: &VerificationKey<'_, Self::Field>,
+        alpha_base: &Self::Field,
+        transcript: &Transcript<Self::Hasher>,
+        quotient_numerator_eval: &Self::Field,
+    ) -> Self::Field;
     fn append_scalar_multiplication_inputs(
-        verification_key: &VerificationKey<'_, F>,
-        alpha_base: &F,
-        transcript: &Transcript<H>,
-        scalars: &HashMap<String, F>,
-    ) -> F;
+        verification_key: &VerificationKey<'_, Self::Field>,
+        alpha_base: &Self::Field,
+        transcript: &Transcript<Self::Hasher>,
+        scalars: &HashMap<String, Self::Field>,
+    ) -> Self::Field;
     fn is_plookup(&self) -> bool;
-    fn hasher(&self) -> &H;
+    fn hasher(&self) -> &Self::Hasher;
 }
 
 pub(crate) struct StandardSettings<H: BarretenHasher> {
@@ -51,7 +53,10 @@ impl<H: BarretenHasher> StandardSettings<H> {
     }
 }
 
-impl<H: BarretenHasher> Settings<H, Fr, G1Affine> for StandardSettings<H> {
+impl<H: BarretenHasher> Settings for StandardSettings<H> {
+    type Hasher = H;
+    type Field = Fr;
+    type Group = G1Affine;
     #[inline]
     fn num_challenge_bytes(&self) -> usize {
         16
@@ -135,7 +140,11 @@ impl TurboSettings {
     }
 }
 
-impl Settings<PedersenBlake3s, Fr, G1Affine> for TurboSettings {
+impl Settings for TurboSettings {
+    type Hasher = PedersenBlake3s;
+    type Field = Fr;
+    type Group = G1Affine;
+
     #[inline]
     fn num_challenge_bytes(&self) -> usize {
         16
@@ -208,7 +217,11 @@ impl Settings<PedersenBlake3s, Fr, G1Affine> for TurboSettings {
 
 pub(crate) struct UltraSettings {}
 
-impl Settings<PlookupPedersenBlake3s, Fr, G1Affine> for UltraSettings {
+impl Settings for UltraSettings {
+    type Hasher = PlookupPedersenBlake3s;
+    type Field = Fr;
+    type Group = G1Affine;
+
     #[inline]
     fn num_challenge_bytes(&self) -> usize {
         16
@@ -284,7 +297,11 @@ impl Settings<PlookupPedersenBlake3s, Fr, G1Affine> for UltraSettings {
 
 pub(crate) struct UltraToStandardSettings {}
 
-impl Settings<PedersenBlake3s, Fr, G1Affine> for UltraToStandardSettings {
+impl Settings for UltraToStandardSettings {
+    type Hasher = PedersenBlake3s;
+    type Field = Fr;
+    type Group = G1Affine;
+
     #[inline]
     fn num_challenge_bytes(&self) -> usize {
         16
@@ -344,7 +361,11 @@ impl Settings<PedersenBlake3s, Fr, G1Affine> for UltraToStandardSettings {
 
 pub(crate) struct UltraWithKeccakSettings {}
 
-impl Settings<Keccak256, Fr, G1Affine> for UltraWithKeccakSettings {
+impl Settings for UltraWithKeccakSettings {
+    type Hasher = Keccak256;
+    type Field = Fr;
+    type Group = G1Affine;
+
     #[inline]
     fn num_challenge_bytes(&self) -> usize {
         32

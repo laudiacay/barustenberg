@@ -29,12 +29,12 @@ pub(crate) struct ArithmeticKernel<
     H: BarretenHasher,
     F: Field + FftField,
     G: AffineRepr,
-    S: Settings<H, F, G>,
+    S: Settings<Hasher = H>,
 > {
     _marker: PhantomData<(H, F, G, S)>,
 }
 
-impl<H: BarretenHasher, F, G, S: Settings<H, F, G>> ArithmeticKernel<H, F, G, S>
+impl<H: BarretenHasher, F, G, S: Settings<Hasher = H>> ArithmeticKernel<H, F, G, S>
 where
     F: Field + FftField,
     G: AffineRepr,
@@ -49,8 +49,12 @@ where
     }
 }
 
-impl<H: BarretenHasher, F: Field + FftField, G: AffineRepr, S: Settings<H, F, G>> KernelBase
-    for ArithmeticKernel<H, F, G, S>
+impl<
+        H: BarretenHasher,
+        F: Field + FftField,
+        G: AffineRepr,
+        S: Settings<Hasher = H, Group = G, Field = F>,
+    > KernelBase for ArithmeticKernel<H, F, G, S>
 {
     type Field = F;
     type Group = G;
