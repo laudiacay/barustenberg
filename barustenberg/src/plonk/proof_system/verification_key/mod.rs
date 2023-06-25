@@ -13,7 +13,7 @@ use super::types::PolynomialManifest;
 
 #[derive(Debug)]
 pub struct VerificationKey<'a, Fr: Field + FftField> {
-    composer_type: ComposerType,
+    pub(crate) composer_type: ComposerType,
     pub(crate) circuit_size: usize,
     log_circuit_size: usize,
     pub(crate) num_public_inputs: usize,
