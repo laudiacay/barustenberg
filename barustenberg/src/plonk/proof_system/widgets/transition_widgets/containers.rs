@@ -40,7 +40,9 @@ static _MAX_NUM_CHALLENGES_CHECK: Lazy<()> = Lazy::new(|| {
     );
 });
 
-pub(crate) trait PolyContainer<F: Field + FftField> {}
+pub(crate) trait PolyContainer {
+    type Field: Field + FftField;
+}
 
 #[derive(Default)]
 pub(crate) struct ChallengeArray<F: Field + FftField, NumRelations: generic_array::ArrayLength<F>> {
@@ -72,7 +74,9 @@ impl<F: Field + FftField> Default for PolyArray<F> {
     }
 }
 
-impl<F: Field + FftField> PolyContainer<F> for PolyArray<F> {}
+impl<F: Field + FftField> PolyContainer for PolyArray<F> {
+    type Field = F;
+}
 
 pub(crate) struct PolyPtrMap<F: Field + FftField> {
     pub(crate) coefficients: HashMap<PolynomialIndex, Rc<RefCell<Polynomial<F>>>>,
@@ -90,7 +94,9 @@ impl<F: Field + FftField> PolyPtrMap<F> {
     }
 }
 
-impl<F: Field + FftField> PolyContainer<F> for PolyPtrMap<F> {}
+impl<F: Field + FftField> PolyContainer for PolyPtrMap<F> {
+    type Field = F;
+}
 
 impl<F: Field + FftField> Index<PolynomialIndex> for PolyPtrMap<F> {
     type Output = Rc<RefCell<Polynomial<F>>>;

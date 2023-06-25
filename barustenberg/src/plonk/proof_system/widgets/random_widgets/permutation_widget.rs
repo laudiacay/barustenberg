@@ -290,7 +290,7 @@ impl<
         const PROGRAM_WIDTH: usize,
         const IDPOLYS: bool,
         const NUM_ROOTS_CUT_OUT_OF_VANISHING_POLYNOMIAL: usize,
-    > ProverRandomWidget<'a, Hash, Fr, G>
+    > ProverRandomWidget<'a>
     for ProverPermutationWidget<
         'a,
         Fr,
@@ -301,6 +301,10 @@ impl<
         NUM_ROOTS_CUT_OUT_OF_VANISHING_POLYNOMIAL,
     >
 {
+    type Hasher = Hash;
+    type Fr = Fr;
+    type G1 = G;
+
     fn compute_round_commitments(
         &self,
         _transcript: &mut Transcript<Hash>,

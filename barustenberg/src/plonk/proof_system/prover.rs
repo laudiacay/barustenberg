@@ -30,14 +30,15 @@ use crate::proof_system::work_queue::WorkQueue;
 pub(crate) struct Prover<
     'a,
     H: BarretenHasher,
-    S: Settings<Hasher = H>,
     CS: CommitmentScheme<Hasher = H, Fq = Fq, Fr = Fr, Group = G1Affine>,
+    S: Settings<Hasher = H, Field = Fr, Group = G1Affine>,
 > {
     pub(crate) circuit_size: usize,
     pub(crate) transcript: Rc<RefCell<Transcript<H>>>,
     pub(crate) key: Rc<RefCell<ProvingKey<'a, Fr, G1Affine>>>,
     pub(crate) queue: WorkQueue<'a, H, Fr, G1Affine>,
-    pub(crate) random_widgets: Vec<Box<dyn ProverRandomWidget<'a, H, Fr, G1Affine>>>,
+    pub(crate) random_widgets:
+        Vec<Box<dyn ProverRandomWidget<'a, Fr = Fr, G1 = G1Affine, Hasher = H>>>,
     pub(crate) transition_widgets: Vec<Box<dyn TransitionWidgetBase<'a, Hasher = H, Field = Fr>>>,
     pub(crate) commitment_scheme: CS,
     pub(crate) settings: S,
@@ -45,8 +46,11 @@ pub(crate) struct Prover<
     phantom: PhantomData<Fq>,
 }
 
-impl<'a, H: BarretenHasher + Default, S: Settings<Hasher = H> + Default>
-    Prover<'a, H, S, KateCommitmentScheme<H, Fq, Fr, G1Affine, S>>
+impl<
+        'a,
+        H: BarretenHasher + Default,
+        S: Settings<Hasher = H, Field = Fr, Group = G1Affine> + Default,
+    > Prover<'a, H, KateCommitmentScheme<H, Fq, Fr, G1Affine>, S>
 {
     pub(crate) fn new(
         input_key: Option<Rc<RefCell<ProvingKey<'a, Fr, G1Affine>>>>,
@@ -74,7 +78,7 @@ impl<'a, H: BarretenHasher + Default, S: Settings<Hasher = H> + Default>
             queue,
             random_widgets: Vec::new(),
             transition_widgets: Vec::new(),
-            commitment_scheme: KateCommitmentScheme::<H, Fq, Fr, G1Affine, S>::default(),
+            commitment_scheme: KateCommitmentScheme::<H, Fq, Fr, G1Affine>::default(),
             settings,
             phantom: PhantomData,
             rng: Box::new(rand::thread_rng()),
@@ -85,9 +89,9 @@ impl<'a, H: BarretenHasher + Default, S: Settings<Hasher = H> + Default>
 impl<
         'a,
         H: BarretenHasher + Default,
-        PS: Settings<Hasher = H>,
         CS: CommitmentScheme<Hasher = H, Group = G1Affine, Fq = Fq, Fr = Fr>,
-    > Prover<'a, H, PS, CS>
+        S: Settings<Hasher = H, Field = Fr, Group = G1Affine>,
+    > Prover<'a, H, CS, S>
 {
     fn copy_placeholder(&self) {
         todo!("LOOK AT THE COMMENTS IN PROVERBASE");

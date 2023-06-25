@@ -12,7 +12,6 @@ use crate::transcript::{BarretenHasher, Transcript};
 
 use super::proving_key::ProvingKey;
 use super::types::proof::CommitmentOpenProof;
-use super::types::prover_settings::Settings;
 use super::verification_key::VerificationKey;
 
 /// A polynomial commitment scheme defined over two FieldExts, a group, a hash function.
@@ -82,19 +81,13 @@ pub(crate) struct KateCommitmentScheme<
     Fq: Field + FftField,
     Fr: Field + FftField,
     G: AffineRepr,
-    S: Settings<Hasher = H>,
 > {
     _kate_open_proof: CommitmentOpenProof,
-    phantom: PhantomData<(H, S, Fr, G, Fq)>,
+    phantom: PhantomData<(H, Fr, G, Fq)>,
 }
 
-impl<
-        Fq: Field + FftField,
-        Fr: Field + FftField,
-        G: AffineRepr,
-        H: BarretenHasher,
-        S: Settings<Hasher = H>,
-    > CommitmentScheme for KateCommitmentScheme<H, Fq, Fr, G, S>
+impl<Fq: Field + FftField, Fr: Field + FftField, G: AffineRepr, H: BarretenHasher> CommitmentScheme
+    for KateCommitmentScheme<H, Fq, Fr, G>
 {
     type Fq = Fq;
     type Fr = Fr;
