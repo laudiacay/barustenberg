@@ -36,7 +36,7 @@ pub struct Verifier<'a, H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, G
     manifest: Manifest,
     kate_g1_elements: HashMap<String, G1Affine>,
     kate_fr_elements: HashMap<String, Fr>,
-    commitment_scheme: Box<KateCommitmentScheme<H, Fq, Fr, G1Affine>>,
+    pub(crate) commitment_scheme: Box<KateCommitmentScheme<H, Fq, Fr, G1Affine>>,
 }
 
 impl<'a, H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>>

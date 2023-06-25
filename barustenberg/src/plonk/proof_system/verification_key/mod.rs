@@ -4,15 +4,16 @@ use ark_bn254::G1Affine;
 use ark_ff::{FftField, Field};
 
 use crate::{
+    numeric::bitop::Msb, plonk::composer::composer_base::ComposerType,
     polynomials::evaluation_domain::EvaluationDomain,
-    srs::reference_string::VerifierReferenceString, plonk::composer::composer_base::ComposerType, numeric::bitop::Msb,
+    srs::reference_string::VerifierReferenceString,
 };
 
 use super::types::PolynomialManifest;
 
 #[derive(Debug)]
 pub struct VerificationKey<'a, Fr: Field + FftField> {
-    composer_type: ComposerType,
+    pub(crate) composer_type: ComposerType,
     pub(crate) circuit_size: usize,
     log_circuit_size: usize,
     pub(crate) num_public_inputs: usize,

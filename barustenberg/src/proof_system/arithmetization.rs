@@ -34,92 +34,92 @@ trait Ultra: Arithmetization<NumWires = U4, NumSelectors = U11> {}
 use serde::{Deserialize, Serialize};
 
 pub(crate) struct AddTriple<Fr: Field + FftField> {
-    a: u32,
-    b: u32,
-    c: u32,
-    a_scaling: Fr,
-    b_scaling: Fr,
-    c_scaling: Fr,
-    const_scaling: Fr,
+    pub(crate) a: u32,
+    pub(crate) b: u32,
+    pub(crate) c: u32,
+    pub(crate) a_scaling: Fr,
+    pub(crate) b_scaling: Fr,
+    pub(crate) c_scaling: Fr,
+    pub(crate) const_scaling: Fr,
 }
 
 pub(crate) struct AddQuad<Fr: Field + FftField> {
-    a: u32,
-    b: u32,
-    c: u32,
-    d: u32,
-    a_scaling: Fr,
-    b_scaling: Fr,
-    c_scaling: Fr,
-    d_scaling: Fr,
-    const_scaling: Fr,
+    pub(crate) a: u32,
+    pub(crate) b: u32,
+    pub(crate) c: u32,
+    pub(crate) d: u32,
+    pub(crate) a_scaling: Fr,
+    pub(crate) b_scaling: Fr,
+    pub(crate) c_scaling: Fr,
+    pub(crate) d_scaling: Fr,
+    pub(crate) const_scaling: Fr,
 }
 
-struct MulQuad<Fr: Field + FftField> {
-    a: u32,
-    b: u32,
-    c: u32,
-    d: u32,
-    mul_scaling: Fr,
-    a_scaling: Fr,
-    b_scaling: Fr,
-    c_scaling: Fr,
-    d_scaling: Fr,
-    const_scaling: Fr,
+pub struct MulQuad<Fr: Field + FftField> {
+    pub(crate) a: u32,
+    pub(crate) b: u32,
+    pub(crate) c: u32,
+    pub(crate) d: u32,
+    pub(crate) mul_scaling: Fr,
+    pub(crate) a_scaling: Fr,
+    pub(crate) b_scaling: Fr,
+    pub(crate) c_scaling: Fr,
+    pub(crate) d_scaling: Fr,
+    pub(crate) const_scaling: Fr,
 }
 
-struct MulTriple<Fr: Field + FftField> {
-    a: u32,
-    b: u32,
-    c: u32,
-    mul_scaling: Fr,
-    c_scaling: Fr,
-    const_scaling: Fr,
+pub struct MulTriple<Fr: Field + FftField> {
+    pub(crate) a: u32,
+    pub(crate) b: u32,
+    pub(crate) c: u32,
+    pub(crate) mul_scaling: Fr,
+    pub(crate) c_scaling: Fr,
+    pub(crate) const_scaling: Fr,
 }
 
 #[derive(PartialEq, Eq, Serialize, Deserialize)]
-struct PolyTriple<Fr: Field + FftField> {
-    a: u32,
-    b: u32,
-    c: u32,
-    q_m: Fr,
-    q_l: Fr,
-    q_r: Fr,
-    q_o: Fr,
-    q_c: Fr,
+pub struct PolyTriple<Fr: Field + FftField> {
+    pub(crate) a: u32,
+    pub(crate) b: u32,
+    pub(crate) c: u32,
+    pub(crate) q_m: Fr,
+    pub(crate) q_l: Fr,
+    pub(crate) q_r: Fr,
+    pub(crate) q_o: Fr,
+    pub(crate) q_c: Fr,
 }
 
-struct FixedGroupAddQuad<Fr: Field + FftField> {
-    a: u32,
-    b: u32,
-    c: u32,
-    d: u32,
-    q_x_1: Fr,
-    q_x_2: Fr,
-    q_y_1: Fr,
-    q_y_2: Fr,
+pub struct FixedGroupAddQuad<Fr: Field + FftField> {
+    pub(crate) a: u32,
+    pub(crate) b: u32,
+    pub(crate) c: u32,
+    pub(crate) d: u32,
+    pub(crate) q_x_1: Fr,
+    pub(crate) q_x_2: Fr,
+    pub(crate) q_y_1: Fr,
+    pub(crate) q_y_2: Fr,
 }
 
-struct FixedGroupInitQuad<Fr: Field + FftField> {
-    q_x_1: Fr,
-    q_x_2: Fr,
-    q_y_1: Fr,
-    q_y_2: Fr,
+pub struct FixedGroupInitQuad<Fr: Field + FftField> {
+    pub(crate) q_x_1: Fr,
+    pub(crate) q_x_2: Fr,
+    pub(crate) q_y_1: Fr,
+    pub(crate) q_y_2: Fr,
 }
 
-struct AccumulatorTriple {
-    left: Vec<u32>,
-    right: Vec<u32>,
-    out: Vec<u32>,
+pub struct AccumulatorTriple {
+    pub(crate) left: Vec<u32>,
+    pub(crate) right: Vec<u32>,
+    pub(crate) out: Vec<u32>,
 }
 
-struct EccAddGate<Fr: Field + FftField> {
-    x1: u32,
-    y1: u32,
-    x2: u32,
-    y2: u32,
-    x3: u32,
-    y3: u32,
-    endomorphism_coefficient: Fr,
-    sign_coefficient: Fr,
+pub struct EccAddGate<Fr: Field + FftField> {
+    pub(crate) x1: u32,
+    pub(crate) y1: u32,
+    pub(crate) x2: u32,
+    pub(crate) y2: u32,
+    pub(crate) x3: u32,
+    pub(crate) y3: u32,
+    pub(crate) endomorphism_coefficient: Fr,
+    pub(crate) sign_coefficient: Fr,
 }

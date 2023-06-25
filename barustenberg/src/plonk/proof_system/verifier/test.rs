@@ -1,4 +1,4 @@
-use ark_ff::{FftField};
+use ark_ff::FftField;
 
 use super::*;
 
@@ -89,7 +89,7 @@ impl<H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>> V
         }
 
         // TODOL: this number of points in arbitrary and needs to be checked with the reference string
-        let crs =Rc::new(FileReferenceString::new(32, "../srs_db/ignition"));
+        let crs = Rc::new(FileReferenceString::new(32, "../srs_db/ignition"));
         let circuit_verification_key = Rc::new(VerificationKey::new(
             circuit_proving_key.borrow().circuit_size,
             circuit_proving_key.borrow().num_public_inputs,
@@ -128,10 +128,7 @@ impl<H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>> V
             ComposerType::Standard.create_manifest(0),
         );
 
-        let kate_commitment_scheme = Box::new(KateCommitmentScheme::<
-            H,
-            Fq, Fr, G1Affine,
-        >::new());
+        let kate_commitment_scheme = Box::new(KateCommitmentScheme::<H, Fq, Fr, G1Affine>::new());
         verifier.commitment_scheme = kate_commitment_scheme;
         verifier
     }
@@ -258,9 +255,12 @@ fn generate_test_data<
     let mut sigma_3_fft = sigma_3.clone();
     sigma_3_fft.resize(key.circuit_size * WIDTH, Fr::zero());
 
-    key.large_domain.coset_fft_inplace(&mut sigma_1_fft.coefficients[..]);
-    key.large_domain.coset_fft_inplace(&mut sigma_2_fft.coefficients[..]);
-    key.large_domain.coset_fft_inplace(&mut sigma_3_fft.coefficients[..]);
+    key.large_domain
+        .coset_fft_inplace(&mut sigma_1_fft.coefficients[..]);
+    key.large_domain
+        .coset_fft_inplace(&mut sigma_2_fft.coefficients[..]);
+    key.large_domain
+        .coset_fft_inplace(&mut sigma_3_fft.coefficients[..]);
 
     key.polynomial_store.insert(&"sigma_1".to_string(), sigma_1);
     key.polynomial_store.insert(&"sigma_2".to_string(), sigma_2);
@@ -287,21 +287,26 @@ fn generate_test_data<
     key.small_domain.ifft_inplace(&mut q_c);
 
     let mut q_1_fft = q_l.clone();
-    q_1_fft.resize(n*4, Fr::zero());
+    q_1_fft.resize(n * 4, Fr::zero());
     let mut q_2_fft = q_r.clone();
-    q_2_fft.resize(n*4, Fr::zero());
+    q_2_fft.resize(n * 4, Fr::zero());
     let mut q_3_fft = q_o.clone();
-    q_3_fft.resize(n*4, Fr::zero());
+    q_3_fft.resize(n * 4, Fr::zero());
     let mut q_m_fft = q_m.clone();
-    q_m_fft.resize(n*4, Fr::zero());
+    q_m_fft.resize(n * 4, Fr::zero());
     let mut q_c_fft = q_c.clone();
-    q_c_fft.resize(n*4, Fr::zero());
+    q_c_fft.resize(n * 4, Fr::zero());
 
-    key.large_domain.coset_fft_inplace(&mut q_1_fft.coefficients[..]);
-    key.large_domain.coset_fft_inplace(&mut q_2_fft.coefficients[..]);
-    key.large_domain.coset_fft_inplace(&mut q_3_fft.coefficients[..]);
-    key.large_domain.coset_fft_inplace(&mut q_m_fft.coefficients[..]);
-    key.large_domain.coset_fft_inplace(&mut q_c_fft.coefficients[..]);
+    key.large_domain
+        .coset_fft_inplace(&mut q_1_fft.coefficients[..]);
+    key.large_domain
+        .coset_fft_inplace(&mut q_2_fft.coefficients[..]);
+    key.large_domain
+        .coset_fft_inplace(&mut q_3_fft.coefficients[..]);
+    key.large_domain
+        .coset_fft_inplace(&mut q_m_fft.coefficients[..]);
+    key.large_domain
+        .coset_fft_inplace(&mut q_c_fft.coefficients[..]);
 
     key.polynomial_store.insert(&"q_1".to_string(), q_l);
     key.polynomial_store.insert(&"q_2".to_string(), q_r);
@@ -324,7 +329,7 @@ fn generate_test_data<
 
     let kate_commitment_scheme = KateCommitmentScheme::<H, Fq, Fr, G1Affine>::new();
 
-    let state : Prover<'_, H, StandardSettings<H>> = Prover::new(
+    let state: Prover<'_, H, StandardSettings<H>> = Prover::new(
         Some(key),
         Some(ComposerType::StandardComposer::create_manifest(0)),
         None,
@@ -353,7 +358,8 @@ use crate::{
         },
     },
     polynomials::Polynomial,
-    srs::reference_string::file_reference_string::FileReferenceString, transcript::Keccak256,
+    srs::reference_string::file_reference_string::FileReferenceString,
+    transcript::Keccak256,
 };
 
 #[test]
@@ -361,8 +367,9 @@ fn verify_arithmetic_proof_small() {
     let n = 8;
 
     let state = generate_test_data::<Fq, Fr, G1Affine, Keccak256>(n);
-    let verifier : Verifier<'_, Keccak256, StandardSettings<Keccak256>>= Verifier::generate_verifier(&state.key);
-    
+    let verifier: Verifier<'_, Keccak256, StandardSettings<Keccak256>> =
+        Verifier::generate_verifier(&state.key);
+
     // Construct proof
     let proof = state.construct_proof().unwrap();
 
@@ -377,7 +384,8 @@ fn verify_arithmetic_proof() {
     let n = 1 << 14;
 
     let state = generate_test_data::<Fq, Fr, G1Affine, Keccak256>(n);
-    let verifier : Verifier<'_, Keccak256, StandardSettings<Keccak256>>= Verifier::generate_verifier(&state.key);
+    let verifier: Verifier<'_, Keccak256, StandardSettings<Keccak256>> =
+        Verifier::generate_verifier(&state.key);
 
     // Construct proof
     let proof = state.construct_proof().unwrap();
@@ -394,7 +402,8 @@ fn verify_damaged_proof() {
     let n = 8;
 
     let state = generate_test_data::<Fq, Fr, G1Affine, Keccak256>(n);
-    let verifier : Verifier<'_, Keccak256, StandardSettings<Keccak256>>= Verifier::generate_verifier(&state.key);
+    let verifier: Verifier<'_, Keccak256, StandardSettings<Keccak256>> =
+        Verifier::generate_verifier(&state.key);
 
     // Create empty proof
     let proof = Proof::default();

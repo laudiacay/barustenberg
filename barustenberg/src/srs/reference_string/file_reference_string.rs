@@ -9,7 +9,7 @@ use super::{
     VerifierReferenceString,
 };
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub(crate) struct VerifierFileReferenceString {
     g2_x: G2Affine,
     precomputed_g2_lines: Rc<Vec<MillerLines>>,
@@ -70,6 +70,7 @@ impl ProverReferenceString for FileReferenceString {
     }
 }
 
+#[derive(Debug, Default)]
 pub(crate) struct FileReferenceStringFactory {
     path: String,
 }
@@ -80,15 +81,18 @@ impl FileReferenceStringFactory {
     }
 }
 impl ReferenceStringFactory for FileReferenceStringFactory {
-    fn get_prover_crs(&self, degree: usize) -> Option<Rc<dyn ProverReferenceString>> {
+    type Pro = FileReferenceString;
+    type Ver = VerifierFileReferenceString;
+    fn get_prover_crs(&self, degree: usize) -> Option<Rc<Self::Pro>> {
         Some(Rc::new(FileReferenceString::new(degree, &self.path)))
     }
 
-    fn get_verifier_crs(&self) -> Option<Rc<dyn VerifierReferenceString>> {
+    fn get_verifier_crs(&self) -> Option<Rc<Self::Ver>> {
         Some(Rc::new(VerifierFileReferenceString::new(&self.path)))
     }
 }
 
+#[derive(Debug, Default)]
 pub(crate) struct DynamicFileReferenceStringFactory {
     path: String,
     degree: RefCell<usize>,
@@ -110,7 +114,9 @@ impl DynamicFileReferenceStringFactory {
 }
 
 impl ReferenceStringFactory for DynamicFileReferenceStringFactory {
-    fn get_prover_crs(&self, degree: usize) -> Option<Rc<dyn ProverReferenceString>> {
+    type Pro = FileReferenceString;
+    type Ver = VerifierFileReferenceString;
+    fn get_prover_crs(&self, degree: usize) -> Option<Rc<Self::Pro>> {
         if degree != *self.degree.borrow() {
             *self.prover_crs.borrow_mut() = Rc::new(FileReferenceString::new(degree, &self.path));
             *self.degree.borrow_mut() = degree;
@@ -118,7 +124,7 @@ impl ReferenceStringFactory for DynamicFileReferenceStringFactory {
         Some((self.prover_crs.borrow_mut()).clone())
     }
 
-    fn get_verifier_crs(&self) -> Option<Rc<dyn VerifierReferenceString>> {
+    fn get_verifier_crs(&self) -> Option<Rc<Self::Ver>> {
         Some(self.verifier_crs.clone())
     }
 }
