@@ -33,7 +33,7 @@ trait Ultra: Arithmetization<NumWires = U4, NumSelectors = U11> {}
 
 use serde::{Deserialize, Serialize};
 
-struct AddTriple<Fr: Field + FftField> {
+pub(crate) struct AddTriple<Fr: Field + FftField> {
     a: u32,
     b: u32,
     c: u32,
@@ -43,7 +43,7 @@ struct AddTriple<Fr: Field + FftField> {
     const_scaling: Fr,
 }
 
-struct AddQuad<Fr: Field + FftField> {
+pub(crate) struct AddQuad<Fr: Field + FftField> {
     a: u32,
     b: u32,
     c: u32,
