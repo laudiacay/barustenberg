@@ -581,17 +581,27 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
         unimplemented!()
     }
 
+    /// Computes evaluations of vanishing polynomial Z_H, l_start, l_end at ʓ.
+    ///
+    /// Note that as we modify the vanishing polynomial by cutting out some roots, we must simultaneously ensure that
+    /// the lagrange polynomials we require would be l_1(ʓ) and l_{n-k}(ʓ) where k =
+    /// num_roots_cut_out_of_vanishing_polynomial. For notational simplicity, we call l_1 as l_start and l_{n-k} as
+    /// l_end.
+    ///
+    /// # Arguments:
+    ///
+    /// - `zeta``: the name given (in our code) to the evaluation challenge ʓ from the Plonk paper.
+    /// - `domain`: evaluation domain on which said polynomials will be evaluated.
+    /// - `num_roots_cut_out_of_vanishing_poly`: num of roots left out of vanishing polynomial.
+    ///
+    /// # Returns
+    ///
+    /// - A struct containing lagrange evaluation of Z_H, l_start, l_end poly.
     pub(crate) fn get_lagrange_evaluations(
         &self,
         z: &Fr,
         num_roots_cut_out_of_vanishing_poly: usize,
     ) -> LagrangeEvaluations<Fr> {
-        // Compute Z_H*(ʓ), l_start(ʓ), l_{end}(ʓ)
-        // Note that as we modify the vanishing polynomial by cutting out some roots, we must simultaneously ensure that
-        // the lagrange polynomials we require would be l_1(ʓ) and l_{n-k}(ʓ) where k =
-        // num_roots_cut_out_of_vanishing_polynomial. For notational simplicity, we call l_1 as l_start and l_{n-k} as
-        // l_end.
-        //
         // NOTE: If in future, there arises a need to cut off more zeros, this method will not require any changes.
 
         let z_pow_n = z.pow([self.size as u64]);
@@ -759,16 +769,20 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
         Ok(())
     }
 
-    // Computes r = \sum_{i=0}^{num_coeffs-1} (L_{i+1}(ʓ).f_i)
-    //
-    //                     (ʓ^n - 1)
-    // Start with L_1(ʓ) = ---------
-    //                     n.(ʓ - 1)
-    //
-    //                                 ʓ^n - 1
-    // L_i(z) = L_1(ʓ.ω^{1-i}) = ------------------
-    //                           n.(ʓ.ω^{1-i)} - 1)
-    //
+    /// Computes r = \sum_{i=0}^{num_coeffs-1} (L_{i+1}(ʓ).f_i)
+    ///
+    /// # Details
+    ///
+    /// L_i represents ith coefficient of the lagrange polynomial and calculated using first
+    /// lagrange coefficient.
+    /// `L_1(ʓ)` := (ʓ^n - 1) / n.(ʓ - 1)
+    /// `L_i(ʓ)` := L_1(ʓ.ω^{1-i}) = ʓ^n-1 / n.(ʓ.ω^{1-i} - 1)
+    ///
+    /// # Arguments
+    ///
+    /// - `coeffs`: f_i, coefficients of the polynomial
+    /// - `z`: evaluation point
+    /// - `domain`: evaluation domain
     pub(crate) fn compute_barycentric_evaluation(
         &self,
         coeffs: &[Fr],
@@ -921,16 +935,27 @@ pub(crate) fn compute_efficient_interpolation<Fr: Field>(
     Ok(())
 }
 
+/// Computes coefficients of opening polynomial in Kate commitments
+/// i.e. W(X) = F(X) - F(z) / (X - z)
+///
+/// # Details
+///
+/// if `coeffs` represents F(X), we want to compute W(X)
+/// where W(X) = F(X) - F(z) / (X - z)
+/// i.e. divide by the degree-1 polynomial [-z, 1]
+///
+/// # Arguments
+///
+/// - `src`: coeffcients of F(X)
+/// - `dest`: coefficients of W(X)
+/// - `z`: evaluation point
+/// - `n`: polynomial size
 pub(crate) fn compute_kate_opening_coefficients<Fr: Field>(
     src: &[Fr],
     dest: &mut [Fr],
     z: &Fr,
     n: usize,
 ) -> anyhow::Result<Fr> {
-    // if `coeffs` represents F(X), we want to compute W(X)
-    // where W(X) = F(X) - F(z) / (X - z)
-    // i.e. divide by the degree-1 polynomial [-z, 1]
-
     // We assume that the commitment is well-formed and that there is no remainder term.
     // Under these conditions we can perform this polynomial division in linear time with good constants let f = evaluate(src, z, n);
     let f = evaluate(src, z, n);
