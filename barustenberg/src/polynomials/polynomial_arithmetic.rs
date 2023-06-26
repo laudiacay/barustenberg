@@ -599,9 +599,10 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
     pub(crate) fn get_lagrange_evaluations(
         &self,
         z: &Fr,
-        num_roots_cut_out_of_vanishing_poly: usize,
+        num_roots_cut_out_of_vanishing_poly: Option<usize>,
     ) -> LagrangeEvaluations<Fr> {
         // NOTE: If in future, there arises a need to cut off more zeros, this method will not require any changes.
+        let num_roots_cut_out_of_vanishing_poly = num_roots_cut_out_of_vanishing_poly.unwrap_or(0);
 
         let z_pow_n = z.pow([self.size as u64]);
 

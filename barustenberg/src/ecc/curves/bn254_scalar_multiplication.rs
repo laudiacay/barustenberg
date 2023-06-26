@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use ark_bn254::{G1Affine, G1Projective};
 use ark_ec::AffineRepr;
-use ark_ff::{FftField, Field, One, Zero};
+use ark_ff::{FftField, Field, Zero};
 
 pub(crate) type G1AffineGroup = <ark_ec::short_weierstrass::Affine<
     <ark_bn254::Config as ark_ec::bn::BnConfig>::G1Config,
@@ -27,7 +27,7 @@ fn cube_root_of_unity<F: ark_ff::Field>() -> F {
     //}
 }
 pub(crate) fn is_point_at_infinity(point: &G1Projective) -> bool {
-    point.x.is_zero() && point.y.is_one() && point.z.is_zero()
+!(point.x.is_zero() && point.y.is_zero()) && point.z.is_zero()
 }
 
 #[derive(Clone, Default, Debug)]
