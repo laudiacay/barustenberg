@@ -1,5 +1,4 @@
-use anyhow::ensure;
-use ark_ff::{FftField, Field};
+use ark_ff::{batch_inversion, FftField, Field};
 
 use crate::{common::max_threads::compute_num_threads, numeric::bitop::Msb};
 
@@ -608,15 +607,15 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
 
         let mut numerator = z_pow_n - Fr::one();
 
-        let mut denominator = vec![Fr::one(); 3];
+        let mut denominators = vec![Fr::default(); 3];
 
         // Compute the denominator of Z_H*(ʓ)
         //   (ʓ - ω^{n-1})(ʓ - ω^{n-2})...(ʓ - ω^{n - num_roots_cut_out_of_vanishing_poly})
         // = (ʓ - ω^{ -1})(ʓ - ω^{ -2})...(ʓ - ω^{  - num_roots_cut_out_of_vanishing_poly})
         let mut work_root = self.root_inverse;
-        denominator[0] = Fr::one();
+        denominators[0] = Fr::one();
         for _ in 0..num_roots_cut_out_of_vanishing_poly {
-            denominator[0] *= *z - work_root;
+            denominators[0] *= *z - work_root;
             work_root *= self.root_inverse;
         }
 
@@ -640,29 +639,20 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
         // => L_{n-k}(X) = L_1(X.ω^{k-n+1}) = L_1(X.ω^{k+1}) =  -----------------
         //                                                      n.(X.ω^{k+1} - 1)
         //
-        denominator[1] = *z - Fr::one();
+        denominators[1] = *z - Fr::one();
 
         // Compute ω^{num_roots_cut_out_of_vanishing_polynomial + 1}
         let l_end_root = self
             .root
             .pow([(num_roots_cut_out_of_vanishing_poly + 1) as u64]);
-        denominator[2] = (*z * l_end_root) - Fr::one();
+        denominators[2] = (*z * l_end_root) - Fr::one();
 
-        // TODO batch invert
-        let _result: Result<(), anyhow::Error> = denominator
-            .iter_mut()
-            .map(|x| {
-                *x = x
-                    .inverse()
-                    .ok_or_else(|| anyhow::anyhow!("Failed to find inverse"))?;
-                Ok(())
-            })
-            .collect();
+        batch_inversion(denominators.as_mut_slice());
 
-        let vanishing_poly = numerator * denominator[0]; // (ʓ^n - 1) / (ʓ-ω^{-1}).(ʓ-ω^{-2})...(ʓ-ω^{-k}) =: Z_H*(ʓ)
+        let vanishing_poly = numerator * denominators[0]; // (ʓ^n - 1) / (ʓ-ω^{-1}).(ʓ-ω^{-2})...(ʓ-ω^{-k}) =: Z_H*(ʓ)
         numerator *= self.domain_inverse; // (ʓ^n - 1) / n
-        let l_start = numerator * denominator[1]; // (ʓ^n - 1) / (n.(ʓ - 1))         =: L_1(ʓ)
-        let l_end = numerator * denominator[2]; // (ʓ^n - 1) / (n.(ʓ.ω^{k+1} - 1)) =: L_{n-k}(ʓ)
+        let l_start = numerator * denominators[1]; // (ʓ^n - 1) / (n.(ʓ - 1))         =: L_1(ʓ)
+        let l_end = numerator * denominators[2]; // (ʓ^n - 1) / (n.(ʓ.ω^{k+1} - 1)) =: L_{n-k}(ʓ)
         LagrangeEvaluations {
             vanishing_poly,
             l_start,
@@ -789,7 +779,7 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
         num_coeffs: usize,
         z: &Fr,
     ) -> Fr {
-        let mut denominators = vec![Fr::one(); num_coeffs];
+        let mut denominators = vec![Fr::default(); num_coeffs];
 
         let mut numerator = z.pow([self.size as u64]);
         numerator -= Fr::one();
@@ -797,24 +787,14 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
 
         denominators[0] = *z - Fr::one();
         let mut work_root = self.root_inverse; // ω^{-1}
-        for denominator in denominators.iter_mut().take(num_coeffs).skip(1) {
-            *denominator = work_root * *z; // denominators[i] will correspond to L_[i+1] (since our 'commented maths' notation indexes
-                                           // L_i from 1). So ʓ.ω^{-i} = ʓ.ω^{1-(i+1)} is correct for L_{i+1}.
-            *denominator -= Fr::one();
+        for i in 1..num_coeffs {
+            denominators[i] = work_root * *z; // denominators[i] will correspond to L_[i+1] (since our 'commented maths' notation indexes
+                                              // L_i from 1). So ʓ.ω^{-i} = ʓ.ω^{1-(i+1)} is correct for L_{i+1}.
+            denominators[i] -= Fr::one();
             work_root *= self.root_inverse;
         }
 
-        // TODO batch invert
-        let _result: Result<(), anyhow::Error> = denominators
-            .iter_mut()
-            .take(num_coeffs)
-            .map(|x| {
-                *x = x
-                    .inverse()
-                    .ok_or_else(|| anyhow::anyhow!("Failed to find inverse"))?;
-                Ok(())
-            })
-            .collect();
+        batch_inversion(denominators.as_mut_slice());
 
         let mut result = Fr::zero();
         for i in 0..num_coeffs {
