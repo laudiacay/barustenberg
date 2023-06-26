@@ -3,6 +3,12 @@ use ark_ff::{FftField, Field};
 
 use crate::{common::max_threads::compute_num_threads, numeric::bitop::Msb};
 
+pub(crate) struct LagrangeEvaluations<Fr: Field + FftField> {
+    pub(crate) vanishing_poly: Fr,
+    pub(crate) l_start: Fr,
+    pub(crate) l_end: Fr,
+}
+
 #[inline]
 fn reverse_bits(x: u32, bit_length: u32) -> u32 {
     let x = ((x & 0xaaaaaaaa) >> 1) | ((x & 0x55555555) << 1);
@@ -575,6 +581,85 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
         unimplemented!()
     }
 
+    pub(crate) fn get_lagrange_evaluations(
+        &self,
+        z: &Fr,
+        num_roots_cut_out_of_vanishing_poly: usize,
+    ) -> LagrangeEvaluations<Fr> {
+        // Compute Z_H*(ʓ), l_start(ʓ), l_{end}(ʓ)
+        // Note that as we modify the vanishing polynomial by cutting out some roots, we must simultaneously ensure that
+        // the lagrange polynomials we require would be l_1(ʓ) and l_{n-k}(ʓ) where k =
+        // num_roots_cut_out_of_vanishing_polynomial. For notational simplicity, we call l_1 as l_start and l_{n-k} as
+        // l_end.
+        //
+        // NOTE: If in future, there arises a need to cut off more zeros, this method will not require any changes.
+
+        let z_pow_n = z.pow([self.size as u64]);
+
+        let mut numerator = z_pow_n - Fr::one();
+
+        let mut denominator = vec![Fr::one(); 3];
+
+        // Compute the denominator of Z_H*(ʓ)
+        //   (ʓ - ω^{n-1})(ʓ - ω^{n-2})...(ʓ - ω^{n - num_roots_cut_out_of_vanishing_poly})
+        // = (ʓ - ω^{ -1})(ʓ - ω^{ -2})...(ʓ - ω^{  - num_roots_cut_out_of_vanishing_poly})
+        let mut work_root = self.root_inverse;
+        denominator[0] = Fr::one();
+        for _ in 0..num_roots_cut_out_of_vanishing_poly {
+            denominator[0] *= *z - work_root;
+            work_root *= self.root_inverse;
+        }
+
+        // The expressions of the lagrange polynomials are:
+        //
+        //           ω^0.(X^n - 1)      (X^n - 1)
+        // L_1(X) = --------------- =  -----------
+        //            n.(X - ω^0)       n.(X - 1)
+        //
+        // Notice: here (in this comment), the index i of L_i(X) counts from 1 (not from 0). So L_1 corresponds to the
+        // _first_ root of unity ω^0, and not to the 1-th root of unity ω^1.
+        //
+        //
+        //             ω^{i-1}.(X^n - 1)         X^n - 1          X^n.(ω^{-i+1})^n - 1
+        // L_{i}(X) = ------------------ = -------------------- = -------------------- = L_1(X.ω^{-i+1})
+        //              n.(X - ω^{i-1})    n.(X.ω^{-(i-1)} - 1) |  n.(X.ω^{-i+1} - 1)
+        //                                                      |
+        //                                                      since (ω^{-i+1})^n = 1 trivially
+        //
+        //                                                          (X^n - 1)
+        // => L_{n-k}(X) = L_1(X.ω^{k-n+1}) = L_1(X.ω^{k+1}) =  -----------------
+        //                                                      n.(X.ω^{k+1} - 1)
+        //
+        denominator[1] = *z - Fr::one();
+
+        // Compute ω^{num_roots_cut_out_of_vanishing_polynomial + 1}
+        let l_end_root = self
+            .root
+            .pow([(num_roots_cut_out_of_vanishing_poly + 1) as u64]);
+        denominator[2] = (*z * l_end_root) - Fr::one();
+
+        // TODO batch invert
+        let _result: Result<(), anyhow::Error> = denominator
+            .iter_mut()
+            .map(|x| {
+                *x = x
+                    .inverse()
+                    .ok_or_else(|| anyhow::anyhow!("Failed to find inverse"))?;
+                Ok(())
+            })
+            .collect();
+
+        let vanishing_poly = numerator * denominator[0]; // (ʓ^n - 1) / (ʓ-ω^{-1}).(ʓ-ω^{-2})...(ʓ-ω^{-k}) =: Z_H*(ʓ)
+        numerator *= self.domain_inverse; // (ʓ^n - 1) / n
+        let l_start = numerator * denominator[1]; // (ʓ^n - 1) / (n.(ʓ - 1))         =: L_1(ʓ)
+        let l_end = numerator * denominator[2]; // (ʓ^n - 1) / (n.(ʓ.ω^{k+1} - 1)) =: L_{n-k}(ʓ)
+        LagrangeEvaluations {
+            vanishing_poly,
+            l_start,
+            l_end,
+        }
+    }
+
     /// Compute evaluations of lagrange polynomial L_1(X) on the specified domain.
     ///
     /// # Arguments
@@ -673,7 +758,63 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
         }
         Ok(())
     }
+
+    // Computes r = \sum_{i=0}^{num_coeffs-1} (L_{i+1}(ʓ).f_i)
+    //
+    //                     (ʓ^n - 1)
+    // Start with L_1(ʓ) = ---------
+    //                     n.(ʓ - 1)
+    //
+    //                                 ʓ^n - 1
+    // L_i(z) = L_1(ʓ.ω^{1-i}) = ------------------
+    //                           n.(ʓ.ω^{1-i)} - 1)
+    //
+    pub(crate) fn compute_barycentric_evaluation(
+        &self,
+        coeffs: &[Fr],
+        num_coeffs: usize,
+        z: &Fr,
+    ) -> Fr {
+        let mut denominators = vec![Fr::one(); num_coeffs];
+
+        let mut numerator = z.pow([self.size as u64]);
+        numerator -= Fr::one();
+        numerator *= self.domain_inverse; // (ʓ^n - 1) / n
+
+        denominators[0] = *z - Fr::one();
+        let mut work_root = self.root_inverse; // ω^{-1}
+        for denominator in denominators.iter_mut().take(num_coeffs).skip(1) {
+            *denominator = work_root * *z; // denominators[i] will correspond to L_[i+1] (since our 'commented maths' notation indexes
+                                           // L_i from 1). So ʓ.ω^{-i} = ʓ.ω^{1-(i+1)} is correct for L_{i+1}.
+            *denominator -= Fr::one();
+            work_root *= self.root_inverse;
+        }
+
+        // TODO batch invert
+        let _result: Result<(), anyhow::Error> = denominators
+            .iter_mut()
+            .take(num_coeffs)
+            .map(|x| {
+                *x = x
+                    .inverse()
+                    .ok_or_else(|| anyhow::anyhow!("Failed to find inverse"))?;
+                Ok(())
+            })
+            .collect();
+
+        let mut result = Fr::zero();
+        for i in 0..num_coeffs {
+            result += coeffs[i] * denominators[i]; // f_i * 1/(ʓ.ω^{-i} - 1)
+        }
+
+        result *= numerator; //   \sum_{i=0}^{num_coeffs-1} f_i * [ʓ^n - 1]/[n.(ʓ.ω^{-i} - 1)]
+                             // = \sum_{i=0}^{num_coeffs-1} f_i * L_{i+1}
+                             // (with our somewhat messy 'commented maths' convention that L_1 corresponds to the 0th coeff).
+
+        result
+    }
 }
+
 fn compute_sum<Fr: Field>(slice: &[Fr]) -> Fr {
     slice.iter().copied().fold(Fr::zero(), Add::add)
 }
@@ -780,8 +921,38 @@ pub(crate) fn compute_efficient_interpolation<Fr: Field>(
     Ok(())
 }
 
+pub(crate) fn compute_kate_opening_coefficients<Fr: Field>(
+    src: &[Fr],
+    dest: &mut [Fr],
+    z: &Fr,
+    n: usize,
+) -> anyhow::Result<Fr> {
+    // if `coeffs` represents F(X), we want to compute W(X)
+    // where W(X) = F(X) - F(z) / (X - z)
+    // i.e. divide by the degree-1 polynomial [-z, 1]
+
+    // We assume that the commitment is well-formed and that there is no remainder term.
+    // Under these conditions we can perform this polynomial division in linear time with good constants let f = evaluate(src, z, n);
+    let f = evaluate(src, z, n);
+
+    let divisor = z
+        .neg()
+        .inverse()
+        .ok_or_else(|| anyhow::anyhow!("Failed to find inverse"))?;
+
+    // we're about to shove these coefficients into a pippenger multi-exponentiation routine, where we need
+    // to convert out of montgomery form. So, we can use lazy reduction techniques here without triggering overflows
+    dest[0] = src[0] - f;
+    dest[0] *= divisor;
+    for i in 1..n {
+        dest[i] = src[i] - dest[i - 1];
+        dest[i] *= divisor;
+    }
+
+    Ok(f)
+}
+
 pub(crate) fn evaluate<F: Field>(coeffs: &[F], z: &F, n: usize) -> F {
-    // let num_threads = compute_num_threads();
     let num_threads = compute_num_threads();
     let range_per_thread = n / num_threads;
     let leftovers = n - (range_per_thread * num_threads);
