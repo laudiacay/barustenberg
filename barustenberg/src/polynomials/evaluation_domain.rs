@@ -32,8 +32,9 @@ pub(crate) struct EvaluationDomain<'a, F: Field + FftField> {
     /// E.g. round_roots[0] = [1, ω^(n/2 - 1)],
     ///      round_roots[1] = [1, ω^(n/4 - 1), ω^(n/2 - 1), ω^(3n/4 - 1)]
     ///      ...
-    pub(crate) round_roots: &'a [&'a [F]],
-    pub(crate) inverse_round_roots: &'a [&'a [F]],
+    pub(crate) round_roots: Vec<&'a [F]>,
+    pub(crate) inverse_round_roots: Vec<&'a [F]>,
+    pub(crate) roots: Vec<F>,
 }
 
 fn compute_num_threads(size: usize) -> usize {
@@ -76,75 +77,89 @@ fn compute_num_threads(size: usize) -> usize {
 /// let mut round_roots = Vec::new();
 /// compute_lookup_table_single(&input_root, size, &mut roots, &mut round_roots);
 /// ```
-fn compute_lookup_table_single<Fr: Field + FftField>(
+fn compute_lookup_table_single<'a, Fr: Field + FftField>(
     input_root: &Fr,
     size: usize,
-    roots: &mut [Fr],
-    round_roots: &mut Vec<usize>,
+    roots: &'a mut [Fr],
+    round_roots: &mut Vec<&'a [Fr]>,
 ) {
-    let num_rounds = (size as f64).log2().ceil() as usize;
+    let num_rounds = size.get_msb();
 
-    round_roots.push(0);
-    for i in 1..num_rounds - 1 {
-        let last = *round_roots.last().unwrap();
-        round_roots.push(last + (1 << i));
-    }
-    for (i, round_root_i) in round_roots.iter().enumerate().take(num_rounds - 1) {
+    // TODO: There's probably a cleaner way to do this
+    for i in 0..(num_rounds - 1) {
         let m = 1 << (i + 1);
         let exponent = [(size / (2 * m)) as u64];
         let round_root = input_root.pow(exponent);
-        roots[*round_root_i] = Fr::one();
-        for j in 1..m {
-            roots[round_root_i + j] = roots[round_root_i + j - 1] * round_root;
+        roots[m - 2] = Fr::one();
+        for j in m - 1..2 * m - 2 {
+            roots[j] = roots[j - 1] * round_root;
         }
     }
-}
-impl<'a, F: Field + FftField> EvaluationDomain<'a, F> {
-    pub(crate) fn new(domain_size: usize, _target_generator_size: Option<usize>) -> Self {
-        // TODO: implement constructor logic
 
+    // Creating slices
+    round_roots.push(&roots[0..2]);
+    for i in 1..(num_rounds - 1) {
+        let start = round_roots.last().unwrap().len();
+        round_roots.push(&roots[start..start + (1 << i)]);
+    }
+}
+
+impl<'a, F: Field + FftField> EvaluationDomain<'a, F> {
+    pub(crate) fn new(domain_size: usize, target_generator_size: Option<usize>) -> Self {
         let size = domain_size;
         let num_threads = compute_num_threads(size);
         let thread_size = size / num_threads;
-        let _log2_size = size.get_msb();
-        let _log2_thread_size = thread_size.get_msb();
-        let _log2_num_threads = num_threads.get_msb();
-        // let root = F::get_root_of_unity(log2_size);
-        // let domain = F::new(size, 0,0,0).to_montgomery_form();
-        // let domain_inverse = domain.inverse().unwrap();
-        // let generator = F::coset_generator(0);
-        // let generator_inverse = generator.inverse().unwrap();
-        // let four_inverse = F::from(4).inverse().unwrap();
-        // let roots = None;
+        let log2_size = size.get_msb();
+        let log2_thread_size = thread_size.get_msb();
+        let log2_num_threads = num_threads.get_msb();
+        let root = F::get_root_of_unity(log2_size as u64).unwrap();
+        // TODO: I guess we don't need the conversion since arkworks internally uses a Montgomery form
+        let domain = F::from(size as u64); // .to_montgomery_form();
+        let domain_inverse = domain.inverse().unwrap();
+        // TODO: Not sure if we need a specific generator or any generator will do
+        let generator = F::GENERATOR; // F::coset_generator(0);
+        let generator_inverse = generator.inverse().unwrap();
+        let four_inverse = F::from(4u64).inverse().unwrap();
+        let roots = Vec::new();
 
-        todo!("fix ");
-        // assert!((1UL << log2_size) == size || (size == 0));
-        // assert!((1UL << log2_thread_size) == thread_size || (size == 0));
-        // assert!((1UL << log2_num_threads) == num_threads || (size == 0));
+        assert!((1 << log2_size) == size || (size == 0));
+        assert!((1 << log2_thread_size) == thread_size || (size == 0));
+        assert!((1 << log2_num_threads) == num_threads || (size == 0));
 
-        // EvaluationDomain { size: size,
-        //     num_threads,
-        //     thread_size,
-        //     log2_size,
-        //     log2_thread_size,
-        //     log2_num_threads,
-        //     // TODO original was generator_size(target_generator_size ? target_generator_size : domain_size)- check me
-        //     generator_size: if target_generator_size == 0 { size } else { target_generator_size },
-        //     root,
-        //     root_inverse: root.inverse().unwrap(),
-        //     domain,
-        //     domain_inverse,
-        //     generator,
-        //     generator_inverse,
-        //     four_inverse,
-        //     roots,
-        //     round_roots: None,
-        //     inverse_round_roots: None,
-        // }
+        EvaluationDomain {
+            size: size,
+            num_threads,
+            thread_size,
+            log2_size,
+            log2_thread_size,
+            log2_num_threads,
+            generator_size: target_generator_size.unwrap_or(size),
+            root,
+            root_inverse: root.inverse().unwrap(),
+            domain,
+            domain_inverse,
+            generator,
+            generator_inverse,
+            four_inverse,
+            round_roots: Vec::new(),
+            inverse_round_roots: Vec::new(),
+            roots,
+        }
     }
 
     pub(crate) fn compute_lookup_table(&mut self) {
-        // TODO: implement compute_lookup_table logic
+        assert!(self.roots.is_empty());
+        self.roots = Vec::<F>::with_capacity(2 * self.size);
+
+        let (left, right) = self.roots.split_at_mut(self.size);
+        // TODO: Fk this, maybe just use indices instead of slices
+        compute_lookup_table_single(&self.root, self.size, left, &mut self.round_roots);
+        compute_lookup_table_single(
+            &self.root_inverse,
+            self.size,
+            right,
+            &mut self.inverse_round_roots,
+        );
     }
 
     pub(crate) fn compute_generator_table(&mut self, _target_generator_size: usize) {
@@ -152,11 +167,11 @@ impl<'a, F: Field + FftField> EvaluationDomain<'a, F> {
     }
 
     pub(crate) fn get_round_roots(&self) -> &[&[F]] {
-        self.round_roots
+        &self.round_roots[..]
     }
 
     pub(crate) fn get_inverse_round_roots(&self) -> &[&[F]] {
-        self.inverse_round_roots
+        &self.inverse_round_roots[..]
     }
 }
 
