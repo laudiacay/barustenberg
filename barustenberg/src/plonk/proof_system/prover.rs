@@ -1,7 +1,8 @@
 use std::{cell::RefCell, marker::PhantomData, ops::IndexMut, rc::Rc};
 
-use ark_ec::AffineRepr;
-use ark_ff::{FftField, Field};
+use ark_bn254::{Fq, Fr, G1Affine};
+use ark_ff::{Field, One, UniformRand, Zero};
+use rand::RngCore;
 
 use super::{
     commitment_scheme::{CommitmentScheme, KateCommitmentScheme},
@@ -26,38 +27,35 @@ use anyhow::{ensure, Result};
 use crate::proof_system::work_queue::WorkQueue;
 
 // todo https://doc.rust-lang.org/reference/const_eval.html
-
-pub(crate) struct Prover<
-    'a,
-    Fq: Field,
-    Fr: Field + FftField,
-    G1Affine: AffineRepr,
-    H: BarretenHasher,
-    S: Settings<H>,
-    CS: CommitmentScheme<Fq, Fr, G1Affine, H>,
-> {
+/// Plonk prover.
+#[derive(Debug)]
+pub struct Prover<'a, H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>> {
     pub(crate) circuit_size: usize,
-    pub(crate) transcript: Rc<RefCell<Transcript<H, Fr, G1Affine>>>,
+    pub(crate) transcript: Rc<RefCell<Transcript<H>>>,
     pub(crate) key: Rc<RefCell<ProvingKey<'a, Fr, G1Affine>>>,
     pub(crate) queue: WorkQueue<'a, H, Fr, G1Affine>,
-    pub(crate) random_widgets: Vec<Box<dyn ProverRandomWidget<'a, H, Fr, G1Affine>>>,
-    pub(crate) transition_widgets: Vec<Box<dyn TransitionWidgetBase<'a, H, Fr, G1Affine>>>,
-    pub(crate) commitment_scheme: CS,
+    pub(crate) random_widgets:
+        Vec<Box<dyn ProverRandomWidget<'a, Fr = Fr, G1 = G1Affine, Hasher = H>>>,
+    pub(crate) transition_widgets: Vec<Box<dyn TransitionWidgetBase<'a, Hasher = H, Field = Fr>>>,
+    pub(crate) commitment_scheme: KateCommitmentScheme<H, Fq, Fr, G1Affine>,
     pub(crate) settings: S,
-    pub(crate) rng: Box<dyn rand::RngCore>,
     phantom: PhantomData<Fq>,
 }
 
 impl<
         'a,
-        Fq: Field,
-        Fr: Field + FftField,
-        G1Affine: AffineRepr,
         H: BarretenHasher + Default,
-        S: Settings<H> + Default,
-    > Prover<'a, Fq, Fr, G1Affine, H, S, KateCommitmentScheme<H, S>>
-{
-    pub(crate) fn new(
+        S: Settings<Hasher = H, Field = Fr, Group = G1Affine> + Default,
+    > Prover<'a, H, S>
+{   
+    /// Create a new prover.
+    /// Parameters:
+    /// - `input_key` Proving key.
+    /// - `input_manifest` Manifest.
+    /// - `input_settings` Program settings.
+    /// Returns:
+    /// - `Self` Prover.
+    pub fn new(
         input_key: Option<Rc<RefCell<ProvingKey<'a, Fr, G1Affine>>>>,
         input_manifest: Option<Manifest>,
         input_settings: Option<S>,
@@ -83,23 +81,15 @@ impl<
             queue,
             random_widgets: Vec::new(),
             transition_widgets: Vec::new(),
-            commitment_scheme: KateCommitmentScheme::<H, S>::default(),
+            commitment_scheme: KateCommitmentScheme::<H, Fq, Fr, G1Affine>::default(),
             settings,
             phantom: PhantomData,
-            rng: Box::new(rand::thread_rng()),
         }
     }
 }
 
-impl<
-        'a,
-        Fq: Field,
-        Fr: Field + FftField,
-        G1Affine: AffineRepr,
-        H: BarretenHasher + Default,
-        S: Settings<H> + Default,
-        CS: CommitmentScheme<Fq, Fr, G1Affine, H>,
-    > Prover<'a, Fq, Fr, G1Affine, H, S, CS>
+impl<'a, H: BarretenHasher + Default, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>>
+    Prover<'a, H, S>
 {
     fn copy_placeholder(&self) {
         todo!("LOOK AT THE COMMENTS IN PROVERBASE");
@@ -112,7 +102,7 @@ impl<
     /// and after they are in monomial form. This is an inconsistency that can mislead developers.
     /// Parameters:
     /// - `settings` Program settings.
-    fn execute_preamble_round(&mut self) -> Result<()> {
+    fn execute_preamble_round(&mut self, rng: &mut dyn RngCore) -> Result<()> {
         self.queue.flush_queue();
 
         (*self.transcript).borrow_mut().add_element(
@@ -162,7 +152,7 @@ impl<
             // and the permutation polynomial look uniformly random to an adversary. To make the witness polynomials
             // a(X), b(X) and c(X) uniformly random, we need to add 2 random blinding factors into each of them.
             // i.e. a'(X) = a(X) + (r_1X + r_2)
-            // where r_1 and r_2 are uniformly random scalar field elements. A natural question is:
+            // where r_1 and r_2 are uniformly random scalar FieldExt elements. A natural question is:
             // Why do we need 2 random scalars in witness polynomials? The reason is: our witness polynomials are
             // evaluated at only 1 point (\scripted{z}), so adding a random degree-1 polynomial suffices.
             //
@@ -182,7 +172,7 @@ impl<
                 wire_lagrange.set_coefficient(
                     self.circuit_size - self.settings.num_roots_cut_out_of_vanishing_polynomial()
                         + k,
-                    Fr::rand(&mut self.rng),
+                    Fr::rand(rng),
                 )
             }
         }
@@ -226,7 +216,7 @@ impl<
     /// - Compute the random_widgets' round commitments that need to be computed at round 2.
     /// - If using plookup, we compute some w_4 values here (for gates which access "memory"), and apply blinding factors,
     ///   before finally committing to w_4.
-    fn execute_second_round(&mut self) -> Result<()> {
+    fn execute_second_round(&mut self, rng: &mut dyn RngCore) -> Result<()> {
         self.queue.flush_queue();
 
         (*self.transcript).borrow_mut().apply_fiat_shamir("eta");
@@ -259,7 +249,7 @@ impl<
                 w_4_lagrange.set_coefficient(
                     self.circuit_size - self.settings.num_roots_cut_out_of_vanishing_polynomial()
                         + k,
-                    Fr::rand(&mut self.rng),
+                    Fr::rand(rng),
                 );
             }
 
@@ -316,7 +306,7 @@ impl<
     }
 
     /// Computes the quotient polynomial, then commits to its degree-n split parts.
-    fn execute_fourth_round(&mut self) {
+    fn execute_fourth_round(&mut self, rng: &mut dyn RngCore) -> Result<()> {
         self.queue.flush_queue();
         (*self.transcript).borrow_mut().apply_fiat_shamir("alpha");
 
@@ -325,7 +315,7 @@ impl<
             .get_challenge_field_element("alpha", None);
 
         // Compute FFT of lagrange polynomial L_1 (needed in random widgets only)
-        self.compute_lagrange_1_fft();
+        self.compute_lagrange_1_fft()?;
 
         for widget in &mut self.random_widgets {
             alpha_base =
@@ -333,11 +323,8 @@ impl<
         }
 
         for widget in &mut self.transition_widgets {
-            alpha_base = widget.compute_quotient_contribution(
-                alpha_base,
-                &self.transcript.borrow(),
-                &mut self.rng,
-            );
+            alpha_base =
+                widget.compute_quotient_contribution(alpha_base, &self.transcript.borrow(), rng);
         }
 
         // The parts of the quotient polynomial t(X) are stored as 4 separate polynomials in
@@ -384,9 +371,10 @@ impl<
             self.key.borrow().quotient_polynomial_parts[3].borrow_mut()[0] = Fr::zero();
         }
 
-        self.add_blinding_to_quotient_polynomial_parts();
+        self.add_blinding_to_quotient_polynomial_parts(rng);
 
         self.compute_quotient_commitments();
+        Ok(())
     }
     fn execute_fifth_round(&mut self) -> Result<()> {
         self.queue.flush_queue();
@@ -400,7 +388,7 @@ impl<
         self.commitment_scheme.batch_open(
             &(*self.transcript).borrow(),
             &mut self.queue,
-            Some(self.key.clone().borrow()),
+            Some(self.key.clone()),
         );
     }
 
@@ -518,7 +506,7 @@ impl<
         // We can only compute memory record values once W_1, W_2, W_3 have been comitted to,
         // due to the dependence on the `eta` challenge.
 
-        let eta = (*self.transcript).borrow_mut().get_field_element("eta");
+        let eta: Fr = (*self.transcript).borrow_mut().get_field_element("eta");
         let key = self.key.borrow();
 
         // We need the lagrange-base forms of the first 3 wires to compute the plookup memory record
@@ -560,7 +548,7 @@ impl<
         self.commitment_scheme
             .add_opening_evaluations_to_transcript(
                 &mut (*self.transcript).borrow_mut(),
-                Some(&self.key.borrow()),
+                Some(self.key.clone()),
                 false,
             );
 
@@ -597,13 +585,13 @@ impl<
     }
 
     /// Add blinding to the components in such a way that the full quotient would be unchanged if reconstructed
-    fn add_blinding_to_quotient_polynomial_parts(&mut self) {
+    fn add_blinding_to_quotient_polynomial_parts(&mut self, rng: &mut dyn RngCore) {
         // Construct blinded quotient polynomial parts t_i by adding randomness to the unblinded parts t_i' in
         // such a way that the full quotient polynomial t is unchanged upon reconstruction, i.e.
         //
         //        t = t_1' + X^n*t_2' + X^2n*t_3' + X^3n*t_4' = t_1 + X^n*t_2 + X^2n*t_3 + X^3n*t_4
         //
-        // Blinding is done as follows, where b_i are random field elements:
+        // Blinding is done as follows, where b_i are random FieldExt elements:
         //
         //              t_1 = t_1' +       b_0*X^n
         //              t_2 = t_2' - b_0 + b_1*X^n
@@ -614,7 +602,7 @@ impl<
         let key = self.key.borrow();
         for i in 0..self.settings.program_width() - 1 {
             // Note that only program_width-1 random elements are required for full blinding
-            let quotient_randomness = Fr::rand(&mut self.rng);
+            let quotient_randomness = Fr::rand(rng);
 
             key.quotient_polynomial_parts[i].borrow_mut()[key.circuit_size] += quotient_randomness; // update coefficient of X^n'th term
             key.quotient_polynomial_parts[i + 1].borrow_mut()[0] -= quotient_randomness;
@@ -623,13 +611,13 @@ impl<
     }
 
     /// Compute FFT of lagrange polynomial L_1 needed in random widgets only
-    fn compute_lagrange_1_fft(&self) {
+    fn compute_lagrange_1_fft(&self) -> Result<()> {
         let mut lagrange_1_fft: Polynomial<Fr> = Polynomial::new(4 * self.circuit_size + 8);
 
         {
             let key = self.key.borrow();
             key.small_domain
-                .compute_lagrange_polynomial_fft(&mut lagrange_1_fft, &key.large_domain);
+                .compute_lagrange_polynomial_fft(&mut lagrange_1_fft, &key.large_domain)?;
             for i in 0..8 {
                 lagrange_1_fft[4 * self.circuit_size + i] = lagrange_1_fft[i];
             }
@@ -638,17 +626,23 @@ impl<
             .borrow_mut()
             .polynomial_store
             .put("lagrange_1_fft".to_string(), lagrange_1_fft);
+
+        Ok(())
     }
 
-    fn export_proof(&self) -> Proof {
+    /// export the proof from the prover's transcript
+    pub fn export_proof(&self) -> Proof {
         Proof {
             proof_data: (*self.transcript).borrow_mut().export_transcript(),
         }
     }
 
-    pub(crate) fn construct_proof(&mut self) -> Result<Proof> {
+    /// construct the proof from a fully initialized proof state
+    pub fn construct_proof(&mut self) -> Result<Proof> {
+        let mut rng = rand::thread_rng();
+
         // Execute init round. Randomize witness polynomials.
-        self.execute_preamble_round()?;
+        self.execute_preamble_round(&mut rng)?;
         self.queue.process_queue()?;
 
         // Compute wire precommitments and sometimes random widget round commitments
@@ -656,7 +650,7 @@ impl<
         self.queue.process_queue()?;
 
         // Fiat-Shamir eta + execute random widgets.
-        self.execute_second_round()?;
+        self.execute_second_round(&mut rng)?;
         self.queue.process_queue()?;
 
         // Fiat-Shamir beta & gamma, execute random widgets (Permutation widget is executed here)
@@ -665,7 +659,7 @@ impl<
         self.queue.process_queue()?;
 
         // Fiat-Shamir alpha, compute & commit to quotient polynomial.
-        self.execute_fourth_round();
+        self.execute_fourth_round(&mut rng)?;
         self.queue.process_queue()?;
 
         self.execute_fifth_round()?;
@@ -681,9 +675,11 @@ impl<
     fn get_circuit_size(&self) -> usize {
         todo!("implement me")
     }
+    
+    /// Reset the transcript to the initial state
     fn reset(&mut self) {
         let manifest = (*self.transcript).borrow_mut().get_manifest();
-        *(*self.transcript).borrow_mut() = Transcript::<H, Fr, G1Affine>::new(
+        *(*self.transcript).borrow_mut() = Transcript::<H>::new(
             Some(manifest),
             (*self.transcript).borrow().num_challenge_bytes,
         );

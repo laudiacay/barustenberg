@@ -26,12 +26,18 @@ impl PolynomialDescriptor {
         }
     }
 }
-#[derive(Clone, Default)]
+#[derive(Debug, Clone, Default)]
 pub(crate) struct PolynomialManifest {
     manifest: Vec<PolynomialDescriptor>,
 }
 
 impl PolynomialManifest {
+    pub(crate) fn new() -> Self {
+        PolynomialManifest {
+            manifest: Vec::new(),
+        }
+    }
+
     pub(crate) fn len(&self) -> usize {
         todo!()
     }

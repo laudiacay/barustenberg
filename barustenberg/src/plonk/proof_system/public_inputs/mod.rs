@@ -1,4 +1,4 @@
-use ark_ff::Field;
+use ark_ff::{FftField, Field};
 
 use crate::ecc::curves::{coset_generator, external_coset_generator};
 
@@ -109,7 +109,7 @@ use crate::ecc::curves::{coset_generator, external_coset_generator};
  * the memory cells on the second column map to our public inputs. We can then use traditional copy constraints to map
  * these cells to other locations in program memory.
  **/
-pub(crate) fn compute_public_input_delta<F: Field>(
+pub(crate) fn compute_public_input_delta<F: Field + FftField + ark_ff::One>(
     public_inputs: &[F],
     beta: F,
     gamma: F,

@@ -1,21 +1,21 @@
-use std::{
-    marker::PhantomData,
-    ops::{AddAssign, Index, IndexMut, MulAssign, Range, SubAssign},
-};
+use std::ops::{AddAssign, Index, IndexMut, MulAssign, Range, SubAssign};
 
-use ark_ff::Field;
+use anyhow::Result;
+use ark_ff::{FftField, Field};
 
 use crate::polynomials::polynomial_arithmetic::compute_efficient_interpolation;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub(crate) struct Polynomial<F: Field> {
+pub(crate) struct Polynomial<F: Field + FftField> {
     size: usize,
     pub(crate) coefficients: Vec<F>,
-    phantom: PhantomData<F>,
 }
 
-impl<F: Field> Polynomial<F> {
-    pub(crate) fn from_interpolations(interpolation_points: &[F], evaluations: &[F]) -> Self {
+impl<F: Field + FftField> Polynomial<F> {
+    pub(crate) fn from_interpolations(
+        interpolation_points: &[F],
+        evaluations: &[F],
+    ) -> Result<Self> {
         assert!(!interpolation_points.is_empty());
         let mut coefficients = vec![F::zero(); interpolation_points.len()];
         compute_efficient_interpolation(
@@ -23,12 +23,11 @@ impl<F: Field> Polynomial<F> {
             &mut coefficients,
             interpolation_points,
             interpolation_points.len(),
-        );
-        Self {
+        )?;
+        Ok(Self {
             size: interpolation_points.len(),
             coefficients,
-            phantom: PhantomData,
-        }
+        })
     }
 
     #[inline]
@@ -37,7 +36,6 @@ impl<F: Field> Polynomial<F> {
         Self {
             size,
             coefficients: underlying,
-            phantom: PhantomData,
         }
     }
     #[inline]
@@ -54,7 +52,7 @@ impl<F: Field> Polynomial<F> {
     }
 }
 
-impl<F: Field> AddAssign for Polynomial<F> {
+impl<F: Field + FftField> AddAssign for Polynomial<F> {
     fn add_assign(&mut self, rhs: Self) {
         // pad the smaller polynomial with zeros
         if self.size < rhs.size {
@@ -66,7 +64,7 @@ impl<F: Field> AddAssign for Polynomial<F> {
     }
 }
 
-impl<F: Field> SubAssign for Polynomial<F> {
+impl<F: Field + FftField> SubAssign for Polynomial<F> {
     fn sub_assign(&mut self, rhs: Self) {
         // pad the smaller polynomial with zeros
         if self.size < rhs.size {
@@ -78,7 +76,7 @@ impl<F: Field> SubAssign for Polynomial<F> {
     }
 }
 
-impl<F: Field> MulAssign<F> for Polynomial<F> {
+impl<F: Field + FftField> MulAssign<F> for Polynomial<F> {
     fn mul_assign(&mut self, rhs: F) {
         for i in 0..self.size {
             self.coefficients[i] *= rhs;
@@ -86,7 +84,7 @@ impl<F: Field> MulAssign<F> for Polynomial<F> {
     }
 }
 
-impl<F: Field> IntoIterator for Polynomial<F> {
+impl<F: Field + FftField> IntoIterator for Polynomial<F> {
     type Item = F;
     type IntoIter = std::vec::IntoIter<Self::Item>;
 
@@ -95,7 +93,7 @@ impl<F: Field> IntoIterator for Polynomial<F> {
     }
 }
 
-impl<F: Field> Index<usize> for Polynomial<F> {
+impl<F: Field + FftField> Index<usize> for Polynomial<F> {
     type Output = F;
 
     fn index(&self, index: usize) -> &Self::Output {
@@ -103,13 +101,13 @@ impl<F: Field> Index<usize> for Polynomial<F> {
     }
 }
 
-impl<F: Field> IndexMut<usize> for Polynomial<F> {
+impl<F: Field + FftField> IndexMut<usize> for Polynomial<F> {
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         &mut self.coefficients[index]
     }
 }
 
-impl<F: Field> Index<Range<usize>> for Polynomial<F> {
+impl<F: Field + FftField> Index<Range<usize>> for Polynomial<F> {
     type Output = [F];
 
     fn index(&self, index: Range<usize>) -> &Self::Output {
@@ -117,12 +115,12 @@ impl<F: Field> Index<Range<usize>> for Polynomial<F> {
     }
 }
 
-impl<F: Field> IndexMut<Range<usize>> for Polynomial<F> {
+impl<F: Field + FftField> IndexMut<Range<usize>> for Polynomial<F> {
     fn index_mut(&mut self, index: Range<usize>) -> &mut Self::Output {
         &mut self.coefficients[index]
     }
 }
-impl<F: Field> Index<std::ops::RangeFrom<usize>> for Polynomial<F> {
+impl<F: Field + FftField> Index<std::ops::RangeFrom<usize>> for Polynomial<F> {
     type Output = [F];
 
     fn index(&self, index: std::ops::RangeFrom<usize>) -> &Self::Output {

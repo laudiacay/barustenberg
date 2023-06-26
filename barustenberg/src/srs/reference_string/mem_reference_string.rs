@@ -1,15 +1,18 @@
 use std::rc::Rc;
 
-use ark_ec::AffineRepr;
+use ark_bn254::G2Affine;
 
-use super::{MillerLines, VerifierReferenceString};
+use crate::ecc::MillerLines;
 
-pub(crate) struct VerifierMemReferenceString<G2Affine: AffineRepr> {
+use super::VerifierReferenceString;
+
+#[derive(Debug)]
+pub(crate) struct VerifierMemReferenceString {
     g2_x: G2Affine,
     precomputed_g2_lines: Rc<Vec<MillerLines>>,
 }
 
-impl<G2Affine: AffineRepr> VerifierMemReferenceString<G2Affine> {
+impl VerifierMemReferenceString {
     pub(crate) fn new(_g2x: &[u8]) -> Self {
         // Add the necessary code to convert g2x bytes into g2::AffineElement
         // and initialize precomputed_g2_lines
@@ -17,9 +20,7 @@ impl<G2Affine: AffineRepr> VerifierMemReferenceString<G2Affine> {
     }
 }
 
-impl<G2Affine: AffineRepr> VerifierReferenceString<G2Affine>
-    for VerifierMemReferenceString<G2Affine>
-{
+impl VerifierReferenceString for VerifierMemReferenceString {
     fn get_g2x(&self) -> G2Affine {
         self.g2_x
     }

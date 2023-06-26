@@ -6,23 +6,21 @@ use crate::{
     transcript::{BarretenHasher, Transcript},
 };
 
-pub(crate) trait ProverRandomWidget<
-    'a,
-    H: BarretenHasher,
-    Fr: Field + FftField,
-    G1Affine: AffineRepr,
->
-{
+pub(crate) trait ProverRandomWidget<'a>: std::fmt::Debug {
+    type Hasher: BarretenHasher;
+    type Fr: Field + FftField;
+    type G1: AffineRepr;
+
     fn compute_round_commitments(
         &self,
-        _transcript: &mut Transcript<H, Fr, G1Affine>,
+        _transcript: &mut Transcript<Self::Hasher>,
         _size: usize,
-        _work_queue: &mut WorkQueue<'a, H, Fr, G1Affine>,
+        _work_queue: &mut WorkQueue<'a, Self::Hasher, Self::Fr, Self::G1>,
     );
 
     fn compute_quotient_contribution(
         &self,
-        _alpha_base: Fr,
-        _transcript: &Transcript<H, Fr, G1Affine>,
-    ) -> Fr;
+        _alpha_base: Self::Fr,
+        _transcript: &Transcript<Self::Hasher>,
+    ) -> Self::Fr;
 }

@@ -5,13 +5,15 @@ use std::rc::Rc;
 
 use anyhow::Result;
 
-use crate::ecc::PippengerRuntimeState;
+use ark_bn254::G1Affine;
+
+use crate::ecc::curves::bn254_scalar_multiplication::PippengerRuntimeState;
 use crate::plonk::proof_system::proving_key::ProvingKey;
 use crate::polynomials::Polynomial;
 use crate::transcript::{BarretenHasher, Transcript};
 
-#[derive(PartialEq, Eq, Clone)]
-pub(crate) enum Work<Fr: Field> {
+#[derive(PartialEq, Eq, Clone, Debug)]
+pub(crate) enum Work<Fr: Field + FftField> {
     Fft {
         index: usize,
     },
@@ -32,47 +34,47 @@ pub(crate) struct WorkItemInfo {
     num_iffts: usize,
 }
 
-pub(crate) enum WorkItemConstant<Fr: Field> {
+pub(crate) enum WorkItemConstant<Fr: Field + FftField> {
     Fr(Fr),
     USize(usize),
 }
 
-impl<Fr: Field> From<usize> for WorkItemConstant<Fr> {
+impl<Fr: Field + FftField> From<usize> for WorkItemConstant<Fr> {
     fn from(item: usize) -> Self {
         WorkItemConstant::USize(item)
     }
 }
 
-pub(crate) struct WorkItem<Fr: Field> {
+#[derive(Debug)]
+pub(crate) struct WorkItem<Fr: Field + FftField> {
     pub(crate) work: Work<Fr>,
     pub(crate) tag: String,
 }
 
-pub(crate) struct QueuedFftInputs<Fr: Field> {
+pub(crate) struct QueuedFftInputs<Fr: Field + FftField> {
     data: Rc<RefCell<Polynomial<Fr>>>,
     shift_factor: Fr,
 }
 
-pub(crate) struct WorkQueue<'a, H: BarretenHasher, Fr: Field + FftField, G1Affine: AffineRepr> {
-    key: Rc<RefCell<ProvingKey<'a, Fr, G1Affine>>>,
-    transcript: Rc<RefCell<Transcript<H, Fr, G1Affine>>>,
+#[derive(Debug)]
+pub(crate) struct WorkQueue<'a, H: BarretenHasher, Fr: Field + FftField, G: AffineRepr> {
+    key: Rc<RefCell<ProvingKey<'a, Fr, G>>>,
+    transcript: Rc<RefCell<Transcript<H>>>,
     work_items: Vec<WorkItem<Fr>>,
 }
 
-/// super fucked up...
-unsafe fn field_element_to_usize<F: Field>(element: F) -> usize {
+/// TODO this is super fucked up...
+unsafe fn field_element_to_usize<F: Field + FftField>(element: F) -> usize {
     // pretending to be this: static_cast<size_t>(static_cast<uint256_t>(item.constant));
     // first turn it into a u256 (by memtransmute into a slice!)
     let u256_bytes: [u8; 32] = std::mem::transmute_copy(&element);
     std::mem::transmute_copy(&u256_bytes)
 }
 
-impl<'a, H: BarretenHasher, Fr: Field + FftField, G1Affine: AffineRepr>
-    WorkQueue<'a, H, Fr, G1Affine>
-{
+impl<'a, H: BarretenHasher, Fr: Field + FftField, G: AffineRepr> WorkQueue<'a, H, Fr, G> {
     pub(crate) fn new(
-        prover_key: Option<Rc<RefCell<ProvingKey<'a, Fr, G1Affine>>>>,
-        prover_transcript: Option<Rc<RefCell<Transcript<H, Fr, G1Affine>>>>,
+        prover_key: Option<Rc<RefCell<ProvingKey<'a, Fr, G>>>>,
+        prover_transcript: Option<Rc<RefCell<Transcript<H>>>>,
     ) -> Self {
         WorkQueue {
             key: prover_key.unwrap_or_default(),
@@ -215,7 +217,7 @@ impl<'a, H: BarretenHasher, Fr: Field + FftField, G1Affine: AffineRepr>
 
     pub(crate) fn put_scalar_multiplication_data(
         &self,
-        result: G1Affine,
+        result: G,
         work_item_number: usize,
     ) -> Result<()> {
         for (idx, item) in self.work_items.iter().enumerate() {
@@ -278,21 +280,17 @@ impl<'a, H: BarretenHasher, Fr: Field + FftField, G1Affine: AffineRepr>
                                 .get_monomial_size()
                     );
 
-                    let srs_points = (*self.key.borrow().reference_string)
+                    let srs_points: Rc<Vec<G1Affine>> = (*self.key.borrow().reference_string)
                         .borrow_mut()
                         .get_monomial_points();
 
                     let mut runtime_state: PippengerRuntimeState<Fr, G1Affine> =
                         PippengerRuntimeState::new(msm_size);
-                    let result = G1Affine::from(
-                        runtime_state
-                            .pippenger_unsafe(
-                                (*mul_scalars).borrow_mut().coefficients.as_mut_slice(),
-                                &srs_points,
-                                msm_size,
-                            )
-                            .into(),
-                    );
+                    let result = G1Affine::from(runtime_state.pippenger_unsafe(
+                        (*mul_scalars).borrow_mut().coefficients.as_mut_slice(),
+                        &(*srs_points)[..],
+                        msm_size,
+                    ));
 
                     (*self.transcript)
                         .borrow_mut()

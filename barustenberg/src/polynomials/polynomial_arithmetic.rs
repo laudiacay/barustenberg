@@ -482,7 +482,7 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
 
     fn fft_with_constant(&self, coeffs: &mut [Fr], target: &mut [Fr], value: Fr) {
         self.fft_inner_parallel(coeffs, target, &self.root, self.get_round_roots());
-        for mut item in coeffs.iter_mut().take(self.size) {
+        for item in coeffs.iter_mut().take(self.size) {
             *item *= value;
         }
     }
@@ -496,7 +496,7 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
     ) -> anyhow::Result<()> {
         let log2_domain_extension = domain_extension.get_msb();
         let primitive_root =
-            Fr::get_root_of_unity(((small_domain.log2_size + log2_domain_extension) as u64))
+            Fr::get_root_of_unity((small_domain.log2_size + log2_domain_extension) as u64)
                 .ok_or_else(|| anyhow::anyhow!("Failed to get root of unity"))?;
 
         let scratch_space_len = small_domain.size * domain_extension;
@@ -599,9 +599,10 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
     pub(crate) fn get_lagrange_evaluations(
         &self,
         z: &Fr,
-        num_roots_cut_out_of_vanishing_poly: usize,
+        num_roots_cut_out_of_vanishing_poly: Option<usize>,
     ) -> LagrangeEvaluations<Fr> {
         // NOTE: If in future, there arises a need to cut off more zeros, this method will not require any changes.
+        let num_roots_cut_out_of_vanishing_poly = num_roots_cut_out_of_vanishing_poly.unwrap_or(0);
 
         let z_pow_n = z.pow([self.size as u64]);
 
@@ -659,7 +660,6 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
             l_end,
         }
     }
-
     /// Compute evaluations of lagrange polynomial L_1(X) on the specified domain.
     ///
     /// # Arguments
@@ -813,7 +813,7 @@ fn compute_sum<Fr: Field>(slice: &[Fr]) -> Fr {
     slice.iter().copied().fold(Fr::zero(), Add::add)
 }
 
-pub(crate) fn compute_linear_polynomial_product<Fr: Field>(
+pub(crate) fn compute_linear_polynomial_product<Fr: Field + FftField>(
     roots: &[Fr],
     dest: &mut [Fr],
     n: usize,
@@ -838,7 +838,7 @@ pub(crate) fn compute_linear_polynomial_product<Fr: Field>(
     }
 }
 
-pub(crate) fn compute_efficient_interpolation<Fr: Field>(
+pub(crate) fn compute_efficient_interpolation<Fr: Field + FftField>(
     src: &[Fr],
     dest: &mut [Fr],
     evaluation_points: &[Fr],

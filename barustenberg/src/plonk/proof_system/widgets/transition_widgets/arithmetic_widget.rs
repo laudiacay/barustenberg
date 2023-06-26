@@ -5,10 +5,7 @@ use typenum::U1;
 use crate::{
     plonk::proof_system::{
         proving_key::ProvingKey,
-        types::{
-            polynomial_manifest::{EvaluationType, PolynomialIndex},
-            prover_settings::Settings,
-        },
+        types::polynomial_manifest::{EvaluationType, PolynomialIndex},
     },
     transcript::BarretenHasher,
 };
@@ -20,18 +17,19 @@ use std::{
 };
 
 use super::{
-    containers::{ChallengeArray, CoefficientArray, PolyContainer, CHALLENGE_BIT_ALPHA},
+    containers::{ChallengeArray, CoefficientArray, CHALLENGE_BIT_ALPHA},
     getters::BaseGetter,
     transition_widget::KernelBase,
 };
 
-pub(crate) struct ArithmeticKernel<H: BarretenHasher, F: Field, S: Settings<H>> {
-    _marker: PhantomData<(H, F, S)>,
+pub(crate) struct ArithmeticKernel<H: BarretenHasher, F: Field + FftField, G: AffineRepr> {
+    _marker: PhantomData<(H, F, G)>,
 }
 
-impl<H: BarretenHasher, F, S: Settings<H>> ArithmeticKernel<H, F, S>
+impl<H: BarretenHasher, F, G> ArithmeticKernel<H, F, G>
 where
-    F: Field,
+    F: Field + FftField,
+    G: AffineRepr,
 {
     // TODO see all these U1s they should be a named variable but they are not :( inherent associate type problem
     pub(crate) const QUOTIENT_REQUIRED_CHALLENGES: u8 = CHALLENGE_BIT_ALPHA as u8;
@@ -43,9 +41,14 @@ where
     }
 }
 
-impl<H: BarretenHasher, F: Field, S: Settings<H>> KernelBase<H, S, F, U1>
-    for ArithmeticKernel<H, F, S>
+impl<H: BarretenHasher, F: Field + FftField, G: AffineRepr> KernelBase
+    for ArithmeticKernel<H, F, G>
 {
+    type Field = F;
+    type Group = G;
+    type Hasher = H;
+    type NumIndependentRelations = U1;
+
     #[inline]
     fn get_required_polynomial_ids() -> HashSet<PolynomialIndex> {
         HashSet::from([
@@ -69,27 +72,27 @@ impl<H: BarretenHasher, F: Field, S: Settings<H>> KernelBase<H, S, F, U1>
     }
 
     #[inline]
-    fn compute_linear_terms<PC: PolyContainer<F>, G: BaseGetter<H, F, S, PC, U1>>(
-        polynomials: &PC,
+    fn compute_linear_terms<Get: BaseGetter<Fr = Self::Field>>(
+        polynomials: &Get::PC,
         _challenges: &ChallengeArray<F, U1>,
         linear_terms: &mut CoefficientArray<F>,
         index: Option<usize>,
     ) {
         let index = index.unwrap_or_default();
 
-        let w_1 = G::get_value(
+        let w_1 = Get::get_value(
             polynomials,
             EvaluationType::NonShifted,
             PolynomialIndex::W1,
             Some(index),
         );
-        let w_2 = G::get_value(
+        let w_2 = Get::get_value(
             polynomials,
             EvaluationType::NonShifted,
             PolynomialIndex::W2,
             Some(index),
         );
-        let w_3 = G::get_value(
+        let w_3 = Get::get_value(
             polynomials,
             EvaluationType::NonShifted,
             PolynomialIndex::W3,
@@ -101,8 +104,8 @@ impl<H: BarretenHasher, F: Field, S: Settings<H>> KernelBase<H, S, F, U1>
         linear_terms[3.into()] = w_3;
     }
 
-    fn sum_linear_terms<PC: PolyContainer<F>, G: BaseGetter<H, F, S, PC, U1>>(
-        _polynomials: &PC,
+    fn sum_linear_terms<Get: BaseGetter>(
+        _polynomials: &Get::PC,
         _challenges: &ChallengeArray<F, U1>,
         _linear_terms: &CoefficientArray<F>,
         _index: usize,
@@ -117,26 +120,26 @@ impl<H: BarretenHasher, F: Field, S: Settings<H>> KernelBase<H, S, F, U1>
          * @param challenges A structure with various challenges
          * @param linear_terms Precomuputed linear terms to be scaled and summed
          * @param i The index at which selector/witness values are sampled
-         * @return Field Scaled sum of values
+         * @return FieldExt Scaled sum of values
          */
-        inline static Field sum_linear_terms(PolyContainer& polynomials,
+        inline static FieldExt sum_linear_terms(PolyContainer& polynomials,
                                              const challenge_array& challenges,
                                              coefficient_array& linear_terms,
                                              const size_t i = 0)
         {
-            const Field& alpha = challenges.alpha_powers[0];
-            const Field& q_1 =
+            const FieldExt& alpha = challenges.alpha_powers[0];
+            const FieldExt& q_1 =
                 Getters::template get_value<EvaluationType::NON_SHIFTED, PolynomialIndex::Q_1>(polynomials, i);
-            const Field& q_2 =
+            const FieldExt& q_2 =
                 Getters::template get_value<EvaluationType::NON_SHIFTED, PolynomialIndex::Q_2>(polynomials, i);
-            const Field& q_3 =
+            const FieldExt& q_3 =
                 Getters::template get_value<EvaluationType::NON_SHIFTED, PolynomialIndex::Q_3>(polynomials, i);
-            const Field& q_m =
+            const FieldExt& q_m =
                 Getters::template get_value<EvaluationType::NON_SHIFTED, PolynomialIndex::Q_M>(polynomials, i);
-            const Field& q_c =
+            const FieldExt& q_c =
                 Getters::template get_value<EvaluationType::NON_SHIFTED, PolynomialIndex::Q_C>(polynomials, i);
 
-            Field result = linear_terms[0] * q_m;
+            FieldExt result = linear_terms[0] * q_m;
             result += (linear_terms[1] * q_1);
             result += (linear_terms[2] * q_2);
             result += (linear_terms[3] * q_3);
@@ -149,8 +152,8 @@ impl<H: BarretenHasher, F: Field, S: Settings<H>> KernelBase<H, S, F, U1>
     }
 
     /// Not being used in arithmetic_widget because there are none
-    fn compute_non_linear_terms<PC: PolyContainer<F>, G: BaseGetter<H, F, S, PC, U1>>(
-        _polynomials: &PC,
+    fn compute_non_linear_terms<Get: BaseGetter<Fr = Self::Field>>(
+        _polynomials: &Get::PC,
         _challenges: &ChallengeArray<F, U1>,
         _quotient_term: &mut F,
         _index: usize,
@@ -192,7 +195,7 @@ impl<H: BarretenHasher, F: Field, S: Settings<H>> KernelBase<H, S, F, U1>
     }
 }
 
-pub(crate) struct ProverArithmeticWidget<'a, Fr: Field + FftField, G1Affine: AffineRepr, H, S> {
-    key: Arc<ProvingKey<'a, Fr, G1Affine>>,
+pub(crate) struct ProverArithmeticWidget<'a, Fr: Field + FftField, G: AffineRepr, H, S> {
+    key: Arc<ProvingKey<'a, Fr, G>>,
     phantom: PhantomData<(H, S)>,
 }

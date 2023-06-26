@@ -1,4 +1,4 @@
-use std::cell::{Ref, RefCell};
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::rc::Rc;
@@ -12,81 +12,105 @@ use crate::transcript::{BarretenHasher, Transcript};
 
 use super::proving_key::ProvingKey;
 use super::types::proof::CommitmentOpenProof;
-use super::types::prover_settings::Settings;
 use super::verification_key::VerificationKey;
 
-/// A polynomial commitment scheme defined over two fields, a group, a hash function.
+/// A polynomial commitment scheme defined over two FieldExts, a group, a hash function.
 /// kate commitments are one example
-pub(crate) trait CommitmentScheme<
-    Fq: Field,
-    Fr: Field + FftField,
-    G1Affine: AffineRepr,
-    H: BarretenHasher,
->
-{
+pub(crate) trait CommitmentScheme {
+    type Fq: Field + FftField;
+    type Fr: Field + FftField;
+    type Group: AffineRepr;
+    type Hasher: BarretenHasher;
     fn commit(
         &mut self,
-        coefficients: Rc<RefCell<Polynomial<Fr>>>,
+        coefficients: Rc<RefCell<Polynomial<Self::Fr>>>,
         tag: String,
-        item_constant: Fr,
-        queue: &mut WorkQueue<'_, H, Fr, G1Affine>,
+        item_constant: Self::Fr,
+        queue: &mut WorkQueue<'_, Self::Hasher, Self::Fr, Self::Group>,
     );
 
-    fn compute_opening_polynomial(&self, src: &[Fr], dest: &mut [Fr], z: &Fr, n: usize);
+    fn compute_opening_polynomial(
+        &self,
+        src: &[Self::Fr],
+        dest: &mut [Self::Fr],
+        z: &Self::Fr,
+        n: usize,
+    );
 
     #[allow(clippy::too_many_arguments)]
     fn generic_batch_open(
         &mut self,
-        src: &[Fr],
-        dest: Rc<RefCell<Polynomial<Fr>>>,
+        src: &[Self::Fr],
+        dest: Rc<RefCell<Polynomial<Self::Fr>>>,
         num_polynomials: usize,
-        z_points: &[Fr],
+        z_points: &[Self::Fr],
         num_z_points: usize,
-        challenges: &[Fr],
+        challenges: &[Self::Fr],
         n: usize,
         tags: &[String],
-        item_constants: &[Fr],
-        queue: &mut WorkQueue<'_, H, Fr, G1Affine>,
+        item_constants: &[Self::Fr],
+        queue: &mut WorkQueue<'_, Self::Hasher, Self::Fr, Self::Group>,
     );
 
     fn batch_open<'a>(
         &mut self,
-        transcript: &Transcript<H, Fr, G1Affine>,
-        queue: &mut WorkQueue<'a, H, Fr, G1Affine>,
-        input_key: Option<Ref<'_, ProvingKey<'a, Fr, G1Affine>>>,
+        transcript: &Transcript<Self::Hasher>,
+        queue: &mut WorkQueue<'a, Self::Hasher, Self::Fr, Self::Group>,
+        input_key: Option<Rc<RefCell<ProvingKey<'a, Self::Fr, Self::Group>>>>,
     );
 
     fn batch_verify<'a>(
         &self,
-        transcript: &Transcript<H, Fr, G1Affine>,
-        kate_g1_elements: &mut HashMap<String, G1Affine>,
-        kate_fr_elements: &mut HashMap<String, Fr>,
-        input_key: Option<&'a VerificationKey<'a, Fr>>,
+        transcript: &Transcript<Self::Hasher>,
+        kate_g1_elements: &mut HashMap<String, Self::Group>,
+        kate_fr_elements: &mut HashMap<String, Self::Fr>,
+        input_key: Option<&'a VerificationKey<'a, Self::Fr>>,
     );
 
-    fn add_opening_evaluations_to_transcript<'a>(
+    fn add_opening_evaluations_to_transcript(
         &self,
-        transcript: &mut Transcript<H, Fr, G1Affine>,
-        input_key: Option<&'a ProvingKey<'a, Fr, G1Affine>>,
+        transcript: &mut Transcript<Self::Hasher>,
+        input_key: Option<Rc<RefCell<ProvingKey<'_, Self::Fr, Self::Group>>>>,
         in_lagrange_form: bool,
     );
 }
 
-#[derive(Default)]
-pub(crate) struct KateCommitmentScheme<H: BarretenHasher, S: Settings<H>> {
+#[derive(Default, Debug)]
+pub(crate) struct KateCommitmentScheme<
+    H: BarretenHasher,
+    Fq: Field + FftField,
+    Fr: Field + FftField,
+    G: AffineRepr,
+> {
     _kate_open_proof: CommitmentOpenProof,
-    phantom: PhantomData<(H, S)>,
+    phantom: PhantomData<(H, Fr, G, Fq)>,
 }
 
-impl<Fq: Field, Fr: Field + FftField, G1Affine: AffineRepr, H: BarretenHasher, S: Settings<H>>
-    CommitmentScheme<Fq, Fr, G1Affine, H> for KateCommitmentScheme<H, S>
+impl<H: BarretenHasher, Fq: Field + FftField, Fr: Field + FftField, G: AffineRepr>
+    KateCommitmentScheme<H, Fq, Fr, G>
 {
+    pub(crate) fn new() -> Self {
+        Self {
+            _kate_open_proof: CommitmentOpenProof::default(),
+            phantom: PhantomData,
+        }
+    }
+}
+
+impl<Fq: Field + FftField, Fr: Field + FftField, G: AffineRepr, H: BarretenHasher> CommitmentScheme
+    for KateCommitmentScheme<H, Fq, Fr, G>
+{
+    type Fq = Fq;
+    type Fr = Fr;
+    type Group = G;
+    type Hasher = H;
+
     fn commit(
         &mut self,
         coefficients: Rc<RefCell<Polynomial<Fr>>>,
         tag: String,
         item_constant: Fr,
-        queue: &mut WorkQueue<'_, H, Fr, G1Affine>,
+        queue: &mut WorkQueue<'_, H, Fr, G>,
     ) {
         queue.add_to_queue(WorkItem {
             work: Work::ScalarMultiplication {
@@ -97,10 +121,10 @@ impl<Fq: Field, Fr: Field + FftField, G1Affine: AffineRepr, H: BarretenHasher, S
         })
     }
 
-    fn add_opening_evaluations_to_transcript<'a>(
+    fn add_opening_evaluations_to_transcript(
         &self,
-        _transcript: &mut Transcript<H, Fr, G1Affine>,
-        _input_key: Option<&'a ProvingKey<'a, Fr, G1Affine>>,
+        _transcript: &mut Transcript<H>,
+        _input_key: Option<Rc<RefCell<ProvingKey<'_, Self::Fr, Self::Group>>>>,
         _in_lagrange_form: bool,
     ) {
         todo!()
@@ -121,7 +145,7 @@ impl<Fq: Field, Fr: Field + FftField, G1Affine: AffineRepr, H: BarretenHasher, S
         n: usize,
         tags: &[String],
         item_constants: &[Fr],
-        queue: &mut WorkQueue<'_, H, Fr, G1Affine>,
+        queue: &mut WorkQueue<'_, H, Fr, G>,
     ) {
         // In this function, we compute the opening polynomials using Kate scheme for multiple input
         // polynomials with multiple evaluation points. The input polynomials are separated according
@@ -189,7 +213,8 @@ impl<Fq: Field, Fr: Field + FftField, G1Affine: AffineRepr, H: BarretenHasher, S
                 }
             }
             // commit to the i-th opened polynomial
-            <KateCommitmentScheme<H, S> as CommitmentScheme<Fq, Fr, G1Affine, H>>::commit(
+            Self::commit(
+                //<KateCommitmentScheme<H, Fq, Fr, G, S> as CommitmentScheme>::commit(
                 self,
                 dest.clone(),
                 tags[i].clone(),
@@ -201,17 +226,17 @@ impl<Fq: Field, Fr: Field + FftField, G1Affine: AffineRepr, H: BarretenHasher, S
 
     fn batch_open<'a>(
         &mut self,
-        _transcript: &Transcript<H, Fr, G1Affine>,
-        _queue: &mut WorkQueue<'a, H, Fr, G1Affine>,
-        _input_key: Option<Ref<'_, ProvingKey<'a, Fr, G1Affine>>>,
+        _transcript: &Transcript<H>,
+        _queue: &mut WorkQueue<'a, H, Fr, G>,
+        _input_key: Option<Rc<RefCell<ProvingKey<'a, Self::Fr, Self::Group>>>>,
     ) {
         todo!()
     }
 
     fn batch_verify<'a>(
         &self,
-        _transcript: &Transcript<H, Fr, G1Affine>,
-        _kate_g1_elements: &mut HashMap<String, G1Affine>,
+        _transcript: &Transcript<H>,
+        _kate_g1_elements: &mut HashMap<String, G>,
         _kate_fr_elements: &mut HashMap<String, Fr>,
         _input_key: Option<&'a VerificationKey<'a, Fr>>,
     ) {

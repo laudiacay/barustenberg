@@ -1,6 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 
-use ark_ec::AffineRepr;
+use ark_bn254::{Fr, G1Affine};
+
 use rand::RngCore;
 use std::default::Default;
 
@@ -11,8 +12,6 @@ use crate::{
         ReferenceStringFactory,
     },
 };
-
-use ark_ff::{FftField, Field};
 
 pub(crate) const DUMMY_TAG: u32 = 0;
 pub(crate) const REAL_VARIABLE: u32 = u32::MAX - 1;
@@ -28,6 +27,8 @@ pub(crate) enum WireType {
     Output = 1 << 31,
     Fourth = 0xc0000000,
 }
+
+#[derive(Debug)]
 pub(crate) enum ComposerType {
     Standard,
     Turbo,
@@ -55,16 +56,15 @@ impl CycleNode {
     }
 }
 
-pub(crate) struct ComposerBase<'a, F: Field + FftField, G1Affine: AffineRepr, G2Affine: AffineRepr>
-{
+pub(crate) struct ComposerBase<'a> {
     pub(crate) num_gates: usize,
-    crs_factory: Arc<dyn ReferenceStringFactory<G1Affine, G2Affine>>,
+    crs_factory: Arc<dyn ReferenceStringFactory>,
     num_selectors: usize,
-    selectors: Vec<Vec<F>>,
+    selectors: Vec<Vec<Fr>>,
     selector_properties: Vec<SelectorProperties>,
     rand_engine: Option<Box<dyn RngCore>>,
-    circuit_proving_key: Option<Arc<ProvingKey<'a, F, G1Affine>>>,
-    circuit_verification_key: Option<Arc<VerificationKey<'a, F>>>,
+    circuit_proving_key: Option<Arc<ProvingKey<'a, Fr, G1Affine>>>,
+    circuit_verification_key: Option<Arc<VerificationKey<'a, Fr>>>,
     w_l: Vec<u32>,
     w_r: Vec<u32>,
     w_o: Vec<u32>,
@@ -73,7 +73,7 @@ pub(crate) struct ComposerBase<'a, F: Field + FftField, G1Affine: AffineRepr, G2
     _err: Option<String>,
     zero_idx: u32,
     public_inputs: Vec<u32>,
-    variables: Vec<F>,
+    variables: Vec<Fr>,
     /// index of next variable in equivalence class (=REAL_VARIABLE if you're last)
     next_var_index: Vec<u32>,
     /// index of  previous variable in equivalence class (=FIRST if you're in a cycle alone)
@@ -90,9 +90,7 @@ pub(crate) struct ComposerBase<'a, F: Field + FftField, G1Affine: AffineRepr, G2
     computed_witness: bool,
 }
 
-impl<'a, F: Field + FftField, G1Affine: AffineRepr, G2Affine: AffineRepr>
-    ComposerBase<'a, F, G1Affine, G2Affine>
-{
+impl<'a> ComposerBase<'a> {
     pub(crate) fn new(
         num_selectors: usize,
         size_hint: usize,
@@ -107,7 +105,7 @@ impl<'a, F: Field + FftField, G1Affine: AffineRepr, G2Affine: AffineRepr>
     pub(crate) fn default() -> Self {
         Self {
             num_gates: 0,
-            crs_factory: Arc::new(BaseReferenceStringFactory::<G1Affine, G2Affine>::default()),
+            crs_factory: Arc::new(BaseReferenceStringFactory::default()),
             num_selectors: 0,
             selectors: Default::default(),
             selector_properties: Default::default(),
@@ -135,7 +133,7 @@ impl<'a, F: Field + FftField, G1Affine: AffineRepr, G2Affine: AffineRepr>
     }
 
     pub(crate) fn with_crs_factory(
-        crs_factory: Arc<dyn ReferenceStringFactory<G1Affine, G2Affine>>,
+        crs_factory: Arc<dyn ReferenceStringFactory>,
         num_selectors: usize,
         size_hint: usize,
         selector_properties: Vec<SelectorProperties>,
@@ -152,8 +150,8 @@ impl<'a, F: Field + FftField, G1Affine: AffineRepr, G2Affine: AffineRepr>
         selfie
     }
     pub(crate) fn with_keys(
-        p_key: Arc<ProvingKey<'a, F, G1Affine>>,
-        v_key: Arc<VerificationKey<'a, F>>,
+        p_key: Arc<ProvingKey<'a, Fr, G1Affine>>,
+        v_key: Arc<VerificationKey<'a, Fr>>,
         num_selectors: usize,
         size_hint: usize,
         selector_properties: Vec<SelectorProperties>,
@@ -200,7 +198,7 @@ impl<'a, F: Field + FftField, G1Affine: AffineRepr, G2Affine: AffineRepr>
     ///
     /// * The value of the variable.
     #[inline]
-    fn get_variable(&self, index: u32) -> F {
+    fn get_variable(&self, index: u32) -> Fr {
         assert!(self.variables.len() > index as usize);
         self.variables[self.real_variable_index[index as usize] as usize]
     }
@@ -216,16 +214,16 @@ impl<'a, F: Field + FftField, G1Affine: AffineRepr, G2Affine: AffineRepr>
     ///
     /// * The value of the variable.
     #[inline]
-    fn get_variable_reference(&self, index: u32) -> &F {
+    fn get_variable_reference(&self, index: u32) -> &Fr {
         assert!(self.variables.len() > index as usize);
         &self.variables[self.real_variable_index[index as usize] as usize]
     }
 
-    fn get_public_input(&self, index: u32) -> F {
+    fn get_public_input(&self, index: u32) -> Fr {
         self.get_variable(self.public_inputs[index as usize])
     }
 
-    fn get_public_inputs(&self) -> Vec<F> {
+    fn get_public_inputs(&self) -> Vec<Fr> {
         let mut result = Vec::new();
         for i in 0..self.get_num_public_inputs() {
             result.push(self.get_public_input(i.try_into().unwrap()));
@@ -241,7 +239,7 @@ impl<'a, F: Field + FftField, G1Affine: AffineRepr, G2Affine: AffineRepr>
     /// # Returns
     ///
     /// * The index of the new variable in the variables vector
-    fn add_variable(&mut self, in_value: F) -> u32 {
+    fn add_variable(&mut self, in_value: Fr) -> u32 {
         self.variables.push(in_value);
 
         // By default, we assume each new variable belongs in its own copy-cycle. These defaults can be modified later
@@ -272,7 +270,7 @@ impl<'a, F: Field + FftField, G1Affine: AffineRepr, G2Affine: AffineRepr>
     /// # Returns
     ///
     /// * The index of the new variable in the variables vector
-    fn add_public_variable(&mut self, in_value: F) -> u32 {
+    fn add_public_variable(&mut self, in_value: Fr) -> u32 {
         let index = self.add_variable(in_value);
         self.public_inputs.push(index);
         index
@@ -395,7 +393,7 @@ impl<'a, F: Field + FftField, G1Affine: AffineRepr, G2Affine: AffineRepr>
 //  ****************************************************************************************************************
 //  *
 //  * Notation as per this codebase is different from the Plonk paper:
-//  * This example is reproduced exactly in the stdlib field test `test_field_pythagorean`.
+//  * This example is reproduced exactly in the stdlib FieldExt test `test_FieldExt_pythagorean`.
 //  *
 //  * variables[0] = 0 for all circuits <-- this gate is not shown in this diagram.
 //  *                   ______________________

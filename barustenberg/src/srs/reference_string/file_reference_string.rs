@@ -1,18 +1,21 @@
-use std::{cell::RefCell, marker::PhantomData, rc::Rc};
+use std::{cell::RefCell, rc::Rc};
 
-use ark_ec::AffineRepr;
+use ark_bn254::{G1Affine, G2Affine};
+
+use crate::ecc::MillerLines;
 
 use super::{
-    pippenger_reference_string::Pippenger, MillerLines, ProverReferenceString,
-    ReferenceStringFactory, VerifierReferenceString,
+    pippenger_reference_string::Pippenger, ProverReferenceString, ReferenceStringFactory,
+    VerifierReferenceString,
 };
 
-pub(crate) struct VerifierFileReferenceString<G2Affine: AffineRepr> {
+#[derive(Debug)]
+pub(crate) struct VerifierFileReferenceString {
     g2_x: G2Affine,
     precomputed_g2_lines: Rc<Vec<MillerLines>>,
 }
 
-impl<G2Affine: AffineRepr> VerifierFileReferenceString<G2Affine> {
+impl VerifierFileReferenceString {
     pub(crate) fn new(_path: &str) -> Self {
         // Please replace the actual types and functions with ones that you have in your Rust codebase.
         // let g2_x: G2Affine = read_transcript_g2(path);
@@ -28,9 +31,7 @@ impl<G2Affine: AffineRepr> VerifierFileReferenceString<G2Affine> {
     }
 }
 
-impl<G2Affine: AffineRepr> VerifierReferenceString<G2Affine>
-    for VerifierFileReferenceString<G2Affine>
-{
+impl VerifierReferenceString for VerifierFileReferenceString {
     fn get_g2x(&self) -> G2Affine {
         self.g2_x
     }
@@ -40,13 +41,13 @@ impl<G2Affine: AffineRepr> VerifierReferenceString<G2Affine>
     }
 }
 
-pub(crate) struct FileReferenceString<G1Affine: AffineRepr> {
+#[derive(Debug, Default)]
+pub(crate) struct FileReferenceString {
     num_points: usize,
     pippenger: Pippenger,
-    phantom: PhantomData<G1Affine>,
 }
 
-impl<G1Affine: AffineRepr> FileReferenceString<G1Affine> {
+impl FileReferenceString {
     pub(crate) fn new(_num_points: usize, _path: &str) -> Self {
         // Implementation depends on your project.
         todo!("FileReferenceString::new")
@@ -58,17 +59,7 @@ impl<G1Affine: AffineRepr> FileReferenceString<G1Affine> {
     }
 }
 
-impl<G1Affine: AffineRepr> Default for FileReferenceString<G1Affine> {
-    fn default() -> Self {
-        Self {
-            num_points: 0,
-            pippenger: Pippenger::default(),
-            phantom: PhantomData,
-        }
-    }
-}
-
-impl<G1Affine: AffineRepr> ProverReferenceString<G1Affine> for FileReferenceString<G1Affine> {
+impl ProverReferenceString for FileReferenceString {
     fn get_monomial_points(&mut self) -> Rc<Vec<G1Affine>> {
         // Implementation depends on your project.
         todo!()
@@ -79,73 +70,55 @@ impl<G1Affine: AffineRepr> ProverReferenceString<G1Affine> for FileReferenceStri
     }
 }
 
-pub(crate) struct FileReferenceStringFactory<G1Affine: AffineRepr, G2Affine: AffineRepr> {
+pub(crate) struct FileReferenceStringFactory {
     path: String,
-    phantom: PhantomData<(G1Affine, G2Affine)>,
 }
 
-impl<G1Affine: AffineRepr, G2Affine: AffineRepr> FileReferenceStringFactory<G1Affine, G2Affine> {
+impl FileReferenceStringFactory {
     pub(crate) fn new(path: String) -> Self {
-        Self {
-            path,
-            phantom: PhantomData,
-        }
+        Self { path }
     }
 }
-impl<G1Affine: AffineRepr, G2Affine: AffineRepr> ReferenceStringFactory<G1Affine, G2Affine>
-    for FileReferenceStringFactory<G1Affine, G2Affine>
-{
-    fn get_prover_crs(&self, degree: usize) -> Option<Rc<dyn ProverReferenceString<G1Affine>>> {
-        Some(Rc::new(FileReferenceString::<G1Affine>::new(
-            degree, &self.path,
-        )))
+impl ReferenceStringFactory for FileReferenceStringFactory {
+    fn get_prover_crs(&self, degree: usize) -> Option<Rc<dyn ProverReferenceString>> {
+        Some(Rc::new(FileReferenceString::new(degree, &self.path)))
     }
 
-    fn get_verifier_crs(&self) -> Option<Rc<dyn VerifierReferenceString<G2Affine>>> {
+    fn get_verifier_crs(&self) -> Option<Rc<dyn VerifierReferenceString>> {
         Some(Rc::new(VerifierFileReferenceString::new(&self.path)))
     }
 }
 
-pub(crate) struct DynamicFileReferenceStringFactory<G1Affine: AffineRepr, G2Affine: AffineRepr> {
+pub(crate) struct DynamicFileReferenceStringFactory {
     path: String,
     degree: RefCell<usize>,
-    prover_crs: RefCell<Rc<FileReferenceString<G1Affine>>>,
-    verifier_crs: Rc<VerifierFileReferenceString<G2Affine>>,
-    phantom: PhantomData<(G1Affine, G2Affine)>,
+    prover_crs: RefCell<Rc<FileReferenceString>>,
+    verifier_crs: Rc<VerifierFileReferenceString>,
 }
 
-impl<G1Affine: AffineRepr, G2Affine: AffineRepr>
-    DynamicFileReferenceStringFactory<G1Affine, G2Affine>
-{
+impl DynamicFileReferenceStringFactory {
     pub(crate) fn new(path: String, initial_degree: usize) -> Self {
         let verifier_crs = Rc::new(VerifierFileReferenceString::new(&path));
-        let prover_crs = RefCell::new(Rc::new(FileReferenceString::<G1Affine>::new(
-            initial_degree,
-            &path,
-        )));
+        let prover_crs = RefCell::new(Rc::new(FileReferenceString::new(initial_degree, &path)));
         Self {
             path,
             degree: RefCell::new(initial_degree),
             prover_crs,
             verifier_crs,
-            phantom: PhantomData,
         }
     }
 }
 
-impl<G1Affine: AffineRepr, G2Affine: AffineRepr> ReferenceStringFactory<G1Affine, G2Affine>
-    for DynamicFileReferenceStringFactory<G1Affine, G2Affine>
-{
-    fn get_prover_crs(&self, degree: usize) -> Option<Rc<dyn ProverReferenceString<G1Affine>>> {
+impl ReferenceStringFactory for DynamicFileReferenceStringFactory {
+    fn get_prover_crs(&self, degree: usize) -> Option<Rc<dyn ProverReferenceString>> {
         if degree != *self.degree.borrow() {
-            *self.prover_crs.borrow_mut() =
-                Rc::new(FileReferenceString::<G1Affine>::new(degree, &self.path));
+            *self.prover_crs.borrow_mut() = Rc::new(FileReferenceString::new(degree, &self.path));
             *self.degree.borrow_mut() = degree;
         }
         Some((self.prover_crs.borrow_mut()).clone())
     }
 
-    fn get_verifier_crs(&self) -> Option<Rc<dyn VerifierReferenceString<G2Affine>>> {
+    fn get_verifier_crs(&self) -> Option<Rc<dyn VerifierReferenceString>> {
         Some(self.verifier_crs.clone())
     }
 }
