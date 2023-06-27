@@ -1,8 +1,8 @@
 use ark_ff::{FftField, Field};
 
 use crate::numeric::bitop::Msb;
-use std::vec::Vec;
 use std::marker::PhantomData;
+use std::vec::Vec;
 
 pub(crate) const MIN_GROUP_PER_THREAD: usize = 4;
 
@@ -83,28 +83,28 @@ fn compute_lookup_table_single<Fr: Field + FftField>(
     input_root: &Fr,
     size: usize,
     roots: &mut [Fr],
+    roots_offset: usize,
     round_roots: &mut Vec<std::ops::Range<usize>>,
 ) {
     let num_rounds = size.get_msb();
 
     // Creating index ranges
-    round_roots.push(0..2);
+    round_roots.push(roots_offset..roots_offset + 2);
     for i in 1..(num_rounds - 1) {
         let start = round_roots.last().unwrap().end;
-        round_roots.push(start..start + (1 << i));
+        round_roots.push(start..start + (1 << (i + 1)));
     }
 
     for i in 0..(num_rounds - 1) {
         let m = 1 << (i + 1);
         let exponent = [(size / (2 * m)) as u64];
         let round_root = input_root.pow(exponent);
-        let offset = round_roots[i].start;
+        let offset = round_roots[i].start - roots_offset;
         roots[offset] = Fr::one();
         for j in 1..m {
-            roots[offset + j] = roots[offset + j - 1] * round_root;
+            roots[offset + j] = roots[offset + (j - 1)] * round_root;
         }
     }
-
 }
 
 impl<'a, F: Field + FftField> EvaluationDomain<'a, F> {
@@ -153,14 +153,20 @@ impl<'a, F: Field + FftField> EvaluationDomain<'a, F> {
 
     pub(crate) fn compute_lookup_table(&mut self) {
         assert!(self.roots.is_empty());
-        self.roots = Vec::<F>::with_capacity(2 * self.size);
+        self.roots = vec![F::zero(); 2 * self.size];
 
-        let (left, right) = self.roots.split_at_mut(self.size);
-        compute_lookup_table_single(&self.root, self.size, left, &mut self.round_roots);
+        compute_lookup_table_single(
+            &self.root,
+            self.size,
+            &mut self.roots[..self.size],
+            0,
+            &mut self.round_roots,
+        );
         compute_lookup_table_single(
             &self.root_inverse,
             self.size,
-            right,
+            &mut self.roots[self.size..],
+            self.size,
             &mut self.inverse_round_roots,
         );
     }
@@ -171,11 +177,17 @@ impl<'a, F: Field + FftField> EvaluationDomain<'a, F> {
 
     pub(crate) fn get_round_roots(&self) -> Vec<&[F]> {
         // TODO: Not sure how to avoid this clone
-        self.round_roots.iter().map(|r| &self.roots[r.clone()]).collect()
+        self.round_roots
+            .iter()
+            .map(|r| &self.roots[r.clone()])
+            .collect()
     }
 
     pub(crate) fn get_inverse_round_roots(&self) -> Vec<&[F]> {
-        self.inverse_round_roots.iter().map(|r| &self.roots[r.clone()]).collect()
+        self.inverse_round_roots
+            .iter()
+            .map(|r| &self.roots[r.clone()])
+            .collect()
     }
 }
 

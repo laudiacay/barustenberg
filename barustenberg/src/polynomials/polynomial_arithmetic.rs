@@ -458,7 +458,12 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
     }
 
     pub(crate) fn ifft(&self, coeffs: &mut [Fr], target: &mut [Fr]) {
-        self.fft_inner_parallel(coeffs, target, &self.root_inverse, &self.get_round_roots()[..]);
+        self.fft_inner_parallel(
+            coeffs,
+            target,
+            &self.root_inverse,
+            &self.get_round_roots()[..],
+        );
         // TODO parallelize me
         todo!("parallelize here")
         // for i in 0..self.size {
