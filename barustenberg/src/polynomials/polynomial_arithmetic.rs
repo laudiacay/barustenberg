@@ -447,16 +447,18 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
 
     // The remaining functions require you to create a version of `fft_inner_parallel` that accepts a Vec<&[T]> as the first parameter.
 
-    pub(crate) fn ifft_inplace(&self, coeffs: &mut Polynomial<Fr>) {
+    pub(crate) fn ifft_inplace(&self, coeffs: &mut [Fr]) {
         self.fft_inner_parallel_vec_inplace(
-            &mut [coeffs.coefficients.as_mut_slice()],
+            &mut [coeffs],
             &self.root_inverse,
             &self.get_inverse_round_roots()[..],
         );
-        todo!("parallelize")
-        // for i in 0..self.size {
-        //     coeffs[i] *= self.domain_inverse;
-        // }
+        // todo!("parallelize")
+        for j in 0..self.num_threads {
+            for i in j * self.thread_size..(j + 1) * self.thread_size {
+                coeffs[i] *= self.domain_inverse;
+            }
+        }
     }
 
     pub(crate) fn ifft(&self, coeffs: &mut [Fr], target: &mut [Fr]) {
@@ -473,8 +475,26 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
         // }
     }
 
-    fn ifft_vec_inplace(&self, _coeffs: &mut [&mut [Fr]]) {
-        todo!();
+    pub(crate) fn ifft_vec_inplace(&self, coeffs: &mut [&mut [Fr]]) {
+        self.fft_inner_parallel_vec_inplace(
+            coeffs,
+            &self.root_inverse,
+            &self.get_inverse_round_roots()[..],
+        );
+
+        let num_polys = coeffs.len();
+        assert!(num_polys.is_power_of_two());
+        let poly_size = self.size / num_polys;
+        assert!(poly_size.is_power_of_two());
+        let poly_mask = poly_size - 1;
+        let log2_poly_size = poly_size.get_msb();
+
+        // todo!("parallelize")
+        for j in 0..self.num_threads {
+            for i in j * self.thread_size..(j + 1) * self.thread_size {
+                coeffs[i >> log2_poly_size][i & poly_mask] *= self.domain_inverse;
+            }
+        }
     }
     fn ifft_with_constant(&self, _coeffs: &mut [Fr], _value: Fr) {
         todo!();
@@ -706,7 +726,7 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
     /// L_i(X), we perform a (k*i)-left-shift of this vector.
     pub(crate) fn compute_lagrange_polynomial_fft(
         &self,
-        l_1_coefficients: &mut Polynomial<Fr>,
+        l_1_coefficients: &mut Vec<Fr>,
         target_domain: &EvaluationDomain<'a, Fr>,
     ) -> anyhow::Result<()> {
         // Step 1: Compute the 1/denominator for each evaluation: 1 / (X_i - 1)
@@ -728,7 +748,6 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
         // TODO add batch invert
         // invert them all
         let result: Result<(), anyhow::Error> = l_1_coefficients
-            .coefficients
             .iter_mut()
             .map(|x| {
                 let inverse = x
