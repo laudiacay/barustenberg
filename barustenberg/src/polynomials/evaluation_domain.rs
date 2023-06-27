@@ -28,8 +28,8 @@ pub(crate) struct EvaluationDomain<'a, F: Field + FftField> {
     pub(crate) generator: F,
     pub(crate) generator_inverse: F,
     pub(crate) four_inverse: F,
-    /// An entry for each of the log(n) rounds: each entry is a pointer to
-    /// the subset of the roots of unity required for that fft round.
+    /// An entry for each of the log(n) rounds: each entry is a range that
+    /// specifies the subset of the roots of unity required for that fft round.
     /// E.g. round_roots[0] = [1, ω^(n/2 - 1)],
     ///      round_roots[1] = [1, ω^(n/4 - 1), ω^(n/2 - 1), ω^(3n/4 - 1)]
     ///      ...
@@ -57,6 +57,7 @@ fn compute_num_threads(size: usize) -> usize {
 /// * `input_root` - An element of the FieldExt `Fr` that represents the root of the polynomial.
 /// * `size` - The size of the polynomial. This is used to determine the number of rounds needed for computation.
 /// * `roots` - A mutable vector of elements from the FieldExt `Fr`. This vector is used to store the roots computed in each round.
+/// * `roots_offset` - The offset from which to start storing the computed roots in the `roots` vector.
 /// * `round_roots` - A mutable vector of `usize` values representing indices into `roots`. After each round, the index of the newly computed root is stored in this vector.
 ///
 /// # Description
@@ -82,7 +83,7 @@ fn compute_num_threads(size: usize) -> usize {
 fn compute_lookup_table_single<Fr: Field + FftField>(
     input_root: &Fr,
     size: usize,
-    roots: &mut [Fr],
+    roots: &mut Vec<Fr>,
     roots_offset: usize,
     round_roots: &mut Vec<std::ops::Range<usize>>,
 ) {
@@ -99,7 +100,7 @@ fn compute_lookup_table_single<Fr: Field + FftField>(
         let m = 1 << (i + 1);
         let exponent = [(size / (2 * m)) as u64];
         let round_root = input_root.pow(exponent);
-        let offset = round_roots[i].start - roots_offset;
+        let offset = round_roots[i].start;
         roots[offset] = Fr::one();
         for j in 1..m {
             roots[offset + j] = roots[offset + (j - 1)] * round_root;
@@ -158,14 +159,14 @@ impl<'a, F: Field + FftField> EvaluationDomain<'a, F> {
         compute_lookup_table_single(
             &self.root,
             self.size,
-            &mut self.roots[..self.size],
+            &mut self.roots,
             0,
             &mut self.round_roots,
         );
         compute_lookup_table_single(
             &self.root_inverse,
             self.size,
-            &mut self.roots[self.size..],
+            &mut self.roots,
             self.size,
             &mut self.inverse_round_roots,
         );
