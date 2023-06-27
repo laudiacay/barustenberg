@@ -822,20 +822,7 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
         }
 
         // Compute 1/(X_i - 1) using Montgomery batch inversion
-        // Note: This is a placeholder, replace with actual batch invert function.
-        // TODO add batch invert
-        // invert them all
-        let result: Result<(), anyhow::Error> = l_1_coefficients
-            .iter_mut()
-            .map(|x| {
-                let inverse = x
-                    .inverse()
-                    .ok_or_else(|| anyhow::anyhow!("Failed to find inverse"))?;
-                *x = inverse;
-                Ok(())
-            })
-            .collect();
-        result?;
+        batch_inversion(l_1_coefficients.as_mut_slice());
 
         // Step 2: Compute numerator (1/n)*(X_i^n - 1)
         // First compute X_i^n (which forms a multiplicative subgroup of order k)
