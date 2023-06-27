@@ -164,7 +164,7 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
         let poly_size = self.size / num_polys;
         assert!(poly_size.is_power_of_two());
         let poly_mask = poly_size - 1;
-        let log2_poly_size = poly_size.trailing_zeros() as usize;
+        let log2_poly_size = poly_size.get_msb();
 
         // First FFT round is a special case - no need to multiply by root table, because all entries are 1.
         // We also combine the bit reversal step into the first round, to avoid a redundant round of copying data
@@ -197,7 +197,8 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
             coeffs[0][1] = scratch_space[1];
         }
         // Outer FFT loop - iterates over the FFT rounds
-        for m in (2..=self.size).step_by(2) {
+        let mut m = 2;
+        while m < self.size {
             for j in 0..self.num_threads {
                 let mut temp: Fr;
 
@@ -247,7 +248,7 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
                 // our indexer, because we don't store the precomputed root values for the 1st round (because they're
                 // all 1).
 
-                let round_roots = root_table[((m.trailing_zeros() - 1) as usize)];
+                let round_roots = root_table[m.get_msb() - 1];
 
                 // Finally, we want to treat the final round differently from the others,
                 // so that we can reduce out of our 'coarse' reduction and store the output in `coeffs` instead of
@@ -277,6 +278,7 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
                     }
                 }
             }
+            m <<= 1;
         }
     }
 
@@ -431,16 +433,16 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
         self.partial_fft_parallel_inner(coeffs, &self.get_round_roots()[..], constant, is_coset);
     }
 
-    fn fft_inplace(&self, coeffs: &mut [Fr]) {
+    pub(crate) fn fft_inplace(&self, coeffs: &mut [Fr]) {
         self.fft_inner_parallel_vec_inplace(&mut [coeffs], &self.root, &self.get_round_roots()[..]);
     }
 
-    fn fft(&self, coeffs: &mut [Fr], target: &mut [Fr]) {
+    pub(crate) fn fft(&self, coeffs: &mut [Fr], target: &mut [Fr]) {
         self.fft_inner_parallel(coeffs, target, &self.root, &self.get_round_roots()[..]);
     }
 
-    fn fft_vec_inplace(&self, _coeffs: &mut [&mut [Fr]]) {
-        todo!();
+    pub(crate) fn fft_vec_inplace(&self, coeffs: &mut [&mut [Fr]]) {
+        self.fft_inner_parallel_vec_inplace(coeffs, &self.root, &self.get_round_roots()[..]);
     }
 
     // The remaining functions require you to create a version of `fft_inner_parallel` that accepts a Vec<&[T]> as the first parameter.
