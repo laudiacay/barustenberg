@@ -424,19 +424,19 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
     }
 
     pub(crate) fn partial_fft_serial(&self, coeffs: &mut [Fr], target: &mut [Fr]) {
-        self.partial_fft_serial_inner(coeffs, target, self.get_round_roots());
+        self.partial_fft_serial_inner(coeffs, target, &self.get_round_roots()[..]);
     }
 
     pub(crate) fn partial_fft(&self, coeffs: &mut [Fr], constant: Fr, is_coset: bool) {
-        self.partial_fft_parallel_inner(coeffs, self.get_round_roots(), constant, is_coset);
+        self.partial_fft_parallel_inner(coeffs, &self.get_round_roots()[..], constant, is_coset);
     }
 
     fn fft_inplace(&self, coeffs: &mut [Fr]) {
-        self.fft_inner_parallel_vec_inplace(&mut [coeffs], &self.root, self.get_round_roots());
+        self.fft_inner_parallel_vec_inplace(&mut [coeffs], &self.root, &self.get_round_roots()[..]);
     }
 
     fn fft(&self, coeffs: &mut [Fr], target: &mut [Fr]) {
-        self.fft_inner_parallel(coeffs, target, &self.root, self.get_round_roots());
+        self.fft_inner_parallel(coeffs, target, &self.root, &self.get_round_roots()[..]);
     }
 
     fn fft_vec_inplace(&self, _coeffs: &mut [&mut [Fr]]) {
@@ -449,7 +449,7 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
         self.fft_inner_parallel_vec_inplace(
             &mut [coeffs.coefficients.as_mut_slice()],
             &self.root_inverse,
-            self.get_inverse_round_roots(),
+            &self.get_inverse_round_roots()[..],
         );
         todo!("parallelize")
         // for i in 0..self.size {
@@ -458,7 +458,12 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
     }
 
     pub(crate) fn ifft(&self, coeffs: &mut [Fr], target: &mut [Fr]) {
-        self.fft_inner_parallel(coeffs, target, &self.root_inverse, self.get_round_roots());
+        self.fft_inner_parallel(
+            coeffs,
+            target,
+            &self.root_inverse,
+            &self.get_round_roots()[..],
+        );
         // TODO parallelize me
         todo!("parallelize here")
         // for i in 0..self.size {
@@ -481,7 +486,7 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
     }
 
     fn fft_with_constant(&self, coeffs: &mut [Fr], target: &mut [Fr], value: Fr) {
-        self.fft_inner_parallel(coeffs, target, &self.root, self.get_round_roots());
+        self.fft_inner_parallel(coeffs, target, &self.root, &self.get_round_roots()[..]);
         for item in coeffs.iter_mut().take(self.size) {
             *item *= value;
         }
@@ -526,7 +531,7 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
                 &mut coeffs[(i * small_domain.size)..],
                 &mut scratch_space[(i * small_domain.size)..],
                 &small_domain.root,
-                small_domain.get_round_roots(),
+                &small_domain.get_round_roots()[..],
             );
         }
 

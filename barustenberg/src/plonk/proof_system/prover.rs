@@ -47,7 +47,7 @@ impl<
         H: BarretenHasher + Default,
         S: Settings<Hasher = H, Field = Fr, Group = G1Affine> + Default,
     > Prover<'a, H, S>
-{   
+{
     /// Create a new prover.
     /// Parameters:
     /// - `input_key` Proving key.
@@ -675,7 +675,7 @@ impl<'a, H: BarretenHasher + Default, S: Settings<Hasher = H, Field = Fr, Group 
     fn get_circuit_size(&self) -> usize {
         todo!("implement me")
     }
-    
+
     /// Reset the transcript to the initial state
     fn reset(&mut self) {
         let manifest = (*self.transcript).borrow_mut().get_manifest();

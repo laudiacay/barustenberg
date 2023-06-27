@@ -1,6 +1,7 @@
 use ark_ff::{FftField, Field};
 
 use crate::numeric::bitop::Msb;
+use std::marker::PhantomData;
 use std::vec::Vec;
 
 pub(crate) const MIN_GROUP_PER_THREAD: usize = 4;
@@ -27,13 +28,15 @@ pub(crate) struct EvaluationDomain<'a, F: Field + FftField> {
     pub(crate) generator: F,
     pub(crate) generator_inverse: F,
     pub(crate) four_inverse: F,
-    /// An entry for each of the log(n) rounds: each entry is a pointer to
-    /// the subset of the roots of unity required for that fft round.
+    /// An entry for each of the log(n) rounds: each entry is a range that
+    /// specifies the subset of the roots of unity required for that fft round.
     /// E.g. round_roots[0] = [1, ω^(n/2 - 1)],
     ///      round_roots[1] = [1, ω^(n/4 - 1), ω^(n/2 - 1), ω^(3n/4 - 1)]
     ///      ...
-    pub(crate) round_roots: &'a [&'a [F]],
-    pub(crate) inverse_round_roots: &'a [&'a [F]],
+    pub(crate) round_roots: Vec<std::ops::Range<usize>>,
+    pub(crate) inverse_round_roots: Vec<std::ops::Range<usize>>,
+    pub(crate) roots: Vec<F>,
+    pub(crate) phantom: PhantomData<&'a ()>,
 }
 
 fn compute_num_threads(size: usize) -> usize {
@@ -54,6 +57,7 @@ fn compute_num_threads(size: usize) -> usize {
 /// * `input_root` - An element of the FieldExt `Fr` that represents the root of the polynomial.
 /// * `size` - The size of the polynomial. This is used to determine the number of rounds needed for computation.
 /// * `roots` - A mutable vector of elements from the FieldExt `Fr`. This vector is used to store the roots computed in each round.
+/// * `roots_offset` - The offset from which to start storing the computed roots in the `roots` vector.
 /// * `round_roots` - A mutable vector of `usize` values representing indices into `roots`. After each round, the index of the newly computed root is stored in this vector.
 ///
 /// # Description
@@ -79,84 +83,112 @@ fn compute_num_threads(size: usize) -> usize {
 fn compute_lookup_table_single<Fr: Field + FftField>(
     input_root: &Fr,
     size: usize,
-    roots: &mut [Fr],
-    round_roots: &mut Vec<usize>,
+    roots: &mut Vec<Fr>,
+    roots_offset: usize,
+    round_roots: &mut Vec<std::ops::Range<usize>>,
 ) {
-    let num_rounds = (size as f64).log2().ceil() as usize;
+    let num_rounds = size.get_msb();
 
-    round_roots.push(0);
-    for i in 1..num_rounds - 1 {
-        let last = *round_roots.last().unwrap();
-        round_roots.push(last + (1 << i));
+    // Creating index ranges
+    round_roots.push(roots_offset..roots_offset + 2);
+    for i in 1..(num_rounds - 1) {
+        let start = round_roots.last().unwrap().end;
+        round_roots.push(start..start + (1 << (i + 1)));
     }
-    for (i, round_root_i) in round_roots.iter().enumerate().take(num_rounds - 1) {
+
+    for i in 0..(num_rounds - 1) {
         let m = 1 << (i + 1);
         let exponent = [(size / (2 * m)) as u64];
         let round_root = input_root.pow(exponent);
-        roots[*round_root_i] = Fr::one();
+        let offset = round_roots[i].start;
+        roots[offset] = Fr::one();
         for j in 1..m {
-            roots[round_root_i + j] = roots[round_root_i + j - 1] * round_root;
+            roots[offset + j] = roots[offset + (j - 1)] * round_root;
         }
     }
 }
-impl<'a, F: Field + FftField> EvaluationDomain<'a, F> {
-    pub(crate) fn new(domain_size: usize, _target_generator_size: Option<usize>) -> Self {
-        // TODO: implement constructor logic
 
+impl<'a, F: Field + FftField> EvaluationDomain<'a, F> {
+    pub(crate) fn new(domain_size: usize, target_generator_size: Option<usize>) -> Self {
         let size = domain_size;
         let num_threads = compute_num_threads(size);
         let thread_size = size / num_threads;
-        let _log2_size = size.get_msb();
-        let _log2_thread_size = thread_size.get_msb();
-        let _log2_num_threads = num_threads.get_msb();
-        // let root = F::get_root_of_unity(log2_size);
-        // let domain = F::new(size, 0,0,0).to_montgomery_form();
-        // let domain_inverse = domain.inverse().unwrap();
-        // let generator = F::coset_generator(0);
-        // let generator_inverse = generator.inverse().unwrap();
-        // let four_inverse = F::from(4).inverse().unwrap();
-        // let roots = None;
+        let log2_size = size.get_msb();
+        let log2_thread_size = thread_size.get_msb();
+        let log2_num_threads = num_threads.get_msb();
+        let root = F::get_root_of_unity(log2_size as u64).unwrap();
+        // TODO: I guess we don't need the conversion since arkworks internally uses a Montgomery form
+        let domain = F::from(size as u64); // .to_montgomery_form();
+        let domain_inverse = domain.inverse().unwrap();
+        // TODO: Not sure if we need a specific generator or any generator will do
+        let generator = F::GENERATOR; // F::coset_generator(0);
+        let generator_inverse = generator.inverse().unwrap();
+        let four_inverse = F::from(4u64).inverse().unwrap();
+        let roots = Vec::new();
 
-        todo!("fix ");
-        // assert!((1UL << log2_size) == size || (size == 0));
-        // assert!((1UL << log2_thread_size) == thread_size || (size == 0));
-        // assert!((1UL << log2_num_threads) == num_threads || (size == 0));
+        assert!((1 << log2_size) == size || (size == 0));
+        assert!((1 << log2_thread_size) == thread_size || (size == 0));
+        assert!((1 << log2_num_threads) == num_threads || (size == 0));
 
-        // EvaluationDomain { size: size,
-        //     num_threads,
-        //     thread_size,
-        //     log2_size,
-        //     log2_thread_size,
-        //     log2_num_threads,
-        //     // TODO original was generator_size(target_generator_size ? target_generator_size : domain_size)- check me
-        //     generator_size: if target_generator_size == 0 { size } else { target_generator_size },
-        //     root,
-        //     root_inverse: root.inverse().unwrap(),
-        //     domain,
-        //     domain_inverse,
-        //     generator,
-        //     generator_inverse,
-        //     four_inverse,
-        //     roots,
-        //     round_roots: None,
-        //     inverse_round_roots: None,
-        // }
+        EvaluationDomain {
+            size: size,
+            num_threads,
+            thread_size,
+            log2_size,
+            log2_thread_size,
+            log2_num_threads,
+            generator_size: target_generator_size.unwrap_or(size),
+            root,
+            root_inverse: root.inverse().unwrap(),
+            domain,
+            domain_inverse,
+            generator,
+            generator_inverse,
+            four_inverse,
+            round_roots: Vec::new(),
+            inverse_round_roots: Vec::new(),
+            roots,
+            phantom: PhantomData,
+        }
     }
 
     pub(crate) fn compute_lookup_table(&mut self) {
-        // TODO: implement compute_lookup_table logic
+        assert!(self.roots.is_empty());
+        self.roots = vec![F::zero(); 2 * self.size];
+
+        compute_lookup_table_single(
+            &self.root,
+            self.size,
+            &mut self.roots,
+            0,
+            &mut self.round_roots,
+        );
+        compute_lookup_table_single(
+            &self.root_inverse,
+            self.size,
+            &mut self.roots,
+            self.size,
+            &mut self.inverse_round_roots,
+        );
     }
 
     pub(crate) fn compute_generator_table(&mut self, _target_generator_size: usize) {
         // TODO: implement compute_generator_table logic
     }
 
-    pub(crate) fn get_round_roots(&self) -> &[&[F]] {
+    pub(crate) fn get_round_roots(&self) -> Vec<&[F]> {
+        // TODO: Not sure how to avoid this clone
         self.round_roots
+            .iter()
+            .map(|r| &self.roots[r.clone()])
+            .collect()
     }
 
-    pub(crate) fn get_inverse_round_roots(&self) -> &[&[F]] {
+    pub(crate) fn get_inverse_round_roots(&self) -> Vec<&[F]> {
         self.inverse_round_roots
+            .iter()
+            .map(|r| &self.roots[r.clone()])
+            .collect()
     }
 }
 
