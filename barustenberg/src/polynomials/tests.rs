@@ -299,4 +299,60 @@ mod tests {
             assert_eq!(poly_a[i], expected[i]);
         }
     }
+
+    #[test]
+    fn test_compute_lagrange_polynomial_fft() {
+        let n = 256;
+        let mut small_domain = EvaluationDomain::<Fr>::new(n, None);
+        let mut mid_domain = EvaluationDomain::<Fr>::new(2 * n, None);
+        small_domain.compute_lookup_table();
+        mid_domain.compute_lookup_table();
+
+        let mut l_1_coefficients = vec![Fr::zero(); 2 * n];
+        let mut scratch_memory = vec![Fr::zero(); 2 * n + 4];
+
+        small_domain.compute_lagrange_polynomial_fft(&mut l_1_coefficients, &mid_domain);
+
+        polynomial_arithmetic::copy_polynomial(
+            &l_1_coefficients,
+            &mut scratch_memory,
+            2 * n,
+            2 * n,
+        );
+
+        mid_domain.coset_ifft_inplace(&mut l_1_coefficients);
+
+        let z = Fr::rand(&mut rand::thread_rng());
+        let mut shifted_z = z * small_domain.root;
+        shifted_z *= small_domain.root;
+
+        let eval =
+            polynomial_arithmetic::evaluate(&l_1_coefficients, &shifted_z, small_domain.size);
+        small_domain.fft_inplace(&mut l_1_coefficients);
+
+        let temp_slice = scratch_memory[..4].to_vec();
+        scratch_memory[2 * n..2 * n + 4].copy_from_slice(&temp_slice);
+
+        let l_n_minus_one_coefficients = &mut scratch_memory[4..];
+        mid_domain.coset_ifft_inplace(l_n_minus_one_coefficients);
+
+        let shifted_eval =
+            polynomial_arithmetic::evaluate(l_n_minus_one_coefficients, &z, small_domain.size);
+        assert_eq!(eval, shifted_eval);
+
+        small_domain.fft_inplace(l_n_minus_one_coefficients);
+
+        assert_eq!(l_1_coefficients[0], Fr::one());
+        for i in 1..n {
+            assert_eq!(l_1_coefficients[i], Fr::zero());
+        }
+
+        assert_eq!(l_n_minus_one_coefficients[n - 2], Fr::one());
+        for i in 0..n {
+            if i == n - 2 {
+                continue;
+            }
+            assert_eq!(l_n_minus_one_coefficients[i], Fr::zero());
+        }
+    }
 }

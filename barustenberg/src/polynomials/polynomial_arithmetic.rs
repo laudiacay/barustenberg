@@ -26,7 +26,7 @@ fn is_power_of_two_usize(x: usize) -> bool {
     x != 0 && (x & (x - 1)) == 0
 }
 
-fn copy_polynomial<Fr: Copy + Default>(
+pub(crate) fn copy_polynomial<Fr: Copy + Default>(
     src: &[Fr],
     dest: &mut [Fr],
     num_src_coefficients: usize,
@@ -163,7 +163,7 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
         let subgroup_size = 1 << log2_subgroup_size;
 
         // Step 1: get primitive 4th root of unity
-        let subgroup_root = Fr::get_root_of_unity(log2_subgroup_size as u64)
+        let subgroup_root = Fr::get_root_of_unity(subgroup_size as u64)
             .ok_or_else(|| anyhow::anyhow!("Failed to find root of unity"))?;
 
         // Step 2: compute the cofactor term g^n
@@ -842,7 +842,7 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
         let log2_subgroup_size = target_domain.log2_size - self.log2_size; // log_2(k)
         let subgroup_size = 1usize << log2_subgroup_size; // k
         assert!(target_domain.log2_size >= self.log2_size);
-        let mut subgroup_roots = vec![Fr::one(); subgroup_size];
+        let mut subgroup_roots = vec![Fr::default(); subgroup_size];
         // Note: compute_multiplicative_subgroup function is missing, replace this with your own.
         self.compute_multiplicative_subgroup(log2_subgroup_size, &mut subgroup_roots)?;
 
