@@ -5,6 +5,7 @@ mod tests {
 
     use crate::polynomials::evaluation_domain::EvaluationDomain;
     use crate::polynomials::polynomial_arithmetic;
+    use crate::polynomials::Polynomial;
 
     #[test]
     fn test_evaluation_domain() {
@@ -122,8 +123,8 @@ mod tests {
 
         let mut domain = EvaluationDomain::<Fr>::new(n, None);
         domain.compute_lookup_table();
-        domain.fft_inplace(&mut result[..]);
-        domain.ifft_inplace(&mut result[..]);
+        domain.fft_inplace(result.as_mut_slice());
+        domain.ifft_inplace(result.as_mut_slice());
 
         for i in 0..n {
             assert_eq!(result[i], expected[i]);
@@ -446,7 +447,7 @@ mod tests {
         }
 
         small_domain.divide_by_pseudo_vanishing_polynomial(
-            &mut [&mut result[..]],
+            &mut [result.as_mut_slice()],
             &large_domain,
             1,
         );
@@ -525,5 +526,487 @@ mod tests {
         assert_eq!(evals.l_start, l_1_expected);
         assert_eq!(evals.l_end, l_n_minus_1_expected);
         assert_eq!(evals.vanishing_poly, vanishing_poly_expected);
+    }
+
+    #[test]
+    fn test_barycentric_weight_evaluations() {
+        let n = 16;
+
+        let mut domain = EvaluationDomain::new(n, None);
+        let mut rng = rand::thread_rng();
+
+        let mut poly = vec![Fr::zero(); n];
+        let mut barycentric_poly = vec![Fr::zero(); n];
+
+        for i in 0..n / 2 {
+            poly[i] = Fr::rand(&mut rng);
+            barycentric_poly[i] = poly[i];
+        }
+
+        let evaluation_point = Fr::from(2_u64);
+
+        let result =
+            domain.compute_barycentric_evaluation(&barycentric_poly, n / 2, &evaluation_point);
+
+        domain.compute_lookup_table();
+
+        domain.ifft_inplace(&mut poly);
+
+        let expected = polynomial_arithmetic::evaluate(&poly, &evaluation_point, n);
+
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_divide_by_vanishing_polynomial() {
+        let n = 16;
+
+        let mut rng = rand::thread_rng();
+
+        let mut a = vec![Fr::zero(); 2 * n];
+        let mut b = vec![Fr::zero(); 2 * n];
+        let mut c = vec![Fr::zero(); 2 * n];
+
+        for i in 0..13 {
+            a[i] = Fr::rand(&mut rng);
+            b[i] = Fr::rand(&mut rng);
+            c[i] = a[i] * b[i];
+        }
+        for i in 13..16 {
+            a[i] = Fr::one();
+            b[i] = Fr::from(2_u64);
+            c[i] = Fr::from(3_u64);
+        }
+
+        let mut small_domain = EvaluationDomain::new(n, None);
+        let mut large_domain = EvaluationDomain::new(2 * n, None);
+
+        small_domain.compute_lookup_table();
+        large_domain.compute_lookup_table();
+
+        small_domain.ifft_inplace(&mut a);
+        small_domain.ifft_inplace(&mut b);
+        small_domain.ifft_inplace(&mut c);
+
+        let z = Fr::rand(&mut rng);
+        let a_eval = polynomial_arithmetic::evaluate(&a, &z, n);
+        let b_eval = polynomial_arithmetic::evaluate(&b, &z, n);
+        let c_eval = polynomial_arithmetic::evaluate(&c, &z, n);
+
+        large_domain.coset_fft_inplace(&mut a);
+        large_domain.coset_fft_inplace(&mut b);
+        large_domain.coset_fft_inplace(&mut c);
+
+        let mut r = vec![Fr::zero(); 2 * n];
+        large_domain.mul(&a, &b, &mut r);
+        large_domain.sub_inplace(&mut r, &c);
+
+        let mut r_copy = r.clone();
+
+        small_domain.divide_by_pseudo_vanishing_polynomial(
+            &mut [r.as_mut_slice()],
+            &large_domain,
+            3,
+        );
+        large_domain.coset_ifft_inplace(&mut r);
+
+        let r_eval = polynomial_arithmetic::evaluate(&r, &z, 2 * n);
+
+        let z_h_eval = (z.pow(&[16]) - Fr::one())
+            / ((z - small_domain.root_inverse)
+                * (z - small_domain.root_inverse.square())
+                * (z - small_domain.root_inverse * small_domain.root_inverse.square()));
+
+        let lhs = a_eval * b_eval - c_eval;
+        let rhs = r_eval * z_h_eval;
+        assert_eq!(lhs, rhs);
+
+        small_domain.divide_by_pseudo_vanishing_polynomial(
+            &mut [r_copy.as_mut_slice()],
+            &large_domain,
+            0,
+        );
+        large_domain.coset_ifft_inplace(&mut r_copy);
+
+        let r_eval = polynomial_arithmetic::evaluate(&r_copy, &z, 2 * n);
+        let z_h_vanishing_eval = z.pow(&[16]) - Fr::one();
+        let rhs = r_eval * z_h_vanishing_eval;
+        assert_ne!(lhs, rhs);
+    }
+
+    #[test]
+    fn test_partial_fft_serial() {
+        let n = 2;
+
+        let mut rng = rand::thread_rng();
+
+        let mut poly_eval = vec![Fr::zero(); 4 * n];
+        let mut poly_partial_fft = vec![Fr::zero(); 4 * n];
+
+        let mut large_domain = EvaluationDomain::new(4 * n, None);
+        large_domain.compute_lookup_table();
+
+        for i in 0..4 * n {
+            poly_eval[i] = Fr::rand(&mut rng);
+        }
+
+        large_domain.partial_fft_serial(poly_eval.as_mut_slice(), &mut poly_partial_fft);
+
+        let eval_point = Fr::rand(&mut rng);
+        let expected = large_domain.compute_barycentric_evaluation(&poly_eval, 4 * n, &eval_point);
+
+        let mut inner_poly_eval = Fr::zero();
+        let x_pow_4n = eval_point.pow(&[4 * n as u64]);
+        let x_pow_4 = eval_point.pow(&[4]);
+        let x_pow_3 = eval_point.pow(&[3]);
+        let x_pow_2 = eval_point.pow(&[2]);
+        let root = large_domain.root;
+        let mut root_pow = Fr::one();
+        let mut result = Fr::zero();
+
+        for i in 0..n {
+            inner_poly_eval = poly_partial_fft[i]
+                + poly_partial_fft[n + i] * eval_point
+                + poly_partial_fft[2 * n + i] * x_pow_2
+                + poly_partial_fft[3 * n + i] * x_pow_3;
+            root_pow = root.pow(&[4 * i as u64]);
+            result += inner_poly_eval / (x_pow_4 - root_pow);
+        }
+        result *= x_pow_4n - Fr::one();
+        result /= Fr::from(4 * n as u64);
+
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_partial_fft_parallel() {
+        let n = 2;
+
+        let mut rng = rand::thread_rng();
+
+        let mut poly_eval = vec![Fr::zero(); 4 * n];
+
+        let mut large_domain = EvaluationDomain::new(4 * n, None);
+        large_domain.compute_lookup_table();
+
+        for i in 0..4 * n {
+            poly_eval[i] = Fr::rand(&mut rng);
+        }
+
+        let eval_point = Fr::rand(&mut rng);
+        let expected = large_domain.compute_barycentric_evaluation(&poly_eval, 4 * n, &eval_point);
+
+        large_domain.partial_fft(poly_eval.as_mut_slice(), None, false);
+
+        let mut inner_poly_eval = Fr::zero();
+        let x_pow_4n = eval_point.pow(&[4 * n as u64]);
+        let x_pow_4 = eval_point.pow(&[4]);
+        let x_pow_3 = eval_point.pow(&[3]);
+        let x_pow_2 = eval_point.pow(&[2]);
+        let root = large_domain.root;
+        let mut root_pow = Fr::one();
+        let mut result = Fr::zero();
+
+        for i in 0..n {
+            inner_poly_eval = poly_eval[i]
+                + poly_eval[n + i] * eval_point
+                + poly_eval[2 * n + i] * x_pow_2
+                + poly_eval[3 * n + i] * x_pow_3;
+            root_pow = root.pow(&[4 * i as u64]);
+            result += inner_poly_eval / (x_pow_4 - root_pow);
+        }
+        result *= x_pow_4n - Fr::one();
+        result /= Fr::from(4 * n as u64);
+
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_partial_coset_fft_output() {
+        let n = 64;
+
+        let mut rng = rand::thread_rng();
+
+        let mut poly_coset_fft = vec![Fr::zero(); 4 * n];
+        let mut poly_coset_fft_copy = vec![Fr::zero(); 4 * n];
+
+        let mut large_domain = EvaluationDomain::<Fr>::new(4 * n, None);
+        large_domain.compute_lookup_table();
+        let mut small_domain = EvaluationDomain::<Fr>::new(n, None);
+        small_domain.compute_lookup_table();
+
+        for i in 0..4 * n {
+            poly_coset_fft[i] = Fr::rand(&mut rng);
+            poly_coset_fft_copy[i] = poly_coset_fft[i];
+        }
+
+        large_domain.partial_fft(poly_coset_fft_copy.as_mut_slice(), None, false);
+
+        let constant = large_domain.generator_inverse.pow(&[4]) * large_domain.four_inverse;
+        large_domain.partial_fft(poly_coset_fft.as_mut_slice(), Some(constant), true);
+
+        for i in 0..n {
+            let current_root = small_domain.root_inverse.pow(&[i as u64]);
+            let mut multiplicand = constant * current_root;
+            for s in 0..4 {
+                multiplicand *= large_domain.generator;
+                assert_eq!(
+                    poly_coset_fft_copy[(3 - s) * n + i] * multiplicand,
+                    poly_coset_fft[(3 - s) * n + i]
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_partial_coset_fft() {
+        let n = 64;
+
+        let mut rng = rand::thread_rng();
+
+        let mut poly_coset_fft = vec![Fr::zero(); 4 * n];
+
+        let mut large_domain = EvaluationDomain::new(4 * n, None);
+        large_domain.compute_lookup_table();
+        let mut small_domain = EvaluationDomain::new(n, None);
+        small_domain.compute_lookup_table();
+
+        for i in 0..n {
+            poly_coset_fft[i] = Fr::rand(&mut rng);
+            poly_coset_fft[i + n] = Fr::zero();
+            poly_coset_fft[i + 2 * n] = Fr::zero();
+            poly_coset_fft[i + 3 * n] = Fr::zero();
+        }
+
+        large_domain.coset_fft_inplace(poly_coset_fft.as_mut_slice());
+
+        let zeta = Fr::rand(&mut rng);
+        let expected = polynomial_arithmetic::evaluate_from_fft(
+            &poly_coset_fft,
+            &large_domain,
+            &zeta,
+            &small_domain,
+        );
+
+        let constant = large_domain.generator_inverse.pow(&[4]) * large_domain.four_inverse;
+        large_domain.partial_fft(poly_coset_fft.as_mut_slice(), Some(constant), true);
+
+        let zeta_by_g_four = (zeta * large_domain.generator_inverse).pow(&[4]);
+        let numerator = zeta_by_g_four.pow(&[n as u64]) - Fr::one();
+        let mut result = Fr::zero();
+
+        for i in 0..n {
+            let current_root = small_domain.root_inverse.pow(&[i as u64]);
+            let mut internal_term = Fr::zero();
+            let mut multiplicand = Fr::one();
+            let denominator = zeta_by_g_four * current_root - Fr::one();
+            for s in 0..4 {
+                internal_term += poly_coset_fft[s * n + i] * multiplicand;
+                multiplicand *= zeta;
+            }
+            result += internal_term / denominator;
+        }
+        result *= numerator / Fr::from(n as u64);
+
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_partial_coset_fft_evaluation() {
+        let n = 64;
+
+        let mut rng = rand::thread_rng();
+
+        let mut poly_coset_fft = vec![Fr::zero(); 4 * n];
+
+        let mut large_domain = EvaluationDomain::new(4 * n, None);
+        large_domain.compute_lookup_table();
+        let mut small_domain = EvaluationDomain::new(n, None);
+        small_domain.compute_lookup_table();
+
+        for i in 0..4 * n {
+            poly_coset_fft[i] = Fr::rand(&mut rng);
+        }
+
+        let zeta = Fr::rand(&mut rng);
+        let expected = large_domain.compute_barycentric_evaluation(
+            &poly_coset_fft,
+            4 * n,
+            &(zeta * large_domain.generator_inverse),
+        );
+
+        let constant = large_domain.generator_inverse.pow(&[4]) * large_domain.four_inverse;
+        large_domain.partial_fft(poly_coset_fft.as_mut_slice(), Some(constant), true);
+
+        let zeta_by_g_four = (zeta * large_domain.generator_inverse).pow(&[4]);
+
+        let mut result = Fr::zero();
+        let mut multiplicand = Fr::one();
+        for s in 0..4 {
+            let local_eval = small_domain.compute_barycentric_evaluation(
+                &poly_coset_fft[(s * n)..(s * n + n)],
+                n,
+                &zeta_by_g_four,
+            );
+            result += local_eval * multiplicand;
+            multiplicand *= zeta;
+        }
+
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_linear_poly_product() {
+        let n = 64;
+
+        let mut rng = rand::thread_rng();
+
+        let mut roots = vec![Fr::zero(); n];
+        let mut expected = Fr::one();
+        let z = Fr::rand(&mut rng);
+
+        for i in 0..n {
+            roots[i] = Fr::rand(&mut rng);
+            expected *= (z - roots[i]);
+        }
+
+        let mut dest = vec![Fr::zero(); n + 1];
+        polynomial_arithmetic::compute_linear_polynomial_product(&roots, &mut dest, n);
+        let result = polynomial_arithmetic::evaluate(&dest, &z, n + 1);
+
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_fft_linear_poly_product() {
+        let n = 60;
+
+        let mut rng = rand::thread_rng();
+
+        let mut roots = vec![Fr::zero(); n];
+        let mut expected = Fr::one();
+        let z = Fr::rand(&mut rng);
+
+        for i in 0..n {
+            roots[i] = Fr::rand(&mut rng);
+            expected *= z - roots[i];
+        }
+
+        let log2_n = n.next_power_of_two().trailing_zeros();
+        let N = 1 << (log2_n + 1);
+
+        let mut domain = EvaluationDomain::<Fr>::new(N, None);
+        domain.compute_lookup_table();
+
+        let mut dest = vec![Fr::zero(); N];
+        domain.fft_linear_polynomial_product(&roots, &mut dest, n, false);
+        let result = domain.compute_barycentric_evaluation(&dest, N, &z);
+
+        let mut dest_coset = vec![Fr::zero(); N];
+        let z_by_g = z * domain.generator_inverse;
+        domain.fft_linear_polynomial_product(&roots, &mut dest_coset, n, true);
+        let result1 = domain.compute_barycentric_evaluation(&dest_coset, N, &z_by_g);
+
+        let mut coeffs = vec![Fr::zero(); n + 1];
+        polynomial_arithmetic::compute_linear_polynomial_product(&roots, &mut coeffs, n);
+        let result2 = polynomial_arithmetic::evaluate(&coeffs, &z, n + 1);
+
+        assert_eq!(result, expected);
+        assert_eq!(result1, expected);
+        assert_eq!(result2, expected);
+    }
+
+    #[test]
+    fn test_compute_interpolation() {
+        let n = 100;
+
+        let mut rng = rand::thread_rng();
+
+        let mut src = vec![Fr::zero(); n];
+        let mut poly = vec![Fr::zero(); n];
+        let mut x = vec![Fr::zero(); n];
+
+        for i in 0..n {
+            poly[i] = Fr::rand(&mut rng);
+        }
+
+        for i in 0..n {
+            x[i] = Fr::rand(&mut rng);
+            src[i] = polynomial_arithmetic::evaluate(&poly, &x[i], n);
+        }
+
+        let mut dest = vec![Fr::zero(); n];
+        polynomial_arithmetic::compute_interpolation(&src, &mut dest, &mut x, n);
+
+        for i in 0..n {
+            assert_eq!(dest[i], poly[i]);
+        }
+    }
+
+    #[test]
+    fn test_compute_efficient_interpolation() {
+        let n = 250;
+
+        let mut rng = rand::thread_rng();
+
+        let mut src = vec![Fr::zero(); n];
+        let mut poly = vec![Fr::zero(); n];
+        let mut x = vec![Fr::zero(); n];
+
+        for i in 0..n {
+            poly[i] = Fr::rand(&mut rng);
+        }
+
+        for i in 0..n {
+            x[i] = Fr::rand(&mut rng);
+            src[i] = polynomial_arithmetic::evaluate(&poly, &x[i], n);
+        }
+
+        let mut dest = vec![Fr::zero(); n];
+        polynomial_arithmetic::compute_efficient_interpolation(&src, &mut dest, &mut x, n);
+
+        for i in 0..n {
+            assert_eq!(dest[i], poly[i]);
+        }
+    }
+
+    #[test]
+    fn test_interpolation_constructor_single() {
+        let root = vec![Fr::from(3)];
+        let eval = vec![Fr::from(4)];
+
+        let t = Polynomial::from_interpolations(&root, &eval).unwrap();
+
+        assert_eq!(t.size(), 1);
+        assert_eq!(t[0], eval[0]);
+    }
+
+    #[test]
+    fn test_interpolation_constructor() {
+        let N = 32;
+
+        let mut rng = rand::thread_rng();
+
+        let mut roots = vec![Fr::zero(); N];
+        let mut evaluations = vec![Fr::zero(); N];
+
+        for i in 0..N {
+            roots[i] = Fr::rand(&mut rng);
+            evaluations[i] = Fr::rand(&mut rng);
+        }
+
+        let roots_copy = roots.clone();
+        let evaluations_copy = evaluations.clone();
+
+        let interpolated = Polynomial::from_interpolations(&roots, &evaluations).unwrap();
+
+        assert_eq!(interpolated.size(), N);
+        assert_eq!(roots, roots_copy);
+        assert_eq!(evaluations, evaluations_copy);
+
+        for i in 0..N {
+            let eval = polynomial_arithmetic::evaluate(&interpolated.coefficients, &roots[i], N);
+            assert_eq!(eval, evaluations[i]);
+        }
     }
 }

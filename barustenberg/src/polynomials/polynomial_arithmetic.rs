@@ -410,48 +410,74 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
         constant: Fr,
         is_coset: bool,
     ) {
+        // We wish to compute a partial modified FFT of 2 rounds from given coefficients.
+        // We need a 2-round modified FFT for commiting to the 4n-sized quotient polynomial for
+        // the PLONK prover.
+        //
+        // We assume that the number of coefficients is a multiplicand of 4, since the domain size
+        // we use in PLONK would always be a power of 2, this is a reasonable assumption.
+        // Let n = N / 4 where N is the input domain size, we wish to compute
+        // R_{i,s} = \sum_{j=0}^{3} Y_{i + jn} * \omega^{(i + jn)(s + 1)}
+        //
+        // Input `coeffs` is the evaluation form (FFT) of a polynomial.
+        // (Y_{0,0} , Y_{1,0}, Y_{3,0}, ..., Y_{n, 0})
+        // (Y_{0,1} , Y_{1,1}, Y_{3,1}, ..., Y_{n, 1})
+        // (Y_{0,2} , Y_{1,2}, Y_{3,2}, ..., Y_{n, 2})
+        // (Y_{0,3} , Y_{1,3}, Y_{3,3}, ..., Y_{n, 3})
+        //
+        // We should store the result in the following way:
+        // (R_{0,3} , R_{1,3}, R_{3,3}, ..., R_{n, 3})  {coefficients of X^0}
+        // (R_{0,2} , R_{1,2}, R_{3,2}, ..., R_{n, 2})  {coefficients of X^1}
+        // (R_{0,1} , R_{1,1}, R_{3,1}, ..., R_{n, 1})  {coefficients of X^2}
+        // (R_{0,0} , R_{1,0}, R_{3,0}, ..., R_{n, 0})  {coefficients of X^3}
+
         let n = self.size >> 2;
         let full_mask = self.size - 1;
         let m = self.size >> 1;
         let half_mask = m - 1;
-        let round_roots = &root_table[((m as f64).log2() as usize) - 1];
+        let round_roots = &root_table[m.get_msb() - 1];
 
         let small_domain = EvaluationDomain::<Fr>::new(n, None);
 
-        for i in 0..small_domain.size {
-            let temp = [
-                coeffs[i],
-                coeffs[i + n],
-                coeffs[i + 2 * n],
-                coeffs[i + 3 * n],
-            ];
-            coeffs[i] = Fr::zero();
-            coeffs[i + n] = Fr::zero();
-            coeffs[i + 2 * n] = Fr::zero();
-            coeffs[i + 3 * n] = Fr::zero();
+        // iterate for s = 0, 1, 2, 3 to compute R_{i,s}
+        for j in 0..small_domain.num_threads {
+            let internal_bound_start = j * small_domain.thread_size;
+            let internal_bound_end = (j + 1) * small_domain.thread_size;
+            for i in internal_bound_start..internal_bound_end {
+                let temp = [
+                    coeffs[i],
+                    coeffs[i + n],
+                    coeffs[i + 2 * n],
+                    coeffs[i + 3 * n],
+                ];
+                coeffs[i] = Fr::zero();
+                coeffs[i + n] = Fr::zero();
+                coeffs[i + 2 * n] = Fr::zero();
+                coeffs[i + 3 * n] = Fr::zero();
 
-            let mut index;
-            let mut root_index;
-            let mut root_multiplier;
-            let mut temp_constant = constant;
+                let mut index;
+                let mut root_index;
+                let mut root_multiplier;
+                let mut temp_constant = constant;
 
-            for s in 0..4 {
-                for (j, t_j) in temp.iter().enumerate() {
-                    index = i + j * n;
-                    root_index = index * (s + 1);
+                for s in 0..4 {
+                    for (j, t_j) in temp.iter().enumerate() {
+                        index = i + j * n;
+                        root_index = index * (s + 1);
+                        if is_coset {
+                            root_index = root_index.wrapping_sub(4 * i);
+                        }
+                        root_index &= full_mask;
+                        root_multiplier = round_roots[root_index & half_mask];
+                        if root_index >= m {
+                            root_multiplier = -round_roots[root_index & half_mask];
+                        }
+                        coeffs[(3 - s) * n + i] += root_multiplier * t_j;
+                    }
                     if is_coset {
-                        root_index -= 4 * i;
+                        temp_constant *= self.generator;
+                        coeffs[(3 - s) * n + i] *= temp_constant;
                     }
-                    root_index &= full_mask;
-                    root_multiplier = round_roots[root_index & half_mask];
-                    if root_index >= m {
-                        root_multiplier = -round_roots[root_index & half_mask];
-                    }
-                    coeffs[(3 - s) * n + i] += root_multiplier * t_j;
-                }
-                if is_coset {
-                    temp_constant *= self.generator;
-                    coeffs[(3 - s) * n + i] *= temp_constant;
                 }
             }
         }
@@ -461,8 +487,13 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
         self.partial_fft_serial_inner(coeffs, target, &self.get_round_roots()[..]);
     }
 
-    pub(crate) fn partial_fft(&self, coeffs: &mut [Fr], constant: Fr, is_coset: bool) {
-        self.partial_fft_parallel_inner(coeffs, &self.get_round_roots()[..], constant, is_coset);
+    pub(crate) fn partial_fft(&self, coeffs: &mut [Fr], constant: Option<Fr>, is_coset: bool) {
+        self.partial_fft_parallel_inner(
+            coeffs,
+            &self.get_round_roots()[..],
+            constant.unwrap_or(Fr::one()),
+            is_coset,
+        );
     }
 
     pub(crate) fn fft_inplace(&self, coeffs: &mut [Fr]) {
@@ -674,6 +705,47 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
 
     pub(crate) fn coset_fft_with_generator_shift(&self, _coeffs: &mut [Fr], _constant: Fr) {
         unimplemented!()
+    }
+
+    pub(crate) fn add(&self, a_coeffs: &[Fr], b_coeffs: &[Fr], r_coeffs: &mut [Fr]) {
+        for j in 0..self.num_threads {
+            let internal_bound_start = j * self.thread_size;
+            let internal_bound_end = (j + 1) * self.thread_size;
+            for i in internal_bound_start..internal_bound_end {
+                r_coeffs[i] = a_coeffs[i] + b_coeffs[i];
+            }
+        }
+    }
+
+    pub(crate) fn sub(&self, a_coeffs: &[Fr], b_coeffs: &[Fr], r_coeffs: &mut [Fr]) {
+        for j in 0..self.num_threads {
+            let internal_bound_start = j * self.thread_size;
+            let internal_bound_end = (j + 1) * self.thread_size;
+            for i in internal_bound_start..internal_bound_end {
+                r_coeffs[i] = a_coeffs[i] - b_coeffs[i];
+            }
+        }
+    }
+
+    // TODO: Ugly, should probably implement traits like SubAssign
+    pub(crate) fn sub_inplace(&self, a_coeffs: &mut [Fr], b_coeffs: &[Fr]) {
+        for j in 0..self.num_threads {
+            let internal_bound_start = j * self.thread_size;
+            let internal_bound_end = (j + 1) * self.thread_size;
+            for i in internal_bound_start..internal_bound_end {
+                a_coeffs[i] = a_coeffs[i] - b_coeffs[i];
+            }
+        }
+    }
+
+    pub(crate) fn mul(&self, a_coeffs: &[Fr], b_coeffs: &[Fr], r_coeffs: &mut [Fr]) {
+        for j in 0..self.num_threads {
+            let internal_bound_start = j * self.thread_size;
+            let internal_bound_end = (j + 1) * self.thread_size;
+            for i in internal_bound_start..internal_bound_end {
+                r_coeffs[i] = a_coeffs[i] * b_coeffs[i];
+            }
+        }
     }
 
     pub(crate) fn divide_by_pseudo_vanishing_polynomial(
@@ -996,6 +1068,29 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
 
         result
     }
+
+    pub(crate) fn fft_linear_polynomial_product(
+        &self,
+        roots: &[Fr],
+        dest: &mut [Fr],
+        n: usize,
+        is_coset: bool,
+    ) {
+        let m = self.size >> 1;
+        let round_roots = &self.get_round_roots()[m.get_msb() - 1];
+
+        let mut current_root = Fr::zero();
+        for i in 0..m {
+            current_root = round_roots[i];
+            current_root *= if is_coset { self.generator } else { Fr::one() };
+            dest[i] = Fr::one();
+            dest[i + m] = Fr::one();
+            for j in 0..n {
+                dest[i] *= current_root - roots[j];
+                dest[i + m] *= -current_root - roots[j];
+            }
+        }
+    }
 }
 
 fn compute_sum<Fr: Field>(slice: &[Fr]) -> Fr {
@@ -1019,11 +1114,47 @@ pub(crate) fn compute_linear_polynomial_product<Fr: Field + FftField>(
     for i in 0..n - 1 {
         temp = Fr::default();
         for j in 0..n - 1 - i {
-            scratch_space[j] = roots[j] * compute_sum(&scratch_space[j + 1..n - 1 - i - j]);
+            scratch_space[j] = roots[j] * compute_sum(&scratch_space[j + 1..n - i]);
             temp += scratch_space[j];
         }
         dest[n - 2 - i] = temp * constant;
         constant = constant.neg();
+    }
+}
+
+pub(crate) fn compute_interpolation<Fr: Field + FftField>(
+    src: &[Fr],
+    dest: &mut [Fr],
+    evaluation_points: &[Fr],
+    n: usize,
+) {
+    let mut local_roots = Vec::new();
+    let mut local_polynomial = vec![Fr::zero(); n];
+    let mut denominator = Fr::one();
+    let mut multiplicand;
+
+    if n == 1 {
+        return;
+    }
+
+    for i in 0..n {
+        denominator = Fr::one();
+        for j in 0..n {
+            if j == i {
+                continue;
+            }
+            local_roots.push(evaluation_points[j]);
+            denominator *= (evaluation_points[i] - evaluation_points[j]);
+        }
+
+        compute_linear_polynomial_product(&local_roots, &mut local_polynomial, n - 1);
+
+        multiplicand = src[i] / denominator;
+        for j in 0..n {
+            dest[j] += multiplicand * local_polynomial[j];
+        }
+
+        local_roots.clear();
     }
 }
 
@@ -1185,4 +1316,23 @@ pub(crate) fn evaluate<F: Field>(coeffs: &[F], z: &F, n: usize) -> F {
         r += evaluation;
     }
     r
+}
+
+// TODO: Should this be inside of `EvaluationDomain`?
+pub(crate) fn evaluate_from_fft<'a, F: Field + FftField>(
+    poly_coset_fft: &[F],
+    large_domain: &EvaluationDomain<'a, F>,
+    z: &F,
+    small_domain: &EvaluationDomain<'a, F>,
+) -> F {
+    let n = small_domain.size;
+    let mut small_poly_coset_fft = vec![F::zero(); n];
+    for i in 0..n {
+        small_poly_coset_fft[i] = poly_coset_fft[4 * i];
+    }
+
+    let zeta_by_g = large_domain.generator_inverse * z;
+
+    let result = small_domain.compute_barycentric_evaluation(&small_poly_coset_fft, n, &zeta_by_g);
+    result
 }
