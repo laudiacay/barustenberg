@@ -19,7 +19,7 @@ use super::{
     types::{prover_settings::Settings, Proof},
 };
 
-use std::{cell::RefCell};
+use std::cell::RefCell;
 use std::{collections::HashMap, rc::Rc};
 
 use super::verification_key::VerificationKey;

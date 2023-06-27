@@ -27,7 +27,7 @@ fn cube_root_of_unity<F: ark_ff::Field>() -> F {
     //}
 }
 pub(crate) fn is_point_at_infinity(point: &G1Projective) -> bool {
-!(point.x.is_zero() && point.y.is_zero()) && point.z.is_zero()
+    !(point.x.is_zero() && point.y.is_zero()) && point.z.is_zero()
 }
 
 #[derive(Clone, Default, Debug)]
