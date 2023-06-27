@@ -566,7 +566,7 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
         }
     }
 
-    pub(crate) fn coset_ifft_vec(&self, _coeffs: &[&mut [&mut Fr]]) {
+    pub(crate) fn coset_ifft_vec(&self, _coeffs: &mut [&mut [Fr]]) {
         todo!()
     }
 
@@ -678,11 +678,109 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
 
     pub(crate) fn divide_by_pseudo_vanishing_polynomial(
         &self,
-        _coeffs: &[&mut [&mut Fr]],
-        _target: &EvaluationDomain<'a, Fr>,
-        _num_roots_cut_out_of_vanishing_poly: usize,
+        coeffs: &mut [&mut [Fr]],
+        target_domain: &EvaluationDomain<Fr>,
+        num_roots_cut_out_of_vanishing_polynomial: usize,
     ) {
-        unimplemented!()
+        // Older version:
+        // the PLONK divisor polynomial is equal to the vanishing polynomial divided by the vanishing polynomial for the
+        // last subgroup element Z_H(X) = \prod_{i=1}^{n-1}(X - w^i) = (X^n - 1) / (X - w^{n-1}) i.e. we divide by vanishing
+        // polynomial, then multiply by degree-1 polynomial (X - w^{n-1})
+
+        // Updated version:
+        // We wish to implement this function such that it supports a modified vanishing polynomial, in which
+        // k (= num_roots_cut_out_of_vanishing_polynomial) roots are cut out. i.e.
+        //                           (X^n - 1)
+        // Z*_H(X) = ------------------------------------------
+        //           (X - w^{n-1}).(X - w^{n-2})...(X - w^{k})
+        //
+        // We set the default value of k as 4 so as to ensure that the evaluation domain is 4n. The reason for cutting out
+        // some roots is described here: https://hackmd.io/@zacwilliamson/r1dm8Rj7D#The-problem-with-this-approach.
+        // Briefly, the reason we need to cut roots is because on adding randomness to permutation polynomial z(X),
+        // its degree becomes (n + 2), so for fft evaluation, we will need an evaluation domain of size >= 4(n + 2) = 8n
+        // since size of evalutation domain needs to be a power of two. To avoid this, we need to bring down the degree
+        // of the permutation polynomial (after adding randomness) to <= n.
+        //
+        //
+        // NOTE: If in future, there arises a need to cut off more zeros, this method will not require any changes.
+        //
+
+        // Assert that the number of polynomials in coeffs is a power of 2.
+        let num_polys = coeffs.len();
+        assert!(num_polys.is_power_of_two());
+        let poly_size = target_domain.size / num_polys;
+        assert!(poly_size.is_power_of_two());
+        let poly_mask = poly_size - 1;
+        let log2_poly_size = poly_size.trailing_zeros() as usize;
+
+        // `fft_point_evaluations` should be in point-evaluation form, evaluated at the 4n'th roots of unity mulitplied by
+        // `target_domain`'s coset generator P(X) = X^n - 1 will form a subgroup of order 4 when evaluated at these points
+        // If X = w^i, P(X) = 1
+        // If X = w^{i + j/4}, P(X) = w^{n/4} = w^{n/2}^{n/2} = sqrt(-1)
+        // If X = w^{i + j/2}, P(X) = -1
+        // If X = w^{i + j/2 + k/4}, P(X) = w^{n/4}.-1 = -w^{i} = -sqrt(-1)
+        // i.e. the 4th roots of unity
+        let log2_subgroup_size = target_domain.log2_size - self.log2_size;
+        let subgroup_size = 1usize << log2_subgroup_size;
+        assert!(target_domain.log2_size >= self.log2_size);
+
+        let mut subgroup_roots = vec![Fr::zero(); subgroup_size];
+        self.compute_multiplicative_subgroup(log2_subgroup_size, &mut subgroup_roots);
+
+        // Step 3: fill array with values of (g.X)^n - 1, scaled by the cofactor
+        subgroup_roots.iter_mut().for_each(|x| *x -= Fr::one());
+
+        // Step 4: invert array entries to compute denominator term of 1/Z_H*(X)
+        batch_inversion(&mut subgroup_roots);
+
+        // The numerator term of Z_H*(X) is the polynomial (X - w^{n-1})(X - w^{n-2})...(X - w^{n-k})
+        // => (g.w_i - w^{n-1})(g.w_i - w^{n-2})...(g.w_i - w^{n-k})
+        // Compute w^{n-1}
+        let mut numerator_constants = vec![Fr::zero(); num_roots_cut_out_of_vanishing_polynomial];
+        if num_roots_cut_out_of_vanishing_polynomial > 0 {
+            numerator_constants[0] = -self.root_inverse;
+            for i in 1..num_roots_cut_out_of_vanishing_polynomial {
+                numerator_constants[i] = numerator_constants[i - 1] * self.root_inverse;
+            }
+        }
+        // Compute first value of g.w_i
+
+        // Step 5: iterate over point evaluations, scaling each one by the inverse of the vanishing polynomial
+        if subgroup_size >= target_domain.thread_size {
+            let mut work_root = self.generator;
+            for i in 0..target_domain.size {
+                for j in 0..subgroup_size {
+                    let poly_idx = (i + j) >> log2_poly_size;
+                    let elem_idx = (i + j) & poly_mask;
+                    coeffs[poly_idx][elem_idx] *= subgroup_roots[j];
+
+                    for k in 0..num_roots_cut_out_of_vanishing_polynomial {
+                        coeffs[poly_idx][elem_idx] *= work_root + numerator_constants[k];
+                    }
+                    work_root *= target_domain.root;
+                }
+            }
+        } else {
+            // TODO: Parallelize
+            for k in 0..target_domain.num_threads {
+                let offset = k * target_domain.thread_size;
+                let root_shift = target_domain.root.pow(&[offset as u64]);
+                let mut work_root = self.generator * root_shift;
+                for i in (offset..offset + target_domain.thread_size).step_by(subgroup_size) {
+                    for j in 0..subgroup_size {
+                        let poly_idx = (i + j) >> log2_poly_size;
+                        let elem_idx = (i + j) & poly_mask;
+                        coeffs[poly_idx][elem_idx] *= subgroup_roots[j];
+
+                        for k in 0..num_roots_cut_out_of_vanishing_polynomial {
+                            coeffs[poly_idx][elem_idx] *= work_root + numerator_constants[k];
+                        }
+
+                        work_root *= target_domain.root;
+                    }
+                }
+            }
+        }
     }
 
     /// Computes evaluations of vanishing polynomial Z_H, l_start, l_end at ʓ.
@@ -974,19 +1072,7 @@ pub(crate) fn compute_efficient_interpolation<Fr: Field + FftField>(
         }
     }
 
-    // TODO make this a batch_invert
-    // invert them all
-    let result: Result<(), anyhow::Error> = roots_and_denominators
-        .iter_mut()
-        .map(|x| {
-            let inverse = x
-                .inverse()
-                .ok_or_else(|| anyhow::anyhow!("Failed to find inverse"))?;
-            *x = inverse;
-            Ok(())
-        })
-        .collect();
-    result?;
+    batch_inversion(roots_and_denominators.as_mut_slice());
 
     let mut z;
     let mut multiplier;

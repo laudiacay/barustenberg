@@ -84,6 +84,11 @@ mod tests {
         let num_poly = 4;
         let n_poly = n / num_poly;
         let mut fft_transform_ = vec![vec![Fr::default(); n_poly]; num_poly];
+        let mut fft_transform_ = fft_transform_
+            .iter_mut()
+            .map(|v| v.as_mut_slice())
+            .collect::<Vec<_>>();
+
         for i in 0..n {
             fft_transform_[i / n_poly][i % n_poly] = fft_transform[i];
         }
@@ -91,12 +96,7 @@ mod tests {
         let mut domain = EvaluationDomain::new(n, None);
         domain.compute_lookup_table();
         domain.fft_inplace(&mut fft_transform);
-        domain.fft_vec_inplace(
-            &mut fft_transform_
-                .iter_mut()
-                .map(|v| v.as_mut_slice())
-                .collect::<Vec<_>>(),
-        );
+        domain.fft_vec_inplace(&mut fft_transform_);
 
         let mut work_root = Fr::one();
         for i in 0..n {
@@ -159,6 +159,10 @@ mod tests {
         let num_poly = 4;
         let mut rng = rand::thread_rng();
         let mut result = vec![vec![Fr::default(); n]; num_poly];
+        let mut result = result
+            .iter_mut()
+            .map(|v| v.as_mut_slice())
+            .collect::<Vec<_>>();
         let mut expected = vec![vec![Fr::default(); n]; num_poly];
 
         for j in 0..num_poly {
@@ -171,18 +175,8 @@ mod tests {
 
         let mut domain = EvaluationDomain::<Fr>::new(num_poly * n, None);
         domain.compute_lookup_table();
-        domain.fft_vec_inplace(
-            &mut result
-                .iter_mut()
-                .map(|v| v.as_mut_slice())
-                .collect::<Vec<_>>(),
-        );
-        domain.ifft_vec_inplace(
-            &mut result
-                .iter_mut()
-                .map(|v| v.as_mut_slice())
-                .collect::<Vec<_>>(),
-        );
+        domain.fft_vec_inplace(&mut result);
+        domain.ifft_vec_inplace(&mut result);
 
         for j in 0..num_poly {
             for i in 0..n {
@@ -224,6 +218,10 @@ mod tests {
         let num_poly = 4;
         let mut rng = rand::thread_rng();
         let mut result = vec![vec![Fr::default(); n]; num_poly];
+        let mut result = result
+            .iter_mut()
+            .map(|v| v.as_mut_slice())
+            .collect::<Vec<_>>();
         let mut expected = vec![vec![Fr::default(); n]; num_poly];
 
         for j in 0..num_poly {
@@ -236,18 +234,8 @@ mod tests {
 
         let mut domain = EvaluationDomain::<Fr>::new(num_poly * n, None);
         domain.compute_lookup_table();
-        domain.coset_fft_vec_inplace(
-            &mut result
-                .iter_mut()
-                .map(|v| v.as_mut_slice())
-                .collect::<Vec<_>>(),
-        );
-        domain.coset_ifft_vec_inplace(
-            &mut result
-                .iter_mut()
-                .map(|v| v.as_mut_slice())
-                .collect::<Vec<_>>(),
-        );
+        domain.coset_fft_vec_inplace(&mut result);
+        domain.coset_ifft_vec_inplace(&mut result);
 
         for j in 0..num_poly {
             for i in 0..n {
@@ -420,6 +408,53 @@ mod tests {
                 continue;
             }
             assert_eq!(l_n_minus_one_coefficients[i], Fr::zero());
+        }
+    }
+
+    #[test]
+    fn test_divide_by_pseudo_vanishing_polynomial() {
+        let n = 256;
+        let n_large = 4 * n;
+        let mut a = vec![Fr::zero(); 4 * n];
+        let mut b = vec![Fr::zero(); 4 * n];
+        let mut c = vec![Fr::zero(); 4 * n];
+        let mut rng = rand::thread_rng();
+
+        for i in 0..n {
+            a[i] = Fr::rand(&mut rng);
+            b[i] = Fr::rand(&mut rng);
+            c[i] = a[i] * b[i];
+            c[i] = -c[i];
+        }
+
+        let mut small_domain = EvaluationDomain::new(n, None);
+        let mut large_domain = EvaluationDomain::new(n_large, None);
+        small_domain.compute_lookup_table();
+        large_domain.compute_lookup_table();
+
+        small_domain.ifft_inplace(&mut a);
+        small_domain.ifft_inplace(&mut b);
+        small_domain.ifft_inplace(&mut c);
+
+        large_domain.coset_fft_inplace(&mut a);
+        large_domain.coset_fft_inplace(&mut b);
+        large_domain.coset_fft_inplace(&mut c);
+
+        let mut result = vec![Fr::default(); n_large];
+        for i in 0..large_domain.size {
+            result[i] = a[i] * b[i] + c[i];
+        }
+
+        small_domain.divide_by_pseudo_vanishing_polynomial(
+            &mut [&mut result[..]],
+            &large_domain,
+            1,
+        );
+
+        large_domain.coset_ifft_inplace(&mut result);
+
+        for i in n + 1..large_domain.size {
+            assert_eq!(result[i], Fr::zero());
         }
     }
 }
