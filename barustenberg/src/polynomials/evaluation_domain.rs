@@ -2,6 +2,7 @@ use ark_ff::{FftField, Field};
 
 use crate::numeric::bitop::Msb;
 use std::vec::Vec;
+use std::marker::PhantomData;
 
 pub(crate) const MIN_GROUP_PER_THREAD: usize = 4;
 
@@ -32,9 +33,10 @@ pub(crate) struct EvaluationDomain<'a, F: Field + FftField> {
     /// E.g. round_roots[0] = [1, ω^(n/2 - 1)],
     ///      round_roots[1] = [1, ω^(n/4 - 1), ω^(n/2 - 1), ω^(3n/4 - 1)]
     ///      ...
-    pub(crate) round_roots: Vec<&'a [F]>,
-    pub(crate) inverse_round_roots: Vec<&'a [F]>,
+    pub(crate) round_roots: Vec<std::ops::Range<usize>>,
+    pub(crate) inverse_round_roots: Vec<std::ops::Range<usize>>,
     pub(crate) roots: Vec<F>,
+    pub(crate) phantom: PhantomData<&'a ()>,
 }
 
 fn compute_num_threads(size: usize) -> usize {
@@ -77,31 +79,32 @@ fn compute_num_threads(size: usize) -> usize {
 /// let mut round_roots = Vec::new();
 /// compute_lookup_table_single(&input_root, size, &mut roots, &mut round_roots);
 /// ```
-fn compute_lookup_table_single<'a, Fr: Field + FftField>(
+fn compute_lookup_table_single<Fr: Field + FftField>(
     input_root: &Fr,
     size: usize,
-    roots: &'a mut [Fr],
-    round_roots: &mut Vec<&'a [Fr]>,
+    roots: &mut [Fr],
+    round_roots: &mut Vec<std::ops::Range<usize>>,
 ) {
     let num_rounds = size.get_msb();
 
-    // TODO: There's probably a cleaner way to do this
+    // Creating index ranges
+    round_roots.push(0..2);
+    for i in 1..(num_rounds - 1) {
+        let start = round_roots.last().unwrap().end;
+        round_roots.push(start..start + (1 << i));
+    }
+
     for i in 0..(num_rounds - 1) {
         let m = 1 << (i + 1);
         let exponent = [(size / (2 * m)) as u64];
         let round_root = input_root.pow(exponent);
-        roots[m - 2] = Fr::one();
-        for j in m - 1..2 * m - 2 {
-            roots[j] = roots[j - 1] * round_root;
+        let offset = round_roots[i].start;
+        roots[offset] = Fr::one();
+        for j in 1..m {
+            roots[offset + j] = roots[offset + j - 1] * round_root;
         }
     }
 
-    // Creating slices
-    round_roots.push(&roots[0..2]);
-    for i in 1..(num_rounds - 1) {
-        let start = round_roots.last().unwrap().len();
-        round_roots.push(&roots[start..start + (1 << i)]);
-    }
 }
 
 impl<'a, F: Field + FftField> EvaluationDomain<'a, F> {
@@ -144,6 +147,7 @@ impl<'a, F: Field + FftField> EvaluationDomain<'a, F> {
             round_roots: Vec::new(),
             inverse_round_roots: Vec::new(),
             roots,
+            phantom: PhantomData,
         }
     }
 
@@ -152,7 +156,6 @@ impl<'a, F: Field + FftField> EvaluationDomain<'a, F> {
         self.roots = Vec::<F>::with_capacity(2 * self.size);
 
         let (left, right) = self.roots.split_at_mut(self.size);
-        // TODO: Fk this, maybe just use indices instead of slices
         compute_lookup_table_single(&self.root, self.size, left, &mut self.round_roots);
         compute_lookup_table_single(
             &self.root_inverse,
@@ -166,12 +169,13 @@ impl<'a, F: Field + FftField> EvaluationDomain<'a, F> {
         // TODO: implement compute_generator_table logic
     }
 
-    pub(crate) fn get_round_roots(&self) -> &[&[F]] {
-        &self.round_roots[..]
+    pub(crate) fn get_round_roots(&self) -> Vec<&[F]> {
+        // TODO: Not sure how to avoid this clone
+        self.round_roots.iter().map(|r| &self.roots[r.clone()]).collect()
     }
 
-    pub(crate) fn get_inverse_round_roots(&self) -> &[&[F]] {
-        &self.inverse_round_roots[..]
+    pub(crate) fn get_inverse_round_roots(&self) -> Vec<&[F]> {
+        self.inverse_round_roots.iter().map(|r| &self.roots[r.clone()]).collect()
     }
 }
 
