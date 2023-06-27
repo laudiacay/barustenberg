@@ -107,6 +107,7 @@ pub struct FixedGroupInitQuad<Fr: Field + FftField> {
     pub(crate) q_y_2: Fr,
 }
 
+#[derive(Default)]
 pub struct AccumulatorTriple {
     pub(crate) left: Vec<u32>,
     pub(crate) right: Vec<u32>,

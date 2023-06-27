@@ -4,9 +4,12 @@ use ark_bn254::G1Affine;
 use ark_ff::{FftField, Field};
 
 use crate::{
-    numeric::bitop::Msb, plonk::composer::composer_base::ComposerType,
+    numeric::bitop::Msb,
+    plonk::composer::composer_base::ComposerType,
     polynomials::evaluation_domain::EvaluationDomain,
-    srs::reference_string::VerifierReferenceString,
+    srs::reference_string::{
+        mem_reference_string::VerifierMemReferenceString, VerifierReferenceString,
+    },
 };
 
 use super::types::PolynomialManifest;
@@ -28,6 +31,25 @@ pub struct VerificationKey<'a, Fr: Field + FftField> {
     pub(crate) contains_recursive_proof: bool,
     pub(crate) recursive_proof_public_input_indices: Vec<u32>,
     pub(crate) program_width: usize,
+}
+
+impl<'a, Fr: FftField + Field> Default for VerificationKey<'a, Fr> {
+    fn default() -> Self {
+        VerificationKey {
+            composer_type: Default::default(),
+            circuit_size: 0,
+            log_circuit_size: 0,
+            num_public_inputs: Default::default(),
+            domain: Default::default(),
+            reference_string: Rc::new(VerifierMemReferenceString::default()),
+            commitments: Default::default(),
+            polynomial_manifest: Default::default(),
+            z_pow_n: Default::default(),
+            contains_recursive_proof: false,
+            recursive_proof_public_input_indices: vec![],
+            program_width: 0,
+        }
+    }
 }
 
 impl<'a, Fr: Field + FftField> VerificationKey<'a, Fr> {

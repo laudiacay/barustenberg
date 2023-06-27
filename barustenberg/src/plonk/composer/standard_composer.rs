@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 use std::rc::Rc;
-use std::sync::Arc;
 
 use super::composer_base::{ComposerBase, ComposerBaseData};
 use crate::plonk::composer::composer_base::SelectorProperties;
@@ -21,7 +20,7 @@ use crate::{
 };
 
 use ark_bn254::{Fr, G1Affine};
-use ark_ff::{Field, One, Zero};
+use ark_ff::{BigInteger, Field, One, PrimeField, Zero};
 
 #[derive(Default)]
 pub struct StandardComposer<'a, RSF: ReferenceStringFactory> {
@@ -46,7 +45,7 @@ impl<'a, RSF: ReferenceStringFactory> ComposerBase<'a> for StandardComposer<'a, 
     }
 
     fn with_crs_factory(
-        crs_factory: Arc<RSF>,
+        crs_factory: Rc<RSF>,
         num_selectors: usize,
         size_hint: usize,
         selector_properties: Vec<SelectorProperties>,
@@ -67,12 +66,12 @@ impl<'a, RSF: ReferenceStringFactory> ComposerBase<'a> for StandardComposer<'a, 
     }
 
     fn with_keys(
-        p_key: Arc<ProvingKey<'a, Fr, G1Affine>>,
-        v_key: Arc<VerificationKey<'a, Fr>>,
+        p_key: Rc<ProvingKey<'a, Fr, G1Affine>>,
+        v_key: Rc<VerificationKey<'a, Fr>>,
         num_selectors: usize,
         size_hint: usize,
         selector_properties: Vec<SelectorProperties>,
-        crs_factory: Arc<Self::RSF>,
+        crs_factory: Rc<Self::RSF>,
     ) -> Self {
         let mut cbd = ComposerBaseData::default();
         cbd.selectors = vec![Vec::with_capacity(size_hint); num_selectors];
@@ -104,7 +103,7 @@ impl<'a> StandardComposer<'a, FileReferenceStringFactory> {
         size_hint: usize,
         selector_properties: Vec<SelectorProperties>,
     ) -> Self {
-        let crs_factory = Arc::new(FileReferenceStringFactory::new(
+        let crs_factory = Rc::new(FileReferenceStringFactory::new(
             "../srs_db/ignition".to_string(),
         ));
         Self::with_crs_factory(crs_factory, num_selectors, size_hint, selector_properties)
@@ -254,7 +253,7 @@ impl<'a, RSF: ReferenceStringFactory> StandardComposer<'a, RSF> {
         let two: Fr = Fr::from(2);
         let seven: Fr = Fr::from(7);
         let nine: Fr = Fr::from(9);
-        let r_0: Fr = (delta * nine) - ((delta.sqr() * two) + seven);
+        let r_0: Fr = (delta * nine) - ((delta.square() * two) + seven);
         let r_0_idx: u32 = self.add_variable(r_0);
         self.create_poly_gate(&PolyTriple {
             a: delta_idx,
@@ -400,11 +399,11 @@ impl<'a, RSF: ReferenceStringFactory> StandardComposer<'a, RSF> {
         &mut self,
         witness_index: u32,
         num_bits: usize,
-        msg: &str,
+        msg: String,
     ) -> Vec<u32> {
         assert!(num_bits > 0, "num_bits must be greater than 0");
 
-        let target = self.get_variable(witness_index);
+        let target = self.get_variable(witness_index).into_bigint();
 
         let mut accumulators: Vec<u32> = Vec::new();
 
@@ -415,7 +414,7 @@ impl<'a, RSF: ReferenceStringFactory> StandardComposer<'a, RSF> {
             num_quads + 1
         };
 
-        let four = Fr::from(4).to_montgomery_form();
+        let four = Fr::from(4).montgomery_form();
         let mut accumulator = Fr::zero();
         let mut accumulator_idx: u32 = 0;
 
@@ -485,10 +484,10 @@ impl<'a, RSF: ReferenceStringFactory> StandardComposer<'a, RSF> {
     ) -> AccumulatorTriple {
         self.assert_valid_variables(&vec![a, b][..]);
 
-        let mut accumulators = AccumulatorTriple::new();
+        let mut accumulators = AccumulatorTriple::default();
 
-        let left_witness_value = self.get_variable(a);
-        let right_witness_value = self.get_variable(b);
+        let left_witness_value = self.get_variable(a).into_bigint();
+        let right_witness_value = self.get_variable(b).into_bigint();
 
         let mut left_accumulator = Fr::zero();
         let mut right_accumulator = Fr::zero();

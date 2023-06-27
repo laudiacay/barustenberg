@@ -1,4 +1,4 @@
-use std::{collections::HashMap, rc::Rc, sync::Arc};
+use std::{collections::HashMap, rc::Rc};
 
 use ark_bn254::{Fr, G1Affine};
 use ark_ff::Zero;
@@ -6,6 +6,7 @@ use rand::RngCore;
 
 use crate::{
     plonk::proof_system::{proving_key::ProvingKey, verification_key::VerificationKey},
+    polynomials::Polynomial,
     srs::reference_string::ReferenceStringFactory,
 };
 
@@ -24,8 +25,9 @@ pub(crate) enum WireType {
     Fourth = 0xc0000000,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub(crate) enum ComposerType {
+    #[default]
     Standard,
     Turbo,
     Plookup,
@@ -60,8 +62,8 @@ pub(crate) struct ComposerBaseData<'a, RSF: ReferenceStringFactory> {
     pub(crate) selectors: Vec<Vec<Fr>>,
     pub(crate) selector_properties: Vec<SelectorProperties>,
     pub(crate) rand_engine: Option<Box<dyn RngCore>>,
-    pub(crate) circuit_proving_key: Option<Rc<ProvingKey<'a, Fr, G1Affine>>>,
-    pub(crate) circuit_verification_key: Option<Rc<VerificationKey<'a, Fr>>>,
+    pub(crate) circuit_proving_key: Rc<ProvingKey<'a, Fr, G1Affine>>,
+    pub(crate) circuit_verification_key: Rc<VerificationKey<'a, Fr>>,
     pub(crate) w_l: Vec<u32>,
     pub(crate) w_r: Vec<u32>,
     pub(crate) w_o: Vec<u32>,
@@ -91,19 +93,19 @@ pub(crate) trait ComposerBase<'a> {
     type RSF: ReferenceStringFactory;
 
     fn with_crs_factory(
-        crs_factory: Arc<Self::RSF>,
+        crs_factory: Rc<Self::RSF>,
         num_selectors: usize,
         size_hint: usize,
         selector_properties: Vec<SelectorProperties>,
     ) -> Self;
 
     fn with_keys(
-        p_key: Arc<ProvingKey<'a, Fr, G1Affine>>,
-        v_key: Arc<VerificationKey<'a, Fr>>,
+        p_key: Rc<ProvingKey<'a, Fr, G1Affine>>,
+        v_key: Rc<VerificationKey<'a, Fr>>,
         num_selectors: usize,
         size_hint: usize,
         selector_properties: Vec<SelectorProperties>,
-        crs_factory: Arc<Self::RSF>,
+        crs_factory: Rc<Self::RSF>,
     ) -> Self;
 
     /// should be inlined in implementations
@@ -299,13 +301,13 @@ pub(crate) trait ComposerBase<'a> {
             }
         }
 
-        let mut w_1_lagrange = vec![Fr::zero(); subgroup_size];
-        let mut w_2_lagrange = vec![Fr::zero(); subgroup_size];
-        let mut w_3_lagrange = vec![Fr::zero(); subgroup_size];
+        let mut w_1_lagrange = Polynomial::new(subgroup_size);
+        let mut w_2_lagrange = Polynomial::new(subgroup_size);
+        let mut w_3_lagrange = Polynomial::new(subgroup_size);
         let mut w_4_lagrange = if program_width > 3 {
-            vec![Fr::zero(); subgroup_size]
+            Polynomial::new(subgroup_size)
         } else {
-            vec![]
+            Polynomial::new(0)
         };
 
         for i in 0..cbd.public_inputs.len() {
@@ -328,17 +330,17 @@ pub(crate) trait ComposerBase<'a> {
 
         cbd.circuit_proving_key
             .polynomial_store
-            .insert("w_1_lagrange".to_string(), w_1_lagrange);
+            .insert(&"w_1_lagrange".to_string(), w_1_lagrange);
         cbd.circuit_proving_key
             .polynomial_store
-            .insert("w_2_lagrange".to_string(), w_2_lagrange);
+            .insert(&"w_2_lagrange".to_string(), w_2_lagrange);
         cbd.circuit_proving_key
             .polynomial_store
-            .insert("w_3_lagrange".to_string(), w_3_lagrange);
+            .insert(&"w_3_lagrange".to_string(), w_3_lagrange);
         if program_width > 3 {
             cbd.circuit_proving_key
                 .polynomial_store
-                .insert("w_4_lagrange".to_string(), w_4_lagrange);
+                .insert(&"w_4_lagrange".to_string(), w_4_lagrange);
         }
 
         cbd.computed_witness = true;
@@ -380,7 +382,155 @@ pub(crate) trait ComposerBase<'a> {
         let cbd = self.composer_base_data();
         cbd.failed
     }
+
+    /**
+     * Compute proving key base.
+     *
+     * 1. Load crs.
+     * 2. Initialize this.circuit_proving_key.
+     * 3. Create constraint selector polynomials from each of this composer's `selectors` vectors and add them to the
+     * proving key.
+     *
+     * N.B. Need to add the fix for coefficients
+     *
+     * @param minimum_circuit_size Used as the total number of gates when larger than n + count of public inputs.
+     * @param num_reserved_gates The number of reserved gates.
+     * @return Pointer to the initialized proving key updated with selector polynomials.
+     * */
+    fn compute_proving_key_base(
+        &mut self,
+        composer_type: ComposerType,
+        minimum_circuit_size: usize,
+        num_reserved_gates: usize,
+    ) -> Rc<ProvingKey<'a, Fr, G1Affine>> {
+        let mut cbd = self.mut_composer_base_data();
+        let num_filled_gates = cbd.num_gates + cbd.public_inputs.len();
+        let total_num_gates = if cbd.minimum_circuit_size > num_filled_gates {
+            cbd.minimum_circuit_size
+        } else {
+            num_filled_gates
+        };
+        let subgroup_size = self.get_circuit_subgroup_size(total_num_gates + num_reserved_gates); // next power of 2
+
+        // In the case of standard plonk, if 4 roots are cut out of the vanishing polynomial,
+        // then the degree of the quotient polynomial t(X) is 3n. This implies that the degree
+        // of the constituent t_{high} of t(X) must be n (as against (n - 1) for other composer types).
+        // Thus, to commit to t_{high}, we need the crs size to be (n + 1) for standard plonk.
+        //
+        // For more explanation about the degree of t(X), see
+        // ./src/barretenberg/plonk/proof_system/prover/prover.cpp/ProverBase::compute_quotient_commitments
+        //
+        let crs = cbd.crs_factory.get_prover_crs(subgroup_size + 1);
+        // initialize proving key
+        cbd.circuit_proving_key = Rc::new(ProvingKey::new(
+            subgroup_size,
+            cbd.public_inputs.len(),
+            crs.unwrap(),
+            composer_type,
+        ));
+
+        for i in 0..cbd.num_selectors {
+            let mut selector_values = cbd.selectors[i];
+            let properties = cbd.selector_properties[i];
+            assert_eq!(cbd.num_gates, selector_values.len());
+            // Fill unfilled gates' selector values with zeroes (stopping 1 short; the last value will be nonzero).
+            for j in num_filled_gates..(subgroup_size - 1) {
+                selector_values.push(Fr::zero());
+            }
+            // Add a nonzero value at the end of each selector vector. This ensures that, if the selector would otherwise
+            // have been 'empty':
+            //    1) that its commitment won't be the point at infinity. We avoid the point at
+            //    infinity in the native verifier because this is an edge case in the recursive verifier circuit, and we
+            //    want the logic to be consistent between both verifiers.
+            //    2) that its commitment won't be equal to any other selectors' commitments (which would break biggroup
+            //    operations when verifying snarks within a circuit, since doubling is not directly supported). This in turn
+            //    ensures that when we commit to a selector, we will never get the point at infinity.
+            //
+            // Note: Setting the selector to nonzero would ordinarily make the proof fail if we did not have a satisfying
+            // constraint. This is not the case for the last selector position, as it is never checked in the proving
+            // system; observe that we cut out 4 roots and only use 3 for zero knowledge. The last root, corresponds to this
+            // position.
+            selector_values.push(Fr::from(i + 1));
+            // Compute lagrange form of selector polynomial
+
+            let selector_poly_lagrange = Polynomial::new(subgroup_size);
+            for k in 0..cbd.public_inputs.len() {
+                selector_poly_lagrange[k] = Fr::zero();
+            }
+            for k in cbd.public_inputs.len()..subgroup_size {
+                selector_poly_lagrange[k] = selector_values[k - cbd.public_inputs.len()];
+            }
+            // Compute monomial form of selector polynomial
+
+            let selector_poly: Polynomial<Fr> = Polynomial::new(subgroup_size);
+            cbd.circuit_proving_key
+                .small_domain
+                .ifft(selector_poly_lagrange, selector_poly);
+
+            // compute coset fft of selector polynomial
+            let mut selector_poly_fft = selector_poly.clone();
+            selector_poly_fft.resize(subgroup_size * 4 + 4, Fr::zero());
+            cbd.circuit_proving_key
+                .large_domain
+                .coset_fft_inplace(&mut selector_poly_fft.coefficients);
+
+            if cbd.properties.requires_lagrange_base_polynomial {
+                cbd.circuit_proving_key
+                    .polynomial_store
+                    .put(properties.name + "_lagrange", selector_poly_lagrange);
+            }
+            cbd.circuit_proving_key
+                .polynomial_store
+                .put(properties.name, selector_poly);
+            cbd.circuit_proving_key
+                .polynomial_store
+                .put(properties.name + "_fft", selector_poly_fft);
+        }
+        cbd.circuit_proving_key.clone()
+    }
 }
+
+// /**
+// * @brief Computes the verification key by computing the:
+// * (1) commitments to the selector and permutation polynomials,
+// * (2) sets the polynomial manifest using the data from proving key.
+// */
+// std::shared_ptr<verification_key> ComposerBase::compute_verification_key_base(
+// std::shared_ptr<proving_key> const& proving_key, std::shared_ptr<VerifierReferenceString> const& vrs)
+// {
+// auto circuit_verification_key = std::make_shared<verification_key>(
+// proving_key->circuit_size, proving_key->num_public_inputs, vrs, proving_key->composer_type);
+
+// for (size_t i = 0; i < proving_key->polynomial_manifest.size(); ++i) {
+// const auto& selector_poly_info = proving_key->polynomial_manifest[i];
+
+// const std::string selector_poly_label(selector_poly_info.polynomial_label);
+// const std::string selector_commitment_label(selector_poly_info.commitment_label);
+
+// if (selector_poly_info.source == PolynomialSource::SELECTOR ||
+// selector_poly_info.source == PolynomialSource::PERMUTATION) {
+// // Fetch the constraint selector polynomial in its coefficient form.
+// fr* selector_poly_coefficients;
+// selector_poly_coefficients = proving_key->polynomial_store.get(selector_poly_label).get_coefficients();
+
+// // Commit to the constraint selector polynomial and insert the commitment in the verification key.
+// auto selector_poly_commitment = g1::affine_element(
+// scalar_multiplication::pippenger(selector_poly_coefficients,
+// proving_key->reference_string->get_monomial_points(),
+// proving_key->circuit_size,
+// proving_key->pippenger_runtime_state));
+
+// circuit_verification_key->commitments.insert({ selector_commitment_label, selector_poly_commitment });
+// }
+// }
+
+// // Set the polynomial manifest in verification key.
+// circuit_verification_key->polynomial_manifest = PolynomialManifest(proving_key->composer_type);
+
+// return circuit_verification_key;
+// }
+
+// }
 // /**
 //  * Composer Example: Pythagorean triples.
 //  *
