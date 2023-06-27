@@ -21,11 +21,15 @@ use crate::{
 };
 
 use ark_bn254::{Fr, G1Affine};
-use ark_ff::{One, Zero};
+use ark_ff::{Field, One, Zero};
 
 #[derive(Default)]
 pub struct StandardComposer<'a, RSF: ReferenceStringFactory> {
+    /// base data from composer
     cbd: ComposerBaseData<'a, RSF>,
+    /// These are variables that we have used a gate on, to enforce that they are
+    /// equal to a defined value.
+    constant_variable_indices: HashMap<Fr, u32>,
 }
 
 impl<'a, RSF: ReferenceStringFactory> ComposerBase<'a> for StandardComposer<'a, RSF> {
@@ -56,7 +60,10 @@ impl<'a, RSF: ReferenceStringFactory> ComposerBase<'a> for StandardComposer<'a, 
         cbd.selector_properties = selector_properties;
         cbd.crs_factory = crs_factory;
         cbd.num_gates = 0;
-        Self { cbd }
+        Self {
+            cbd,
+            constant_variable_indices: HashMap::new(),
+        }
     }
 
     fn with_keys(
@@ -76,7 +83,10 @@ impl<'a, RSF: ReferenceStringFactory> ComposerBase<'a> for StandardComposer<'a, 
         cbd.selector_properties = selector_properties;
         cbd.num_gates = 0;
         cbd.crs_factory = crs_factory;
-        Self { cbd }
+        Self {
+            cbd,
+            constant_variable_indices: HashMap::new(),
+        }
     }
 }
 
@@ -111,11 +121,11 @@ impl<'a, RSF: ReferenceStringFactory> StandardComposer<'a, RSF> {
         self.cbd.w_l.push(ins.a);
         self.cbd.w_r.push(ins.b);
         self.cbd.w_o.push(ins.c);
-        self.q_m.push(Fr::zero());
-        self.q_1.push(ins.a_scaling);
-        self.q_2.push(ins.b_scaling);
-        self.q_3.push(ins.c_scaling);
-        self.q_c.push(ins.const_scaling);
+        self.cbd.selectors[StandardSelectors::QM as usize].push(Fr::zero());
+        self.cbd.selectors[StandardSelectors::Q1 as usize].push(ins.a_scaling);
+        self.cbd.selectors[StandardSelectors::Q2 as usize].push(ins.b_scaling);
+        self.cbd.selectors[StandardSelectors::Q3 as usize].push(ins.c_scaling);
+        self.cbd.selectors[StandardSelectors::QC as usize].push(ins.const_scaling);
         self.cbd.num_gates += 1;
     }
 
@@ -173,49 +183,49 @@ impl<'a, RSF: ReferenceStringFactory> StandardComposer<'a, RSF> {
         self.cbd.w_l.push(ins.a);
         self.cbd.w_r.push(ins.b);
         self.cbd.w_o.push(temp_idx);
-        self.q_m.push(Fr::zero());
-        self.q_1.push(ins.a_scaling);
-        self.q_2.push(ins.b_scaling);
-        self.q_3.push(-Fr::one());
-        self.q_c.push(Fr::zero());
+        self.cbd.selectors[StandardSelectors::QM as usize].push(Fr::zero());
+        self.cbd.selectors[StandardSelectors::Q1 as usize].push(ins.a_scaling);
+        self.cbd.selectors[StandardSelectors::Q2 as usize].push(ins.b_scaling);
+        self.cbd.selectors[StandardSelectors::Q3 as usize].push(-Fr::one());
+        self.cbd.selectors[StandardSelectors::QC as usize].push(Fr::zero());
 
-        self.num_gates += 1;
+        self.cbd.num_gates += 1;
 
         self.cbd.w_l.push(temp_idx);
         self.cbd.w_r.push(ins.c);
         self.cbd.w_o.push(ins.d);
-        self.q_m.push(Fr::zero());
-        self.q_1.push(Fr::one());
-        self.q_2.push(ins.c_scaling);
-        self.q_3.push(ins.d_scaling);
-        self.q_c.push(ins.const_scaling);
+        self.cbd.selectors[StandardSelectors::QM as usize].push(Fr::zero());
+        self.cbd.selectors[StandardSelectors::Q1 as usize].push(Fr::one());
+        self.cbd.selectors[StandardSelectors::Q2 as usize].push(ins.c_scaling);
+        self.cbd.selectors[StandardSelectors::Q3 as usize].push(ins.d_scaling);
+        self.cbd.selectors[StandardSelectors::QC as usize].push(ins.const_scaling);
 
-        self.num_gates += 1;
+        self.cbd.num_gates += 1;
 
         // in.d must be between 0 and 3
         // i.e. in.d * (in.d - 1) * (in.d - 2) = 0
-        let temp_2: Fr = self.get_variable(ins.d).sqr() - self.get_variable(ins.d);
+        let temp_2: Fr = self.get_variable(ins.d).square() - self.get_variable(ins.d);
         let temp_2_idx: u32 = self.add_variable(temp_2);
         self.cbd.w_l.push(ins.d);
         self.cbd.w_r.push(ins.d);
         self.cbd.w_o.push(temp_2_idx);
-        self.q_m.push(Fr::one());
-        self.q_1.push(-Fr::one());
-        self.q_2.push(Fr::zero());
-        self.q_3.push(-Fr::one());
-        self.q_c.push(Fr::zero());
+        self.cbd.selectors[StandardSelectors::QM as usize].push(Fr::one());
+        self.cbd.selectors[StandardSelectors::Q1 as usize].push(-Fr::one());
+        self.cbd.selectors[StandardSelectors::Q2 as usize].push(Fr::zero());
+        self.cbd.selectors[StandardSelectors::Q3 as usize].push(-Fr::one());
+        self.cbd.selectors[StandardSelectors::QC as usize].push(Fr::zero());
 
-        self.num_gates += 1;
+        self.cbd.num_gates += 1;
 
         let neg_two: Fr = -Fr::from(2);
         self.cbd.w_l.push(temp_2_idx);
         self.cbd.w_r.push(ins.d);
         self.cbd.w_o.push(self.cbd.zero_idx);
-        self.q_m.push(Fr::one());
-        self.q_1.push(neg_two);
-        self.q_2.push(Fr::zero());
-        self.q_3.push(Fr::zero());
-        self.q_c.push(Fr::zero());
+        self.cbd.selectors[StandardSelectors::QM as usize].push(Fr::one());
+        self.cbd.selectors[StandardSelectors::Q1 as usize].push(neg_two);
+        self.cbd.selectors[StandardSelectors::Q2 as usize].push(Fr::zero());
+        self.cbd.selectors[StandardSelectors::Q3 as usize].push(Fr::zero());
+        self.cbd.selectors[StandardSelectors::QC as usize].push(Fr::zero());
 
         self.cbd.num_gates += 1;
     }
@@ -336,11 +346,12 @@ impl<'a, RSF: ReferenceStringFactory> StandardComposer<'a, RSF> {
         self.cbd.w_l.push(ins.a);
         self.cbd.w_r.push(ins.b);
         self.cbd.w_o.push(ins.c);
-        self.q_m.push(ins.mul_scaling);
-        self.q_1.push(Fr::zero());
-        self.q_2.push(Fr::zero());
-        self.q_3.push(ins.c_scaling);
-        self.q_c.push(ins.const_scaling);
+
+        self.cbd.selectors[StandardSelectors::QM as usize].push(ins.mul_scaling);
+        self.cbd.selectors[StandardSelectors::Q1 as usize].push(Fr::zero());
+        self.cbd.selectors[StandardSelectors::Q2 as usize].push(Fr::zero());
+        self.cbd.selectors[StandardSelectors::Q3 as usize].push(ins.c_scaling);
+        self.cbd.selectors[StandardSelectors::QC as usize].push(ins.const_scaling);
 
         self.cbd.num_gates += 1;
     }
@@ -357,11 +368,11 @@ impl<'a, RSF: ReferenceStringFactory> StandardComposer<'a, RSF> {
         self.cbd.w_r.push(variable_index);
         self.cbd.w_o.push(variable_index);
 
-        self.q_m.push(Fr::one());
-        self.q_1.push(Fr::zero());
-        self.q_2.push(Fr::zero());
-        self.q_3.push(-Fr::one());
-        self.q_c.push(Fr::zero());
+        self.cbd.selectors[StandardSelectors::QM as usize].push(Fr::one());
+        self.cbd.selectors[StandardSelectors::Q1 as usize].push(Fr::zero());
+        self.cbd.selectors[StandardSelectors::Q2 as usize].push(Fr::zero());
+        self.cbd.selectors[StandardSelectors::Q3 as usize].push(-Fr::one());
+        self.cbd.selectors[StandardSelectors::QC as usize].push(Fr::zero());
 
         self.cbd.num_gates += 1;
     }
@@ -376,11 +387,11 @@ impl<'a, RSF: ReferenceStringFactory> StandardComposer<'a, RSF> {
         self.cbd.w_l.push(ins.a);
         self.cbd.w_r.push(ins.b);
         self.cbd.w_o.push(ins.c);
-        self.q_m.push(ins.q_m);
-        self.q_1.push(ins.q_l);
-        self.q_2.push(ins.q_r);
-        self.q_3.push(ins.q_o);
-        self.q_c.push(ins.q_c);
+        self.cbd.selectors[StandardSelectors::QM as usize].push(ins.q_m);
+        self.cbd.selectors[StandardSelectors::Q1 as usize].push(ins.q_l);
+        self.cbd.selectors[StandardSelectors::Q2 as usize].push(ins.q_r);
+        self.cbd.selectors[StandardSelectors::Q3 as usize].push(ins.q_o);
+        self.cbd.selectors[StandardSelectors::QC as usize].push(ins.q_c);
 
         self.cbd.num_gates += 1;
     }
@@ -483,9 +494,9 @@ impl<'a, RSF: ReferenceStringFactory> StandardComposer<'a, RSF> {
         let mut right_accumulator = Fr::zero();
         let mut out_accumulator = Fr::zero();
 
-        let mut left_accumulator_idx = self.zero_idx;
-        let mut right_accumulator_idx = self.zero_idx;
-        let mut out_accumulator_idx = self.zero_idx;
+        let mut left_accumulator_idx = self.cbd.zero_idx;
+        let mut right_accumulator_idx = self.cbd.zero_idx;
+        let mut out_accumulator_idx = self.cbd.zero_idx;
 
         let four = Fr::from(4);
         let neg_two = -Fr::from(2);
@@ -627,13 +638,13 @@ impl<'a, RSF: ReferenceStringFactory> StandardComposer<'a, RSF> {
         self.assert_valid_variables(&vec![witness_index][..]);
 
         self.cbd.w_l.push(witness_index);
-        self.cbd.w_r.push(self.zero_idx);
-        self.cbd.w_o.push(self.zero_idx);
-        self.q_m.push(Fr::zero());
-        self.q_1.push(Fr::one());
-        self.q_2.push(Fr::zero());
-        self.q_3.push(Fr::zero());
-        self.q_c.push(-witness_value);
+        self.cbd.w_r.push(self.cbd.zero_idx);
+        self.cbd.w_o.push(self.cbd.zero_idx);
+        self.cbd.selectors[StandardSelectors::QM as usize].push(Fr::zero());
+        self.cbd.selectors[StandardSelectors::Q1 as usize].push(Fr::one());
+        self.cbd.selectors[StandardSelectors::Q2 as usize].push(Fr::zero());
+        self.cbd.selectors[StandardSelectors::Q3 as usize].push(Fr::zero());
+        self.cbd.selectors[StandardSelectors::QC as usize].push(-*witness_value);
         self.cbd.num_gates += 1;
     }
 
@@ -700,24 +711,24 @@ impl<'a, RSF: ReferenceStringFactory> StandardComposer<'a, RSF> {
     /// * Returns a `Rc<ProvingKey>`, a reference counted proving key.
 
     fn compute_proving_key(&mut self) -> Rc<ProvingKey<'a, Fr, G1Affine>> {
-        if let Some(proving_key) = &self.circuit_proving_key {
+        if let Some(proving_key) = &self.cbd.circuit_proving_key {
             return Rc::clone(proving_key);
         }
         self.compute_proving_key_base(&self.own_type);
         self.compute_sigma_permutations::<3, false>(
-            Rc::get_mut(&mut self.circuit_proving_key).unwrap(),
+            Rc::get_mut(&mut self.cbd.circuit_proving_key).unwrap(),
         );
 
-        Rc::get_mut(&mut self.circuit_proving_key)
+        Rc::get_mut(&mut self.cbd.circuit_proving_key)
             .unwrap()
             .recursive_proof_public_input_indices =
-            self.recursive_proof_public_input_indices.clone();
+            self.cbd.recursive_proof_public_input_indices.clone();
 
-        Rc::get_mut(&mut self.circuit_proving_key)
+        Rc::get_mut(&mut self.cbd.circuit_proving_key)
             .unwrap()
-            .contains_recursive_proof = self.contains_recursive_proof;
+            .contains_recursive_proof = self.cbd.contains_recursive_proof;
 
-        return Rc::clone(&self.circuit_proving_key);
+        return Rc::clone(&self.cbd.circuit_proving_key);
     }
 
     /// Computes the verification key consisting of selector precommitments.
@@ -822,12 +833,12 @@ impl<'a, RSF: ReferenceStringFactory> StandardComposer<'a, RSF> {
     /// If the value at the index `a_idx` is not equal to the constant `b` and the `failed` method returns `false`,
     /// it will call the `failure` method with the provided message.
     /// Then, it gets the index of the constant variable `b` and asserts the equality between variables at `a_idx` and `b_idx`.
-    fn assert_equal_constant(&mut self, a_idx: usize, b: Fr, msg: &str) {
+    fn assert_equal_constant(&mut self, a_idx: usize, b: Fr, msg: String) {
         if self.cbd.variables[a_idx] != b && !self.failed() {
             self.failure(msg);
         }
         let b_idx = self.put_constant_variable(b);
-        self.assert_equal(a_idx, b_idx, msg);
+        self.assert_equal(a_idx as u32, b_idx, msg);
     }
     /// Checks if all the circuit gates are correct given the witnesses.
     ///
@@ -838,14 +849,17 @@ impl<'a, RSF: ReferenceStringFactory> StandardComposer<'a, RSF> {
     ///
     /// * Returns `true` if the circuit is correct, `false` otherwise.
     fn check_circuit(&self) -> bool {
-        let (w_l, w_r, w_o, q_m, q_1, q_2, q_3, q_c) = self.standard_selector_refs();
-
         for i in 0..self.cbd.num_gates {
-            let gate_sum = q_m[i] * self.get_variable(w_l[i]) * self.get_variable(w_r[i])
-                + q_1[i] * self.get_variable(w_l[i])
-                + q_2[i] * self.get_variable(w_r[i])
-                + q_3[i] * self.get_variable(w_o[i])
-                + q_c[i];
+            let mut gate_sum = Fr::zero();
+            let left = self.get_variable(self.cbd.w_l[i]);
+            let right = self.get_variable(self.cbd.w_r[i]);
+            let output = self.get_variable(self.cbd.w_o[i]);
+            let q_m = self.cbd.selectors[StandardSelectors::QM as usize][i];
+            let q_1 = self.cbd.selectors[StandardSelectors::Q1 as usize][i];
+            let q_2 = self.cbd.selectors[StandardSelectors::Q2 as usize][i];
+            let q_3 = self.cbd.selectors[StandardSelectors::Q3 as usize][i];
+            let q_c = self.cbd.selectors[StandardSelectors::QC as usize][i];
+            gate_sum = q_m * left * right + q_1 * left + q_2 * right + q_3 * output + q_c;
             if gate_sum != Fr::zero() {
                 return false;
             }

@@ -1,6 +1,7 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, rc::Rc, sync::Arc};
 
 use ark_bn254::{Fr, G1Affine};
+use ark_ff::Zero;
 use rand::RngCore;
 
 use crate::{
@@ -54,13 +55,13 @@ impl CycleNode {
 #[derive(Default)]
 pub(crate) struct ComposerBaseData<'a, RSF: ReferenceStringFactory> {
     pub(crate) num_gates: usize,
-    pub(crate) crs_factory: Arc<RSF>,
+    pub(crate) crs_factory: Rc<RSF>,
     pub(crate) num_selectors: usize,
     pub(crate) selectors: Vec<Vec<Fr>>,
     pub(crate) selector_properties: Vec<SelectorProperties>,
     pub(crate) rand_engine: Option<Box<dyn RngCore>>,
-    pub(crate) circuit_proving_key: Option<Arc<ProvingKey<'a, Fr, G1Affine>>>,
-    pub(crate) circuit_verification_key: Option<Arc<VerificationKey<'a, Fr>>>,
+    pub(crate) circuit_proving_key: Option<Rc<ProvingKey<'a, Fr, G1Affine>>>,
+    pub(crate) circuit_verification_key: Option<Rc<VerificationKey<'a, Fr>>>,
     pub(crate) w_l: Vec<u32>,
     pub(crate) w_r: Vec<u32>,
     pub(crate) w_o: Vec<u32>,
@@ -247,10 +248,101 @@ pub(crate) trait ComposerBase<'a> {
         );
     }
 
-    // fn assert_equal(&mut self, a_idx: u32, b_idx: u32, msg: Option<&str>);
+    fn assert_equal(&mut self, a_idx: u32, b_idx: u32, msg: String) {
+        let mut cbd = self.mut_composer_base_data();
+        self.assert_valid_variables(&[a_idx, b_idx]);
+        let values_equal = self.get_variable(a_idx) == self.get_variable(b_idx);
+        if !values_equal && !self.failed() {
+            self.failure(msg);
+        }
+        let a_real_idx = cbd.real_variable_index[a_idx as usize];
+        let b_real_idx = cbd.real_variable_index[b_idx as usize];
+        if a_real_idx == b_real_idx {
+            return;
+        }
+        let b_start_idx = self.get_first_variable_in_class(b_idx as usize);
+        self.update_real_variable_indices(b_start_idx as u32, a_real_idx);
+        let a_start_idx = self.get_first_variable_in_class(a_idx as usize);
+        cbd.next_var_index[b_real_idx as usize] = a_start_idx as u32;
+        cbd.prev_var_index[a_start_idx as usize] = b_real_idx;
+        let no_tag_clash = cbd.real_variable_tags[a_real_idx as usize] == DUMMY_TAG
+            || cbd.real_variable_tags[b_real_idx as usize] == DUMMY_TAG
+            || cbd.real_variable_tags[a_real_idx as usize]
+                == cbd.real_variable_tags[b_real_idx as usize];
+        if !no_tag_clash && !self.failed() {
+            self.failure(msg);
+        }
+        if cbd.real_variable_tags[a_real_idx as usize] == DUMMY_TAG {
+            cbd.real_variable_tags[a_real_idx as usize] =
+                cbd.real_variable_tags[b_real_idx as usize];
+        }
+    }
 
-    // Add the implementation for `compute_wire_copy_cycles` and `compute_sigma_permutations` when needed.
-    // These methods are generic and may require additional code and context.
+    fn compute_witness_base(&mut self, program_width: usize, minimum_circuit_size: usize) {
+        let mut cbd = self.mut_composer_base_data();
+        if cbd.computed_witness {
+            return;
+        }
+
+        let total_num_gates = cbd.num_gates + cbd.public_inputs.len();
+        let total_num_gates = total_num_gates.max(minimum_circuit_size);
+        let subgroup_size = self.get_circuit_subgroup_size(total_num_gates + NUM_RESERVED_GATES);
+
+        for _ in total_num_gates..subgroup_size {
+            cbd.w_l.push(cbd.zero_idx);
+            cbd.w_r.push(cbd.zero_idx);
+            cbd.w_o.push(cbd.zero_idx);
+        }
+        if program_width > 3 {
+            for _ in total_num_gates..subgroup_size {
+                cbd.w_4.push(cbd.zero_idx);
+            }
+        }
+
+        let mut w_1_lagrange = vec![Fr::zero(); subgroup_size];
+        let mut w_2_lagrange = vec![Fr::zero(); subgroup_size];
+        let mut w_3_lagrange = vec![Fr::zero(); subgroup_size];
+        let mut w_4_lagrange = if program_width > 3 {
+            vec![Fr::zero(); subgroup_size]
+        } else {
+            vec![]
+        };
+
+        for i in 0..cbd.public_inputs.len() {
+            w_1_lagrange[i] = self.get_variable(cbd.public_inputs[i]);
+            w_2_lagrange[i] = self.get_variable(cbd.public_inputs[i]);
+            w_3_lagrange[i] = Fr::zero();
+            if program_width > 3 {
+                w_4_lagrange[i] = Fr::zero();
+            }
+        }
+
+        for i in cbd.public_inputs.len()..subgroup_size {
+            w_1_lagrange[i] = self.get_variable(cbd.w_l[i - cbd.public_inputs.len()]);
+            w_2_lagrange[i] = self.get_variable(cbd.w_r[i - cbd.public_inputs.len()]);
+            w_3_lagrange[i] = self.get_variable(cbd.w_o[i - cbd.public_inputs.len()]);
+            if program_width > 3 {
+                w_4_lagrange[i] = self.get_variable(cbd.w_4[i - cbd.public_inputs.len()]);
+            }
+        }
+
+        cbd.circuit_proving_key
+            .polynomial_store
+            .insert("w_1_lagrange".to_string(), w_1_lagrange);
+        cbd.circuit_proving_key
+            .polynomial_store
+            .insert("w_2_lagrange".to_string(), w_2_lagrange);
+        cbd.circuit_proving_key
+            .polynomial_store
+            .insert("w_3_lagrange".to_string(), w_3_lagrange);
+        if program_width > 3 {
+            cbd.circuit_proving_key
+                .polynomial_store
+                .insert("w_4_lagrange".to_string(), w_4_lagrange);
+        }
+
+        cbd.computed_witness = true;
+    }
 
     fn get_circuit_subgroup_size(&self, num_gates: usize) -> usize {
         let log2_n = num_gates.next_power_of_two().trailing_zeros() as usize;
@@ -271,6 +363,22 @@ pub(crate) trait ComposerBase<'a> {
     fn is_valid_variable(&self, variable_index: u32) -> bool {
         let cbd = self.composer_base_data();
         (cbd.variables.len() as u32) > variable_index
+    }
+
+    fn set_err(&mut self, err: String) {
+        let cbd = self.mut_composer_base_data();
+        cbd._err = Some(err);
+    }
+
+    fn failure(&mut self, err: String) {
+        let cbd = self.mut_composer_base_data();
+        cbd.failed = true;
+        self.set_err(err)
+    }
+
+    fn failed(&self) -> bool {
+        let cbd = self.composer_base_data();
+        cbd.failed
     }
 }
 // /**
