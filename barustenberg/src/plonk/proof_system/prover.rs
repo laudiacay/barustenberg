@@ -255,7 +255,10 @@ impl<'a, H: BarretenHasher + Default, S: Settings<Hasher = H, Field = Fr, Group 
 
             // compute poly w_4 from w_4_lagrange and add it to the cache
             let mut w_4 = w_4_lagrange.clone();
-            self.key.borrow().small_domain.ifft_inplace(&mut w_4);
+            self.key
+                .borrow()
+                .small_domain
+                .ifft_inplace(&mut w_4.coefficients);
             self.key
                 .borrow_mut()
                 .polynomial_store
@@ -333,27 +336,27 @@ impl<'a, H: BarretenHasher + Default, S: Settings<Hasher = H, Field = Fr, Group 
         // We avoid redundant copy of the parts t_1, t_2, t_3, t_4 and instead just tweak the
         // relevant functions to work on quotient polynomial parts.
         // TODO this does not work so good in rust. for now, we copy... is it still okay to do this?
-        let mut quotient_poly_parts: Vec<&mut [&mut Fr]> = Vec::new();
+        let mut quotient_poly_parts: Vec<&mut [Fr]> = Vec::new();
         {
             let key = self.key.borrow();
             let mut poly0 = (*key.quotient_polynomial_parts[0]).borrow_mut();
-            let mut poly_sliced0 = [poly0.index_mut(0)];
+            let mut poly_sliced0 = [poly0[0]];
             quotient_poly_parts.push(&mut poly_sliced0);
             let mut poly1 = (*key.quotient_polynomial_parts[1]).borrow_mut();
-            let mut poly_sliced1 = [poly1.index_mut(0)];
+            let mut poly_sliced1 = [poly1[0]];
             quotient_poly_parts.push(&mut poly_sliced1);
             let mut poly2 = (*key.quotient_polynomial_parts[2]).borrow_mut();
-            let mut poly_sliced2 = [poly2.index_mut(0)];
+            let mut poly_sliced2 = [poly2[0]];
             quotient_poly_parts.push(&mut poly_sliced2);
             let mut poly3 = (*key.quotient_polynomial_parts[3]).borrow_mut();
-            let mut poly_sliced3 = [poly3.index_mut(0)];
+            let mut poly_sliced3 = [poly3[0]];
             quotient_poly_parts.push(&mut poly_sliced3);
 
             self.key
                 .borrow()
                 .small_domain
                 .divide_by_pseudo_vanishing_polynomial(
-                    &quotient_poly_parts,
+                    quotient_poly_parts.as_mut_slice(),
                     &self.key.borrow().large_domain,
                     0,
                 );
@@ -616,8 +619,10 @@ impl<'a, H: BarretenHasher + Default, S: Settings<Hasher = H, Field = Fr, Group 
 
         {
             let key = self.key.borrow();
-            key.small_domain
-                .compute_lagrange_polynomial_fft(&mut lagrange_1_fft, &key.large_domain)?;
+            key.small_domain.compute_lagrange_polynomial_fft(
+                &mut lagrange_1_fft.coefficients,
+                &key.large_domain,
+            )?;
             for i in 0..8 {
                 lagrange_1_fft[4 * self.circuit_size + i] = lagrange_1_fft[i];
             }
