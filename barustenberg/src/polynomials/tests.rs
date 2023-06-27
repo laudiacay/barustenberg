@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
     use ark_bn254::Fr;
-    use ark_ff::{Field, One, UniformRand};
+    use ark_ff::{Field, One, UniformRand, Zero};
 
     use crate::polynomials::evaluation_domain::EvaluationDomain;
     use crate::polynomials::polynomial_arithmetic;
@@ -188,6 +188,115 @@ mod tests {
             for i in 0..n {
                 assert_eq!(result[j][i], expected[j][i]);
             }
+        }
+    }
+
+    #[test]
+    fn fft_coset_ifft_consistency() {
+        let n = 256;
+        let mut rng = rand::thread_rng();
+        let mut result = vec![Fr::default(); n];
+        let mut expected = vec![Fr::default(); n];
+
+        for i in 0..n {
+            let random_element = Fr::rand(&mut rng);
+            result[i] = random_element;
+            expected[i] = random_element;
+        }
+
+        let mut domain = EvaluationDomain::<Fr>::new(n, None);
+        domain.compute_lookup_table();
+
+        let t0 = domain.generator * domain.generator_inverse;
+        assert_eq!(t0, Fr::one());
+
+        domain.coset_fft_inplace(&mut result);
+        domain.coset_ifft_inplace(&mut result);
+
+        for i in 0..n {
+            assert_eq!(result[i], expected[i]);
+        }
+    }
+
+    #[test]
+    fn test_split_polynomial_fft_coset_ifft_consistency() {
+        let n = 256;
+        let num_poly = 4;
+        let mut rng = rand::thread_rng();
+        let mut result = vec![vec![Fr::default(); n]; num_poly];
+        let mut expected = vec![vec![Fr::default(); n]; num_poly];
+
+        for j in 0..num_poly {
+            for i in 0..n {
+                let random_element = Fr::rand(&mut rng);
+                result[j][i] = random_element;
+                expected[j][i] = random_element;
+            }
+        }
+
+        let mut domain = EvaluationDomain::<Fr>::new(num_poly * n, None);
+        domain.compute_lookup_table();
+        domain.coset_fft_vec_inplace(
+            &mut result
+                .iter_mut()
+                .map(|v| v.as_mut_slice())
+                .collect::<Vec<_>>(),
+        );
+        domain.coset_ifft_vec_inplace(
+            &mut result
+                .iter_mut()
+                .map(|v| v.as_mut_slice())
+                .collect::<Vec<_>>(),
+        );
+
+        for j in 0..num_poly {
+            for i in 0..n {
+                assert_eq!(result[j][i], expected[j][i]);
+            }
+        }
+    }
+
+    #[test]
+    fn test_fft_coset_ifft_cross_consistency() {
+        let n = 2;
+        let mut rng = rand::thread_rng();
+        let mut expected = vec![Fr::default(); n];
+        let mut poly_a = vec![Fr::default(); 4 * n];
+        let mut poly_b = vec![Fr::default(); 4 * n];
+        let mut poly_c = vec![Fr::default(); 4 * n];
+
+        for i in 0..n {
+            let random_element = Fr::rand(&mut rng);
+            poly_a[i] = random_element;
+            poly_b[i] = random_element;
+            poly_c[i] = random_element;
+            expected[i] = poly_a[i] + poly_c[i] + poly_b[i];
+        }
+
+        for i in n..4 * n {
+            poly_a[i] = Fr::zero();
+            poly_b[i] = Fr::zero();
+            poly_c[i] = Fr::zero();
+        }
+
+        let mut small_domain = EvaluationDomain::<Fr>::new(n, None);
+        let mut mid_domain = EvaluationDomain::<Fr>::new(2 * n, None);
+        let mut large_domain = EvaluationDomain::<Fr>::new(4 * n, None);
+        small_domain.compute_lookup_table();
+        mid_domain.compute_lookup_table();
+        large_domain.compute_lookup_table();
+        small_domain.coset_fft_inplace(&mut poly_a);
+        mid_domain.coset_fft_inplace(&mut poly_b);
+        large_domain.coset_fft_inplace(&mut poly_c);
+
+        for i in 0..n {
+            poly_a[i] = poly_a[i] + poly_c[4 * i] + poly_b[2 * i];
+        }
+
+        small_domain.coset_ifft_inplace(&mut poly_a);
+
+        for i in 0..n {
+            assert_eq!(poly_a[i], expected[i]);
         }
     }
 }

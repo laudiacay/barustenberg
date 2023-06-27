@@ -104,16 +104,48 @@ fn fft_inner_serial<Fr: Copy + Default + Add<Output = Fr> + Sub<Output = Fr> + M
 
 impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
     /// modifies target[..generator_size]
-    fn scale_by_generator(
+    fn scale_by_generator_inplace(
         &self,
-        _coeffs: &mut [Fr],
-        _target: &mut [Fr],
-        _generator_start: Fr,
-        _generator_shift: Fr,
+        coeffs: &mut [Fr],
+        generator_start: Fr,
+        generator_shift: Fr,
         generator_size: usize,
     ) {
-        let _generator_size_per_thread = generator_size / self.num_threads;
-        todo!("parallelism");
+        // TODO: parallelize
+        for j in 0..self.num_threads {
+            let thread_shift =
+                generator_shift.pow(&[(j * (generator_size / self.num_threads)) as u64]);
+            let mut work_generator = generator_start * thread_shift;
+            let offset = j * (generator_size / self.num_threads);
+            let end = offset + (generator_size / self.num_threads);
+            for i in offset..end {
+                coeffs[i] = coeffs[i] * work_generator;
+                work_generator *= generator_shift;
+            }
+        }
+    }
+
+    /// modifies target[..generator_size]
+    fn scale_by_generator(
+        &self,
+        coeffs: &[Fr],
+        target: &mut [Fr],
+        generator_start: Fr,
+        generator_shift: Fr,
+        generator_size: usize,
+    ) {
+        // TODO: parallelize
+        for j in 0..self.num_threads {
+            let thread_shift =
+                generator_shift.pow(&[(j * (generator_size / self.num_threads)) as u64]);
+            let mut work_generator = generator_start * thread_shift;
+            let offset = j * (generator_size / self.num_threads);
+            let end = offset + (generator_size / self.num_threads);
+            for i in offset..end {
+                target[i] = coeffs[i] * work_generator;
+                work_generator *= generator_shift;
+            }
+        }
     }
 
     /// Compute multiplicative subgroup (g.X)^n.
@@ -500,9 +532,40 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
         todo!();
     }
 
+    pub(crate) fn coset_ifft_inplace(&self, coeffs: &mut [Fr]) {
+        self.ifft_inplace(coeffs);
+        self.scale_by_generator_inplace(
+            coeffs,
+            Fr::one(),
+            self.generator_inverse,
+            self.generator_size,
+        );
+    }
+
     pub(crate) fn coset_ifft(&self, _coeffs: &mut [Fr]) {
         todo!()
     }
+
+    pub(crate) fn coset_ifft_vec_inplace(&self, coeffs: &mut [&mut [Fr]]) {
+        self.ifft_vec_inplace(coeffs);
+
+        let num_polys = coeffs.len();
+        assert!(num_polys.is_power_of_two());
+        let poly_size = self.size / num_polys;
+        let generator_inv_pow_n = self.generator_inverse.pow(&[poly_size as u64]);
+        let mut generator_start = Fr::one();
+
+        for i in 0..num_polys {
+            self.scale_by_generator_inplace(
+                coeffs[i],
+                generator_start,
+                self.generator_inverse,
+                poly_size,
+            );
+            generator_start *= generator_inv_pow_n;
+        }
+    }
+
     pub(crate) fn coset_ifft_vec(&self, _coeffs: &[&mut [&mut Fr]]) {
         todo!()
     }
@@ -585,15 +648,30 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
         }
         Ok(())
     }
-    pub(crate) fn coset_fft_inplace(&self, _coeffs: &mut [Fr]) {
-        unimplemented!()
+
+    pub(crate) fn coset_fft_inplace(&self, coeffs: &mut [Fr]) {
+        self.scale_by_generator_inplace(coeffs, Fr::one(), self.generator, self.generator_size);
+        self.fft_inplace(coeffs);
     }
-    fn coset_fft_vec_inplace(&self, _coeffs: &mut [&mut [Fr]]) {
-        unimplemented!()
+
+    pub(crate) fn coset_fft_vec_inplace(&self, coeffs: &mut [&mut [Fr]]) {
+        let num_polys = coeffs.len();
+        assert!(num_polys.is_power_of_two());
+        let poly_size = self.size / num_polys;
+        let generator_pow_n = self.generator.pow(&[poly_size as u64]);
+        let mut generator_start = Fr::one();
+
+        for i in 0..num_polys {
+            self.scale_by_generator_inplace(coeffs[i], generator_start, self.generator, poly_size);
+            generator_start *= generator_pow_n;
+        }
+        self.fft_vec_inplace(coeffs);
     }
+
     pub(crate) fn coset_fft(&self, _coeffs: &[Fr], _target: &mut [Fr]) {
         unimplemented!()
     }
+
     pub(crate) fn coset_fft_with_generator_shift(&self, _coeffs: &mut [Fr], _constant: Fr) {
         unimplemented!()
     }
