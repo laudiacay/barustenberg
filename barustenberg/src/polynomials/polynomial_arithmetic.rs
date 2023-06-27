@@ -1097,6 +1097,7 @@ fn compute_sum<Fr: Field>(slice: &[Fr]) -> Fr {
     slice.iter().copied().fold(Fr::zero(), Add::add)
 }
 
+// TODO: Can probably remove n from these function
 pub(crate) fn compute_linear_polynomial_product<Fr: Field + FftField>(
     roots: &[Fr],
     dest: &mut [Fr],
@@ -1120,6 +1121,18 @@ pub(crate) fn compute_linear_polynomial_product<Fr: Field + FftField>(
         dest[n - 2 - i] = temp * constant;
         constant = constant.neg();
     }
+}
+
+pub(crate) fn compute_linear_polynomial_product_evaluation<Fr: Field + FftField>(
+    roots: &[Fr],
+    z: Fr,
+    n: usize,
+) -> Fr {
+    let mut result = Fr::one();
+    for i in 0..n {
+        result *= z - roots[i];
+    }
+    result
 }
 
 pub(crate) fn compute_interpolation<Fr: Field + FftField>(
@@ -1335,4 +1348,162 @@ pub(crate) fn evaluate_from_fft<'a, F: Field + FftField>(
 
     let result = small_domain.compute_barycentric_evaluation(&small_poly_coset_fft, n, &zeta_by_g);
     result
+}
+
+// Divides p(X) by (X-r) in-place.
+pub(crate) fn factor_root<F: Field + FftField>(polynomial: &mut [F], root: &F) {
+    let size = polynomial.len();
+
+    if root.is_zero() {
+        // if one of the roots is 0 after having divided by all other roots,
+        // then p(X) = a₁⋅X + ⋯ + aₙ₋₁⋅Xⁿ⁻¹
+        // so we shift the array of coefficients to the left
+        // and the result is p(X) = a₁ + ⋯ + aₙ₋₁⋅Xⁿ⁻² and we subtract 1 from the size.
+        polynomial.copy_within(1.., 0);
+    } else {
+        // assume
+        //  • r != 0
+        //  • (X−r) | p(X)
+        //  • q(X) = ∑ᵢⁿ⁻² bᵢ⋅Xⁱ
+        //  • p(X) = ∑ᵢⁿ⁻¹ aᵢ⋅Xⁱ = (X-r)⋅q(X)
+        //
+        // p(X)         0           1           2       ...     n-2             n-1
+        //              a₀          a₁          a₂              aₙ₋₂            aₙ₋₁
+        //
+        // q(X)         0           1           2       ...     n-2             n-1
+        //              b₀          b₁          b₂              bₙ₋₂            0
+        //
+        // (X-r)⋅q(X)   0           1           2       ...     n-2             n-1
+        //              -r⋅b₀       b₀-r⋅b₁     b₁-r⋅b₂         bₙ₋₃−r⋅bₙ₋₂      bₙ₋₂
+        //
+        // b₀   = a₀⋅(−r)⁻¹
+        // b₁   = (a₁ - b₀)⋅(−r)⁻¹
+        // b₂   = (a₂ - b₁)⋅(−r)⁻¹
+        //      ⋮
+        // bᵢ   = (aᵢ − bᵢ₋₁)⋅(−r)⁻¹
+        //      ⋮
+        // bₙ₋₂ = (aₙ₋₂ − bₙ₋₃)⋅(−r)⁻¹
+        // bₙ₋₁ = 0
+
+        // For the simple case of one root we compute (−r)⁻¹ and
+        let root_inverse = -root.inverse().unwrap();
+        // set b₋₁ = 0
+        let mut temp = F::zero();
+        // We start multiplying lower coefficient by the inverse and subtracting those from highter coefficients
+        // Since (x - r) should divide the polynomial cleanly, we can guide division with lower coefficients
+        for i in 0..size - 1 {
+            // at the start of the loop, temp = bᵢ₋₁
+            // and we can compute bᵢ   = (aᵢ − bᵢ₋₁)⋅(−r)⁻¹
+            temp = polynomial[i] - temp;
+            temp *= root_inverse;
+            polynomial[i] = temp;
+        }
+    }
+    polynomial[size - 1] = F::zero();
+}
+
+/// Divides p(X) by (X-r₁)⋯(X−rₘ) in-place.
+/// Assumes that p(rⱼ)=0 for all j
+///
+/// we specialize the method when only a single root is given.
+/// if one of the roots is 0, then we first factor all other roots.
+/// dividing by X requires only a left shift of all coefficient.
+///
+/// # Arguments
+///
+/// * `polynomial` - list of roots (r₁,…,rₘ)
+/// * `roots` - list of roots
+pub(crate) fn factor_roots<F: Field + FftField>(polynomial: &mut [F], roots: &[F]) {
+    let size = polynomial.len();
+    if roots.len() == 1 {
+        factor_root(polynomial, &roots[0]);
+    } else {
+        // For division by several roots at once we need cache.
+        // Let's say we are dividing a₀, a₁, a₂, ... by (r₀, r₁, r₂)
+        // What we need to compute are the inverses: ((-r₀)⁻¹, (-r₁)⁻¹,(-r₂)⁻¹)
+        // Then for a₀ we compute:
+        //      a₀'   = a₀   * (-r₀)⁻¹
+        //      a₀''  = a₀'  * (-r₁)⁻¹
+        //      a₀''' = a₀'' * (-r₂)⁻¹
+        // a₀''' is the lowest coefficient of the resulting polynomial
+        // For a₁ we compute:
+        //      a₁'   = (a₁   - a₀')   * (-r₀)⁻¹
+        //      a₁''  = (a₁'  - a₀'')  * (-r₁)⁻¹
+        //      a₁''' = (a₁'' - a₀''') * (-r₂)⁻¹
+        // a₁''' is the second lowest coefficient of the resulting polynomial
+        // As you see, we only need the intermediate results of the previous round in addition to inversed roots and the
+        // original coefficient to calculate the resulting monomial coefficient. If we cache these results, we don't
+        // have to do several passes over the polynomial
+
+        let num_roots = roots.len();
+        assert!(num_roots < size);
+        let new_size = size - num_roots;
+
+        let mut minus_root_inverses = Vec::new();
+
+        // after the loop, this iterator points to the start of the polynomial
+        // after having divided by all zero roots.
+        let mut num_zero_roots = 0;
+        // Compute negated root inverses, and skip the 0 root
+        for root in roots.iter() {
+            if root.is_zero() {
+                // if one of the roots is zero, then the first coefficient must be as well
+                // so we need to start the iteration from the second coefficient on-wards
+                num_zero_roots += 1;
+            } else {
+                minus_root_inverses.push(-*root);
+            }
+        }
+        // If there are M zero roots, then the first M coefficients of polynomial must be zero
+        for i in 0..num_zero_roots {
+            assert!(polynomial[i].is_zero());
+        }
+
+        // View over the polynomial factored by all the zeros
+        // If there are no zeros, then zero_factored == polynomial
+        let zero_factored_offset = num_zero_roots as usize;
+
+        let num_non_zero_roots = minus_root_inverses.len();
+        if num_non_zero_roots > 0 {
+            batch_inversion(&mut minus_root_inverses);
+
+            let mut division_cache = Vec::new();
+            division_cache.reserve(num_non_zero_roots);
+
+            // Compute the a₀', a₀'', a₀''' and put them in cache
+            let mut temp = polynomial[zero_factored_offset];
+            for minus_root_inverse in minus_root_inverses.iter() {
+                temp *= *minus_root_inverse;
+                division_cache.push(temp);
+            }
+            // We already know the lower coefficient of the result
+            polynomial[0] = division_cache[num_non_zero_roots - 1];
+
+            // Compute the resulting coefficients one by one
+            for i in 1..(polynomial.len() - zero_factored_offset - num_non_zero_roots) {
+                temp = polynomial[zero_factored_offset + i];
+                // Compute the intermediate values for the coefficient and save in cache
+                for j in 0..num_non_zero_roots {
+                    temp -= division_cache[j];
+                    temp *= minus_root_inverses[j];
+                    division_cache[j] = temp;
+                }
+                // Save the resulting coefficient
+                polynomial[i] = temp;
+            }
+        } else if num_zero_roots > 0 {
+            // if one of the roots is 0 after having divided by all other roots,
+            // then p(X) = a₁⋅X + ⋯ + aₙ₋₁⋅Xⁿ⁻¹
+            // so we shift the array of coefficients to the left
+            // and the result is p(X) = a₁ + ⋯ + aₙ₋₁⋅Xⁿ⁻² and we subtract 1 from the size.
+            for i in 0..new_size {
+                polynomial[i] = polynomial[i + num_zero_roots];
+            }
+        }
+
+        // Clear the last coefficients to prevent accidents
+        for i in new_size..size {
+            polynomial[i] = F::zero();
+        }
+    }
 }

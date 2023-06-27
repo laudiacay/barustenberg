@@ -1009,4 +1009,163 @@ mod tests {
             assert_eq!(eval, evaluations[i]);
         }
     }
+
+    #[test]
+    fn test_evaluate_mle() {
+        fn test_case(N: usize) {
+            let mut rng = rand::thread_rng();
+            let m = N.next_power_of_two().trailing_zeros();
+            assert_eq!(N, 1 << m);
+            let mut poly = Polynomial::new(N);
+            for i in 1..(N - 1) {
+                poly[i] = Fr::rand(&mut rng);
+            }
+            poly[N - 1] = Fr::zero();
+
+            assert!(poly[0].is_zero());
+
+            // sample u = (u₀,…,uₘ₋₁)
+            let mut u: Vec<Fr> = vec![Fr::zero(); m as usize];
+            for l in 0..m {
+                u[l as usize] = Fr::rand(&mut rng);
+            }
+
+            let mut lagrange_evals = vec![Fr::one(); N];
+            for i in 0..N {
+                let mut coef = Fr::one();
+                for l in 0..m {
+                    let mask = 1 << l;
+                    if i & (mask as usize) == 0 {
+                        coef *= Fr::one() - u[l as usize];
+                    } else {
+                        coef *= u[l as usize];
+                    }
+                }
+                lagrange_evals[i] = coef;
+            }
+
+            // check eval by computing scalar product between
+            // lagrange evaluations and coefficients
+            let mut real_eval = Fr::zero();
+            for i in 0..N {
+                real_eval += poly[i] * lagrange_evals[i];
+            }
+            let computed_eval = poly.evaluate_mle(&u, false);
+            assert_eq!(real_eval, computed_eval);
+
+            // also check shifted eval
+            let mut real_eval_shift = Fr::zero();
+            for i in 1..N {
+                real_eval_shift += poly[i] * lagrange_evals[i - 1];
+            }
+            let computed_eval_shift = poly.evaluate_mle(&u, true);
+            assert_eq!(real_eval_shift, computed_eval_shift);
+        }
+
+        test_case(32);
+        test_case(4);
+        test_case(2);
+    }
+
+    #[test]
+    fn test_factor_roots() {
+        fn test_case(num_zero_roots: usize, num_non_zero_roots: usize) {
+            let num_roots = num_non_zero_roots + num_zero_roots;
+            let n = 32;
+
+            let mut poly = Polynomial::new(n);
+            for i in num_zero_roots..n {
+                poly[i] = Fr::rand(&mut rand::thread_rng());
+            }
+
+            // sample a root r, and compute p(r)/r^n for each non-zero root r
+            let mut non_zero_roots: Vec<Fr> = vec![Fr::zero(); num_non_zero_roots];
+            let mut non_zero_evaluations: Vec<Fr> = vec![Fr::zero(); num_non_zero_roots];
+            for i in 0..num_non_zero_roots {
+                let root = Fr::rand(&mut rand::thread_rng());
+                non_zero_roots[i] = root;
+                let root_pow = root.pow(&[num_zero_roots as u64]);
+                non_zero_evaluations[i] = poly.evaluate(&root) / root_pow;
+            }
+
+            let mut roots: Vec<Fr> = vec![Fr::zero(); num_roots];
+            for i in 0..num_zero_roots {
+                roots[i] = Fr::zero();
+            }
+            for i in 0..num_non_zero_roots {
+                roots[num_zero_roots + i] = non_zero_roots[i];
+            }
+
+            if num_non_zero_roots > 0 {
+                let interpolated =
+                    Polynomial::from_interpolations(&non_zero_roots, &non_zero_evaluations)
+                        .unwrap();
+                assert_eq!(interpolated.size(), num_non_zero_roots);
+                for i in 0..num_non_zero_roots {
+                    poly[num_zero_roots + i] -= interpolated[i];
+                }
+            }
+
+            // Sanity check that all roots are actually roots
+            for i in 0..num_roots {
+                assert_eq!(poly.evaluate(&roots[i]), Fr::zero());
+            }
+
+            let mut quotient = poly.clone();
+            quotient.factor_roots(&roots);
+
+            // check that (t-r)q(t) == p(t)
+            let t = Fr::rand(&mut rand::thread_rng());
+            let roots_eval = polynomial_arithmetic::compute_linear_polynomial_product_evaluation(
+                &roots, t, num_roots,
+            );
+            let q_t = quotient.evaluate(&t);
+            let p_t = poly.evaluate(&t);
+            assert_eq!(roots_eval * q_t, p_t);
+
+            for i in (n - num_roots)..n {
+                assert_eq!(quotient[i], Fr::zero());
+            }
+            if num_roots == 0 {
+                assert_eq!(poly, quotient);
+            }
+            if num_roots == 1 {
+                let mut quotient_single = poly.clone();
+                quotient_single.factor_root(&roots[0]);
+                assert_eq!(quotient_single, quotient);
+            }
+        }
+
+        test_case(0, 0);
+        test_case(0, 1);
+        test_case(1, 0);
+        test_case(1, 1);
+        test_case(2, 0);
+        test_case(0, 2);
+        test_case(3, 6);
+    }
+
+    #[test]
+    fn test_default_construct_then_assign() {
+        // construct an arbitrary but non-empty polynomial
+        let num_coeffs = 64;
+        let mut interesting_poly = Polynomial::new(num_coeffs);
+        for coeff in &mut interesting_poly.coefficients {
+            *coeff = Fr::rand(&mut rand::thread_rng());
+        }
+
+        // construct an empty poly via the default constructor
+        let mut poly = Polynomial::new(0);
+
+        assert!(poly.coefficients.is_empty());
+
+        // fill the empty poly using the assignment operator
+        poly = interesting_poly.clone();
+
+        // coefficients and size should be equal in value
+        for i in 0..num_coeffs {
+            assert_eq!(poly[i], interesting_poly[i]);
+        }
+        assert_eq!(poly.size(), interesting_poly.size());
+    }
 }
