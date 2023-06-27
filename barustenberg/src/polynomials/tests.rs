@@ -457,4 +457,73 @@ mod tests {
             assert_eq!(result[i], Fr::zero());
         }
     }
+
+    #[test]
+    fn test_compute_kate_opening_coefficients() {
+        let n = 256;
+        let mut coeffs = vec![Fr::zero(); 2 * n];
+        let mut w = vec![Fr::zero(); 2 * n];
+        let mut rng = rand::thread_rng();
+
+        for i in 0..n {
+            coeffs[i] = Fr::rand(&mut rng);
+            w[i] = coeffs[i];
+        }
+
+        let z = Fr::rand(&mut rng);
+
+        let f = polynomial_arithmetic::compute_kate_opening_coefficients_inplace(&mut w, &z, n)
+            .unwrap();
+
+        let mut multiplicand = vec![Fr::zero(); 2 * n];
+        multiplicand[0] = -z;
+        multiplicand[1] = Fr::one();
+
+        coeffs[0] -= f;
+
+        let mut domain = EvaluationDomain::new(2 * n, None);
+        domain.compute_lookup_table();
+        domain.coset_fft_inplace(&mut coeffs);
+        domain.coset_fft_inplace(&mut w);
+        domain.coset_fft_inplace(&mut multiplicand);
+
+        for i in 0..domain.size {
+            let result = w[i] * multiplicand[i];
+            assert_eq!(result, coeffs[i]);
+        }
+    }
+
+    #[test]
+    fn test_get_lagrange_evaluations() {
+        let n = 16;
+
+        let mut domain = EvaluationDomain::new(n, None);
+        domain.compute_lookup_table();
+        let mut rng = rand::thread_rng();
+        let z = Fr::rand(&mut rng);
+
+        let evals = domain.get_lagrange_evaluations(&z, Some(1));
+
+        let mut vanishing_poly = vec![Fr::zero(); 2 * n];
+        let mut l_1_poly = vec![Fr::zero(); n];
+        let mut l_n_minus_1_poly = vec![Fr::zero(); n];
+
+        l_1_poly[0] = Fr::one();
+        l_n_minus_1_poly[n - 2] = Fr::one();
+
+        let n_mont = Fr::from(n as u64);
+        vanishing_poly[n - 1] = n_mont * domain.root;
+
+        domain.ifft_inplace(&mut l_1_poly);
+        domain.ifft_inplace(&mut l_n_minus_1_poly);
+        domain.ifft_inplace(&mut vanishing_poly);
+
+        let l_1_expected = polynomial_arithmetic::evaluate(&l_1_poly, &z, n);
+        let l_n_minus_1_expected = polynomial_arithmetic::evaluate(&l_n_minus_1_poly, &z, n);
+        let vanishing_poly_expected = polynomial_arithmetic::evaluate(&vanishing_poly, &z, n);
+
+        assert_eq!(evals.l_start, l_1_expected);
+        assert_eq!(evals.l_end, l_n_minus_1_expected);
+        assert_eq!(evals.vanishing_poly, vanishing_poly_expected);
+    }
 }

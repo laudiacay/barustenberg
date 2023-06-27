@@ -1134,6 +1134,32 @@ pub(crate) fn compute_kate_opening_coefficients<Fr: Field>(
     Ok(f)
 }
 
+pub(crate) fn compute_kate_opening_coefficients_inplace<Fr: Field>(
+    src: &mut [Fr],
+    z: &Fr,
+    n: usize,
+) -> anyhow::Result<Fr> {
+    // We assume that the commitment is well-formed and that there is no remainder term.
+    // Under these conditions we can perform this polynomial division in linear time with good constants let f = evaluate(src, z, n);
+    let f = evaluate(src, z, n);
+
+    let divisor = z
+        .neg()
+        .inverse()
+        .ok_or_else(|| anyhow::anyhow!("Failed to find inverse"))?;
+
+    // we're about to shove these coefficients into a pippenger multi-exponentiation routine, where we need
+    // to convert out of montgomery form. So, we can use lazy reduction techniques here without triggering overflows
+    src[0] = src[0] - f;
+    src[0] *= divisor;
+    for i in 1..n {
+        src[i] = src[i] - src[i - 1];
+        src[i] *= divisor;
+    }
+
+    Ok(f)
+}
+
 pub(crate) fn evaluate<F: Field>(coeffs: &[F], z: &F, n: usize) -> F {
     let num_threads = compute_num_threads();
     let range_per_thread = n / num_threads;
