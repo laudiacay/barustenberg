@@ -355,4 +355,71 @@ mod tests {
             assert_eq!(l_n_minus_one_coefficients[i], Fr::zero());
         }
     }
+
+    #[test]
+    fn test_compute_lagrange_polynomial_fft_large_domain() {
+        let n = 256; // size of small_domain
+        let M = 4; // size of large_domain == M * n
+        let mut small_domain = EvaluationDomain::new(n, None);
+        let mut large_domain = EvaluationDomain::new(M * n, None);
+        small_domain.compute_lookup_table();
+        large_domain.compute_lookup_table();
+
+        let mut l_1_coefficients = vec![Fr::zero(); M * n];
+        let mut scratch_memory = vec![Fr::zero(); M * n + M * 2];
+
+        // Compute FFT on target domain
+        small_domain.compute_lagrange_polynomial_fft(&mut l_1_coefficients, &large_domain);
+
+        // Copy L_1 FFT into scratch space and shift it to get FFT of L_{n-1}
+        polynomial_arithmetic::copy_polynomial(
+            &l_1_coefficients,
+            &mut scratch_memory,
+            M * n,
+            M * n,
+        );
+
+        // Manually 'shift' L_1 FFT in scratch memory by m*2
+        let temp_slice = scratch_memory[..M * 2].to_vec();
+        scratch_memory[M * n..M * n + M * 2].copy_from_slice(&temp_slice);
+
+        let l_n_minus_one_coefficients = &mut scratch_memory[M * 2..];
+
+        // Recover monomial forms of L_1 and L_{n-1} (from manually shifted L_1 FFT)
+        large_domain.coset_ifft_inplace(&mut l_1_coefficients);
+        large_domain.coset_ifft_inplace(l_n_minus_one_coefficients);
+
+        // Compute shifted random eval point z*ω^2
+        let z = Fr::rand(&mut rand::thread_rng());
+        let shifted_z = z * small_domain.root * small_domain.root; // z*ω^2
+
+        // Compute L_1(z_shifted) and L_{n-1}(z)
+        let eval =
+            polynomial_arithmetic::evaluate(&l_1_coefficients, &shifted_z, small_domain.size);
+        let shifted_eval =
+            polynomial_arithmetic::evaluate(l_n_minus_one_coefficients, &z, small_domain.size);
+
+        // Check L_1(z_shifted) = L_{n-1}(z)
+        assert_eq!(eval, shifted_eval);
+
+        // Compute evaluation forms of L_1 and L_{n-1} and check that they have
+        // a one in the right place and zeros elsewhere
+        small_domain.fft_inplace(&mut l_1_coefficients);
+        small_domain.fft_inplace(l_n_minus_one_coefficients);
+
+        assert_eq!(l_1_coefficients[0], Fr::one());
+
+        for i in 1..n {
+            assert_eq!(l_1_coefficients[i], Fr::zero());
+        }
+
+        assert_eq!(l_n_minus_one_coefficients[n - 2], Fr::one());
+
+        for i in 0..n {
+            if i == (n - 2) {
+                continue;
+            }
+            assert_eq!(l_n_minus_one_coefficients[i], Fr::zero());
+        }
+    }
 }
