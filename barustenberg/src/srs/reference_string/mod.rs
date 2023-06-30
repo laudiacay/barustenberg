@@ -18,17 +18,14 @@ pub(crate) trait ProverReferenceString: Debug {
     fn get_monomial_points(&mut self) -> Rc<Vec<G1Affine>>;
     fn get_monomial_size(&self) -> usize;
 }
-pub(crate) trait ReferenceStringFactory {
-    fn get_prover_crs(&self, _size: usize) -> Option<Rc<dyn ProverReferenceString>> {
+pub(crate) trait ReferenceStringFactory: Default {
+    type Pro: ProverReferenceString;
+    type Ver: VerifierReferenceString;
+    fn get_prover_crs(&self, _size: usize) -> Option<Rc<Self::Pro>> {
         todo!()
     }
 
-    fn get_verifier_crs(&self) -> Option<Rc<dyn VerifierReferenceString>> {
+    fn get_verifier_crs(&self) -> Option<Rc<Self::Ver>> {
         todo!()
     }
 }
-
-#[derive(Clone, Default)]
-pub(crate) struct BaseReferenceStringFactory {}
-
-impl ReferenceStringFactory for BaseReferenceStringFactory {}

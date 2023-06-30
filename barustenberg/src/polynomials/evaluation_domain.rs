@@ -131,7 +131,7 @@ impl<'a, F: Field + FftField> EvaluationDomain<'a, F> {
         assert!((1 << log2_num_threads) == num_threads || (size == 0));
 
         EvaluationDomain {
-            size: size,
+            size,
             num_threads,
             thread_size,
             log2_size,
