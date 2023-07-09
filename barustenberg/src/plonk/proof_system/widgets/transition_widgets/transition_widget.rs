@@ -1,5 +1,7 @@
 use std::{
+    cell::RefCell,
     collections::{HashMap, HashSet},
+    fmt::Debug,
     marker::PhantomData,
     rc::Rc,
     sync::Arc,
@@ -10,7 +12,8 @@ use ark_ff::{FftField, Field};
 
 use crate::{
     plonk::proof_system::{
-        proving_key::ProvingKey, types::polynomial_manifest::PolynomialIndex,
+        proving_key::ProvingKey,
+        types::{polynomial_manifest::PolynomialIndex, prover_settings::Settings},
         verification_key::VerificationKey,
     },
     transcript::{BarretenHasher, Transcript},
@@ -72,23 +75,51 @@ pub(crate) struct TransitionWidget<
     H: BarretenHasher,
     F: Field + FftField,
     G: AffineRepr,
+    S: Settings + Debug,
     NIndependentRelations,
     KB,
 > where
     NIndependentRelations: generic_array::ArrayLength<F>,
     KB: KernelBase,
 {
-    key: Rc<ProvingKey<'a, F, G>>,
-    phantom: PhantomData<(H, NIndependentRelations, KB)>,
+    key: Rc<RefCell<ProvingKey<'a, F, G>>>,
+    phantom: PhantomData<(H, S, NIndependentRelations, KB)>,
 }
+
 impl<
         'a,
         H: BarretenHasher,
         F: Field + FftField,
         G: AffineRepr,
-        NIndependentRelations: generic_array::ArrayLength<F> + std::fmt::Debug,
+        S: Settings + Debug,
+        NIndependentRelations: generic_array::ArrayLength<F> + Debug,
         KB: std::fmt::Debug,
-    > TransitionWidgetBase<'a> for TransitionWidget<'a, H, F, G, NIndependentRelations, KB>
+    > TransitionWidget<'a, H, F, G, S, NIndependentRelations, KB>
+where
+    KB: KernelBase<
+        Field = F,
+        Group = G,
+        NumIndependentRelations = NIndependentRelations,
+        Hasher = H,
+    >,
+{
+    pub(crate) fn new(key: Rc<RefCell<ProvingKey<'a, F, G>>>) -> Self {
+        Self {
+            key: key,
+            phantom: PhantomData,
+        }
+    }
+}
+
+impl<
+        'a,
+        H: BarretenHasher,
+        F: Field + FftField,
+        G: AffineRepr,
+        S: Settings + Debug,
+        NIndependentRelations: generic_array::ArrayLength<F> + Debug,
+        KB: std::fmt::Debug,
+    > TransitionWidgetBase<'a> for TransitionWidget<'a, H, F, G, S, NIndependentRelations, KB>
 where
     KB: KernelBase<
         Field = F,
@@ -109,7 +140,7 @@ where
     ) -> F {
         let required_polynomial_ids = KB::get_required_polynomial_ids();
         let polynomials = FFTGetterImpl::<H, F, G, NIndependentRelations>::get_polynomials(
-            &self.key,
+            &self.key.borrow(),
             &required_polynomial_ids,
         );
 
@@ -123,7 +154,7 @@ where
         let mut quotient_term;
 
         // TODO: hidden missing multithreading here
-        for i in 0..self.key.large_domain.size {
+        for i in 0..self.key.borrow().large_domain.size {
             let mut linear_terms = CoefficientArray::default();
             KB::compute_linear_terms::<FFTGetterImpl<H, F, G, NIndependentRelations>>(
                 &polynomials,
@@ -135,9 +166,9 @@ where
                 FFTGetterImpl<H, F, G, NIndependentRelations>,
             >(&polynomials, &challenges, &linear_terms, i);
 
-            quotient_term = self.key.quotient_polynomial_parts
-                [i >> self.key.small_domain.log2_size]
-                .borrow()[i & (self.key.circuit_size - 1)];
+            quotient_term = self.key.borrow().quotient_polynomial_parts
+                [i >> self.key.borrow().small_domain.log2_size]
+                .borrow()[i & (self.key.borrow().circuit_size - 1)];
             quotient_term += sum_of_linear_terms;
             KB::compute_non_linear_terms::<FFTGetterImpl<H, F, G, NIndependentRelations>>(
                 &polynomials,

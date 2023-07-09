@@ -22,7 +22,7 @@ use super::types::PolynomialManifest;
 const MIN_THREAD_BLOCK: usize = 4;
 
 pub(crate) struct ProvingKeyData<F: Field + FftField> {
-    composer_type: u32,
+    composer_type: ComposerType,
     circuit_size: u32,
     num_public_inputs: u32,
     contains_recursive_proof: bool,
@@ -34,7 +34,7 @@ pub(crate) struct ProvingKeyData<F: Field + FftField> {
 
 #[derive(Debug)]
 pub struct ProvingKey<'a, Fr: Field + FftField, G: AffineRepr> {
-    pub(crate) composer_type: u32,
+    pub(crate) composer_type: ComposerType,
     pub(crate) circuit_size: usize,
     pub(crate) log_circuit_size: usize,
     pub(crate) num_public_inputs: usize,
@@ -49,7 +49,7 @@ pub struct ProvingKey<'a, Fr: Field + FftField, G: AffineRepr> {
     pub(crate) large_domain: EvaluationDomain<'a, Fr>,
     /// The reference_string object contains the monomial SRS. We can access it using:
     /// Monomial SRS: reference_string->get_monomial_points()
-    pub(crate) reference_string: Rc<RefCell<dyn ProverReferenceString>>,
+    pub(crate) reference_string: Rc<dyn ProverReferenceString>,
     pub(crate) quotient_polynomial_parts:
         [Rc<RefCell<Polynomial<Fr>>>; NUM_QUOTIENT_PARTS as usize],
     pub(crate) pippenger_runtime_state: PippengerRuntimeState<Fr, G>,
@@ -59,7 +59,7 @@ pub struct ProvingKey<'a, Fr: Field + FftField, G: AffineRepr> {
 impl<'a, Fr: Field + FftField, G: AffineRepr> Default for ProvingKey<'a, Fr, G> {
     fn default() -> Self {
         Self {
-            composer_type: 0,
+            composer_type: ComposerType::Standard,
             circuit_size: 0,
             log_circuit_size: 0,
             num_public_inputs: 0,
@@ -70,7 +70,7 @@ impl<'a, Fr: Field + FftField, G: AffineRepr> Default for ProvingKey<'a, Fr, G> 
             polynomial_store: PolynomialStore::new(),
             small_domain: EvaluationDomain::new(0, None),
             large_domain: EvaluationDomain::new(0, None),
-            reference_string: Rc::new(RefCell::new(FileReferenceString::default())),
+            reference_string: Rc::new(FileReferenceString::default()),
             quotient_polynomial_parts: Default::default(),
             pippenger_runtime_state: PippengerRuntimeState::default(),
             polynomial_manifest: PolynomialManifest::default(),
@@ -81,7 +81,7 @@ impl<'a, Fr: Field + FftField, G: AffineRepr> Default for ProvingKey<'a, Fr, G> 
 impl<'a, Fr: Field + FftField, G: AffineRepr> ProvingKey<'a, Fr, G> {
     pub(crate) fn new_with_data(
         data: ProvingKeyData<Fr>,
-        crs: Rc<RefCell<dyn ProverReferenceString>>,
+        crs: Rc<dyn ProverReferenceString>,
     ) -> Self {
         let ProvingKeyData {
             composer_type,
@@ -122,11 +122,11 @@ impl<'a, Fr: Field + FftField, G: AffineRepr> ProvingKey<'a, Fr, G> {
     pub(crate) fn new(
         num_gates: usize,
         num_inputs: usize,
-        crs: Rc<RefCell<dyn ProverReferenceString>>,
+        crs: Rc<dyn ProverReferenceString>,
         type_: ComposerType,
     ) -> Self {
         let data = ProvingKeyData {
-            composer_type: type_ as u32,
+            composer_type: type_,
             circuit_size: (num_gates + num_inputs) as u32,
             num_public_inputs: num_inputs as u32,
             contains_recursive_proof: false,

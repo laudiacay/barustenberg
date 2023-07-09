@@ -26,8 +26,9 @@ use super::verification_key::VerificationKey;
 
 use anyhow::{anyhow, Result};
 
-// #[cfg(test)]
-// mod test;
+// here we go
+#[cfg(test)]
+mod test;
 
 #[derive(Debug)]
 pub struct Verifier<'a, H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>> {

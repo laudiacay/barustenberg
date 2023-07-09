@@ -10,7 +10,7 @@ use crate::{
     srs::reference_string::{
         file_reference_string::FileReferenceStringFactory, BaseReferenceStringFactory,
         ReferenceStringFactory,
-    },
+    }, transcript::Manifest,
 };
 
 pub(crate) const DUMMY_TAG: u32 = 0;
@@ -34,6 +34,12 @@ pub(crate) enum ComposerType {
     Turbo,
     Plookup,
     StandardHonk,
+}
+
+impl ComposerType {
+    pub(crate) fn create_manifest(self, x: usize) -> Manifest {
+        unimplemented!("guessing based on verifier test usage")
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]

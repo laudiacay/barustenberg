@@ -48,6 +48,7 @@ pub trait Settings: Sized {
     fn hasher(&self) -> &Self::Hasher;
 }
 
+#[derive(Default, Debug)]
 pub(crate) struct StandardSettings<H: BarretenHasher> {
     hasher: H,
 }

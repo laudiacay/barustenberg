@@ -5,23 +5,29 @@ use typenum::U1;
 use crate::{
     plonk::proof_system::{
         proving_key::ProvingKey,
-        types::polynomial_manifest::{EvaluationType, PolynomialIndex},
+        types::{
+            polynomial_manifest::{EvaluationType, PolynomialIndex},
+            prover_settings::Settings,
+        },
     },
     transcript::BarretenHasher,
 };
 
 use std::{
+    cell::RefCell,
     collections::{HashMap, HashSet},
     marker::PhantomData,
+    rc::Rc,
     sync::Arc,
 };
 
 use super::{
     containers::{ChallengeArray, CoefficientArray, CHALLENGE_BIT_ALPHA},
     getters::BaseGetter,
-    transition_widget::KernelBase,
+    transition_widget::{KernelBase, TransitionWidget},
 };
 
+#[derive(Debug)]
 pub(crate) struct ArithmeticKernel<H: BarretenHasher, F: Field + FftField, G: AffineRepr> {
     _marker: PhantomData<(H, F, G)>,
 }
@@ -195,7 +201,37 @@ impl<H: BarretenHasher, F: Field + FftField, G: AffineRepr> KernelBase
     }
 }
 
-pub(crate) struct ProverArithmeticWidget<'a, Fr: Field + FftField, G: AffineRepr, H, S> {
-    key: Arc<ProvingKey<'a, Fr, G>>,
-    phantom: PhantomData<(H, S)>,
-}
+// pub(crate) struct ProverArithmeticWidget<'a, Fr: Field + FftField, G: AffineRepr, H, S> {
+//     // Seems like every type like this should be Arc<Mutex<...>> based on use of shared_ptr?
+//     key: Rc<RefCell<ProvingKey<'a, Fr, G>>>,
+//     phantom: PhantomData<(H, S)>,
+// }
+
+pub(crate) type ProverArithmeticWidget<
+    'a,
+    F: Field + FftField,
+    G: AffineRepr,
+    H: BarretenHasher,
+    S: Settings,
+> = TransitionWidget<
+    'a,
+    H,
+    F,
+    G,
+    S,
+    <ArithmeticKernel<H, F, G> as KernelBase>::NumIndependentRelations,
+    ArithmeticKernel<H, F, G>,
+>;
+
+// impl<'a, Fr: Field + FftField, G: AffineRepr, H, S> ProverArithmeticWidget<'a, Fr, G, H, S> {
+//     pub(crate) fn new(key: Rc<RefCell<ProvingKey<'a, Fr, G>>>) -> Self {
+//         Self {
+//             key,
+//             phantom: PhantomData,
+//         }
+//     }
+// }
+
+// impl<'a, Fr: Field + FftField, G: AffineRepr, H, S>
+
+// ProverArithmeticWidget<'a, Fr, G, H, S> {
