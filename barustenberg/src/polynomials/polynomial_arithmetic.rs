@@ -725,15 +725,14 @@ impl<Fr: Field + FftField> EvaluationDomain<Fr> {
         // Note: This is a placeholder, replace with actual batch invert function.
         // TODO add batch invert
         // invert them all
-            let result: Result<(), anyhow::Error> = l_1_coefficients
-            .coefficients
-                .iter_mut().try_for_each(|x| {
-                  let inverse = x
-                  .inverse()
-                        .ok_or_else(|| anyhow::anyhow!("Failed to find inverse"))?;
-                 *x = inverse;
-                   Ok(())
-             });
+        let result: Result<(), anyhow::Error> =
+            l_1_coefficients.coefficients.iter_mut().try_for_each(|x| {
+                let inverse = x
+                    .inverse()
+                    .ok_or_else(|| anyhow::anyhow!("Failed to find inverse"))?;
+                *x = inverse;
+                Ok(())
+            });
         result?;
 
         // Step 2: Compute numerator (1/n)*(X_i^n - 1)
@@ -792,7 +791,7 @@ impl<Fr: Field + FftField> EvaluationDomain<Fr> {
         let mut work_root = self.root_inverse; // ω^{-1}
         for denominator in denominators.iter_mut().take(num_coeffs).skip(1) {
             *denominator = work_root * *z; // denominators[i] will correspond to L_[i+1] (since our 'commented maths' notation indexes
-                                              // L_i from 1). So ʓ.ω^{-i} = ʓ.ω^{1-(i+1)} is correct for L_{i+1}.
+                                           // L_i from 1). So ʓ.ω^{-i} = ʓ.ω^{1-(i+1)} is correct for L_{i+1}.
             *denominator -= Fr::one();
             work_root *= self.root_inverse;
         }

@@ -15,7 +15,9 @@ pub(crate) trait VerifierReferenceString: Debug {
 }
 
 pub(crate) trait ProverReferenceString: Debug {
-    fn get_monomial_points(&mut self) -> Rc<Vec<G1Affine>>;
+    // cpp definition for this is non-const but all implementations are const,
+    // unclear to me that we need a mut ref to self
+    fn get_monomial_points(&self) -> Rc<Vec<G1Affine>>;
     fn get_monomial_size(&self) -> usize;
 }
 pub(crate) trait ReferenceStringFactory: Default {

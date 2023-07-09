@@ -1,6 +1,7 @@
 use std::{
     cell::RefCell,
     collections::{HashMap, HashSet},
+    fmt::Debug,
     marker::PhantomData,
     rc::Rc,
     sync::Arc,
@@ -105,7 +106,7 @@ impl<
         H: BarretenHasher,
         F: Field + FftField,
         G: AffineRepr,
-        NIndependentRelations: generic_array::ArrayLength<F> + std::fmt::Debug,
+        NIndependentRelations: generic_array::ArrayLength<F> + Debug,
         KB: std::fmt::Debug,
     > TransitionWidgetBase for TransitionWidget<H, F, G, NIndependentRelations, KB>
 where

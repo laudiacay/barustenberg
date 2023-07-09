@@ -14,6 +14,7 @@ use crate::{
     },
     polynomials::Polynomial,
     srs::reference_string::ReferenceStringFactory,
+    transcript::Manifest,
 };
 
 pub(crate) const DUMMY_TAG: u32 = 0;
@@ -38,6 +39,12 @@ pub(crate) enum ComposerType {
     Turbo,
     Plookup,
     StandardHonk,
+}
+
+impl ComposerType {
+    pub(crate) fn create_manifest(self, x: usize) -> Manifest {
+        unimplemented!("ComposerType::create_manifest")
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
