@@ -127,7 +127,7 @@ pub struct Manifest {
 }
 
 impl Manifest {
-    fn new(round_manifests: Vec<RoundManifest>) -> Self {
+    pub(crate) fn new(round_manifests: Vec<RoundManifest>) -> Self {
         let num_rounds = round_manifests.len();
         Self {
             round_manifests,
@@ -139,6 +139,11 @@ impl Manifest {
     }
     fn get_round_manifest(&self, round: usize) -> &RoundManifest {
         &self.round_manifests[round]
+    }
+
+    pub(crate) fn add_round_manifest(&mut self, round_manifest: RoundManifest) {
+        self.round_manifests.push(round_manifest);
+        self.num_rounds += 1;
     }
 }
 

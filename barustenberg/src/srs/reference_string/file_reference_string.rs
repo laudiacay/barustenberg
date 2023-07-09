@@ -9,7 +9,7 @@ use super::{
     VerifierReferenceString,
 };
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub(crate) struct VerifierFileReferenceString {
     g2_x: G2Affine,
     precomputed_g2_lines: Rc<Vec<MillerLines>>,
@@ -60,7 +60,7 @@ impl FileReferenceString {
 }
 
 impl ProverReferenceString for FileReferenceString {
-    fn get_monomial_points(&mut self) -> Rc<Vec<G1Affine>> {
+    fn get_monomial_points(&self) -> Rc<Vec<G1Affine>> {
         // Implementation depends on your project.
         todo!()
     }
@@ -70,6 +70,7 @@ impl ProverReferenceString for FileReferenceString {
     }
 }
 
+#[derive(Debug, Default)]
 pub(crate) struct FileReferenceStringFactory {
     path: String,
 }
@@ -80,26 +81,36 @@ impl FileReferenceStringFactory {
     }
 }
 impl ReferenceStringFactory for FileReferenceStringFactory {
-    fn get_prover_crs(&self, degree: usize) -> Option<Rc<dyn ProverReferenceString>> {
-        Some(Rc::new(FileReferenceString::new(degree, &self.path)))
+    type Pro = FileReferenceString;
+    type Ver = VerifierFileReferenceString;
+    fn get_prover_crs(&self, degree: usize) -> Option<Rc<RefCell<Self::Pro>>> {
+        Some(Rc::new(RefCell::new(FileReferenceString::new(
+            degree, &self.path,
+        ))))
     }
 
-    fn get_verifier_crs(&self) -> Option<Rc<dyn VerifierReferenceString>> {
-        Some(Rc::new(VerifierFileReferenceString::new(&self.path)))
+    fn get_verifier_crs(&self) -> Option<Rc<RefCell<Self::Ver>>> {
+        Some(Rc::new(RefCell::new(VerifierFileReferenceString::new(
+            &self.path,
+        ))))
     }
 }
 
+#[derive(Debug, Default)]
 pub(crate) struct DynamicFileReferenceStringFactory {
     path: String,
     degree: RefCell<usize>,
-    prover_crs: RefCell<Rc<FileReferenceString>>,
-    verifier_crs: Rc<VerifierFileReferenceString>,
+    prover_crs: Rc<RefCell<FileReferenceString>>,
+    verifier_crs: Rc<RefCell<VerifierFileReferenceString>>,
 }
 
 impl DynamicFileReferenceStringFactory {
     pub(crate) fn new(path: String, initial_degree: usize) -> Self {
-        let verifier_crs = Rc::new(VerifierFileReferenceString::new(&path));
-        let prover_crs = RefCell::new(Rc::new(FileReferenceString::new(initial_degree, &path)));
+        let verifier_crs = Rc::new(RefCell::new(VerifierFileReferenceString::new(&path)));
+        let prover_crs = Rc::new(RefCell::new(FileReferenceString::new(
+            initial_degree,
+            &path,
+        )));
         Self {
             path,
             degree: RefCell::new(initial_degree),
@@ -110,15 +121,17 @@ impl DynamicFileReferenceStringFactory {
 }
 
 impl ReferenceStringFactory for DynamicFileReferenceStringFactory {
-    fn get_prover_crs(&self, degree: usize) -> Option<Rc<dyn ProverReferenceString>> {
+    type Pro = FileReferenceString;
+    type Ver = VerifierFileReferenceString;
+    fn get_prover_crs(&self, degree: usize) -> Option<Rc<RefCell<Self::Pro>>> {
         if degree != *self.degree.borrow() {
-            *self.prover_crs.borrow_mut() = Rc::new(FileReferenceString::new(degree, &self.path));
+            *self.prover_crs.borrow_mut() = FileReferenceString::new(degree, &self.path);
             *self.degree.borrow_mut() = degree;
         }
-        Some((self.prover_crs.borrow_mut()).clone())
+        Some(self.prover_crs.clone())
     }
 
-    fn get_verifier_crs(&self) -> Option<Rc<dyn VerifierReferenceString>> {
+    fn get_verifier_crs(&self) -> Option<Rc<RefCell<Self::Ver>>> {
         Some(self.verifier_crs.clone())
     }
 }

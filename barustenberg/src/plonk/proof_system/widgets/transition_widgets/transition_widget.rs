@@ -1,5 +1,7 @@
 use std::{
+    cell::RefCell,
     collections::{HashMap, HashSet},
+    fmt::Debug,
     marker::PhantomData,
     rc::Rc,
     sync::Arc,
@@ -54,7 +56,7 @@ pub(crate) trait KernelBase {
     );
 }
 
-pub(crate) trait TransitionWidgetBase<'a>: std::fmt::Debug {
+pub(crate) trait TransitionWidgetBase: std::fmt::Debug {
     type Hasher: BarretenHasher;
     type Field: Field + FftField;
 
@@ -68,7 +70,6 @@ pub(crate) trait TransitionWidgetBase<'a>: std::fmt::Debug {
 
 #[derive(Debug)]
 pub(crate) struct TransitionWidget<
-    'a,
     H: BarretenHasher,
     F: Field + FftField,
     G: AffineRepr,
@@ -78,17 +79,36 @@ pub(crate) struct TransitionWidget<
     NIndependentRelations: generic_array::ArrayLength<F>,
     KB: KernelBase,
 {
-    key: Rc<ProvingKey<'a, F, G>>,
+    key: Rc<RefCell<ProvingKey<F, G>>>,
     phantom: PhantomData<(H, NIndependentRelations, KB)>,
 }
+
+impl<H: BarretenHasher, F: Field + FftField, G: AffineRepr, NIndependentRelations, KB>
+    TransitionWidget<H, F, G, NIndependentRelations, KB>
+where
+    NIndependentRelations: generic_array::ArrayLength<F>,
+    KB: KernelBase<
+        Field = F,
+        Group = G,
+        NumIndependentRelations = NIndependentRelations,
+        Hasher = H,
+    >,
+{
+    pub(crate) fn new(key: Rc<RefCell<ProvingKey<F, G>>>) -> Self {
+        Self {
+            key,
+            phantom: PhantomData,
+        }
+    }
+}
+
 impl<
-        'a,
         H: BarretenHasher,
         F: Field + FftField,
         G: AffineRepr,
-        NIndependentRelations: generic_array::ArrayLength<F> + std::fmt::Debug,
+        NIndependentRelations: generic_array::ArrayLength<F> + Debug,
         KB: std::fmt::Debug,
-    > TransitionWidgetBase<'a> for TransitionWidget<'a, H, F, G, NIndependentRelations, KB>
+    > TransitionWidgetBase for TransitionWidget<H, F, G, NIndependentRelations, KB>
 where
     KB: KernelBase<
         Field = F,
@@ -109,7 +129,7 @@ where
     ) -> F {
         let required_polynomial_ids = KB::get_required_polynomial_ids();
         let polynomials = FFTGetterImpl::<H, F, G, NIndependentRelations>::get_polynomials(
-            &self.key,
+            &self.key.borrow(),
             &required_polynomial_ids,
         );
 
@@ -122,8 +142,10 @@ where
 
         let mut quotient_term;
 
+        let borrowed_key = self.key.borrow();
+
         // TODO: hidden missing multithreading here
-        for i in 0..self.key.large_domain.size {
+        for i in 0..borrowed_key.large_domain.size {
             let mut linear_terms = CoefficientArray::default();
             KB::compute_linear_terms::<FFTGetterImpl<H, F, G, NIndependentRelations>>(
                 &polynomials,
@@ -135,9 +157,9 @@ where
                 FFTGetterImpl<H, F, G, NIndependentRelations>,
             >(&polynomials, &challenges, &linear_terms, i);
 
-            quotient_term = self.key.quotient_polynomial_parts
-                [i >> self.key.small_domain.log2_size]
-                .borrow()[i & (self.key.circuit_size - 1)];
+            quotient_term = borrowed_key.quotient_polynomial_parts
+                [i >> borrowed_key.small_domain.log2_size]
+                .borrow()[i & (borrowed_key.circuit_size - 1)];
             quotient_term += sum_of_linear_terms;
             KB::compute_non_linear_terms::<FFTGetterImpl<H, F, G, NIndependentRelations>>(
                 &polynomials,
@@ -176,7 +198,7 @@ pub(crate) trait GenericVerifierWidget<'a> {
     >;
 
     fn compute_quotient_evaluation_contribution(
-        key: &Arc<VerificationKey<'a, Self::Field>>,
+        key: &Arc<VerificationKey<Self::Field>>,
         alpha_base: Self::Field,
         transcript: &Transcript<Self::Hasher>,
         quotient_numerator_eval: &mut Self::Field,
@@ -215,7 +237,7 @@ pub(crate) trait GenericVerifierWidget<'a> {
     }
 
     fn append_scalar_multiplication_inputs(
-        _key: &Arc<VerificationKey<'_, Self::Field>>,
+        _key: &Arc<VerificationKey<Self::Field>>,
         alpha_base: Self::Field,
         transcript: &Transcript<Self::Hasher>,
         _scalar_mult_inputs: &mut HashMap<String, Self::Field>,
