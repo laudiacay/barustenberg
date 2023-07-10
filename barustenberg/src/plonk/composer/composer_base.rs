@@ -10,7 +10,8 @@ use crate::{
     srs::reference_string::{
         file_reference_string::FileReferenceStringFactory, BaseReferenceStringFactory,
         ReferenceStringFactory,
-    }, transcript::Manifest,
+    },
+    transcript::Manifest,
 };
 
 pub(crate) const DUMMY_TAG: u32 = 0;
@@ -28,7 +29,7 @@ pub(crate) enum WireType {
     Fourth = 0xc0000000,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 pub(crate) enum ComposerType {
     Standard,
     Turbo,
