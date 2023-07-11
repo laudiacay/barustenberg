@@ -39,7 +39,7 @@ pub(crate) enum ComposerType {
 
 impl ComposerType {
     pub(crate) fn create_manifest(self, x: usize) -> Manifest {
-        unimplemented!("guessing based on verifier test usage")
+        unimplemented!("ComposerType::create_manifest")
     }
 }
 
