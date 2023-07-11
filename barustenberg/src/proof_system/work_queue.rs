@@ -276,12 +276,10 @@ impl<'a, H: BarretenHasher, Fr: Field + FftField, G: AffineRepr> WorkQueue<'a, H
                     assert!(
                         msm_size
                             <= (*(*self.key).borrow().reference_string)
-                                // .borrow()
                                 .get_monomial_size()
                     );
 
                     let srs_points: Rc<Vec<G1Affine>> = (*self.key.borrow().reference_string)
-                        // .borrow_mut()
                         .get_monomial_points();
 
                     let mut runtime_state: PippengerRuntimeState<Fr, G1Affine> =

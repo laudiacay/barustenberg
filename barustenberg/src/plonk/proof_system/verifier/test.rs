@@ -1,5 +1,25 @@
-use crate::srs::reference_string::file_reference_string::VerifierFileReferenceString;
+use crate::{
+    plonk::{
+        composer::composer_base::ComposerType,
+        proof_system::{
+            commitment_scheme::KateCommitmentScheme,
+            prover::Prover,
+            proving_key::ProvingKey,
+            types::prover_settings::StandardSettings,
+            utils::permutation::compute_permutation_lagrange_base_single,
+            widgets::{
+                random_widgets::permutation_widget::ProverPermutationWidget,
+                transition_widgets::arithmetic_widget::ProverArithmeticWidget,
+            },
+        },
+    },
+    polynomials::Polynomial,
+    srs::reference_string::file_reference_string::FileReferenceString,
+    srs::reference_string::file_reference_string::VerifierFileReferenceString,
+    transcript::Keccak256,
+};
 use ark_ff::{FftField, UniformRand};
+use std::{cell::RefCell, rc::Rc};
 
 use super::*;
 
@@ -7,83 +27,63 @@ impl<H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>> V
     pub fn generate_verifier<G: AffineRepr>(
         circuit_proving_key: Rc<RefCell<ProvingKey<'_, Fr, G>>>,
     ) -> Self {
-        // let mut poly_coefficients: Vec<&mut [Fr]> = Vec::with_capacity(8);
-        // let mut poly_coefficients: Vec<Vec<Fr>> = Vec::with_capacity(8);
-        let mut poly_coefficients: Vec<Rc<RefCell<Polynomial<Fr>>>> = Vec::with_capacity(8);
-        poly_coefficients.push(circuit_proving_key
-            .borrow()
-            .polynomial_store
-            .get(&"q_1".to_owned())
-            .unwrap())
-            // .borrow_mut()
-            // .coefficients)
-            ;
-        // .as_mut_slice());
-        poly_coefficients.push(
+        let mut polynomials: Vec<Rc<RefCell<Polynomial<Fr>>>> = Vec::with_capacity(8);
+        polynomials.push(
+            circuit_proving_key
+                .borrow()
+                .polynomial_store
+                .get(&"q_1".to_owned())
+                .unwrap(),
+        );
+        polynomials.push(
             circuit_proving_key
                 .borrow()
                 .polynomial_store
                 .get(&"q_2".to_owned())
                 .unwrap(),
         );
-        //     .borrow_mut()
-        //     .coefficients)
-        //     ;
-        //     // .as_mut_slice();
-        // poly_coefficients.push(circuit_proving_key
-        //     .borrow()
-        //     .polynomial_store
-        //     .get(&"q_3".to_owned())
-        //     .unwrap()
-        //     .borrow_mut()
-        //     .coefficients)
-        //     ;
-        //     // .as_mut_slice();
-        // poly_coefficients.push(circuit_proving_key
-        //     .borrow()
-        //     .polynomial_store
-        //     .get(&"q_m".to_owned())
-        //     .unwrap()
-        //     .borrow_mut()
-        //     .coefficients)
-        //     ;
-        //     // .as_mut_slice();
-        // poly_coefficients.push(circuit_proving_key
-        //     .borrow()
-        //     .polynomial_store
-        //     .get(&"q_c".to_owned())
-        //     .unwrap()
-        //     .borrow_mut()
-        //     .coefficients)
-        //     ;
-        //     // .as_mut_slice();
-        // poly_coefficients.push(circuit_proving_key
-        //     .borrow()
-        //     .polynomial_store
-        //     .get(&"sigma_1".to_owned())
-        //     .unwrap()
-        //     .borrow_mut()
-        //     .coefficients)
-        //     ;
-        //     // .as_mut_slice();
-        // poly_coefficients.push(circuit_proving_key
-        //     .borrow()
-        //     .polynomial_store
-        //     .get(&"sigma_2".to_owned())
-        //     .unwrap()
-        //     .borrow_mut()
-        //     .coefficients)
-        //     ;
-        //     // .as_mut_slice();
-        // poly_coefficients.push(circuit_proving_key
-        //     .borrow()
-        //     .polynomial_store
-        //     .get(&"sigma_3".to_owned())
-        //     .unwrap()
-        //     .borrow_mut()
-        //     .coefficients)
-        //     ;
-        // .as_mut_slice();
+        polynomials.push(
+            circuit_proving_key
+                .borrow()
+                .polynomial_store
+                .get(&"q_3".to_owned())
+                .unwrap(),
+        );
+        polynomials.push(
+            circuit_proving_key
+                .borrow()
+                .polynomial_store
+                .get(&"q_m".to_owned())
+                .unwrap(),
+        );
+        polynomials.push(
+            circuit_proving_key
+                .borrow()
+                .polynomial_store
+                .get(&"q_c".to_owned())
+                .unwrap(),
+        );
+        polynomials.push(
+            circuit_proving_key
+                .borrow()
+                .polynomial_store
+                .get(&"sigma_1".to_owned())
+                .unwrap(),
+        );
+        polynomials.push(
+            circuit_proving_key
+                .borrow()
+                .polynomial_store
+                .get(&"sigma_2".to_owned())
+                .unwrap(),
+        );
+        polynomials.push(
+            circuit_proving_key
+                .borrow()
+                .polynomial_store
+                .get(&"sigma_3".to_owned())
+                .unwrap(),
+        );
 
         let mut commitments = vec![G1Affine::default(); 8];
         let mut state = PippengerRuntimeState::new(circuit_proving_key.borrow().circuit_size);
@@ -91,10 +91,7 @@ impl<H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>> V
         for i in 0..8 {
             commitments[i] = G1Affine::from(
                 state.pippenger(
-                    poly_coefficients[i]
-                        .borrow_mut()
-                        .coefficients
-                        .as_mut_slice(),
+                    polynomials[i].borrow_mut().coefficients.as_mut_slice(),
                     &((*(circuit_proving_key
                         .borrow()
                         .reference_string
@@ -107,7 +104,6 @@ impl<H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>> V
 
         // TODOL: this number of points in arbitrary and needs to be checked with the reference string
         let crs = Rc::new(VerifierFileReferenceString::new("../srs_db/ignition"));
-        // let circuit_verification_key = Rc::new(VerificationKey::new(
         let mut circuit_verification_key = VerificationKey::new(
             circuit_proving_key.borrow().circuit_size,
             circuit_proving_key.borrow().num_public_inputs,
@@ -130,7 +126,6 @@ impl<H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>> V
         circuit_verification_key
             .commitments
             .insert("Q_C".to_string(), commitments[4]);
-
         circuit_verification_key
             .commitments
             .insert("SIGMA_1".to_string(), commitments[5]);
@@ -141,7 +136,6 @@ impl<H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>> V
             .commitments
             .insert("SIGMA_3".to_string(), commitments[7]);
 
-        // TODO: what is create_manifest()?
         let mut verifier = Verifier::new(
             Some(Rc::new(circuit_verification_key)),
             ComposerType::Standard.create_manifest(0),
@@ -230,7 +224,6 @@ fn generate_test_data<'a, H: BarretenHasher + Default + 'a>(
     // make last permutation the same as identity permutation
     // we are setting the permutation in the last 4 gates as identity permutation since
     // we are cutting out 4 roots as of now.
-
     let num_roots_cut_out_of_the_vanishing_polynomial = 4;
     for j in 0..num_roots_cut_out_of_the_vanishing_polynomial {
         let index = (shift - 1 - j) as u32;
@@ -393,10 +386,6 @@ fn generate_test_data<'a, H: BarretenHasher + Default + 'a>(
         .polynomial_store
         .insert(&"q_c_fft".to_string(), q_c_fft);
 
-    // TODO: make IDPOLYS and NUM_ROOTS... defaults into named constants
-    let program_width = 3;
-    let id_polys_default = 4;
-    let num_roots_cut_out_of_vanishing_polynomial_default = 4;
     let permutation_widget: Box<ProverPermutationWidget<'a, Fr, H, G1Affine, 3, false, 4>> =
         Box::new(ProverPermutationWidget::<Fr, H, G1Affine, 3, false, 4>::new(key.clone()));
 
@@ -405,7 +394,6 @@ fn generate_test_data<'a, H: BarretenHasher + Default + 'a>(
 
     let kate_commitment_scheme = KateCommitmentScheme::<H, Fq, Fr, G1Affine>::new();
 
-    // TODO: what is create_manifest()?
     let mut state: Prover<'a, H, StandardSettings<H>> = Prover::new(
         Some(key),
         Some(ComposerType::Standard.create_manifest(0)),
@@ -417,33 +405,11 @@ fn generate_test_data<'a, H: BarretenHasher + Default + 'a>(
     state
 }
 
-use std::{cell::RefCell, rc::Rc, sync::Arc};
-
-use crate::{
-    plonk::{
-        composer::composer_base::ComposerType,
-        proof_system::{
-            commitment_scheme::KateCommitmentScheme,
-            prover::Prover,
-            proving_key::ProvingKey,
-            types::prover_settings::StandardSettings,
-            utils::permutation::compute_permutation_lagrange_base_single,
-            widgets::{
-                random_widgets::permutation_widget::ProverPermutationWidget,
-                transition_widgets::arithmetic_widget::ProverArithmeticWidget,
-            },
-        },
-    },
-    polynomials::Polynomial,
-    srs::reference_string::file_reference_string::FileReferenceString,
-    transcript::Keccak256,
-};
-
 #[test]
 fn verify_arithmetic_proof_small() {
     let n = 8;
 
-    let mut state = generate_test_data::</*Fq, Fr, G1Affine,*/ Keccak256>(n);
+    let mut state = generate_test_data::<Keccak256>(n);
 
     // Construct proof
     let proof = state.construct_proof().unwrap();
@@ -461,7 +427,7 @@ fn verify_arithmetic_proof_small() {
 fn verify_arithmetic_proof() {
     let n = 1 << 14;
 
-    let mut state = generate_test_data::</*Fq, Fr,  G1Affine,*/ Keccak256>(n);
+    let mut state = generate_test_data::<Keccak256>(n);
 
     // Construct proof
     let proof = state.construct_proof().unwrap();
@@ -480,7 +446,7 @@ fn verify_arithmetic_proof() {
 fn verify_damaged_proof() {
     let n = 8;
 
-    let state = generate_test_data::</*Fq, Fr, G1Affine, */ Keccak256>(n);
+    let state = generate_test_data::<Keccak256>(n);
     let mut verifier: Verifier<'_, Keccak256, StandardSettings<Keccak256>> =
         Verifier::generate_verifier(state.key);
 

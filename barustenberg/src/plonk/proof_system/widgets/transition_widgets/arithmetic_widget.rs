@@ -201,12 +201,6 @@ impl<H: BarretenHasher, F: Field + FftField, G: AffineRepr> KernelBase
     }
 }
 
-// pub(crate) struct ProverArithmeticWidget<'a, Fr: Field + FftField, G: AffineRepr, H, S> {
-//     // Seems like every type like this should be Arc<Mutex<...>> based on use of shared_ptr?
-//     key: Rc<RefCell<ProvingKey<'a, Fr, G>>>,
-//     phantom: PhantomData<(H, S)>,
-// }
-
 pub(crate) type ProverArithmeticWidget<
     'a,
     F: Field + FftField,
@@ -222,16 +216,3 @@ pub(crate) type ProverArithmeticWidget<
     <ArithmeticKernel<H, F, G> as KernelBase>::NumIndependentRelations,
     ArithmeticKernel<H, F, G>,
 >;
-
-// impl<'a, Fr: Field + FftField, G: AffineRepr, H, S> ProverArithmeticWidget<'a, Fr, G, H, S> {
-//     pub(crate) fn new(key: Rc<RefCell<ProvingKey<'a, Fr, G>>>) -> Self {
-//         Self {
-//             key,
-//             phantom: PhantomData,
-//         }
-//     }
-// }
-
-// impl<'a, Fr: Field + FftField, G: AffineRepr, H, S>
-
-// ProverArithmeticWidget<'a, Fr, G, H, S> {

@@ -26,7 +26,6 @@ use super::verification_key::VerificationKey;
 
 use anyhow::{anyhow, Result};
 
-// here we go
 #[cfg(test)]
 mod test;
 
