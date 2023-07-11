@@ -88,7 +88,7 @@ impl<
     }
 }
 
-impl<'a, H: BarretenHasher + Default, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>>
+impl<'a, H: BarretenHasher + Default + 'a, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>>
     Prover<'a, H, S>
 {
     fn copy_placeholder(&self) {
