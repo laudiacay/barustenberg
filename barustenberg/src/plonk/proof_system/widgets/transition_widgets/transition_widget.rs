@@ -57,7 +57,7 @@ pub(crate) trait KernelBase {
     );
 }
 
-pub(crate) trait TransitionWidgetBase<'a>: std::fmt::Debug {
+pub(crate) trait TransitionWidgetBase<'a>: std::fmt::Debug + 'a {
     type Hasher: BarretenHasher;
     type Field: Field + FftField;
 
@@ -113,12 +113,12 @@ where
 
 impl<
         'a,
-        H: BarretenHasher,
+        H: BarretenHasher + 'a,
         F: Field + FftField,
         G: AffineRepr,
-        S: Settings + Debug,
+        S: Settings + Debug + 'a,
         NIndependentRelations: generic_array::ArrayLength<F> + Debug,
-        KB: std::fmt::Debug,
+        KB: std::fmt::Debug + 'a ,
     > TransitionWidgetBase<'a> for TransitionWidget<'a, H, F, G, S, NIndependentRelations, KB>
 where
     KB: KernelBase<

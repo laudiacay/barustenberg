@@ -286,9 +286,9 @@ pub(crate) struct ProverPermutationWidget<
 
 impl<
         'a,
-        Fr: Field + FftField,
-        Hash: BarretenHasher + std::fmt::Debug,
-        G: AffineRepr,
+        Fr: Field + FftField + 'a,
+        Hash: BarretenHasher + std::fmt::Debug + 'a,
+        G: AffineRepr + 'a,
         const PROGRAM_WIDTH: usize,
         const IDPOLYS: bool,
         const NUM_ROOTS_CUT_OUT_OF_VANISHING_POLYNOMIAL: usize,

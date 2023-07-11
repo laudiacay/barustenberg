@@ -6,10 +6,10 @@ use crate::{
     transcript::{BarretenHasher, Transcript},
 };
 
-pub(crate) trait ProverRandomWidget<'a>: std::fmt::Debug {
-    type Hasher: BarretenHasher;
-    type Fr: Field + FftField;
-    type G1: AffineRepr;
+pub(crate) trait ProverRandomWidget<'a>: std::fmt::Debug + 'a {
+    type Hasher: BarretenHasher + 'a;
+    type Fr: Field + FftField + 'a;
+    type G1: AffineRepr + 'a;
 
     fn compute_round_commitments(
         &self,
