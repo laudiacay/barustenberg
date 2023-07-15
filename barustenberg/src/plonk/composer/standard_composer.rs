@@ -1096,11 +1096,11 @@ impl<RSF: ReferenceStringFactory> StandardComposer<RSF> {
     /// It first computes the verification key, then constructs a `Verifier`
     /// using the computed key and the manifest of public inputs.
     /// Finally, it adds a `KateCommitmentScheme` to the verifier and returns it.
-    fn create_verifier(&mut self) -> Verifier<Keccak256, StandardSettings<Keccak256>> {
+    fn create_verifier(&mut self) -> Result<Verifier<Keccak256, StandardSettings<Keccak256>>> {
         let cbd = self.cbd.clone();
         let cbd = cbd.borrow();
 
-        self.compute_verification_key();
+        self.compute_verification_key()?;
         let mut output_state = Verifier::new(
             Some(cbd.circuit_verification_key.as_ref().unwrap().clone()),
             self.create_manifest(cbd.public_inputs.len()),
@@ -1108,7 +1108,7 @@ impl<RSF: ReferenceStringFactory> StandardComposer<RSF> {
 
         output_state.commitment_scheme = Box::new(KateCommitmentScheme::new());
 
-        output_state
+        Ok(output_state)
     }
 
     /// Creates a prover.

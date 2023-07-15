@@ -558,7 +558,7 @@ pub(crate) trait ComposerBase {
         let n_gates = cbd.num_gates;
         for i in 0..n_selectors {
             let properties = cbd.selector_properties[i].clone();
-            let mut selector_values = &mut cbd.selectors[i];
+            let selector_values = &mut cbd.selectors[i];
             assert_eq!(n_gates, selector_values.len());
             // Fill unfilled gates' selector values with zeroes (stopping 1 short; the last value will be nonzero).
             for _j in num_filled_gates..(subgroup_size - 1) {
