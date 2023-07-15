@@ -42,7 +42,10 @@ pub struct Verifier<'a, H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, G
 impl<'a, H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>>
     Verifier<'a, H, S>
 {
-    pub fn new(_verifier_key: Option<Rc<VerificationKey<'a, Fr>>>, _manifest: Manifest) -> Self {
+    pub fn new(
+        _verifier_key: Option<Rc<RefCell<VerificationKey<'a, Fr>>>>,
+        _manifest: Manifest,
+    ) -> Self {
         // Implement constructor logic here.
         todo!("Verifier::new")
     }
@@ -305,6 +308,7 @@ impl<'a, H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine
             (*self.key)
                 .borrow()
                 .reference_string
+                .borrow()
                 .get_precomputed_g2_lines()
                 .as_ref(),
             2,

@@ -4,7 +4,7 @@ use crate::plonk::composer::composer_base::ComposerType;
 
 #[derive(Debug, Clone)]
 pub(crate) struct PolynomialDescriptor {
-    commitment_label: String,
+    pub(crate) commitment_label: String,
     pub(crate) polynomial_label: String,
     pub(crate) requires_shifted_evaluation: bool,
     pub(crate) source: PolynomialSource,
@@ -30,7 +30,7 @@ impl PolynomialDescriptor {
 }
 #[derive(Debug, Clone, Default)]
 pub(crate) struct PolynomialManifest {
-    manifest: Vec<PolynomialDescriptor>,
+    pub(crate) manifest: Vec<PolynomialDescriptor>,
 }
 
 lazy_static::lazy_static! {
@@ -64,9 +64,10 @@ lazy_static::lazy_static! {
         PolynomialDescriptor::new("SIGMA_1".to_string(), "sigma_1".to_string(), false, PolynomialSource::Permutation, PolynomialIndex::Sigma1),
         PolynomialDescriptor::new("SIGMA_2".to_string(), "sigma_2".to_string(), false, PolynomialSource::Permutation, PolynomialIndex::Sigma2),
         PolynomialDescriptor::new("SIGMA_3".to_string(), "sigma_3".to_string(), false, PolynomialSource::Permutation, PolynomialIndex::Sigma3),
-        
+
     ] ;
     PolynomialManifest { manifest }};
+    pub(crate) static ref STANDARD_MANIFEST_SIZE: usize = STANDARD_POLYNOMIAL_MANIFEST.len();
 
     /*
         PolynomialDescriptor("W_1", "w_1", true, WITNESS, W_1),                              //
@@ -113,10 +114,12 @@ lazy_static::lazy_static! {
             PolynomialDescriptor::new("SIGMA_2".to_string(), "sigma_2".to_string(), false, PolynomialSource::Permutation, PolynomialIndex::Sigma2),
             PolynomialDescriptor::new("SIGMA_3".to_string(), "sigma_3".to_string(), false, PolynomialSource::Permutation, PolynomialIndex::Sigma3),
             PolynomialDescriptor::new("SIGMA_4".to_string(), "sigma_4".to_string(), false, PolynomialSource::Permutation, PolynomialIndex::Sigma4),
-            
+
         ];
         PolynomialManifest { manifest }
     };
+
+    pub(crate) static ref TURBO_MANIFEST_SIZE: usize = TURBO_POLYNOMIAL_MANIFEST.len();
     /*
         PolynomialDescriptor("W_1", "w_1", true, WITNESS, W_1),                         //
     PolynomialDescriptor("W_2", "w_2", true, WITNESS, W_2),                         //
@@ -182,10 +185,12 @@ lazy_static::lazy_static! {
             PolynomialDescriptor::new("ID_2".to_string(), "id_2".to_string(), false, PolynomialSource::Permutation, PolynomialIndex::Id2),
             PolynomialDescriptor::new("ID_3".to_string(), "id_3".to_string(), false, PolynomialSource::Permutation, PolynomialIndex::Id3),
             PolynomialDescriptor::new("ID_4".to_string(), "id_4".to_string(), false, PolynomialSource::Permutation, PolynomialIndex::Id4),
-            
+
         ];
         PolynomialManifest { manifest }
     };
+
+    pub(crate) static ref ULTRA_MANIFEST_SIZE: usize = ULTRA_POLYNOMIAL_MANIFEST.len();
 }
 
 impl PolynomialManifest {

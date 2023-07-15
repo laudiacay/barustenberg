@@ -247,7 +247,7 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
                 // our indexer, because we don't store the precomputed root values for the 1st round (because they're
                 // all 1).
 
-                let round_roots = root_table[((m.trailing_zeros() - 1) as usize)];
+                let round_roots = root_table[(m.trailing_zeros() - 1) as usize];
 
                 // Finally, we want to treat the final round differently from the others,
                 // so that we can reduce out of our 'coarse' reduction and store the output in `coeffs` instead of

@@ -106,8 +106,8 @@ pub(crate) trait ComposerBase<'a> {
     ) -> Self;
 
     fn with_keys(
-        p_key: Rc<ProvingKey<'a, Fr, G1Affine>>,
-        v_key: Rc<VerificationKey<'a, Fr>>,
+        p_key: Rc<RefCell<ProvingKey<'a, Fr, G1Affine>>>,
+        v_key: Rc<RefCell<VerificationKey<'a, Fr>>>,
         num_selectors: usize,
         size_hint: usize,
         selector_properties: Vec<SelectorProperties>,
@@ -493,26 +493,26 @@ pub(crate) trait ComposerBase<'a> {
     }
 
     /**
-    * @brief Computes the verification key by computing the:
-    * (1) commitments to the selector and permutation polynomials,
-    * (2) sets the polynomial manifest using the data from proving key.
-    */
+     * @brief Computes the verification key by computing the:
+     * (1) commitments to the selector and permutation polynomials,
+     * (2) sets the polynomial manifest using the data from proving key.
+     */
     fn compute_verification_key_base(
         &mut self,
         proving_key: Rc<RefCell<ProvingKey<'a, Fr, G1Affine>>>,
         vrs: Rc<RefCell<<<Self as ComposerBase<'a>>::RSF as ReferenceStringFactory>::Ver>>,
     ) -> Result<Rc<RefCell<VerificationKey<'a, Fr>>>> {
-        let proving_key= proving_key.as_ref().borrow();
+        let proving_key = proving_key.as_ref().borrow();
 
         let circuit_verification_key = Rc::new(RefCell::new(VerificationKey::new(
             proving_key.circuit_size,
             proving_key.num_public_inputs,
-            (*vrs).borrow(),
-            proving_key.composer_type.clone(),
+            vrs.clone(),
+            proving_key.composer_type,
         )));
 
         for i in 0..proving_key.polynomial_manifest.len() {
-            let selector_poly_info = &proving_key.polynomial_manifest[i];
+            let selector_poly_info = &proving_key.polynomial_manifest[i.into()];
 
             let selector_poly_label = selector_poly_info.polynomial_label.clone();
             let selector_commitment_label = selector_poly_info.commitment_label.clone();
@@ -521,16 +521,18 @@ pub(crate) trait ComposerBase<'a> {
                 || selector_poly_info.source == PolynomialSource::Permutation
             {
                 // Fetch the constraint selector polynomial in its coefficient form.
-                let selector_poly_coefficients = (*proving_key
-                    .polynomial_store
-                    .get(&selector_poly_label)?)
-                    .borrow()
-                    .coefficients;
+                let selector_poly_coefficients =
+                    (*proving_key.polynomial_store.get(&selector_poly_label)?)
+                        .borrow()
+                        .coefficients;
 
                 // Commit to the constraint selector polynomial and insert the commitment in the verification key.
                 let selector_poly_commitment = G1Affine::scalar_multiplication_pippenger(
                     &selector_poly_coefficients,
-                    &proving_key.reference_string.borrow_mut().get_monomial_points(),
+                    &proving_key
+                        .reference_string
+                        .borrow_mut()
+                        .get_monomial_points(),
                     proving_key.circuit_size,
                     &proving_key.pippenger_runtime_state,
                 );

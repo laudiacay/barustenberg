@@ -1,3 +1,4 @@
+use anyhow::Result;
 use std::borrow::BorrowMut;
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -7,6 +8,8 @@ use super::composer_base::{ComposerBase, ComposerBaseData, ComposerType};
 use crate::plonk::composer::composer_base::SelectorProperties;
 use crate::plonk::proof_system::commitment_scheme::KateCommitmentScheme;
 use crate::plonk::proof_system::prover::Prover;
+use crate::plonk::proof_system::types::polynomial_manifest::STANDARD_MANIFEST_SIZE;
+use crate::plonk::proof_system::types::prover_settings::Settings;
 use crate::plonk::proof_system::types::prover_settings::StandardSettings;
 use crate::plonk::proof_system::verification_key::VerificationKey;
 use crate::plonk::proof_system::verifier::Verifier;
@@ -16,7 +19,7 @@ use crate::proof_system::arithmetization::{
     AccumulatorTriple, AddQuad, AddTriple, MulQuad, MulTriple, PolyTriple,
 };
 use crate::srs::reference_string::file_reference_string::FileReferenceStringFactory;
-use crate::transcript::Keccak256;
+use crate::transcript::{Keccak256, Manifest, ManifestEntry, RoundManifest};
 use crate::{
     plonk::proof_system::proving_key::ProvingKey, srs::reference_string::ReferenceStringFactory,
 };
@@ -72,8 +75,8 @@ impl<'a, RSF: ReferenceStringFactory> ComposerBase<'a> for StandardComposer<'a, 
     }
 
     fn with_keys(
-        p_key: Rc<ProvingKey<'a, Fr, G1Affine>>,
-        v_key: Rc<VerificationKey<'a, Fr>>,
+        p_key: Rc<RefCell<ProvingKey<'a, Fr, G1Affine>>>,
+        v_key: Rc<RefCell<VerificationKey<'a, Fr>>>,
         num_selectors: usize,
         size_hint: usize,
         selector_properties: Vec<SelectorProperties>,
@@ -728,8 +731,13 @@ impl<'a, RSF: ReferenceStringFactory> StandardComposer<'a, RSF> {
 
         (*self.cbd.circuit_proving_key.unwrap())
             .borrow_mut()
-            .recursive_proof_public_input_indices =
-            self.cbd.circuit_proving_key.unwrap().borrow().recursive_proof_public_input_indices.clone();
+            .recursive_proof_public_input_indices = self
+            .cbd
+            .circuit_proving_key
+            .unwrap()
+            .borrow()
+            .recursive_proof_public_input_indices
+            .clone();
 
         (*self.cbd.circuit_proving_key.unwrap())
             .borrow_mut()
@@ -749,18 +757,18 @@ impl<'a, RSF: ReferenceStringFactory> StandardComposer<'a, RSF> {
     /// # Returns
     ///
     /// * Returns an `Rc<VerificationKey>`, a reference counted verification key.
-    fn compute_verification_key(&mut self) -> Rc<VerificationKey<'a, Fr>> {
+    fn compute_verification_key(&mut self) -> Result<Rc<RefCell<VerificationKey<'a, Fr>>>> {
         if let Some(ref key) = self.cbd.circuit_verification_key {
-            return Rc::clone(key);
+            return Ok(key.clone());
         }
         if self.cbd.circuit_proving_key.is_none() {
             self.compute_proving_key();
         }
 
-        self.cbd.circuit_verification_key = Some(compute_verification_key_base(
-            &self.cbd.circuit_proving_key.as_ref().unwrap(),
-            &self.cbd.crs_factory.get_verifier_crs(),
-        ));
+        self.cbd.circuit_verification_key = Some(self.compute_verification_key_base(
+            self.cbd.circuit_proving_key.unwrap(),
+            self.cbd.crs_factory.get_verifier_crs().unwrap(),
+        )?);
 
         let mut verification_key = self
             .cbd
@@ -769,11 +777,16 @@ impl<'a, RSF: ReferenceStringFactory> StandardComposer<'a, RSF> {
             .borrow()
             .borrow_mut();
         verification_key.composer_type = self.own_type;
-        verification_key.recursive_proof_public_input_indices =
-            self.cbd.circuit_proving_key.unwrap().borrow().recursive_proof_public_input_indices.clone();
+        verification_key.recursive_proof_public_input_indices = self
+            .cbd
+            .circuit_proving_key
+            .unwrap()
+            .borrow()
+            .recursive_proof_public_input_indices
+            .clone();
         verification_key.contains_recursive_proof = self.contains_recursive_proof;
 
-        Rc::clone(&self.cbd.circuit_verification_key.as_ref().unwrap())
+        Ok(self.cbd.circuit_verification_key.unwrap().clone())
     }
 
     /// Computes the witness with standard settings (wire width = 3).
@@ -781,7 +794,287 @@ impl<'a, RSF: ReferenceStringFactory> StandardComposer<'a, RSF> {
     /// Calls the `compute_witness_base` method from `ComposerBase` with the standard
     /// program width.
     fn compute_witness(&mut self) {
-        self.compute_witness_base::<standard_settings::program_width>(&mut self);
+        self.compute_witness_base(
+            StandardSettings::program_width(),
+            StandardSettings::minimum_circuit_size(),
+        );
+    }
+
+    fn create_manifest(&self, num_public_inputs: usize) -> Manifest {
+        let g1_size: usize = 64;
+        let fr_size: usize = 32;
+        let public_input_size = fr_size * num_public_inputs;
+
+        let mut manifest = Manifest::default();
+        // round 0
+        manifest.add_round_manifest(RoundManifest {
+            elements: vec![
+                ManifestEntry {
+                    name: "circuit_size".to_string(),
+                    num_bytes: 4,
+                    derived_by_verifier: true,
+                    challenge_map_index: 0,
+                },
+                ManifestEntry {
+                    name: "public_input_size".to_string(),
+                    num_bytes: 4,
+                    derived_by_verifier: true,
+                    challenge_map_index: 0,
+                },
+            ],
+            challenge: "init".to_string(),
+            num_challenges: 1,
+            map_challenges: false,
+        });
+
+        // round 1
+        manifest.add_round_manifest(RoundManifest {
+            elements: vec![],
+            challenge: "eta".to_string(),
+            num_challenges: 0,
+            map_challenges: false,
+        });
+
+        // round 2
+        /*
+                       {
+                   { .name = "public_inputs", .num_bytes = public_input_size, .derived_by_verifier = false },
+                   { .name = "W_1",           .num_bytes = g1_size,           .derived_by_verifier = false },
+                   { .name = "W_2",           .num_bytes = g1_size,           .derived_by_verifier = false },
+                   { .name = "W_3",           .num_bytes = g1_size,           .derived_by_verifier = false },
+               },
+               /* challenge_name = */ "beta",
+               /* num_challenges_in = */ 2),
+        */
+        manifest.add_round_manifest(RoundManifest {
+            elements: vec![
+                ManifestEntry {
+                    name: "public_inputs".to_string(),
+                    num_bytes: public_input_size,
+                    derived_by_verifier: false,
+                    challenge_map_index: 0,
+                },
+                ManifestEntry {
+                    name: "W_1".to_string(),
+                    num_bytes: g1_size,
+                    derived_by_verifier: false,
+                    challenge_map_index: 0,
+                },
+                ManifestEntry {
+                    name: "W_2".to_string(),
+                    num_bytes: g1_size,
+                    derived_by_verifier: false,
+                    challenge_map_index: 0,
+                },
+                ManifestEntry {
+                    name: "W_3".to_string(),
+                    num_bytes: g1_size,
+                    derived_by_verifier: false,
+                    challenge_map_index: 0,
+                },
+            ],
+            challenge: "beta".to_string(),
+            num_challenges: 2,
+            map_challenges: false,
+        });
+
+        // Round 3
+        //   transcript::Manifest::RoundManifest(
+        //     { { .name = "Z_PERM", .num_bytes = g1_size, .derived_by_verifier = false } },
+        //     /* challenge_name = */ "alpha",
+        //     /* num_challenges_in = */ 1),
+
+        manifest.add_round_manifest(RoundManifest {
+            elements: vec![ManifestEntry {
+                name: "Z_PERM".to_string(),
+                num_bytes: g1_size,
+                derived_by_verifier: false,
+                challenge_map_index: 0,
+            }],
+            challenge: "alpha".to_string(),
+            num_challenges: 1,
+            map_challenges: false,
+        });
+
+        // Round 4
+        /*
+                     transcript::Manifest::RoundManifest(
+               { { .name = "T_1", .num_bytes = g1_size, .derived_by_verifier = false },
+                 { .name = "T_2", .num_bytes = g1_size, .derived_by_verifier = false },
+                 { .name = "T_3", .num_bytes = g1_size, .derived_by_verifier = false } },
+               /* challenge_name = */ "z",
+               /* num_challenges_in = */ 1),
+        */
+        manifest.add_round_manifest(RoundManifest {
+            elements: vec![
+                ManifestEntry {
+                    name: "T_1".to_string(),
+                    num_bytes: g1_size,
+                    derived_by_verifier: false,
+                    challenge_map_index: 0,
+                },
+                ManifestEntry {
+                    name: "T_2".to_string(),
+                    num_bytes: g1_size,
+                    derived_by_verifier: false,
+                    challenge_map_index: 0,
+                },
+                ManifestEntry {
+                    name: "T_3".to_string(),
+                    num_bytes: g1_size,
+                    derived_by_verifier: false,
+                    challenge_map_index: 0,
+                },
+            ],
+            challenge: "z".to_string(),
+            num_challenges: 1,
+            map_challenges: false,
+        });
+
+        // Round 5
+        /*
+        transcript::Manifest::RoundManifest(
+                {
+                    { .name = "t",            .num_bytes = fr_size, .derived_by_verifier = true,  .challenge_map_index = -1 },
+                    { .name = "w_1",          .num_bytes = fr_size, .derived_by_verifier = false, .challenge_map_index = 0 },
+                    { .name = "w_2",          .num_bytes = fr_size, .derived_by_verifier = false, .challenge_map_index = 1 },
+                    { .name = "w_3",          .num_bytes = fr_size, .derived_by_verifier = false, .challenge_map_index = 2 },
+                    { .name = "sigma_1",      .num_bytes = fr_size, .derived_by_verifier = false, .challenge_map_index = 3 },
+                    { .name = "sigma_2",      .num_bytes = fr_size, .derived_by_verifier = false, .challenge_map_index = 4 },
+                    { .name = "sigma_3",      .num_bytes = fr_size, .derived_by_verifier = false, .challenge_map_index = 5 },
+                    { .name = "q_1",          .num_bytes = fr_size, .derived_by_verifier = false, .challenge_map_index = 6 },
+                    { .name = "q_2",          .num_bytes = fr_size, .derived_by_verifier = false, .challenge_map_index = 7 },
+                    { .name = "q_3",          .num_bytes = fr_size, .derived_by_verifier = false, .challenge_map_index = 8 },
+                    { .name = "q_m",          .num_bytes = fr_size, .derived_by_verifier = false, .challenge_map_index = 9 },
+                    { .name = "q_c",          .num_bytes = fr_size, .derived_by_verifier = false, .challenge_map_index = 10 },
+                    { .name = "z_perm",       .num_bytes = fr_size, .derived_by_verifier = false, .challenge_map_index = 11 },
+                    { .name = "z_perm_omega", .num_bytes = fr_size, .derived_by_verifier = false, .challenge_map_index = -1 },
+                },
+                /* challenge_name = */ "nu",
+                /* num_challenges_in = */ STANDARD_MANIFEST_SIZE,
+                /* map_challenges_in = */ true),
+         */
+        manifest.add_round_manifest(RoundManifest {
+            elements: vec![
+                ManifestEntry {
+                    name: "t".to_string(),
+                    num_bytes: fr_size,
+                    derived_by_verifier: true,
+                    challenge_map_index: -1,
+                },
+                ManifestEntry {
+                    name: "w_1".to_string(),
+                    num_bytes: fr_size,
+                    derived_by_verifier: false,
+                    challenge_map_index: 0,
+                },
+                ManifestEntry {
+                    name: "w_2".to_string(),
+                    num_bytes: fr_size,
+                    derived_by_verifier: false,
+                    challenge_map_index: 1,
+                },
+                ManifestEntry {
+                    name: "w_3".to_string(),
+                    num_bytes: fr_size,
+                    derived_by_verifier: false,
+                    challenge_map_index: 2,
+                },
+                ManifestEntry {
+                    name: "sigma_1".to_string(),
+                    num_bytes: fr_size,
+                    derived_by_verifier: false,
+                    challenge_map_index: 3,
+                },
+                ManifestEntry {
+                    name: "sigma_2".to_string(),
+                    num_bytes: fr_size,
+                    derived_by_verifier: false,
+                    challenge_map_index: 4,
+                },
+                ManifestEntry {
+                    name: "sigma_3".to_string(),
+                    num_bytes: fr_size,
+                    derived_by_verifier: false,
+                    challenge_map_index: 5,
+                },
+                ManifestEntry {
+                    name: "q_1".to_string(),
+                    num_bytes: fr_size,
+                    derived_by_verifier: false,
+                    challenge_map_index: 6,
+                },
+                ManifestEntry {
+                    name: "q_2".to_string(),
+                    num_bytes: fr_size,
+                    derived_by_verifier: false,
+                    challenge_map_index: 7,
+                },
+                ManifestEntry {
+                    name: "q_3".to_string(),
+                    num_bytes: fr_size,
+                    derived_by_verifier: false,
+                    challenge_map_index: 8,
+                },
+                ManifestEntry {
+                    name: "q_m".to_string(),
+                    num_bytes: fr_size,
+                    derived_by_verifier: false,
+                    challenge_map_index: 9,
+                },
+                ManifestEntry {
+                    name: "q_c".to_string(),
+                    num_bytes: fr_size,
+                    derived_by_verifier: false,
+                    challenge_map_index: 10,
+                },
+                ManifestEntry {
+                    name: "z_perm".to_string(),
+                    num_bytes: fr_size,
+                    derived_by_verifier: false,
+                    challenge_map_index: 11,
+                },
+                ManifestEntry {
+                    name: "z_perm_omega".to_string(),
+                    num_bytes: fr_size,
+                    derived_by_verifier: false,
+                    challenge_map_index: -1,
+                },
+            ],
+            challenge: "nu".to_string(),
+            num_challenges: *STANDARD_MANIFEST_SIZE,
+            map_challenges: true,
+        });
+
+        // Round 6
+        /*
+                             transcript::Manifest::RoundManifest(
+               { { .name = "PI_Z",       .num_bytes = g1_size, .derived_by_verifier = false },
+                 { .name = "PI_Z_OMEGA", .num_bytes = g1_size, .derived_by_verifier = false } },
+               /* challenge_name = */ "separator",
+               /* num_challenges_in = */ 1) }
+        */
+        manifest.add_round_manifest(RoundManifest {
+            elements: vec![
+                ManifestEntry {
+                    name: "PI_Z".to_string(),
+                    num_bytes: g1_size,
+                    derived_by_verifier: false,
+                    challenge_map_index: 0,
+                },
+                ManifestEntry {
+                    name: "PI_Z_OMEGA".to_string(),
+                    num_bytes: g1_size,
+                    derived_by_verifier: false,
+                    challenge_map_index: 0,
+                },
+            ],
+            challenge: "separator".to_string(),
+            num_challenges: 1,
+            map_challenges: false,
+        });
+
+        manifest
     }
 
     /// Creates a verifier.
@@ -793,12 +1086,12 @@ impl<'a, RSF: ReferenceStringFactory> StandardComposer<'a, RSF> {
         self.compute_verification_key();
         let mut output_state = Verifier::new(
             Some(Rc::clone(
-                &self.cbd.circuit_verification_key.as_ref().unwrap(),
+                self.cbd.circuit_verification_key.as_ref().unwrap(),
             )),
             self.create_manifest(self.cbd.public_inputs.len()),
         );
 
-        output_state.commitment_scheme = Some(Box::new(KateCommitmentScheme::new()));
+        output_state.commitment_scheme = Box::new(KateCommitmentScheme::new());
 
         output_state
     }
@@ -820,14 +1113,21 @@ impl<'a, RSF: ReferenceStringFactory> StandardComposer<'a, RSF> {
 
         let mut output_state = Prover::new(
             Some(Rc::clone(&self.cbd.circuit_proving_key.as_ref().unwrap())),
-            self.create_manifest(self.cbd.public_inputs.len()),
+            Some(self.create_manifest(self.cbd.public_inputs.len())),
             None,
         );
 
         output_state
             .random_widgets
-            .push(Box::new(ProverPermutationWidget::<Fr, Keccak256, G1Affine, 3, false, 4>::new(
-                self.cbd.circuit_proving_key.unwrap().clone(),
+            .push(Box::new(ProverPermutationWidget::<
+                Fr,
+                Keccak256,
+                G1Affine,
+                3,
+                false,
+                4,
+            >::new(
+                self.cbd.circuit_proving_key.unwrap().clone()
             )));
 
         output_state

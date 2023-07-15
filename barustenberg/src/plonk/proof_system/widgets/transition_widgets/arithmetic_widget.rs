@@ -11,9 +11,10 @@ use crate::{
 };
 
 use std::{
+    cell::RefCell,
     collections::{HashMap, HashSet},
     marker::PhantomData,
-    sync::Arc, cell::RefCell, rc::Rc,
+    rc::Rc,
 };
 
 use super::{
