@@ -30,20 +30,20 @@ use anyhow::{anyhow, Result};
 // mod test;
 
 #[derive(Debug)]
-pub struct Verifier<'a, H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>> {
+pub struct Verifier<H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>> {
     settings: S,
-    key: Rc<RefCell<VerificationKey<'a, Fr>>>,
+    key: Rc<RefCell<VerificationKey<Fr>>>,
     manifest: Manifest,
     kate_g1_elements: HashMap<String, G1Affine>,
     kate_fr_elements: HashMap<String, Fr>,
     pub(crate) commitment_scheme: Box<KateCommitmentScheme<H, Fq, Fr, G1Affine>>,
 }
 
-impl<'a, H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>>
-    Verifier<'a, H, S>
+impl<H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>>
+    Verifier<H, S>
 {
     pub fn new(
-        _verifier_key: Option<Rc<RefCell<VerificationKey<'a, Fr>>>>,
+        _verifier_key: Option<Rc<RefCell<VerificationKey<Fr>>>>,
         _manifest: Manifest,
     ) -> Self {
         // Implement constructor logic here.

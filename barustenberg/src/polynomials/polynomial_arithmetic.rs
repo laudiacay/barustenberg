@@ -102,7 +102,7 @@ fn fft_inner_serial<Fr: Copy + Default + Add<Output = Fr> + Sub<Output = Fr> + M
     }
 }
 
-impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
+impl<'a, Fr: Field + FftField> EvaluationDomain<Fr> {
     /// modifies target[..generator_size]
     fn scale_by_generator(
         &self,
@@ -579,7 +579,7 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
     pub(crate) fn divide_by_pseudo_vanishing_polynomial(
         &self,
         _coeffs: &[&mut [&mut Fr]],
-        _target: &EvaluationDomain<'a, Fr>,
+        _target: &EvaluationDomain<Fr>,
         _num_roots_cut_out_of_vanishing_poly: usize,
     ) {
         unimplemented!()
@@ -705,7 +705,7 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
     pub(crate) fn compute_lagrange_polynomial_fft(
         &self,
         l_1_coefficients: &mut Polynomial<Fr>,
-        target_domain: &EvaluationDomain<'a, Fr>,
+        target_domain: &EvaluationDomain<Fr>,
     ) -> anyhow::Result<()> {
         // Step 1: Compute the 1/denominator for each evaluation: 1 / (X_i - 1)
         let multiplicand = target_domain.root; // kn'th root of unity w'

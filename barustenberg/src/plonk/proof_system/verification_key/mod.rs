@@ -15,12 +15,12 @@ use crate::{
 use super::types::PolynomialManifest;
 
 #[derive(Debug)]
-pub struct VerificationKey<'a, Fr: Field + FftField> {
+pub struct VerificationKey< Fr: Field + FftField> {
     pub(crate) composer_type: ComposerType,
     pub(crate) circuit_size: usize,
     log_circuit_size: usize,
     pub(crate) num_public_inputs: usize,
-    pub(crate) domain: EvaluationDomain<'a, Fr>,
+    pub(crate) domain: EvaluationDomain<Fr>,
     pub(crate) reference_string: Rc<RefCell<dyn VerifierReferenceString>>,
     pub(crate) commitments: HashMap<String, G1Affine>,
     pub(crate) polynomial_manifest: PolynomialManifest,
@@ -33,7 +33,7 @@ pub struct VerificationKey<'a, Fr: Field + FftField> {
     pub(crate) program_width: usize,
 }
 
-impl<'a, Fr: FftField + Field> Default for VerificationKey<'a, Fr> {
+impl< Fr: FftField + Field> Default for VerificationKey< Fr> {
     fn default() -> Self {
         VerificationKey {
             composer_type: Default::default(),
@@ -52,7 +52,7 @@ impl<'a, Fr: FftField + Field> Default for VerificationKey<'a, Fr> {
     }
 }
 
-impl<'a, Fr: Field + FftField> VerificationKey<'a, Fr> {
+impl< Fr: Field + FftField> VerificationKey< Fr> {
     pub(crate) fn new(
         circuit_size: usize,
         num_public_inputs: usize,

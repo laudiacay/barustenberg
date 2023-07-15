@@ -6,7 +6,7 @@ use crate::{
     transcript::{BarretenHasher, Transcript},
 };
 
-pub(crate) trait ProverRandomWidget<'a>: std::fmt::Debug {
+pub(crate) trait ProverRandomWidget: std::fmt::Debug {
     type Hasher: BarretenHasher;
     type Fr: Field + FftField;
     type G1: AffineRepr;
@@ -15,7 +15,7 @@ pub(crate) trait ProverRandomWidget<'a>: std::fmt::Debug {
         &self,
         _transcript: &mut Transcript<Self::Hasher>,
         _size: usize,
-        _work_queue: &mut WorkQueue<'a, Self::Hasher, Self::Fr, Self::G1>,
+        _work_queue: &mut WorkQueue<Self::Hasher, Self::Fr, Self::G1>,
     );
 
     fn compute_quotient_contribution(

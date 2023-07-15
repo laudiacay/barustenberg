@@ -33,7 +33,7 @@ pub(crate) struct ProvingKeyData<F: Field + FftField> {
 }
 
 #[derive(Debug)]
-pub struct ProvingKey<'a, Fr: Field + FftField, G: AffineRepr> {
+pub struct ProvingKey< Fr: Field + FftField, G: AffineRepr> {
     pub(crate) composer_type: ComposerType,
     pub(crate) circuit_size: usize,
     pub(crate) log_circuit_size: usize,
@@ -45,8 +45,8 @@ pub struct ProvingKey<'a, Fr: Field + FftField, G: AffineRepr> {
     /// Used by UltraComposer only, for RAM writes.
     pub(crate) memory_write_records: Vec<usize>,
     pub(crate) polynomial_store: PolynomialStore<Fr>,
-    pub(crate) small_domain: EvaluationDomain<'a, Fr>,
-    pub(crate) large_domain: EvaluationDomain<'a, Fr>,
+    pub(crate) small_domain: EvaluationDomain< Fr>,
+    pub(crate) large_domain: EvaluationDomain< Fr>,
     /// The reference_string object contains the monomial SRS. We can access it using:
     /// Monomial SRS: reference_string->get_monomial_points()
     pub(crate) reference_string: Rc<RefCell<dyn ProverReferenceString>>,
@@ -56,18 +56,30 @@ pub struct ProvingKey<'a, Fr: Field + FftField, G: AffineRepr> {
     pub(crate) polynomial_manifest: PolynomialManifest,
 }
 
-impl<'a, Fr: Field + FftField, G: AffineRepr> Default for ProvingKey<'a, Fr, G> {
+impl<Fr: Field + FftField, G: AffineRepr> Default for ProvingKey<Fr, G> {
     fn default() -> Self {
         Self {
             polynomial_store: PolynomialStore::new(),
             small_domain: EvaluationDomain::new(0, None),
             large_domain: EvaluationDomain::new(0, None),
-            ..Default::default()
+            composer_type: Default::default(),
+            circuit_size: 0,
+            log_circuit_size: 0,
+            num_public_inputs: 0,
+            contains_recursive_proof: false,
+            recursive_proof_public_input_indices: vec![],
+            memory_read_records: vec![],
+            memory_write_records: vec![],
+            reference_string: Rc::new(RefCell::new(FileReferenceString::default())),
+            quotient_polynomial_parts: Default::default(),
+            pippenger_runtime_state: Default::default(),
+            polynomial_manifest: Default::default(),
+            
         }
     }
 }
 
-impl<'a, Fr: Field + FftField, G: AffineRepr> ProvingKey<'a, Fr, G> {
+impl< Fr: Field + FftField, G: AffineRepr> ProvingKey<Fr, G> {
     pub(crate) fn new_with_data(
         data: ProvingKeyData<Fr>,
         crs: Rc<RefCell<dyn ProverReferenceString>>,
@@ -162,7 +174,7 @@ impl<'a, Fr: Field + FftField, G: AffineRepr> ProvingKey<'a, Fr, G> {
     }
 }
 
-impl<'a, Fr: Field + FftField, G: AffineRepr> Serialize for ProvingKey<'a, Fr, G> {
+impl<Fr: Field + FftField, G: AffineRepr> Serialize for ProvingKey<Fr, G> {
     fn serialize<S: Serializer>(&self, _serializer: S) -> Result<S::Ok, S::Error> {
         // TODO
         /*
@@ -227,7 +239,7 @@ impl<'a, Fr: Field + FftField, G: AffineRepr> Serialize for ProvingKey<'a, Fr, G
     }
 }
 
-impl<'a, 'de, Fr: Field + FftField, G: AffineRepr> Deserialize<'de> for ProvingKey<'a, Fr, G> {
+impl<'de, Fr: Field + FftField, G: AffineRepr> Deserialize<'de> for ProvingKey<Fr, G> {
     fn deserialize<D>(_deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,

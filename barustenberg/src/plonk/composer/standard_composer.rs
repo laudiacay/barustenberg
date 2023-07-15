@@ -27,9 +27,9 @@ use ark_bn254::{Fr, G1Affine};
 use ark_ff::{BigInteger, Field, One, PrimeField, Zero};
 
 #[derive(Default)]
-pub struct StandardComposer<'a, RSF: ReferenceStringFactory> {
+pub struct StandardComposer< RSF: ReferenceStringFactory> {
     /// base data from composer
-    cbd: Rc<RefCell<ComposerBaseData<'a, RSF>>>,
+    cbd: Rc<RefCell<ComposerBaseData< RSF>>>,
     /// These are variables that we have used a gate on, to enforce that they are
     /// equal to a defined value.
     constant_variable_indices: HashMap<Fr, u32>,
@@ -38,11 +38,11 @@ pub struct StandardComposer<'a, RSF: ReferenceStringFactory> {
     settings: StandardSettings<Keccak256>,
 }
 
-impl<'a, RSF: ReferenceStringFactory> ComposerBase<'a> for StandardComposer<'a, RSF> {
+impl<'a, RSF: ReferenceStringFactory> ComposerBase for StandardComposer< RSF> {
     type RSF = RSF;
 
     #[inline(always)]
-    fn composer_base_data(&self) -> Rc<RefCell<ComposerBaseData<'a, Self::RSF>>> {
+    fn composer_base_data(&self) -> Rc<RefCell<ComposerBaseData< Self::RSF>>> {
         self.cbd.clone()
     }
 
@@ -72,8 +72,8 @@ impl<'a, RSF: ReferenceStringFactory> ComposerBase<'a> for StandardComposer<'a, 
     }
 
     fn with_keys(
-        p_key: Rc<RefCell<ProvingKey<'a, Fr, G1Affine>>>,
-        v_key: Rc<RefCell<VerificationKey<'a, Fr>>>,
+        p_key: Rc<RefCell<ProvingKey< Fr, G1Affine>>>,
+        v_key: Rc<RefCell<VerificationKey< Fr>>>,
         num_selectors: usize,
         size_hint: usize,
         selector_properties: Vec<SelectorProperties>,
@@ -107,7 +107,7 @@ enum StandardSelectors {
     Q3,
 }
 
-impl<'a> StandardComposer<'a, FileReferenceStringFactory> {
+impl StandardComposer< FileReferenceStringFactory> {
     fn new(
         num_selectors: usize,
         size_hint: usize,
@@ -120,7 +120,7 @@ impl<'a> StandardComposer<'a, FileReferenceStringFactory> {
     }
 }
 
-impl<'a, RSF: ReferenceStringFactory> StandardComposer<'a, RSF> {
+impl<RSF: ReferenceStringFactory> StandardComposer< RSF> {
     /// Create an addition gate.
     ///
     /// # Arguments
@@ -446,7 +446,7 @@ impl<'a, RSF: ReferenceStringFactory> StandardComposer<'a, RSF> {
             let lo_idx = self.add_variable(if lo { Fr::one() } else { Fr::zero() });
             self.create_bool_gate(lo_idx);
 
-            let mut quad_idx;
+            let quad_idx;
 
             if is_edge_case {
                 quad_idx = lo_idx;
@@ -734,14 +734,14 @@ impl<'a, RSF: ReferenceStringFactory> StandardComposer<'a, RSF> {
     ///
     /// * Returns a `Rc<ProvingKey>`, a reference counted proving key.
 
-    fn compute_proving_key(&mut self) -> Rc<RefCell<ProvingKey<'a, Fr, G1Affine>>> {
+    fn compute_proving_key(&mut self) -> Rc<RefCell<ProvingKey<Fr, G1Affine>>> {
         let cbd = self.cbd.clone();
         let cbd = cbd.borrow();
         
         if let Some(proving_key) = cbd.circuit_proving_key.clone() {
             return proving_key.clone();
         }
-        let composer_type = self.own_type;
+        let composer_type = self.own_type.clone();
         self.compute_proving_key_base(composer_type, 0, 0);
         self.compute_sigma_permutations(cbd.circuit_proving_key.clone().unwrap(), 3, false);
 
@@ -772,7 +772,7 @@ impl<'a, RSF: ReferenceStringFactory> StandardComposer<'a, RSF> {
     /// # Returns
     ///
     /// * Returns an `Rc<VerificationKey>`, a reference counted verification key.
-    fn compute_verification_key(&mut self) -> Result<Rc<RefCell<VerificationKey<'a, Fr>>>> {
+    fn compute_verification_key(&mut self) -> Result<Rc<RefCell<VerificationKey<Fr>>>> {
 
         let cbd = self.cbd.clone();
         let mut cbd = cbd.borrow_mut();
@@ -1093,7 +1093,7 @@ impl<'a, RSF: ReferenceStringFactory> StandardComposer<'a, RSF> {
     /// It first computes the verification key, then constructs a `Verifier`
     /// using the computed key and the manifest of public inputs.
     /// Finally, it adds a `KateCommitmentScheme` to the verifier and returns it.
-    fn create_verifier(&mut self) -> Verifier<'a, Keccak256, StandardSettings<Keccak256>> {
+    fn create_verifier(&mut self) -> Verifier<Keccak256, StandardSettings<Keccak256>> {
         let cbd = self.cbd.clone();
         let cbd = cbd.borrow();
 
@@ -1121,7 +1121,7 @@ impl<'a, RSF: ReferenceStringFactory> StandardComposer<'a, RSF> {
     /// # Returns
     ///
     /// * Returns an initialized `Prover`.
-    fn create_prover(&mut self) -> Prover<'a, Keccak256, StandardSettings<Keccak256>> {
+    fn create_prover(&mut self) -> Prover<Keccak256, StandardSettings<Keccak256>> {
         self.compute_proving_key();
         self.compute_witness();
 

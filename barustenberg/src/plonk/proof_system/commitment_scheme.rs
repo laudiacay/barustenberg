@@ -26,7 +26,7 @@ pub(crate) trait CommitmentScheme {
         coefficients: Rc<RefCell<Polynomial<Self::Fr>>>,
         tag: String,
         item_constant: Self::Fr,
-        queue: &mut WorkQueue<'_, Self::Hasher, Self::Fr, Self::Group>,
+        queue: &mut WorkQueue< Self::Hasher, Self::Fr, Self::Group>,
     );
 
     fn compute_opening_polynomial(
@@ -49,28 +49,28 @@ pub(crate) trait CommitmentScheme {
         n: usize,
         tags: &[String],
         item_constants: &[Self::Fr],
-        queue: &mut WorkQueue<'_, Self::Hasher, Self::Fr, Self::Group>,
+        queue: &mut WorkQueue< Self::Hasher, Self::Fr, Self::Group>,
     );
 
-    fn batch_open<'a>(
+    fn batch_open(
         &mut self,
         transcript: &Transcript<Self::Hasher>,
-        queue: &mut WorkQueue<'a, Self::Hasher, Self::Fr, Self::Group>,
-        input_key: Option<Rc<RefCell<ProvingKey<'a, Self::Fr, Self::Group>>>>,
+        queue: &mut WorkQueue< Self::Hasher, Self::Fr, Self::Group>,
+        input_key: Option<Rc<RefCell<ProvingKey< Self::Fr, Self::Group>>>>,
     );
 
-    fn batch_verify<'a>(
+    fn batch_verify(
         &self,
         transcript: &Transcript<Self::Hasher>,
         kate_g1_elements: &mut HashMap<String, Self::Group>,
         kate_fr_elements: &mut HashMap<String, Self::Fr>,
-        input_key: Option<&'a VerificationKey<'a, Self::Fr>>,
+        input_key: Option<& VerificationKey<Self::Fr>>,
     );
 
     fn add_opening_evaluations_to_transcript(
         &self,
         transcript: &mut Transcript<Self::Hasher>,
-        input_key: Option<Rc<RefCell<ProvingKey<'_, Self::Fr, Self::Group>>>>,
+        input_key: Option<Rc<RefCell<ProvingKey< Self::Fr, Self::Group>>>>,
         in_lagrange_form: bool,
     );
 }
@@ -110,7 +110,7 @@ impl<Fq: Field + FftField, Fr: Field + FftField, G: AffineRepr, H: BarretenHashe
         coefficients: Rc<RefCell<Polynomial<Fr>>>,
         tag: String,
         item_constant: Fr,
-        queue: &mut WorkQueue<'_, H, Fr, G>,
+        queue: &mut WorkQueue< H, Fr, G>,
     ) {
         queue.add_to_queue(WorkItem {
             work: Work::ScalarMultiplication {
@@ -124,7 +124,7 @@ impl<Fq: Field + FftField, Fr: Field + FftField, G: AffineRepr, H: BarretenHashe
     fn add_opening_evaluations_to_transcript(
         &self,
         _transcript: &mut Transcript<H>,
-        _input_key: Option<Rc<RefCell<ProvingKey<'_, Self::Fr, Self::Group>>>>,
+        _input_key: Option<Rc<RefCell<ProvingKey< Self::Fr, Self::Group>>>>,
         _in_lagrange_form: bool,
     ) {
         todo!()
@@ -145,7 +145,7 @@ impl<Fq: Field + FftField, Fr: Field + FftField, G: AffineRepr, H: BarretenHashe
         n: usize,
         tags: &[String],
         item_constants: &[Fr],
-        queue: &mut WorkQueue<'_, H, Fr, G>,
+        queue: &mut WorkQueue< H, Fr, G>,
     ) {
         // In this function, we compute the opening polynomials using Kate scheme for multiple input
         // polynomials with multiple evaluation points. The input polynomials are separated according
@@ -224,21 +224,21 @@ impl<Fq: Field + FftField, Fr: Field + FftField, G: AffineRepr, H: BarretenHashe
         }
     }
 
-    fn batch_open<'a>(
+    fn batch_open(
         &mut self,
         _transcript: &Transcript<H>,
-        _queue: &mut WorkQueue<'a, H, Fr, G>,
-        _input_key: Option<Rc<RefCell<ProvingKey<'a, Self::Fr, Self::Group>>>>,
+        _queue: &mut WorkQueue<H, Fr, G>,
+        _input_key: Option<Rc<RefCell<ProvingKey<Self::Fr, Self::Group>>>>,
     ) {
         todo!()
     }
 
-    fn batch_verify<'a>(
+    fn batch_verify(
         &self,
         _transcript: &Transcript<H>,
         _kate_g1_elements: &mut HashMap<String, G>,
         _kate_fr_elements: &mut HashMap<String, Fr>,
-        _input_key: Option<&'a VerificationKey<'a, Fr>>,
+        _input_key: Option<& VerificationKey<Fr>>,
     ) {
         todo!()
     }

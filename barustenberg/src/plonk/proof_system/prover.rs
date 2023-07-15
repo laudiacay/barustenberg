@@ -29,24 +29,23 @@ use crate::proof_system::work_queue::WorkQueue;
 // todo https://doc.rust-lang.org/reference/const_eval.html
 /// Plonk prover.
 #[derive(Debug)]
-pub struct Prover<'a, H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>> {
+pub struct Prover<H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>> {
     pub(crate) circuit_size: usize,
     pub(crate) transcript: Rc<RefCell<Transcript<H>>>,
-    pub(crate) key: Rc<RefCell<ProvingKey<'a, Fr, G1Affine>>>,
-    pub(crate) queue: WorkQueue<'a, H, Fr, G1Affine>,
+    pub(crate) key: Rc<RefCell<ProvingKey<Fr, G1Affine>>>,
+    pub(crate) queue: WorkQueue< H, Fr, G1Affine>,
     pub(crate) random_widgets:
-        Vec<Box<dyn ProverRandomWidget<'a, Fr = Fr, G1 = G1Affine, Hasher = H>>>,
-    pub(crate) transition_widgets: Vec<Box<dyn TransitionWidgetBase<'a, Hasher = H, Field = Fr>>>,
+        Vec<Box<dyn ProverRandomWidget<Fr = Fr, G1 = G1Affine, Hasher = H>>>,
+    pub(crate) transition_widgets: Vec<Box<dyn TransitionWidgetBase< Hasher = H, Field = Fr>>>,
     pub(crate) commitment_scheme: KateCommitmentScheme<H, Fq, Fr, G1Affine>,
     pub(crate) settings: S,
     phantom: PhantomData<Fq>,
 }
 
 impl<
-        'a,
         H: BarretenHasher + Default,
         S: Settings<Hasher = H, Field = Fr, Group = G1Affine> + Default,
-    > Prover<'a, H, S>
+    > Prover<H, S>
 {
     /// Create a new prover.
     /// Parameters:
@@ -56,7 +55,7 @@ impl<
     /// Returns:
     /// - `Self` Prover.
     pub fn new(
-        input_key: Option<Rc<RefCell<ProvingKey<'a, Fr, G1Affine>>>>,
+        input_key: Option<Rc<RefCell<ProvingKey<Fr, G1Affine>>>>,
         input_manifest: Option<Manifest>,
         input_settings: Option<S>,
     ) -> Self {
@@ -88,8 +87,8 @@ impl<
     }
 }
 
-impl<'a, H: BarretenHasher + Default, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>>
-    Prover<'a, H, S>
+impl<H: BarretenHasher + Default, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>>
+    Prover<H, S>
 {
     fn copy_placeholder(&self) {
         todo!("LOOK AT THE COMMENTS IN PROVERBASE");

@@ -38,7 +38,7 @@ where
     }
 
     pub(crate) fn compute_quotient_evaluation_contribution(
-        key: &Arc<VerificationKey<'_, F>>,
+        key: &Arc<VerificationKey<F>>,
         alpha: F,
         transcript: &Transcript<H>,
         quotient_numerator_eval: &mut F,
@@ -272,7 +272,6 @@ where
 
 #[derive(Debug)]
 pub(crate) struct ProverPermutationWidget<
-    'a,
     Fr: Field + FftField,
     Hash: BarretenHasher,
     G: AffineRepr,
@@ -280,21 +279,19 @@ pub(crate) struct ProverPermutationWidget<
     const IDPOLYS: bool,
     const NUM_ROOTS_CUT_OUT_OF_VANISHING_POLYNOMIAL: usize,
 > {
-    pub(crate) key: Rc<RefCell<ProvingKey<'a, Fr, G>>>,
+    pub(crate) key: Rc<RefCell<ProvingKey<Fr, G>>>,
     phantom: PhantomData<Hash>,
 }
 
 impl<
-        'a,
         Fr: Field + FftField,
         Hash: BarretenHasher + std::fmt::Debug,
         G: AffineRepr,
         const PROGRAM_WIDTH: usize,
         const IDPOLYS: bool,
         const NUM_ROOTS_CUT_OUT_OF_VANISHING_POLYNOMIAL: usize,
-    > ProverRandomWidget<'a>
+    > ProverRandomWidget
     for ProverPermutationWidget<
-        'a,
         Fr,
         Hash,
         G,
@@ -311,7 +308,7 @@ impl<
         &self,
         _transcript: &mut Transcript<Hash>,
         _size: usize,
-        _work_queue: &mut WorkQueue<'a, Hash, Fr, G>,
+        _work_queue: &mut WorkQueue<Hash, Fr, G>,
     ) {
         todo!()
     }
@@ -322,7 +319,6 @@ impl<
 }
 
 impl<
-        'a,
         Fr: Field + FftField,
         G: AffineRepr,
         Hash: BarretenHasher,
@@ -331,7 +327,6 @@ impl<
         const NUM_ROOTS_CUT_OUT_OF_VANISHING_POLYNOMIAL: usize,
     >
     ProverPermutationWidget<
-        'a,
         Fr,
         Hash,
         G,
@@ -340,7 +335,7 @@ impl<
         NUM_ROOTS_CUT_OUT_OF_VANISHING_POLYNOMIAL,
     >
 {
-    pub(crate) fn new(proving_key: Rc<RefCell<ProvingKey<'a, Fr, G>>>) -> Self {
+    pub(crate) fn new(proving_key: Rc<RefCell<ProvingKey<Fr, G>>>) -> Self {
         Self {
             key: proving_key,
             phantom: PhantomData,
@@ -351,7 +346,7 @@ impl<
         &mut self,
         _transcript: &mut Transcript<Hash>,
         _round_number: usize,
-        _queue: &mut WorkQueue<'a, Hash, Fr, G>,
+        _queue: &mut WorkQueue<Hash, Fr, G>,
     ) {
         // ...
     }

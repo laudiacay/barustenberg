@@ -29,7 +29,7 @@ pub trait Settings: Sized {
     fn permutation_mask(&self) -> u32;
     fn num_roots_cut_out_of_vanishing_polynomial(&self) -> usize;
     fn compute_quotient_evaluation_contribution(
-        verification_key: &VerificationKey<'_, Self::Field>,
+        verification_key: &VerificationKey<Self::Field>,
         alpha_base: &Self::Field,
         transcript: &Transcript<Self::Hasher>,
         quotient_numerator_eval: &Self::Field,
@@ -37,7 +37,7 @@ pub trait Settings: Sized {
     where
         Self: Sized;
     fn append_scalar_multiplication_inputs(
-        verification_key: &VerificationKey<'_, Self::Field>,
+        verification_key: &VerificationKey<Self::Field>,
         alpha_base: &Self::Field,
         transcript: &Transcript<Self::Hasher>,
         scalars: &HashMap<String, Self::Field>,
@@ -107,7 +107,7 @@ impl<H: BarretenHasher> Settings for StandardSettings<H> {
 
     #[inline]
     fn compute_quotient_evaluation_contribution(
-        _verification_key: &VerificationKey<'_, Fr>,
+        _verification_key: &VerificationKey<Fr>,
         _alpha_base: &Fr,
         _transcript: &Transcript<H>,
         _quotient_numerator_eval: &Fr,
@@ -129,7 +129,7 @@ impl<H: BarretenHasher> Settings for StandardSettings<H> {
 
     #[inline]
     fn append_scalar_multiplication_inputs(
-        _verification_key: &VerificationKey<'_, Fr>,
+        _verification_key: &VerificationKey<Fr>,
         _alpha_base: &Fr,
         _transcript: &Transcript<H>,
         _scalars: &HashMap<String, Fr>,
@@ -189,7 +189,7 @@ impl Settings for TurboSettings {
     }
     #[inline]
     fn compute_quotient_evaluation_contribution(
-        _verification_key: &VerificationKey<'_, Fr>,
+        _verification_key: &VerificationKey<Fr>,
         _alpha_base: &Fr,
         _transcript: &Transcript<PedersenBlake3s>,
         _quotient_numerator_eval: &Fr,
@@ -212,7 +212,7 @@ impl Settings for TurboSettings {
          */
     }
     fn append_scalar_multiplication_inputs(
-        _verification_key: &VerificationKey<'_, Fr>,
+        _verification_key: &VerificationKey<Fr>,
         _alpha_base: &Fr,
         _transcript: &Transcript<PedersenBlake3s>,
         _scalars: &HashMap<String, Fr>,
@@ -267,7 +267,7 @@ impl Settings for UltraSettings {
 
     #[inline]
     fn compute_quotient_evaluation_contribution(
-        _verification_key: &VerificationKey<'_, Fr>,
+        _verification_key: &VerificationKey<Fr>,
         _alpha_base: &Fr,
         _transcript: &Transcript<PlookupPedersenBlake3s>,
         _quotient_numerator_eval: &Fr,
@@ -292,7 +292,7 @@ impl Settings for UltraSettings {
     }
 
     fn append_scalar_multiplication_inputs(
-        _verification_key: &VerificationKey<'_, Fr>,
+        _verification_key: &VerificationKey<Fr>,
         _alpha_base: &Fr,
         _transcript: &Transcript<PlookupPedersenBlake3s>,
         _scalars: &HashMap<String, Fr>,
@@ -346,7 +346,7 @@ impl Settings for UltraToStandardSettings {
     }
     #[inline]
     fn compute_quotient_evaluation_contribution(
-        _verification_key: &VerificationKey<'_, Fr>,
+        _verification_key: &VerificationKey<Fr>,
         _alpha_base: &Fr,
         _transcript: &Transcript<PedersenBlake3s>,
         _quotient_numerator_eval: &Fr,
@@ -356,7 +356,7 @@ impl Settings for UltraToStandardSettings {
     }
 
     fn append_scalar_multiplication_inputs(
-        _verification_key: &VerificationKey<'_, Fr>,
+        _verification_key: &VerificationKey<Fr>,
         _alpha_base: &Fr,
         _transcript: &Transcript<PedersenBlake3s>,
         _scalars: &HashMap<String, Fr>,
@@ -410,7 +410,7 @@ impl Settings for UltraWithKeccakSettings {
     }
     #[inline]
     fn compute_quotient_evaluation_contribution(
-        _verification_key: &VerificationKey<'_, Fr>,
+        _verification_key: &VerificationKey< Fr>,
         _alpha_base: &Fr,
         _transcript: &Transcript<Keccak256>,
         _quotient_numerator_eval: &Fr,
@@ -419,7 +419,7 @@ impl Settings for UltraWithKeccakSettings {
         todo!()
     }
     fn append_scalar_multiplication_inputs(
-        _verification_key: &VerificationKey<'_, Fr>,
+        _verification_key: &VerificationKey<Fr>,
         _alpha_base: &Fr,
         _transcript: &Transcript<Keccak256>,
         _scalars: &HashMap<String, Fr>,

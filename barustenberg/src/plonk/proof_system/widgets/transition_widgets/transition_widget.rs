@@ -55,7 +55,7 @@ pub(crate) trait KernelBase {
     );
 }
 
-pub(crate) trait TransitionWidgetBase<'a>: std::fmt::Debug {
+pub(crate) trait TransitionWidgetBase: std::fmt::Debug {
     type Hasher: BarretenHasher;
     type Field: Field + FftField;
 
@@ -69,7 +69,6 @@ pub(crate) trait TransitionWidgetBase<'a>: std::fmt::Debug {
 
 #[derive(Debug)]
 pub(crate) struct TransitionWidget<
-    'a,
     H: BarretenHasher,
     F: Field + FftField,
     G: AffineRepr,
@@ -79,17 +78,16 @@ pub(crate) struct TransitionWidget<
     NIndependentRelations: generic_array::ArrayLength<F>,
     KB: KernelBase,
 {
-    key: Rc<RefCell<ProvingKey<'a, F, G>>>,
+    key: Rc<RefCell<ProvingKey<F, G>>>,
     phantom: PhantomData<(H, NIndependentRelations, KB)>,
 }
 impl<
-        'a,
         H: BarretenHasher,
         F: Field + FftField,
         G: AffineRepr,
         NIndependentRelations: generic_array::ArrayLength<F> + std::fmt::Debug,
         KB: std::fmt::Debug,
-    > TransitionWidgetBase<'a> for TransitionWidget<'a, H, F, G, NIndependentRelations, KB>
+    > TransitionWidgetBase for TransitionWidget<H, F, G, NIndependentRelations, KB>
 where
     KB: KernelBase<
         Field = F,
@@ -179,7 +177,7 @@ pub(crate) trait GenericVerifierWidget<'a> {
     >;
 
     fn compute_quotient_evaluation_contribution(
-        key: &Arc<VerificationKey<'a, Self::Field>>,
+        key: &Arc<VerificationKey<Self::Field>>,
         alpha_base: Self::Field,
         transcript: &Transcript<Self::Hasher>,
         quotient_numerator_eval: &mut Self::Field,
@@ -218,7 +216,7 @@ pub(crate) trait GenericVerifierWidget<'a> {
     }
 
     fn append_scalar_multiplication_inputs(
-        _key: &Arc<VerificationKey<'_, Self::Field>>,
+        _key: &Arc<VerificationKey<Self::Field>>,
         alpha_base: Self::Field,
         transcript: &Transcript<Self::Hasher>,
         _scalar_mult_inputs: &mut HashMap<String, Self::Field>,
