@@ -1,5 +1,4 @@
 use anyhow::Result;
-use std::borrow::BorrowMut;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -30,7 +29,7 @@ use ark_ff::{BigInteger, Field, One, PrimeField, Zero};
 #[derive(Default)]
 pub struct StandardComposer<'a, RSF: ReferenceStringFactory> {
     /// base data from composer
-    cbd: ComposerBaseData<'a, RSF>,
+    cbd: Rc<RefCell<ComposerBaseData<'a, RSF>>>,
     /// These are variables that we have used a gate on, to enforce that they are
     /// equal to a defined value.
     constant_variable_indices: HashMap<Fr, u32>,
@@ -43,13 +42,8 @@ impl<'a, RSF: ReferenceStringFactory> ComposerBase<'a> for StandardComposer<'a, 
     type RSF = RSF;
 
     #[inline(always)]
-    fn composer_base_data(&self) -> &ComposerBaseData<'a, Self::RSF> {
-        &self.cbd
-    }
-
-    #[inline(always)]
-    fn mut_composer_base_data(&mut self) -> &mut ComposerBaseData<'a, Self::RSF> {
-        &mut self.cbd
+    fn composer_base_data(&self) -> Rc<RefCell<ComposerBaseData<'a, Self::RSF>>> {
+        self.cbd.clone()
     }
 
     fn with_crs_factory(
@@ -67,6 +61,7 @@ impl<'a, RSF: ReferenceStringFactory> ComposerBase<'a> for StandardComposer<'a, 
         cbd.selector_properties = selector_properties;
         cbd.crs_factory = crs_factory;
         cbd.num_gates = 0;
+        let cbd = Rc::new(RefCell::new(cbd));
         Self {
             cbd,
             constant_variable_indices: HashMap::new(),
@@ -93,6 +88,7 @@ impl<'a, RSF: ReferenceStringFactory> ComposerBase<'a> for StandardComposer<'a, 
         cbd.selector_properties = selector_properties;
         cbd.num_gates = 0;
         cbd.crs_factory = crs_factory;
+        let cbd =Rc::new(RefCell::new(cbd));
         Self {
             cbd,
             constant_variable_indices: HashMap::new(),
@@ -131,15 +127,16 @@ impl<'a, RSF: ReferenceStringFactory> StandardComposer<'a, RSF> {
     /// - `in` - An add_triple containing the indexes of variables to be placed into the
     /// wires w_l, w_r, w_o and addition coefficients to be placed into q_1, q_2, q_3, q_c.
     fn create_add_gate(&mut self, ins: &AddTriple<Fr>) {
-        self.cbd.w_l.push(ins.a);
-        self.cbd.w_r.push(ins.b);
-        self.cbd.w_o.push(ins.c);
-        self.cbd.selectors[StandardSelectors::QM as usize].push(Fr::zero());
-        self.cbd.selectors[StandardSelectors::Q1 as usize].push(ins.a_scaling);
-        self.cbd.selectors[StandardSelectors::Q2 as usize].push(ins.b_scaling);
-        self.cbd.selectors[StandardSelectors::Q3 as usize].push(ins.c_scaling);
-        self.cbd.selectors[StandardSelectors::QC as usize].push(ins.const_scaling);
-        self.cbd.num_gates += 1;
+        let mut cbd = self.cbd.borrow_mut();
+        cbd.w_l.push(ins.a);
+        cbd.w_r.push(ins.b);
+        cbd.w_o.push(ins.c);
+        cbd.selectors[StandardSelectors::QM as usize].push(Fr::zero());
+        cbd.selectors[StandardSelectors::Q1 as usize].push(ins.a_scaling);
+        cbd.selectors[StandardSelectors::Q2 as usize].push(ins.b_scaling);
+        cbd.selectors[StandardSelectors::Q3 as usize].push(ins.c_scaling);
+        cbd.selectors[StandardSelectors::QC as usize].push(ins.const_scaling);
+        cbd.num_gates += 1;
     }
 
     /// Create a big addition gate.
@@ -193,54 +190,59 @@ impl<'a, RSF: ReferenceStringFactory> StandardComposer<'a, RSF> {
         let temp: Fr = t0 + t1;
         let temp_idx: u32 = self.add_variable(temp);
 
-        self.cbd.w_l.push(ins.a);
-        self.cbd.w_r.push(ins.b);
-        self.cbd.w_o.push(temp_idx);
-        self.cbd.selectors[StandardSelectors::QM as usize].push(Fr::zero());
-        self.cbd.selectors[StandardSelectors::Q1 as usize].push(ins.a_scaling);
-        self.cbd.selectors[StandardSelectors::Q2 as usize].push(ins.b_scaling);
-        self.cbd.selectors[StandardSelectors::Q3 as usize].push(-Fr::one());
-        self.cbd.selectors[StandardSelectors::QC as usize].push(Fr::zero());
+        let cbd = self.cbd.clone();
+        let mut cbd = cbd.borrow_mut();
 
-        self.cbd.num_gates += 1;
+        cbd.w_l.push(ins.a);
+        cbd.w_r.push(ins.b);
+        cbd.w_o.push(temp_idx);
+        cbd.selectors[StandardSelectors::QM as usize].push(Fr::zero());
+        cbd.selectors[StandardSelectors::Q1 as usize].push(ins.a_scaling);
+        cbd.selectors[StandardSelectors::Q2 as usize].push(ins.b_scaling);
+        cbd.selectors[StandardSelectors::Q3 as usize].push(-Fr::one());
+        cbd.selectors[StandardSelectors::QC as usize].push(Fr::zero());
 
-        self.cbd.w_l.push(temp_idx);
-        self.cbd.w_r.push(ins.c);
-        self.cbd.w_o.push(ins.d);
-        self.cbd.selectors[StandardSelectors::QM as usize].push(Fr::zero());
-        self.cbd.selectors[StandardSelectors::Q1 as usize].push(Fr::one());
-        self.cbd.selectors[StandardSelectors::Q2 as usize].push(ins.c_scaling);
-        self.cbd.selectors[StandardSelectors::Q3 as usize].push(ins.d_scaling);
-        self.cbd.selectors[StandardSelectors::QC as usize].push(ins.const_scaling);
+        cbd.num_gates += 1;
 
-        self.cbd.num_gates += 1;
+        cbd.w_l.push(temp_idx);
+        cbd.w_r.push(ins.c);
+        cbd.w_o.push(ins.d);
+        cbd.selectors[StandardSelectors::QM as usize].push(Fr::zero());
+        cbd.selectors[StandardSelectors::Q1 as usize].push(Fr::one());
+        cbd.selectors[StandardSelectors::Q2 as usize].push(ins.c_scaling);
+        cbd.selectors[StandardSelectors::Q3 as usize].push(ins.d_scaling);
+        cbd.selectors[StandardSelectors::QC as usize].push(ins.const_scaling);
+
+        cbd.num_gates += 1;
 
         // in.d must be between 0 and 3
         // i.e. in.d * (in.d - 1) * (in.d - 2) = 0
         let temp_2: Fr = self.get_variable(ins.d).square() - self.get_variable(ins.d);
         let temp_2_idx: u32 = self.add_variable(temp_2);
-        self.cbd.w_l.push(ins.d);
-        self.cbd.w_r.push(ins.d);
-        self.cbd.w_o.push(temp_2_idx);
-        self.cbd.selectors[StandardSelectors::QM as usize].push(Fr::one());
-        self.cbd.selectors[StandardSelectors::Q1 as usize].push(-Fr::one());
-        self.cbd.selectors[StandardSelectors::Q2 as usize].push(Fr::zero());
-        self.cbd.selectors[StandardSelectors::Q3 as usize].push(-Fr::one());
-        self.cbd.selectors[StandardSelectors::QC as usize].push(Fr::zero());
 
-        self.cbd.num_gates += 1;
+        cbd.w_l.push(ins.d);
+        cbd.w_r.push(ins.d);
+        cbd.w_o.push(temp_2_idx);
+        cbd.selectors[StandardSelectors::QM as usize].push(Fr::one());
+        cbd.selectors[StandardSelectors::Q1 as usize].push(-Fr::one());
+        cbd.selectors[StandardSelectors::Q2 as usize].push(Fr::zero());
+        cbd.selectors[StandardSelectors::Q3 as usize].push(-Fr::one());
+        cbd.selectors[StandardSelectors::QC as usize].push(Fr::zero());
+
+        cbd.num_gates += 1;
 
         let neg_two: Fr = -Fr::from(2);
-        self.cbd.w_l.push(temp_2_idx);
-        self.cbd.w_r.push(ins.d);
-        self.cbd.w_o.push(self.cbd.zero_idx);
-        self.cbd.selectors[StandardSelectors::QM as usize].push(Fr::one());
-        self.cbd.selectors[StandardSelectors::Q1 as usize].push(neg_two);
-        self.cbd.selectors[StandardSelectors::Q2 as usize].push(Fr::zero());
-        self.cbd.selectors[StandardSelectors::Q3 as usize].push(Fr::zero());
-        self.cbd.selectors[StandardSelectors::QC as usize].push(Fr::zero());
+        cbd.w_l.push(temp_2_idx);
+        cbd.w_r.push(ins.d);
+        let zero_idx = cbd.zero_idx;
+        cbd.w_o.push(zero_idx);
+        cbd.selectors[StandardSelectors::QM as usize].push(Fr::one());
+        cbd.selectors[StandardSelectors::Q1 as usize].push(neg_two);
+        cbd.selectors[StandardSelectors::Q2 as usize].push(Fr::zero());
+        cbd.selectors[StandardSelectors::Q3 as usize].push(Fr::zero());
+        cbd.selectors[StandardSelectors::QC as usize].push(Fr::zero());
 
-        self.cbd.num_gates += 1;
+        cbd.num_gates += 1;
     }
 
     /// Create a big addition gate with bit extraction.
@@ -356,17 +358,19 @@ impl<'a, RSF: ReferenceStringFactory> StandardComposer<'a, RSF> {
     fn create_mul_gate(&mut self, ins: &MulTriple<Fr>) {
         self.assert_valid_variables(&[ins.a, ins.b, ins.c]);
 
-        self.cbd.w_l.push(ins.a);
-        self.cbd.w_r.push(ins.b);
-        self.cbd.w_o.push(ins.c);
+        let mut cbd = self.cbd.borrow_mut();
 
-        self.cbd.selectors[StandardSelectors::QM as usize].push(ins.mul_scaling);
-        self.cbd.selectors[StandardSelectors::Q1 as usize].push(Fr::zero());
-        self.cbd.selectors[StandardSelectors::Q2 as usize].push(Fr::zero());
-        self.cbd.selectors[StandardSelectors::Q3 as usize].push(ins.c_scaling);
-        self.cbd.selectors[StandardSelectors::QC as usize].push(ins.const_scaling);
+        cbd.w_l.push(ins.a);
+        cbd.w_r.push(ins.b);
+        cbd.w_o.push(ins.c);
 
-        self.cbd.num_gates += 1;
+        cbd.selectors[StandardSelectors::QM as usize].push(ins.mul_scaling);
+        cbd.selectors[StandardSelectors::Q1 as usize].push(Fr::zero());
+        cbd.selectors[StandardSelectors::Q2 as usize].push(Fr::zero());
+        cbd.selectors[StandardSelectors::Q3 as usize].push(ins.c_scaling);
+        cbd.selectors[StandardSelectors::QC as usize].push(ins.const_scaling);
+
+        cbd.num_gates += 1;
     }
 
     /// Create a bool gate.
@@ -377,17 +381,19 @@ impl<'a, RSF: ReferenceStringFactory> StandardComposer<'a, RSF> {
     fn create_bool_gate(&mut self, variable_index: u32) {
         self.assert_valid_variables(&[variable_index]);
 
-        self.cbd.w_l.push(variable_index);
-        self.cbd.w_r.push(variable_index);
-        self.cbd.w_o.push(variable_index);
+        let mut cbd = self.cbd.borrow_mut();
 
-        self.cbd.selectors[StandardSelectors::QM as usize].push(Fr::one());
-        self.cbd.selectors[StandardSelectors::Q1 as usize].push(Fr::zero());
-        self.cbd.selectors[StandardSelectors::Q2 as usize].push(Fr::zero());
-        self.cbd.selectors[StandardSelectors::Q3 as usize].push(-Fr::one());
-        self.cbd.selectors[StandardSelectors::QC as usize].push(Fr::zero());
+        cbd.w_l.push(variable_index);
+        cbd.w_r.push(variable_index);
+        cbd.w_o.push(variable_index);
 
-        self.cbd.num_gates += 1;
+        cbd.selectors[StandardSelectors::QM as usize].push(Fr::one());
+        cbd.selectors[StandardSelectors::Q1 as usize].push(Fr::zero());
+        cbd.selectors[StandardSelectors::Q2 as usize].push(Fr::zero());
+        cbd.selectors[StandardSelectors::Q3 as usize].push(-Fr::one());
+        cbd.selectors[StandardSelectors::QC as usize].push(Fr::zero());
+
+        cbd.num_gates += 1;
     }
 
     /// Create a gate where you set all the indexes and coefficients yourself.
@@ -397,16 +403,18 @@ impl<'a, RSF: ReferenceStringFactory> StandardComposer<'a, RSF> {
     fn create_poly_gate(&mut self, ins: &PolyTriple<Fr>) {
         self.assert_valid_variables(&[ins.a, ins.b, ins.c]);
 
-        self.cbd.w_l.push(ins.a);
-        self.cbd.w_r.push(ins.b);
-        self.cbd.w_o.push(ins.c);
-        self.cbd.selectors[StandardSelectors::QM as usize].push(ins.q_m);
-        self.cbd.selectors[StandardSelectors::Q1 as usize].push(ins.q_l);
-        self.cbd.selectors[StandardSelectors::Q2 as usize].push(ins.q_r);
-        self.cbd.selectors[StandardSelectors::Q3 as usize].push(ins.q_o);
-        self.cbd.selectors[StandardSelectors::QC as usize].push(ins.q_c);
+        let mut cbd = self.cbd.borrow_mut();
 
-        self.cbd.num_gates += 1;
+        cbd.w_l.push(ins.a);
+        cbd.w_r.push(ins.b);
+        cbd.w_o.push(ins.c);
+        cbd.selectors[StandardSelectors::QM as usize].push(ins.q_m);
+        cbd.selectors[StandardSelectors::Q1 as usize].push(ins.q_l);
+        cbd.selectors[StandardSelectors::Q2 as usize].push(ins.q_r);
+        cbd.selectors[StandardSelectors::Q3 as usize].push(ins.q_o);
+        cbd.selectors[StandardSelectors::QC as usize].push(ins.q_c);
+
+        cbd.num_gates += 1;
     }
 
     fn decompose_into_base4_accumulators(
@@ -507,9 +515,9 @@ impl<'a, RSF: ReferenceStringFactory> StandardComposer<'a, RSF> {
         let mut right_accumulator = Fr::zero();
         let mut out_accumulator = Fr::zero();
 
-        let mut left_accumulator_idx = self.cbd.zero_idx;
-        let mut right_accumulator_idx = self.cbd.zero_idx;
-        let mut out_accumulator_idx = self.cbd.zero_idx;
+        let mut left_accumulator_idx = self.cbd.borrow().zero_idx;
+        let mut right_accumulator_idx = self.cbd.borrow().zero_idx;
+        let mut out_accumulator_idx = self.cbd.borrow().zero_idx;
 
         let four = Fr::from(4);
         let neg_two = -Fr::from(2);
@@ -650,15 +658,18 @@ impl<'a, RSF: ReferenceStringFactory> StandardComposer<'a, RSF> {
     fn fix_witness(&mut self, witness_index: u32, witness_value: &Fr) {
         self.assert_valid_variables(&vec![witness_index][..]);
 
-        self.cbd.w_l.push(witness_index);
-        self.cbd.w_r.push(self.cbd.zero_idx);
-        self.cbd.w_o.push(self.cbd.zero_idx);
-        self.cbd.selectors[StandardSelectors::QM as usize].push(Fr::zero());
-        self.cbd.selectors[StandardSelectors::Q1 as usize].push(Fr::one());
-        self.cbd.selectors[StandardSelectors::Q2 as usize].push(Fr::zero());
-        self.cbd.selectors[StandardSelectors::Q3 as usize].push(Fr::zero());
-        self.cbd.selectors[StandardSelectors::QC as usize].push(-*witness_value);
-        self.cbd.num_gates += 1;
+        let mut cbd = self.cbd.borrow_mut();
+
+        cbd.w_l.push(witness_index);
+        let zero_idx = cbd.zero_idx;
+        cbd.w_r.push(zero_idx);
+        cbd.w_o.push(zero_idx);
+        cbd.selectors[StandardSelectors::QM as usize].push(Fr::zero());
+        cbd.selectors[StandardSelectors::Q1 as usize].push(Fr::one());
+        cbd.selectors[StandardSelectors::Q2 as usize].push(Fr::zero());
+        cbd.selectors[StandardSelectors::Q3 as usize].push(Fr::zero());
+        cbd.selectors[StandardSelectors::QC as usize].push(-*witness_value);
+        cbd.num_gates += 1;
     }
 
     /// Stores a constant variable.
@@ -724,27 +735,30 @@ impl<'a, RSF: ReferenceStringFactory> StandardComposer<'a, RSF> {
     /// * Returns a `Rc<ProvingKey>`, a reference counted proving key.
 
     fn compute_proving_key(&mut self) -> Rc<RefCell<ProvingKey<'a, Fr, G1Affine>>> {
-        if let Some(proving_key) = &self.cbd.circuit_proving_key {
+        let cbd = self.cbd.clone();
+        let cbd = cbd.borrow();
+        
+        if let Some(proving_key) = cbd.circuit_proving_key.clone() {
             return proving_key.clone();
         }
-        self.compute_proving_key_base(self.own_type, 0, 0);
-        self.compute_sigma_permutations(self.cbd.circuit_proving_key.clone().unwrap(), 3, false);
+        let composer_type = self.own_type;
+        self.compute_proving_key_base(composer_type, 0, 0);
+        self.compute_sigma_permutations(cbd.circuit_proving_key.clone().unwrap(), 3, false);
 
-        (*self.cbd.circuit_proving_key.clone().unwrap())
+        (*cbd.circuit_proving_key.clone().unwrap())
             .borrow_mut()
-            .recursive_proof_public_input_indices = self
-            .cbd
+            .recursive_proof_public_input_indices = cbd
             .circuit_proving_key.clone()
             .unwrap()
             .borrow()
             .recursive_proof_public_input_indices
             .clone();
 
-        (*self.cbd.circuit_proving_key.clone().unwrap())
+        (*cbd.circuit_proving_key.clone().unwrap())
             .borrow_mut()
             .contains_recursive_proof = self.contains_recursive_proof;
 
-        return Rc::clone(&self.cbd.circuit_proving_key.unwrap());
+        cbd.circuit_proving_key.clone().unwrap()
     }
 
     /// Computes the verification key consisting of selector precommitments.
@@ -759,35 +773,34 @@ impl<'a, RSF: ReferenceStringFactory> StandardComposer<'a, RSF> {
     ///
     /// * Returns an `Rc<VerificationKey>`, a reference counted verification key.
     fn compute_verification_key(&mut self) -> Result<Rc<RefCell<VerificationKey<'a, Fr>>>> {
-        if let Some(ref key) = self.cbd.circuit_verification_key {
+
+        let cbd = self.cbd.clone();
+        let mut cbd = cbd.borrow_mut();
+
+        if let Some(ref key) = cbd.circuit_verification_key {
             return Ok(key.clone());
         }
-        if self.cbd.circuit_proving_key.is_none() {
+        if cbd.circuit_proving_key.is_none() {
             self.compute_proving_key();
         }
 
-        self.cbd.circuit_verification_key = Some(self.compute_verification_key_base(
-            self.cbd.circuit_proving_key.unwrap(),
-            self.cbd.crs_factory.get_verifier_crs().unwrap(),
-        )?);
+        let circuit_verification_key = self.compute_verification_key_base(
+            cbd.circuit_proving_key.clone().unwrap(),
+            cbd.crs_factory.get_verifier_crs().unwrap(),
+        )?;
+        cbd.circuit_verification_key = Some(circuit_verification_key.clone());
 
-        let mut verification_key = self
-            .cbd
-            .circuit_verification_key
-            .unwrap()
-            .borrow()
-            .borrow_mut();
+        {let mut verification_key = circuit_verification_key.borrow_mut();
         verification_key.composer_type = self.own_type;
-        verification_key.recursive_proof_public_input_indices = self
-            .cbd
-            .circuit_proving_key
+        verification_key.recursive_proof_public_input_indices = cbd
+            .circuit_proving_key.clone()
             .unwrap()
             .borrow()
             .recursive_proof_public_input_indices
             .clone();
-        verification_key.contains_recursive_proof = self.contains_recursive_proof;
+        verification_key.contains_recursive_proof = self.contains_recursive_proof;}
 
-        Ok(self.cbd.circuit_verification_key.unwrap().clone())
+        Ok(circuit_verification_key)
     }
 
     /// Computes the witness with standard settings (wire width = 3).
@@ -1081,12 +1094,15 @@ impl<'a, RSF: ReferenceStringFactory> StandardComposer<'a, RSF> {
     /// using the computed key and the manifest of public inputs.
     /// Finally, it adds a `KateCommitmentScheme` to the verifier and returns it.
     fn create_verifier(&mut self) -> Verifier<'a, Keccak256, StandardSettings<Keccak256>> {
+        let cbd = self.cbd.clone();
+        let cbd = cbd.borrow();
+
         self.compute_verification_key();
         let mut output_state = Verifier::new(
-            Some(Rc::clone(
-                self.cbd.circuit_verification_key.as_ref().unwrap(),
-            )),
-            self.create_manifest(self.cbd.public_inputs.len()),
+            Some(
+                cbd.circuit_verification_key.as_ref().unwrap().clone()
+            ),
+            self.create_manifest(cbd.public_inputs.len()),
         );
 
         output_state.commitment_scheme = Box::new(KateCommitmentScheme::new());
@@ -1109,9 +1125,11 @@ impl<'a, RSF: ReferenceStringFactory> StandardComposer<'a, RSF> {
         self.compute_proving_key();
         self.compute_witness();
 
+        let cbd = self.cbd.borrow();
+
         let mut output_state = Prover::new(
-            Some(Rc::clone(&self.cbd.circuit_proving_key.as_ref().unwrap())),
-            Some(self.create_manifest(self.cbd.public_inputs.len())),
+            Some(Rc::clone(cbd.circuit_proving_key.as_ref().unwrap())),
+            Some(self.create_manifest(cbd.public_inputs.len())),
             None,
         );
 
@@ -1125,11 +1143,11 @@ impl<'a, RSF: ReferenceStringFactory> StandardComposer<'a, RSF> {
                 false,
                 4,
             >::new(
-                self.cbd.circuit_proving_key.unwrap().clone()
+                cbd.circuit_proving_key.clone().unwrap()
             )));
 
         let arithmetic_widget =
-            ProverArithmeticWidget::new(Rc::clone(&self.cbd.circuit_proving_key.as_ref().unwrap()));
+            ProverArithmeticWidget::new(Rc::clone(&cbd.circuit_proving_key.as_ref().unwrap()));
 
         output_state
             .transition_widgets
@@ -1146,8 +1164,8 @@ impl<'a, RSF: ReferenceStringFactory> StandardComposer<'a, RSF> {
     /// it will call the `failure` method with the provided message.
     /// Then, it gets the index of the constant variable `b` and asserts the equality between variables at `a_idx` and `b_idx`.
     fn assert_equal_constant(&mut self, a_idx: usize, b: Fr, msg: String) {
-        if self.cbd.variables[a_idx] != b && !self.failed() {
-            self.failure(msg);
+        if self.cbd.borrow().variables[a_idx] != b && !self.failed() {
+            self.failure(msg.clone());
         }
         let b_idx = self.put_constant_variable(b);
         self.assert_equal(a_idx as u32, b_idx, msg);
@@ -1161,17 +1179,18 @@ impl<'a, RSF: ReferenceStringFactory> StandardComposer<'a, RSF> {
     ///
     /// * Returns `true` if the circuit is correct, `false` otherwise.
     fn check_circuit(&self) -> bool {
-        for i in 0..self.cbd.num_gates {
-            let mut gate_sum = Fr::zero();
-            let left = self.get_variable(self.cbd.w_l[i]);
-            let right = self.get_variable(self.cbd.w_r[i]);
-            let output = self.get_variable(self.cbd.w_o[i]);
-            let q_m = self.cbd.selectors[StandardSelectors::QM as usize][i];
-            let q_1 = self.cbd.selectors[StandardSelectors::Q1 as usize][i];
-            let q_2 = self.cbd.selectors[StandardSelectors::Q2 as usize][i];
-            let q_3 = self.cbd.selectors[StandardSelectors::Q3 as usize][i];
-            let q_c = self.cbd.selectors[StandardSelectors::QC as usize][i];
-            gate_sum = q_m * left * right + q_1 * left + q_2 * right + q_3 * output + q_c;
+        let cbd = self.cbd.borrow();
+
+        for i in 0..cbd.num_gates {
+            let left = self.get_variable(cbd.w_l[i]);
+            let right = self.get_variable(cbd.w_r[i]);
+            let output = self.get_variable(cbd.w_o[i]);
+            let q_m = cbd.selectors[StandardSelectors::QM as usize][i];
+            let q_1 = cbd.selectors[StandardSelectors::Q1 as usize][i];
+            let q_2 = cbd.selectors[StandardSelectors::Q2 as usize][i];
+            let q_3 = cbd.selectors[StandardSelectors::Q3 as usize][i];
+            let q_c = cbd.selectors[StandardSelectors::QC as usize][i];
+            let gate_sum = q_m * left * right + q_1 * left + q_2 * right + q_3 * output + q_c;
             if gate_sum != Fr::zero() {
                 return false;
             }

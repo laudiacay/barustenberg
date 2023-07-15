@@ -115,12 +115,11 @@ pub(crate) trait ComposerBase<'a> {
     ) -> Self;
 
     /// should be inlined in implementations
-    fn composer_base_data(&self) -> &ComposerBaseData<'a, Self::RSF>;
-    fn mut_composer_base_data(&mut self) -> &mut ComposerBaseData<'a, Self::RSF>;
+    fn composer_base_data(&self) -> Rc<RefCell<ComposerBaseData<'a, Self::RSF>>>;
 
     fn get_first_variable_in_class(&self, index: usize) -> usize {
         let mut idx = index as u32;
-        let cbd = self.composer_base_data();
+        let cbd = self.composer_base_data().borrow();
         while cbd.prev_var_index[idx as usize] != FIRST_VARIABLE_IN_CLASS {
             idx = cbd.prev_var_index[idx as usize];
         }
@@ -129,7 +128,7 @@ pub(crate) trait ComposerBase<'a> {
     fn update_real_variable_indices(&mut self, index: u32, new_real_index: u32) {
         let mut cur_index = index;
         loop {
-            let mut cbd = self.mut_composer_base_data();
+            let mut cbd = self.composer_base_data().borrow_mut();
             cbd.real_variable_index[cur_index as usize] = new_real_index;
 
             cbd.real_variable_index[cur_index as usize] = new_real_index;
@@ -152,7 +151,7 @@ pub(crate) trait ComposerBase<'a> {
     /// * The value of the variable.
     #[inline]
     fn get_variable(&self, index: u32) -> Fr {
-        let cbd = self.composer_base_data();
+        let cbd = self.composer_base_data().borrow();
         assert!(cbd.variables.len() > index as usize);
         cbd.variables[cbd.real_variable_index[index as usize] as usize]
     }
@@ -168,15 +167,15 @@ pub(crate) trait ComposerBase<'a> {
     ///
     /// * The value of the variable.
     #[inline]
-    fn get_variable_reference(&self, index: u32) -> &Fr {
-        let cbd = self.composer_base_data();
+    fn get_variable_reference(&'a self, index: u32) -> &'a Fr {
+        let cbd = self.composer_base_data().borrow();
 
         assert!(cbd.variables.len() > index as usize);
         &cbd.variables[cbd.real_variable_index[index as usize] as usize]
     }
 
     fn get_public_input(&self, index: u32) -> Fr {
-        let cbd = self.composer_base_data();
+        let cbd = self.composer_base_data().borrow();
         self.get_variable(cbd.public_inputs[index as usize])
     }
 
@@ -197,7 +196,7 @@ pub(crate) trait ComposerBase<'a> {
     ///
     /// * The index of the new variable in the variables vector
     fn add_variable(&mut self, in_value: Fr) -> u32 {
-        let cbd = self.mut_composer_base_data();
+        let cbd = self.composer_base_data().borrow_mut();
 
         cbd.variables.push(in_value);
 
@@ -230,9 +229,8 @@ pub(crate) trait ComposerBase<'a> {
     ///
     /// * The index of the new variable in the variables vector
     fn add_public_variable(&mut self, in_value: Fr) -> u32 {
-        let mut cbd = self.mut_composer_base_data();
         let index = self.add_variable(in_value);
-        cbd.public_inputs.push(index);
+        self.composer_base_data().borrow_mut().public_inputs.push(index);
         index
     }
 
@@ -242,7 +240,7 @@ pub(crate) trait ComposerBase<'a> {
     ///
     /// * `witness_index` - The index of the witness.
     fn set_public_input(&mut self, witness_index: u32) {
-        let mut cbd = self.mut_composer_base_data();
+        let mut cbd = self.composer_base_data().borrow_mut();
         let does_not_exist = cbd
             .public_inputs
             .iter()
@@ -257,11 +255,11 @@ pub(crate) trait ComposerBase<'a> {
     }
 
     fn assert_equal(&mut self, a_idx: u32, b_idx: u32, msg: String) {
-        let mut cbd = self.mut_composer_base_data();
+        let mut cbd = self.composer_base_data().borrow_mut();
         self.assert_valid_variables(&[a_idx, b_idx]);
         let values_equal = self.get_variable(a_idx) == self.get_variable(b_idx);
         if !values_equal && !self.failed() {
-            self.failure(msg);
+            self.failure(msg.clone());
         }
         let a_real_idx = cbd.real_variable_index[a_idx as usize];
         let b_real_idx = cbd.real_variable_index[b_idx as usize];
@@ -358,9 +356,9 @@ pub(crate) trait ComposerBase<'a> {
     ///                 permutation polynomials are circuit-specific and stored in the proving/verification key (id_poly = true).
     fn compute_sigma_permutations(
         &self,
-        key: Rc<RefCell<ProvingKey<'a, Fr, G1Affine>>>,
-        program_width: usize,
-        with_tags: bool,
+        _key: Rc<RefCell<ProvingKey<'a, Fr, G1Affine>>>,
+        _program_width: usize,
+        _with_tags: bool,
     ) {
         // // Compute wire copy cycles for public and private variables
         // let program_width = program_width.into();
@@ -401,7 +399,8 @@ pub(crate) trait ComposerBase<'a> {
     fn compute_witness_base(&mut self, program_width: usize, minimum_circuit_size: Option<usize>) {
         let minimum_circuit_size = minimum_circuit_size.unwrap_or(0);
 
-        let mut cbd = self.mut_composer_base_data();
+        let cbd = self.composer_base_data();
+        let mut cbd = cbd.borrow_mut();
         if cbd.computed_witness {
             return;
         }
@@ -470,7 +469,7 @@ pub(crate) trait ComposerBase<'a> {
     }
 
     fn get_num_public_inputs(&self) -> usize {
-        let cbd = self.composer_base_data();
+        let cbd = self.composer_base_data().borrow();
         cbd.public_inputs.len()
     }
 
@@ -482,22 +481,25 @@ pub(crate) trait ComposerBase<'a> {
 
     fn is_valid_variable(&self, variable_index: u32) -> bool {
         let cbd = self.composer_base_data();
+        let cbd = cbd.borrow();
         (cbd.variables.len() as u32) > variable_index
     }
 
     fn set_err(&mut self, err: String) {
-        let cbd = self.mut_composer_base_data();
+        let cbd = self.composer_base_data();
+        let mut cbd = cbd.borrow_mut();
         cbd._err = Some(err);
     }
 
     fn failure(&mut self, err: String) {
-        let cbd = self.mut_composer_base_data();
+        let cbd = self.composer_base_data();
+        let mut cbd = cbd.borrow_mut();
         cbd.failed = true;
         self.set_err(err)
     }
 
     fn failed(&self) -> bool {
-        let cbd = self.composer_base_data();
+        let cbd = self.composer_base_data().borrow();
         cbd.failed
     }
 
@@ -521,7 +523,7 @@ pub(crate) trait ComposerBase<'a> {
         minimum_circuit_size: usize,
         num_reserved_gates: usize,
     ) -> Rc<RefCell<ProvingKey<'a, Fr, G1Affine>>> {
-        let mut cbd = self.mut_composer_base_data();
+        let mut cbd = self.composer_base_data().borrow_mut();
         let num_filled_gates = cbd.num_gates + cbd.public_inputs.len();
         let total_num_gates = if minimum_circuit_size > num_filled_gates {
             minimum_circuit_size
