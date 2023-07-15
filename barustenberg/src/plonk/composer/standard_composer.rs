@@ -27,9 +27,9 @@ use ark_bn254::{Fr, G1Affine};
 use ark_ff::{BigInteger, Field, One, PrimeField, Zero};
 
 #[derive(Default)]
-pub struct StandardComposer< RSF: ReferenceStringFactory> {
+pub(crate) struct StandardComposer<RSF: ReferenceStringFactory> {
     /// base data from composer
-    cbd: Rc<RefCell<ComposerBaseData< RSF>>>,
+    cbd: Rc<RefCell<ComposerBaseData<RSF>>>,
     /// These are variables that we have used a gate on, to enforce that they are
     /// equal to a defined value.
     constant_variable_indices: HashMap<Fr, u32>,
@@ -38,11 +38,11 @@ pub struct StandardComposer< RSF: ReferenceStringFactory> {
     settings: StandardSettings<Keccak256>,
 }
 
-impl<'a, RSF: ReferenceStringFactory> ComposerBase for StandardComposer< RSF> {
+impl<'a, RSF: ReferenceStringFactory> ComposerBase for StandardComposer<RSF> {
     type RSF = RSF;
 
     #[inline(always)]
-    fn composer_base_data(&self) -> Rc<RefCell<ComposerBaseData< Self::RSF>>> {
+    fn composer_base_data(&self) -> Rc<RefCell<ComposerBaseData<Self::RSF>>> {
         self.cbd.clone()
     }
 
@@ -72,8 +72,8 @@ impl<'a, RSF: ReferenceStringFactory> ComposerBase for StandardComposer< RSF> {
     }
 
     fn with_keys(
-        p_key: Rc<RefCell<ProvingKey< Fr, G1Affine>>>,
-        v_key: Rc<RefCell<VerificationKey< Fr>>>,
+        p_key: Rc<RefCell<ProvingKey<Fr, G1Affine>>>,
+        v_key: Rc<RefCell<VerificationKey<Fr>>>,
         num_selectors: usize,
         size_hint: usize,
         selector_properties: Vec<SelectorProperties>,
@@ -88,7 +88,7 @@ impl<'a, RSF: ReferenceStringFactory> ComposerBase for StandardComposer< RSF> {
         cbd.selector_properties = selector_properties;
         cbd.num_gates = 0;
         cbd.crs_factory = crs_factory;
-        let cbd =Rc::new(RefCell::new(cbd));
+        let cbd = Rc::new(RefCell::new(cbd));
         Self {
             cbd,
             constant_variable_indices: HashMap::new(),
@@ -107,7 +107,7 @@ enum StandardSelectors {
     Q3,
 }
 
-impl StandardComposer< FileReferenceStringFactory> {
+impl StandardComposer<FileReferenceStringFactory> {
     fn new(
         num_selectors: usize,
         size_hint: usize,
@@ -120,7 +120,7 @@ impl StandardComposer< FileReferenceStringFactory> {
     }
 }
 
-impl<RSF: ReferenceStringFactory> StandardComposer< RSF> {
+impl<RSF: ReferenceStringFactory> StandardComposer<RSF> {
     /// Create an addition gate.
     ///
     /// # Arguments
@@ -737,7 +737,7 @@ impl<RSF: ReferenceStringFactory> StandardComposer< RSF> {
     fn compute_proving_key(&mut self) -> Rc<RefCell<ProvingKey<Fr, G1Affine>>> {
         let cbd = self.cbd.clone();
         let cbd = cbd.borrow();
-        
+
         if let Some(proving_key) = cbd.circuit_proving_key.clone() {
             return proving_key.clone();
         }
@@ -748,7 +748,8 @@ impl<RSF: ReferenceStringFactory> StandardComposer< RSF> {
         (*cbd.circuit_proving_key.clone().unwrap())
             .borrow_mut()
             .recursive_proof_public_input_indices = cbd
-            .circuit_proving_key.clone()
+            .circuit_proving_key
+            .clone()
             .unwrap()
             .borrow()
             .recursive_proof_public_input_indices
@@ -773,7 +774,6 @@ impl<RSF: ReferenceStringFactory> StandardComposer< RSF> {
     ///
     /// * Returns an `Rc<VerificationKey>`, a reference counted verification key.
     fn compute_verification_key(&mut self) -> Result<Rc<RefCell<VerificationKey<Fr>>>> {
-
         let cbd = self.cbd.clone();
         let mut cbd = cbd.borrow_mut();
 
@@ -790,15 +790,18 @@ impl<RSF: ReferenceStringFactory> StandardComposer< RSF> {
         )?;
         cbd.circuit_verification_key = Some(circuit_verification_key.clone());
 
-        {let mut verification_key = circuit_verification_key.borrow_mut();
-        verification_key.composer_type = self.own_type;
-        verification_key.recursive_proof_public_input_indices = cbd
-            .circuit_proving_key.clone()
-            .unwrap()
-            .borrow()
-            .recursive_proof_public_input_indices
-            .clone();
-        verification_key.contains_recursive_proof = self.contains_recursive_proof;}
+        {
+            let mut verification_key = circuit_verification_key.borrow_mut();
+            verification_key.composer_type = self.own_type;
+            verification_key.recursive_proof_public_input_indices = cbd
+                .circuit_proving_key
+                .clone()
+                .unwrap()
+                .borrow()
+                .recursive_proof_public_input_indices
+                .clone();
+            verification_key.contains_recursive_proof = self.contains_recursive_proof;
+        }
 
         Ok(circuit_verification_key)
     }
@@ -1099,9 +1102,7 @@ impl<RSF: ReferenceStringFactory> StandardComposer< RSF> {
 
         self.compute_verification_key();
         let mut output_state = Verifier::new(
-            Some(
-                cbd.circuit_verification_key.as_ref().unwrap().clone()
-            ),
+            Some(cbd.circuit_verification_key.as_ref().unwrap().clone()),
             self.create_manifest(cbd.public_inputs.len()),
         );
 

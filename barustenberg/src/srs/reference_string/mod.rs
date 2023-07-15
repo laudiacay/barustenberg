@@ -19,8 +19,8 @@ pub(crate) trait ProverReferenceString: Debug {
     fn get_monomial_size(&self) -> usize;
 }
 pub(crate) trait ReferenceStringFactory: Default {
-    type Pro: ProverReferenceString;
-    type Ver: VerifierReferenceString;
+    type Pro: ProverReferenceString + 'static;
+    type Ver: VerifierReferenceString + 'static;
     fn get_prover_crs(&self, _size: usize) -> Option<Rc<RefCell<Self::Pro>>> {
         todo!()
     }

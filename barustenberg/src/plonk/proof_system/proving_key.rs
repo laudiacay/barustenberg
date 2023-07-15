@@ -33,7 +33,7 @@ pub(crate) struct ProvingKeyData<F: Field + FftField> {
 }
 
 #[derive(Debug)]
-pub struct ProvingKey< Fr: Field + FftField, G: AffineRepr> {
+pub struct ProvingKey<Fr: Field + FftField, G: AffineRepr> {
     pub(crate) composer_type: ComposerType,
     pub(crate) circuit_size: usize,
     pub(crate) log_circuit_size: usize,
@@ -45,8 +45,8 @@ pub struct ProvingKey< Fr: Field + FftField, G: AffineRepr> {
     /// Used by UltraComposer only, for RAM writes.
     pub(crate) memory_write_records: Vec<usize>,
     pub(crate) polynomial_store: PolynomialStore<Fr>,
-    pub(crate) small_domain: EvaluationDomain< Fr>,
-    pub(crate) large_domain: EvaluationDomain< Fr>,
+    pub(crate) small_domain: EvaluationDomain<Fr>,
+    pub(crate) large_domain: EvaluationDomain<Fr>,
     /// The reference_string object contains the monomial SRS. We can access it using:
     /// Monomial SRS: reference_string->get_monomial_points()
     pub(crate) reference_string: Rc<RefCell<dyn ProverReferenceString>>,
@@ -74,12 +74,11 @@ impl<Fr: Field + FftField, G: AffineRepr> Default for ProvingKey<Fr, G> {
             quotient_polynomial_parts: Default::default(),
             pippenger_runtime_state: Default::default(),
             polynomial_manifest: Default::default(),
-            
         }
     }
 }
 
-impl< Fr: Field + FftField, G: AffineRepr> ProvingKey<Fr, G> {
+impl<Fr: Field + FftField, G: AffineRepr> ProvingKey<Fr, G> {
     pub(crate) fn new_with_data(
         data: ProvingKeyData<Fr>,
         crs: Rc<RefCell<dyn ProverReferenceString>>,

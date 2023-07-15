@@ -55,7 +55,7 @@ pub(crate) struct AddQuad<Fr: Field + FftField> {
     pub(crate) const_scaling: Fr,
 }
 
-pub struct MulQuad<Fr: Field + FftField> {
+pub(crate) struct MulQuad<Fr: Field + FftField> {
     pub(crate) a: u32,
     pub(crate) b: u32,
     pub(crate) c: u32,
@@ -68,7 +68,7 @@ pub struct MulQuad<Fr: Field + FftField> {
     pub(crate) const_scaling: Fr,
 }
 
-pub struct MulTriple<Fr: Field + FftField> {
+pub(crate) struct MulTriple<Fr: Field + FftField> {
     pub(crate) a: u32,
     pub(crate) b: u32,
     pub(crate) c: u32,
@@ -78,7 +78,7 @@ pub struct MulTriple<Fr: Field + FftField> {
 }
 
 #[derive(PartialEq, Eq, Serialize, Deserialize)]
-pub struct PolyTriple<Fr: Field + FftField> {
+pub(crate) struct PolyTriple<Fr: Field + FftField> {
     pub(crate) a: u32,
     pub(crate) b: u32,
     pub(crate) c: u32,
@@ -89,7 +89,7 @@ pub struct PolyTriple<Fr: Field + FftField> {
     pub(crate) q_c: Fr,
 }
 
-pub struct FixedGroupAddQuad<Fr: Field + FftField> {
+pub(crate) struct FixedGroupAddQuad<Fr: Field + FftField> {
     pub(crate) a: u32,
     pub(crate) b: u32,
     pub(crate) c: u32,
@@ -100,7 +100,7 @@ pub struct FixedGroupAddQuad<Fr: Field + FftField> {
     pub(crate) q_y_2: Fr,
 }
 
-pub struct FixedGroupInitQuad<Fr: Field + FftField> {
+pub(crate) struct FixedGroupInitQuad<Fr: Field + FftField> {
     pub(crate) q_x_1: Fr,
     pub(crate) q_x_2: Fr,
     pub(crate) q_y_1: Fr,
@@ -108,13 +108,13 @@ pub struct FixedGroupInitQuad<Fr: Field + FftField> {
 }
 
 #[derive(Default)]
-pub struct AccumulatorTriple {
+pub(crate) struct AccumulatorTriple {
     pub(crate) left: Vec<u32>,
     pub(crate) right: Vec<u32>,
     pub(crate) out: Vec<u32>,
 }
 
-pub struct EccAddGate<Fr: Field + FftField> {
+pub(crate) struct EccAddGate<Fr: Field + FftField> {
     pub(crate) x1: u32,
     pub(crate) y1: u32,
     pub(crate) x2: u32,

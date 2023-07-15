@@ -71,9 +71,9 @@ unsafe fn field_element_to_usize<F: Field + FftField>(element: F) -> usize {
     std::mem::transmute_copy(&u256_bytes)
 }
 
-impl<H: BarretenHasher, Fr: Field + FftField, G: AffineRepr> WorkQueue< H, Fr, G> {
+impl<H: BarretenHasher, Fr: Field + FftField, G: AffineRepr> WorkQueue<H, Fr, G> {
     pub(crate) fn new(
-        prover_key: Option<Rc<RefCell<ProvingKey< Fr, G>>>>,
+        prover_key: Option<Rc<RefCell<ProvingKey<Fr, G>>>>,
         prover_transcript: Option<Rc<RefCell<Transcript<H>>>>,
     ) -> Self {
         WorkQueue {

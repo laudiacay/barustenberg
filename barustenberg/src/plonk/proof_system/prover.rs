@@ -33,10 +33,9 @@ pub struct Prover<H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group =
     pub(crate) circuit_size: usize,
     pub(crate) transcript: Rc<RefCell<Transcript<H>>>,
     pub(crate) key: Rc<RefCell<ProvingKey<Fr, G1Affine>>>,
-    pub(crate) queue: WorkQueue< H, Fr, G1Affine>,
-    pub(crate) random_widgets:
-        Vec<Box<dyn ProverRandomWidget<Fr = Fr, G1 = G1Affine, Hasher = H>>>,
-    pub(crate) transition_widgets: Vec<Box<dyn TransitionWidgetBase< Hasher = H, Field = Fr>>>,
+    pub(crate) queue: WorkQueue<H, Fr, G1Affine>,
+    pub(crate) random_widgets: Vec<Box<dyn ProverRandomWidget<Fr = Fr, G1 = G1Affine, Hasher = H>>>,
+    pub(crate) transition_widgets: Vec<Box<dyn TransitionWidgetBase<Hasher = H, Field = Fr>>>,
     pub(crate) commitment_scheme: KateCommitmentScheme<H, Fq, Fr, G1Affine>,
     pub(crate) settings: S,
     phantom: PhantomData<Fq>,

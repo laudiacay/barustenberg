@@ -39,9 +39,7 @@ pub struct Verifier<H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group
     pub(crate) commitment_scheme: Box<KateCommitmentScheme<H, Fq, Fr, G1Affine>>,
 }
 
-impl<H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>>
-    Verifier<H, S>
-{
+impl<H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>> Verifier<H, S> {
     pub fn new(
         _verifier_key: Option<Rc<RefCell<VerificationKey<Fr>>>>,
         _manifest: Manifest,

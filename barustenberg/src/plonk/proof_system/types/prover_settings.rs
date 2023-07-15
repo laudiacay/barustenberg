@@ -410,7 +410,7 @@ impl Settings for UltraWithKeccakSettings {
     }
     #[inline]
     fn compute_quotient_evaluation_contribution(
-        _verification_key: &VerificationKey< Fr>,
+        _verification_key: &VerificationKey<Fr>,
         _alpha_base: &Fr,
         _transcript: &Transcript<Keccak256>,
         _quotient_numerator_eval: &Fr,

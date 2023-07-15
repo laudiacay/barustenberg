@@ -199,11 +199,11 @@ impl<H: BarretenHasher, F: Field + FftField, G: AffineRepr> KernelBase
 }
 
 #[derive(Debug)]
-pub(crate) struct ProverArithmeticWidget< H: BarretenHasher>(
+pub(crate) struct ProverArithmeticWidget<H: BarretenHasher>(
     TransitionWidget<H, Fr, G1Affine, U1, ArithmeticKernel<H, Fr, G1Affine>>,
 );
 
-impl<H: BarretenHasher> TransitionWidgetBase for ProverArithmeticWidget< H> {
+impl<H: BarretenHasher> TransitionWidgetBase for ProverArithmeticWidget<H> {
     type Hasher = H;
     type Field = Fr;
 
@@ -218,11 +218,8 @@ impl<H: BarretenHasher> TransitionWidgetBase for ProverArithmeticWidget< H> {
     }
 }
 
-impl<'a, H: BarretenHasher> ProverArithmeticWidget< H> {
+impl<'a, H: BarretenHasher> ProverArithmeticWidget<H> {
     pub(crate) fn new(key: Rc<RefCell<ProvingKey<Fr, G1Affine>>>) -> Self {
-        Self(TransitionWidget {
-            key,
-            phantom: PhantomData,
-        })
+        Self(TransitionWidget::new(key))
     }
 }

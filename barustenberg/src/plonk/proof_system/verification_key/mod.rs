@@ -15,7 +15,7 @@ use crate::{
 use super::types::PolynomialManifest;
 
 #[derive(Debug)]
-pub struct VerificationKey< Fr: Field + FftField> {
+pub struct VerificationKey<Fr: Field + FftField> {
     pub(crate) composer_type: ComposerType,
     pub(crate) circuit_size: usize,
     log_circuit_size: usize,
@@ -33,7 +33,7 @@ pub struct VerificationKey< Fr: Field + FftField> {
     pub(crate) program_width: usize,
 }
 
-impl< Fr: FftField + Field> Default for VerificationKey< Fr> {
+impl<Fr: FftField + Field> Default for VerificationKey<Fr> {
     fn default() -> Self {
         VerificationKey {
             composer_type: Default::default(),
@@ -52,7 +52,7 @@ impl< Fr: FftField + Field> Default for VerificationKey< Fr> {
     }
 }
 
-impl< Fr: Field + FftField> VerificationKey< Fr> {
+impl<Fr: Field + FftField> VerificationKey<Fr> {
     pub(crate) fn new(
         circuit_size: usize,
         num_public_inputs: usize,
