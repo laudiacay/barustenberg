@@ -13,7 +13,7 @@ use crate::{
 use std::{
     collections::{HashMap, HashSet},
     marker::PhantomData,
-    sync::Arc,
+    sync::Arc, cell::RefCell, rc::Rc,
 };
 
 use super::{
@@ -196,6 +196,15 @@ impl<H: BarretenHasher, F: Field + FftField, G: AffineRepr> KernelBase
 }
 
 pub(crate) struct ProverArithmeticWidget<'a, Fr: Field + FftField, G: AffineRepr, H, S> {
-    key: Arc<ProvingKey<'a, Fr, G>>,
+    key: Rc<RefCell<ProvingKey<'a, Fr, G>>>,
     phantom: PhantomData<(H, S)>,
+}
+
+impl<'a, Fr: Field + FftField, G: AffineRepr, H, S> ProverArithmeticWidget<'a, Fr, G, H, S> {
+    pub(crate) fn new(key: Rc<RefCell<ProvingKey<'a, Fr, G>>>) -> Self {
+        ProverArithmeticWidget {
+            key,
+            phantom: PhantomData,
+        }
+    }
 }

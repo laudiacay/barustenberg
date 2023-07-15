@@ -1,4 +1,4 @@
-use std::{rc::Rc, sync::Arc};
+use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 use ark_bn254::G1Affine;
 
@@ -53,13 +53,15 @@ impl<'a> ReferenceStringFactory for PippengerReferenceStringFactory<'a> {
     type Pro = PippengerReferenceString;
     type Ver = VerifierMemReferenceString;
 
-    fn get_prover_crs(&self, degree: usize) -> Option<Rc<Self::Pro>> {
+    fn get_prover_crs(&self, degree: usize) -> Option<Rc<RefCell<Self::Pro>>> {
         assert!(degree <= self.pippenger.get_num_points());
-        Some(Rc::new(PippengerReferenceString::new(
+        Some(Rc::new(RefCell::new(PippengerReferenceString::new(
             self.pippenger.clone(),
-        )))
+        ))))
     }
-    fn get_verifier_crs(&self) -> Option<Rc<Self::Ver>> {
-        Some(Rc::new(VerifierMemReferenceString::new(self.g2x)))
+    fn get_verifier_crs(&self) -> Option<Rc<RefCell<Self::Ver>>> {
+        Some(Rc::new(RefCell::new(VerifierMemReferenceString::new(
+            self.g2x,
+        ))))
     }
 }

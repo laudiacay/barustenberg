@@ -1,7 +1,9 @@
+use std::borrow::BorrowMut;
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use super::composer_base::{ComposerBase, ComposerBaseData};
+use super::composer_base::{ComposerBase, ComposerBaseData, ComposerType};
 use crate::plonk::composer::composer_base::SelectorProperties;
 use crate::plonk::proof_system::commitment_scheme::KateCommitmentScheme;
 use crate::plonk::proof_system::prover::Prover;
@@ -29,6 +31,8 @@ pub struct StandardComposer<'a, RSF: ReferenceStringFactory> {
     /// These are variables that we have used a gate on, to enforce that they are
     /// equal to a defined value.
     constant_variable_indices: HashMap<Fr, u32>,
+    contains_recursive_proof: bool,
+    own_type: ComposerType,
 }
 
 impl<'a, RSF: ReferenceStringFactory> ComposerBase<'a> for StandardComposer<'a, RSF> {
@@ -62,6 +66,8 @@ impl<'a, RSF: ReferenceStringFactory> ComposerBase<'a> for StandardComposer<'a, 
         Self {
             cbd,
             constant_variable_indices: HashMap::new(),
+            contains_recursive_proof: false,
+            own_type: ComposerType::Standard,
         }
     }
 
@@ -85,6 +91,8 @@ impl<'a, RSF: ReferenceStringFactory> ComposerBase<'a> for StandardComposer<'a, 
         Self {
             cbd,
             constant_variable_indices: HashMap::new(),
+            contains_recursive_proof: false,
+            own_type: ComposerType::Standard,
         }
     }
 }
@@ -709,25 +717,25 @@ impl<'a, RSF: ReferenceStringFactory> StandardComposer<'a, RSF> {
     ///
     /// * Returns a `Rc<ProvingKey>`, a reference counted proving key.
 
-    fn compute_proving_key(&mut self) -> Rc<ProvingKey<'a, Fr, G1Affine>> {
+    fn compute_proving_key(&mut self) -> Rc<RefCell<ProvingKey<'a, Fr, G1Affine>>> {
         if let Some(proving_key) = &self.cbd.circuit_proving_key {
-            return Rc::clone(proving_key);
+            return proving_key.clone();
         }
-        self.compute_proving_key_base(&self.own_type);
+        self.compute_proving_key_base(self.own_type, 0, 0);
         self.compute_sigma_permutations::<3, false>(
-            Rc::get_mut(&mut self.cbd.circuit_proving_key).unwrap(),
+            Rc::get_mut(&mut self.cbd.circuit_proving_key.unwrap()).unwrap(),
         );
 
-        Rc::get_mut(&mut self.cbd.circuit_proving_key)
-            .unwrap()
+        (*self.cbd.circuit_proving_key.unwrap())
+            .borrow_mut()
             .recursive_proof_public_input_indices =
-            self.cbd.recursive_proof_public_input_indices.clone();
+            self.cbd.circuit_proving_key.unwrap().borrow().recursive_proof_public_input_indices.clone();
 
-        Rc::get_mut(&mut self.cbd.circuit_proving_key)
-            .unwrap()
-            .contains_recursive_proof = self.cbd.contains_recursive_proof;
+        (*self.cbd.circuit_proving_key.unwrap())
+            .borrow_mut()
+            .contains_recursive_proof = self.contains_recursive_proof;
 
-        return Rc::clone(&self.cbd.circuit_proving_key);
+        return Rc::clone(&self.cbd.circuit_proving_key.unwrap());
     }
 
     /// Computes the verification key consisting of selector precommitments.
@@ -754,11 +762,16 @@ impl<'a, RSF: ReferenceStringFactory> StandardComposer<'a, RSF> {
             &self.cbd.crs_factory.get_verifier_crs(),
         ));
 
-        let mut verification_key = self.cbd.circuit_verification_key.as_mut().unwrap();
+        let mut verification_key = self
+            .cbd
+            .circuit_verification_key
+            .unwrap()
+            .borrow()
+            .borrow_mut();
         verification_key.composer_type = self.own_type;
         verification_key.recursive_proof_public_input_indices =
-            self.cbd.recursive_proof_public_input_indices.clone();
-        verification_key.contains_recursive_proof = self.cbd.contains_recursive_proof;
+            self.cbd.circuit_proving_key.unwrap().borrow().recursive_proof_public_input_indices.clone();
+        verification_key.contains_recursive_proof = self.contains_recursive_proof;
 
         Rc::clone(&self.cbd.circuit_verification_key.as_ref().unwrap())
     }
@@ -808,12 +821,13 @@ impl<'a, RSF: ReferenceStringFactory> StandardComposer<'a, RSF> {
         let mut output_state = Prover::new(
             Some(Rc::clone(&self.cbd.circuit_proving_key.as_ref().unwrap())),
             self.create_manifest(self.cbd.public_inputs.len()),
+            None,
         );
 
         output_state
             .random_widgets
-            .push(Box::new(ProverPermutationWidget::<3, false>::new(
-                Rc::clone(&self.cbd.circuit_proving_key.as_ref().unwrap()),
+            .push(Box::new(ProverPermutationWidget::<Fr, Keccak256, G1Affine, 3, false, 4>::new(
+                self.cbd.circuit_proving_key.unwrap().clone(),
             )));
 
         output_state
@@ -822,7 +836,7 @@ impl<'a, RSF: ReferenceStringFactory> StandardComposer<'a, RSF> {
                 &self.cbd.circuit_proving_key.as_ref().unwrap(),
             ))));
 
-        output_state.commitment_scheme = Some(Box::new(KateCommitmentScheme::new()));
+        output_state.commitment_scheme = KateCommitmentScheme::new();
 
         output_state
     }

@@ -22,11 +22,11 @@ use super::types::PolynomialManifest;
 const MIN_THREAD_BLOCK: usize = 4;
 
 pub(crate) struct ProvingKeyData<F: Field + FftField> {
-    composer_type: u32,
+    composer_type: ComposerType,
     circuit_size: u32,
     num_public_inputs: u32,
     contains_recursive_proof: bool,
-    recursive_proof_public_input_indices: Vec<usize>,
+    recursive_proof_public_input_indices: Vec<u32>,
     memory_read_records: Vec<usize>,
     memory_write_records: Vec<usize>,
     polynomial_store: PolynomialStore<F>,
@@ -34,12 +34,12 @@ pub(crate) struct ProvingKeyData<F: Field + FftField> {
 
 #[derive(Debug)]
 pub struct ProvingKey<'a, Fr: Field + FftField, G: AffineRepr> {
-    pub(crate) composer_type: u32,
+    pub(crate) composer_type: ComposerType,
     pub(crate) circuit_size: usize,
     pub(crate) log_circuit_size: usize,
     pub(crate) num_public_inputs: usize,
     pub(crate) contains_recursive_proof: bool,
-    pub(crate) recursive_proof_public_input_indices: Vec<usize>,
+    pub(crate) recursive_proof_public_input_indices: Vec<u32>,
     /// Used by UltraComposer only; for ROM, RAM reads.
     pub(crate) memory_read_records: Vec<usize>,
     /// Used by UltraComposer only, for RAM writes.
@@ -59,21 +59,10 @@ pub struct ProvingKey<'a, Fr: Field + FftField, G: AffineRepr> {
 impl<'a, Fr: Field + FftField, G: AffineRepr> Default for ProvingKey<'a, Fr, G> {
     fn default() -> Self {
         Self {
-            composer_type: 0,
-            circuit_size: 0,
-            log_circuit_size: 0,
-            num_public_inputs: 0,
-            contains_recursive_proof: false,
-            recursive_proof_public_input_indices: vec![],
-            memory_read_records: vec![],
-            memory_write_records: vec![],
             polynomial_store: PolynomialStore::new(),
             small_domain: EvaluationDomain::new(0, None),
             large_domain: EvaluationDomain::new(0, None),
-            reference_string: Rc::new(RefCell::new(FileReferenceString::default())),
-            quotient_polynomial_parts: Default::default(),
-            pippenger_runtime_state: PippengerRuntimeState::default(),
-            polynomial_manifest: PolynomialManifest::default(),
+            ..Default::default()
         }
     }
 }
@@ -126,7 +115,7 @@ impl<'a, Fr: Field + FftField, G: AffineRepr> ProvingKey<'a, Fr, G> {
         type_: ComposerType,
     ) -> Self {
         let data = ProvingKeyData {
-            composer_type: type_ as u32,
+            composer_type: type_,
             circuit_size: (num_gates + num_inputs) as u32,
             num_public_inputs: num_inputs as u32,
             contains_recursive_proof: false,

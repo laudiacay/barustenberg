@@ -5,6 +5,7 @@ use crate::plonk::proof_system::verification_key::VerificationKey;
 use crate::plonk::proof_system::widgets::random_widgets::random_widget::ProverRandomWidget;
 use crate::proof_system::work_queue::WorkQueue;
 use crate::transcript::{BarretenHasher, Transcript};
+use std::cell::RefCell;
 use std::marker::PhantomData;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -279,7 +280,7 @@ pub(crate) struct ProverPermutationWidget<
     const IDPOLYS: bool,
     const NUM_ROOTS_CUT_OUT_OF_VANISHING_POLYNOMIAL: usize,
 > {
-    pub(crate) key: Rc<ProvingKey<'a, Fr, G>>,
+    pub(crate) key: Rc<RefCell<ProvingKey<'a, Fr, G>>>,
     phantom: PhantomData<Hash>,
 }
 
@@ -339,7 +340,7 @@ impl<
         NUM_ROOTS_CUT_OUT_OF_VANISHING_POLYNOMIAL,
     >
 {
-    pub(crate) fn new(proving_key: Rc<ProvingKey<'a, Fr, G>>) -> Self {
+    pub(crate) fn new(proving_key: Rc<RefCell<ProvingKey<'a, Fr, G>>>) -> Self {
         Self {
             key: proving_key,
             phantom: PhantomData,

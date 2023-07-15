@@ -2,8 +2,8 @@ pub(crate) mod file_reference_string;
 pub(crate) mod mem_reference_string;
 pub(crate) mod pippenger_reference_string;
 
-use std::fmt::Debug;
 use std::rc::Rc;
+use std::{cell::RefCell, fmt::Debug};
 
 use ark_bn254::{G1Affine, G2Affine};
 
@@ -21,11 +21,11 @@ pub(crate) trait ProverReferenceString: Debug {
 pub(crate) trait ReferenceStringFactory: Default {
     type Pro: ProverReferenceString;
     type Ver: VerifierReferenceString;
-    fn get_prover_crs(&self, _size: usize) -> Option<Rc<Self::Pro>> {
+    fn get_prover_crs(&self, _size: usize) -> Option<Rc<RefCell<Self::Pro>>> {
         todo!()
     }
 
-    fn get_verifier_crs(&self) -> Option<Rc<Self::Ver>> {
+    fn get_verifier_crs(&self) -> Option<Rc<RefCell<Self::Ver>>> {
         todo!()
     }
 }
