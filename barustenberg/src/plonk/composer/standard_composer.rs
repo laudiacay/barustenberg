@@ -609,8 +609,8 @@ impl<RSF: ReferenceStringFactory> StandardComposer<RSF> {
             });
 
             let mut new_right_accumulator = right_accumulator + right_accumulator;
-            new_right_accumulator = new_right_accumulator + new_right_accumulator;
-            new_right_accumulator = new_right_accumulator + right_quad;
+            new_right_accumulator += new_right_accumulator;
+            new_right_accumulator += right_quad;
             let new_right_accumulator_idx = self.add_variable(new_right_accumulator);
 
             self.create_add_gate(&AddTriple {
@@ -686,7 +686,7 @@ impl<RSF: ReferenceStringFactory> StandardComposer<RSF> {
         if self.constant_variable_indices.contains_key(&variable) {
             return *self.constant_variable_indices.get(&variable).unwrap();
         } else {
-            let variable_index = self.add_variable(variable.clone());
+            let variable_index = self.add_variable(variable);
             self.fix_witness(variable_index, &variable);
             self.constant_variable_indices
                 .insert(variable, variable_index);
@@ -741,7 +741,7 @@ impl<RSF: ReferenceStringFactory> StandardComposer<RSF> {
         if let Some(proving_key) = cbd.circuit_proving_key.clone() {
             return proving_key.clone();
         }
-        let composer_type = self.own_type.clone();
+        let composer_type = self.own_type;
         self.compute_proving_key_base(composer_type, 0, 0);
         self.compute_sigma_permutations(cbd.circuit_proving_key.clone().unwrap(), 3, false);
 
@@ -1148,7 +1148,7 @@ impl<RSF: ReferenceStringFactory> StandardComposer<RSF> {
             )));
 
         let arithmetic_widget =
-            ProverArithmeticWidget::new(Rc::clone(&cbd.circuit_proving_key.as_ref().unwrap()));
+            ProverArithmeticWidget::new(cbd.circuit_proving_key.clone().unwrap());
 
         output_state
             .transition_widgets

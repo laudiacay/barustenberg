@@ -218,7 +218,7 @@ impl<H: BarretenHasher> TransitionWidgetBase for ProverArithmeticWidget<H> {
     }
 }
 
-impl<'a, H: BarretenHasher> ProverArithmeticWidget<H> {
+impl<H: BarretenHasher> ProverArithmeticWidget<H> {
     pub(crate) fn new(key: Rc<RefCell<ProvingKey<Fr, G1Affine>>>) -> Self {
         Self(TransitionWidget::new(key))
     }

@@ -102,7 +102,7 @@ fn fft_inner_serial<Fr: Copy + Default + Add<Output = Fr> + Sub<Output = Fr> + M
     }
 }
 
-impl<'a, Fr: Field + FftField> EvaluationDomain<Fr> {
+impl<Fr: Field + FftField> EvaluationDomain<Fr> {
     /// modifies target[..generator_size]
     fn scale_by_generator(
         &self,
@@ -725,17 +725,15 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<Fr> {
         // Note: This is a placeholder, replace with actual batch invert function.
         // TODO add batch invert
         // invert them all
-        let result: Result<(), anyhow::Error> = l_1_coefficients
+            let result: Result<(), anyhow::Error> = l_1_coefficients
             .coefficients
-            .iter_mut()
-            .map(|x| {
-                let inverse = x
-                    .inverse()
-                    .ok_or_else(|| anyhow::anyhow!("Failed to find inverse"))?;
-                *x = inverse;
-                Ok(())
-            })
-            .collect();
+                .iter_mut().try_for_each(|x| {
+                  let inverse = x
+                  .inverse()
+                        .ok_or_else(|| anyhow::anyhow!("Failed to find inverse"))?;
+                 *x = inverse;
+                   Ok(())
+             });
         result?;
 
         // Step 2: Compute numerator (1/n)*(X_i^n - 1)
@@ -792,10 +790,10 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<Fr> {
 
         denominators[0] = *z - Fr::one();
         let mut work_root = self.root_inverse; // ω^{-1}
-        for i in 1..num_coeffs {
-            denominators[i] = work_root * *z; // denominators[i] will correspond to L_[i+1] (since our 'commented maths' notation indexes
+        for denominator in denominators.iter_mut().take(num_coeffs).skip(1) {
+            *denominator = work_root * *z; // denominators[i] will correspond to L_[i+1] (since our 'commented maths' notation indexes
                                               // L_i from 1). So ʓ.ω^{-i} = ʓ.ω^{1-(i+1)} is correct for L_{i+1}.
-            denominators[i] -= Fr::one();
+            *denominator -= Fr::one();
             work_root *= self.root_inverse;
         }
 
@@ -890,16 +888,13 @@ pub(crate) fn compute_efficient_interpolation<Fr: Field + FftField>(
 
     // TODO make this a batch_invert
     // invert them all
-    let result: Result<(), anyhow::Error> = roots_and_denominators
-        .iter_mut()
-        .map(|x| {
-            let inverse = x
-                .inverse()
-                .ok_or_else(|| anyhow::anyhow!("Failed to find inverse"))?;
-            *x = inverse;
-            Ok(())
-        })
-        .collect();
+    let result: Result<(), anyhow::Error> = roots_and_denominators.iter_mut().try_for_each(|x| {
+        let inverse = x
+            .inverse()
+            .ok_or_else(|| anyhow::anyhow!("Failed to find inverse"))?;
+        *x = inverse;
+        Ok(())
+    });
     result?;
 
     let mut z;

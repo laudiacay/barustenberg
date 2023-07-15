@@ -81,7 +81,7 @@ fn compute_num_threads(size: usize) -> usize {
 fn compute_lookup_table_single<Fr: Field + FftField>(
     input_root: &Fr,
     size: usize,
-    roots: &mut Vec<Fr>,
+    roots: &mut [Fr],
     roots_offset: usize,
     round_roots: &mut Vec<std::ops::Range<usize>>,
 ) {

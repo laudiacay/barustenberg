@@ -124,7 +124,7 @@ impl<H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>> V
         // where Z_H*(X) is the modified vanishing polynomial.
 
         // Compute ʓ^n.
-        let z_pow_n = zeta.pow(&[(*self.key).borrow().domain.size as u64]);
+        let z_pow_n = zeta.pow([(*self.key).borrow().domain.size as u64]);
         (*self.key).borrow_mut().z_pow_n = z_pow_n;
 
         // compute the quotient polynomial numerator contribution
@@ -182,7 +182,7 @@ impl<H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>> V
             &(*self.key).borrow(),
             &alpha,
             &transcript,
-            &mut self.kate_fr_elements,
+            &self.kate_fr_elements,
         );
 
         // Fetch the group elements [W_z]_1,[W_zω]_1 from the transcript
@@ -205,13 +205,13 @@ impl<H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>> V
 
         // Accumulate pairs of scalars and group elements which would be used in the final pairing check.
         self.kate_g1_elements
-            .insert("PI_Z_OMEGA".to_string(), pi_z_omega.into());
+            .insert("PI_Z_OMEGA".to_string(), pi_z_omega);
         self.kate_fr_elements.insert(
             "PI_Z_OMEGA".to_string(),
             zeta * (*self.key).borrow().domain.root * separator_challenge,
         );
 
-        self.kate_g1_elements.insert("PI_Z".to_owned(), pi_z.into());
+        self.kate_g1_elements.insert("PI_Z".to_owned(), pi_z);
         self.kate_fr_elements.insert("PI_Z".to_owned(), zeta);
 
         // Initialize vectors for scalars and elements
