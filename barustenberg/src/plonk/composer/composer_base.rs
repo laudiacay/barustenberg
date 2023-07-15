@@ -31,7 +31,7 @@ pub(crate) enum WireType {
     Fourth = 0xc0000000,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone, Copy)]
 pub(crate) enum ComposerType {
     #[default]
     Standard,
@@ -286,7 +286,121 @@ pub(crate) trait ComposerBase<'a> {
         }
     }
 
-    fn compute_witness_base(&mut self, program_width: usize, minimum_circuit_size: usize) {
+    /// Compute wire copy cycles
+    ///
+    /// First set all wire_copy_cycles corresponding to public_inputs to point to themselves.
+    /// Then go through all witnesses in w_l, w_r, w_o and w_4 (if program width is > 3) and
+    /// add them to cycles of their real indexes.
+    ///
+    /// # Arguments
+    ///
+    /// * `program_width` - Program width
+    fn compute_wire_copy_cycles<P: Into<usize>>(&mut self, program_width: P) {
+        // let program_width = program_width.into();
+
+        // // Initialize wire_copy_cycles of public input variables to point to themselves
+        // for i in 0..self.public_inputs.len() {
+        //     let left = CycleNode {
+        //         gate_index: i as u32,
+        //         wire_type: WireType::Left,
+        //     };
+        //     let right = CycleNode {
+        //         gate_index: i as u32,
+        //         wire_type: WireType::Right,
+        //     };
+
+        //     let public_input_index = self.real_variable_index[self.public_inputs[i]];
+        //     let cycle = &mut self.wire_copy_cycles[public_input_index];
+        //     // These two nodes must be in adjacent locations in the cycle for correct handling of public inputs
+        //     cycle.push(left);
+        //     cycle.push(right);
+        // }
+
+        // let num_public_inputs = self.public_inputs.len() as u32;
+
+        // // Go through all witnesses and add them to the wire_copy_cycles
+        // for i in 0..self.num_gates {
+        //     let w_1_index = self.real_variable_index[self.w_l[i]];
+        //     let w_2_index = self.real_variable_index[self.w_r[i]];
+        //     let w_3_index = self.real_variable_index[self.w_o[i]];
+
+        //     self.wire_copy_cycles[w_1_index].push(CycleNode {
+        //         gate_index: i as u32 + num_public_inputs,
+        //         wire_type: WireType::LEFT,
+        //     });
+        //     self.wire_copy_cycles[w_2_index].push(CycleNode {
+        //         gate_index: i as u32 + num_public_inputs,
+        //         wire_type: WireType::RIGHT,
+        //     });
+        //     self.wire_copy_cycles[w_3_index].push(CycleNode {
+        //         gate_index: i as u32 + num_public_inputs,
+        //         wire_type: WireType::OUTPUT,
+        //     });
+
+        //     if program_width > 3 {
+        //         let w_4_index = self.real_variable_index[self.w_4[i]];
+        //         self.wire_copy_cycles[w_4_index].push(CycleNode {
+        //             gate_index: i as u32 + num_public_inputs,
+        //             wire_type: WireType::FOURTH,
+        //         });
+        //     }
+        // }
+        todo!("write me")
+    }
+
+    /// Compute sigma and id permutation polynomials in lagrange base.
+    ///
+    /// # Arguments
+    ///
+    /// * `key` - Proving key.
+    /// * `with_tags` - Closely linked with `id_poly`: id_poly is a flag that describes whether we're using
+    ///                 Vitalik's trick of using trivial identity permutation polynomials (id_poly = false). OR whether the identity
+    ///                 permutation polynomials are circuit-specific and stored in the proving/verification key (id_poly = true).
+    fn compute_sigma_permutations(
+        &self,
+        key: Rc<RefCell<ProvingKey<'a, Fr, G1Affine>>>,
+        program_width: usize,
+        with_tags: bool,
+    ) {
+        // // Compute wire copy cycles for public and private variables
+        // let program_width = program_width.into();
+        // let with_tags = with_tags.into();
+        // self.compute_wire_copy_cycles(program_width);
+        // let mut sigma_mappings: Vec<Vec<PermutationSubgroupElement>> = vec![vec![]; program_width];
+        // let mut id_mappings: Vec<Vec<PermutationSubgroupElement>> = vec![vec![]; program_width];
+
+        // // Instantiate the sigma and id mappings by reserving enough space and pushing 'default' permutation subgroup
+        // // elements that point to themselves.
+        // for i in 0..program_width {
+        //     sigma_mappings[i].reserve(key.borrow().circuit_size);
+        //     if with_tags {
+        //         id_mappings[i].reserve(key.borrow().circuit_size);
+        //     }
+        // }
+        // for i in 0..program_width {
+        //     for j in 0..key.borrow().circuit_size {
+        //         sigma_mappings[i].push(PermutationSubgroupElement {
+        //             subgroup_index: j as u32,
+        //             column_index: i as u8,
+        //             is_public_input: false,
+        //             is_tag: false,
+        //         });
+        //         if with_tags {
+        //             id_mappings[i].push(PermutationSubgroupElement {
+        //                 subgroup_index: j as u32,
+        //                 column_index: i as u8,
+        //                 is_public_input: false,
+        //                 is_tag: false,
+        //             });
+        //         }
+        //     }
+        // }
+        todo!("do the rest of this function")
+    }
+
+    fn compute_witness_base(&mut self, program_width: usize, minimum_circuit_size: Option<usize>) {
+        let minimum_circuit_size = minimum_circuit_size.unwrap_or(0);
+
         let mut cbd = self.mut_composer_base_data();
         if cbd.computed_witness {
             return;
@@ -521,20 +635,20 @@ pub(crate) trait ComposerBase<'a> {
                 || selector_poly_info.source == PolynomialSource::Permutation
             {
                 // Fetch the constraint selector polynomial in its coefficient form.
-                let selector_poly_coefficients =
+                let mut selector_poly_coefficients =
                     (*proving_key.polynomial_store.get(&selector_poly_label)?)
-                        .borrow()
+                        .borrow_mut()
                         .coefficients;
 
                 // Commit to the constraint selector polynomial and insert the commitment in the verification key.
-                let selector_poly_commitment = G1Affine::scalar_multiplication_pippenger(
-                    &selector_poly_coefficients,
+                let selector_poly_commitment = proving_key.pippenger_runtime_state.pippenger(
+                    &mut selector_poly_coefficients,
                     &proving_key
                         .reference_string
                         .borrow_mut()
                         .get_monomial_points(),
                     proving_key.circuit_size,
-                    &proving_key.pippenger_runtime_state,
+                    false,
                 );
 
                 circuit_verification_key

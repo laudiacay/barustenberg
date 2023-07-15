@@ -1,4 +1,5 @@
 use std::{
+    cell::RefCell,
     collections::{HashMap, HashSet},
     marker::PhantomData,
     rc::Rc,
@@ -78,7 +79,7 @@ pub(crate) struct TransitionWidget<
     NIndependentRelations: generic_array::ArrayLength<F>,
     KB: KernelBase,
 {
-    key: Rc<ProvingKey<'a, F, G>>,
+    key: Rc<RefCell<ProvingKey<'a, F, G>>>,
     phantom: PhantomData<(H, NIndependentRelations, KB)>,
 }
 impl<
@@ -109,7 +110,7 @@ where
     ) -> F {
         let required_polynomial_ids = KB::get_required_polynomial_ids();
         let polynomials = FFTGetterImpl::<H, F, G, NIndependentRelations>::get_polynomials(
-            &self.key,
+            &self.key.borrow(),
             &required_polynomial_ids,
         );
 
@@ -122,8 +123,10 @@ where
 
         let mut quotient_term;
 
+        let borrowed_key = self.key.borrow();
+
         // TODO: hidden missing multithreading here
-        for i in 0..self.key.large_domain.size {
+        for i in 0..borrowed_key.large_domain.size {
             let mut linear_terms = CoefficientArray::default();
             KB::compute_linear_terms::<FFTGetterImpl<H, F, G, NIndependentRelations>>(
                 &polynomials,
@@ -135,9 +138,9 @@ where
                 FFTGetterImpl<H, F, G, NIndependentRelations>,
             >(&polynomials, &challenges, &linear_terms, i);
 
-            quotient_term = self.key.quotient_polynomial_parts
-                [i >> self.key.small_domain.log2_size]
-                .borrow()[i & (self.key.circuit_size - 1)];
+            quotient_term = borrowed_key.quotient_polynomial_parts
+                [i >> borrowed_key.small_domain.log2_size]
+                .borrow()[i & (borrowed_key.circuit_size - 1)];
             quotient_term += sum_of_linear_terms;
             KB::compute_non_linear_terms::<FFTGetterImpl<H, F, G, NIndependentRelations>>(
                 &polynomials,

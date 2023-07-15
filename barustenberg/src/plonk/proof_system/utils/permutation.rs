@@ -11,6 +11,7 @@ use crate::{
     transcript::BarretenHasher,
 };
 
+#[derive(Debug, Clone)]
 pub(crate) struct PermutationSubgroupElement {
     subgroup_index: u32,
     column_index: u8,

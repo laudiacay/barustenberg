@@ -36,6 +36,7 @@ pub struct StandardComposer<'a, RSF: ReferenceStringFactory> {
     constant_variable_indices: HashMap<Fr, u32>,
     contains_recursive_proof: bool,
     own_type: ComposerType,
+    settings: StandardSettings<Keccak256>,
 }
 
 impl<'a, RSF: ReferenceStringFactory> ComposerBase<'a> for StandardComposer<'a, RSF> {
@@ -71,6 +72,7 @@ impl<'a, RSF: ReferenceStringFactory> ComposerBase<'a> for StandardComposer<'a, 
             constant_variable_indices: HashMap::new(),
             contains_recursive_proof: false,
             own_type: ComposerType::Standard,
+            settings: StandardSettings::default(),
         }
     }
 
@@ -96,6 +98,7 @@ impl<'a, RSF: ReferenceStringFactory> ComposerBase<'a> for StandardComposer<'a, 
             constant_variable_indices: HashMap::new(),
             contains_recursive_proof: false,
             own_type: ComposerType::Standard,
+            settings: StandardSettings::default(),
         }
     }
 }
@@ -425,7 +428,7 @@ impl<'a, RSF: ReferenceStringFactory> StandardComposer<'a, RSF> {
             num_quads + 1
         };
 
-        let four = Fr::from(4).montgomery_form();
+        let four = Fr::from(4);
         let mut accumulator = Fr::zero();
         let mut accumulator_idx: u32 = 0;
 
@@ -445,7 +448,7 @@ impl<'a, RSF: ReferenceStringFactory> StandardComposer<'a, RSF> {
                 self.create_bool_gate(hi_idx);
 
                 let quad = (if lo { 1 } else { 0 }) + (if hi { 2 } else { 0 });
-                quad_idx = self.add_variable(Fr::from(quad).to_montgomery_form());
+                quad_idx = self.add_variable(Fr::from(quad));
 
                 self.create_add_gate(&AddTriple {
                     a: lo_idx,
@@ -725,21 +728,19 @@ impl<'a, RSF: ReferenceStringFactory> StandardComposer<'a, RSF> {
             return proving_key.clone();
         }
         self.compute_proving_key_base(self.own_type, 0, 0);
-        self.compute_sigma_permutations::<3, false>(
-            Rc::get_mut(&mut self.cbd.circuit_proving_key.unwrap()).unwrap(),
-        );
+        self.compute_sigma_permutations(self.cbd.circuit_proving_key.clone().unwrap(), 3, false);
 
-        (*self.cbd.circuit_proving_key.unwrap())
+        (*self.cbd.circuit_proving_key.clone().unwrap())
             .borrow_mut()
             .recursive_proof_public_input_indices = self
             .cbd
-            .circuit_proving_key
+            .circuit_proving_key.clone()
             .unwrap()
             .borrow()
             .recursive_proof_public_input_indices
             .clone();
 
-        (*self.cbd.circuit_proving_key.unwrap())
+        (*self.cbd.circuit_proving_key.clone().unwrap())
             .borrow_mut()
             .contains_recursive_proof = self.contains_recursive_proof;
 
@@ -794,10 +795,7 @@ impl<'a, RSF: ReferenceStringFactory> StandardComposer<'a, RSF> {
     /// Calls the `compute_witness_base` method from `ComposerBase` with the standard
     /// program width.
     fn compute_witness(&mut self) {
-        self.compute_witness_base(
-            StandardSettings::program_width(),
-            StandardSettings::minimum_circuit_size(),
-        );
+        self.compute_witness_base(self.settings.program_width(), None);
     }
 
     fn create_manifest(&self, num_public_inputs: usize) -> Manifest {
@@ -1130,11 +1128,12 @@ impl<'a, RSF: ReferenceStringFactory> StandardComposer<'a, RSF> {
                 self.cbd.circuit_proving_key.unwrap().clone()
             )));
 
+        let arithmetic_widget =
+            ProverArithmeticWidget::new(Rc::clone(&self.cbd.circuit_proving_key.as_ref().unwrap()));
+
         output_state
             .transition_widgets
-            .push(Box::new(ProverArithmeticWidget::new(Rc::clone(
-                &self.cbd.circuit_proving_key.as_ref().unwrap(),
-            ))));
+            .push(Box::new(arithmetic_widget));
 
         output_state.commitment_scheme = KateCommitmentScheme::new();
 
