@@ -797,7 +797,7 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
         assert!(target_domain.log2_size >= self.log2_size);
 
         let mut subgroup_roots = vec![Fr::zero(); subgroup_size];
-        self.compute_multiplicative_subgroup(log2_subgroup_size, &mut subgroup_roots);
+        self.compute_multiplicative_subgroup(log2_subgroup_size, &mut subgroup_roots)?;
 
         // Step 3: fill array with values of (g.X)^n - 1, scaled by the cofactor
         subgroup_roots.iter_mut().for_each(|x| *x -= Fr::one());
