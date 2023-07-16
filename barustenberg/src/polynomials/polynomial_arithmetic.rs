@@ -29,7 +29,7 @@
 //! including interpolation, evaluation, and transformations like the FFT. It is built with 
 //! performance in mind, leveraging concurrent processing where possible.
 
-use anyhow::ensure;
+use ark_ff::batch_inversion;
 use ark_ff::{FftField, Field};
 
 use crate::{common::max_threads::compute_num_threads, numeric::bitop::Msb};

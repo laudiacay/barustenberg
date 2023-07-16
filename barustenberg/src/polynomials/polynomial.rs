@@ -108,7 +108,7 @@ impl<F: Field + FftField> Polynomial<F> {
     }
 }
 
-impl<F: Field> AddAssign for Polynomial<F> {
+impl<F: Field+FftField> AddAssign for Polynomial<F> {
     /// Adds another polynomial to `self` in-place.
     /// If the other polynomial has a higher degree, `self` is extended with zeros.
     fn add_assign(&mut self, rhs: Self) {
@@ -122,7 +122,7 @@ impl<F: Field> AddAssign for Polynomial<F> {
     }
 }
 
-impl<F: Field> SubAssign for Polynomial<F> {
+impl<F: Field+FftField> SubAssign for Polynomial<F> {
     /// Subtracts another polynomial from `self` in-place.
     /// If the other polynomial has a higher degree, `self` is extended with zeros.
     fn sub_assign(&mut self, rhs: Self) {
@@ -136,7 +136,7 @@ impl<F: Field> SubAssign for Polynomial<F> {
     }
 }
 
-impl<F: Field> MulAssign<F> for Polynomial<F> {
+impl<F: Field+FftField> MulAssign<F> for Polynomial<F> {
     /// Multiplies `self` by a scalar in-place.
     fn mul_assign(&mut self, rhs: F) {
         for i in 0..self.size {
@@ -164,7 +164,7 @@ impl<F: Field + FftField> Index<usize> for Polynomial<F> {
     }
 }
 
-impl<F: Field> IndexMut<usize> for Polynomial<F> {
+impl<F: Field+FftField> IndexMut<usize> for Polynomial<F> {
     /// Returns a mutable reference to the coefficient at a given index.
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         &mut self.coefficients[index]
