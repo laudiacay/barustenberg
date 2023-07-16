@@ -1,4 +1,36 @@
-use ark_ff::{batch_inversion, FftField, Field};
+#![cfg_attr(docsrs, feature(doc_cfg))]
+#![warn(missing_debug_implementations, missing_docs)]
+#![deny(unreachable_pub, private_in_public)]
+//! This module provides various functions to perform operations on polynomials, with a focus on 
+//! arithmetic and evaluation functionality. 
+//!
+//! Polynomials are represented as vectors of field elements where each element is a coefficient 
+//! in the polynomial. The i-th element of the vector represents the coefficient for the x^i term.
+//! 
+//! # Main Functions
+//! 
+//! - `compute_efficient_interpolation`: Computes the polynomial that interpolates a given set 
+//! of points in an efficient manner using the Lagrange Interpolation formula.
+//! 
+//! - `evaluate`: Evaluates a given polynomial at a specific point. This function can use parallel 
+//! computation to speed up the evaluation.
+//!
+//! - `*_fft_*`: Computes the Fast Fourier Transform (FFT) of a polynomial in multiple different ways.
+//!
+//! # Helper Functions
+//! 
+//! - `compute_linear_polynomial_product`, `compute_num_threads`, `reverse_bits`, 
+//! `is_power_of_two_usize`, `compute_barycentric_lagrange_weights`, `compute_multiexp`, 
+//! `compute_inner_product`: These functions are used as helpers for the main functions to 
+//! perform operations such as product of linear terms, computation of weights for interpolation, 
+//! computing multi-exponentiation and inner products, as well as bit manipulation for the FFT.
+//!
+//! This module forms the computational backbone for performing operations on polynomials, 
+//! including interpolation, evaluation, and transformations like the FFT. It is built with 
+//! performance in mind, leveraging concurrent processing where possible.
+
+use anyhow::ensure;
+use ark_ff::{FftField, Field};
 
 use crate::{common::max_threads::compute_num_threads, numeric::bitop::Msb};
 
@@ -9,6 +41,25 @@ pub(crate) struct LagrangeEvaluations<Fr: Field + FftField> {
 }
 
 #[inline]
+/// Reverses the first `bit_length` bits of a `u32` number.
+///
+/// This function takes a `u32` number `x` and a bit length `bit_length`. It reverses the order of
+/// the first `bit_length` bits in `x` and returns the result.
+///
+/// # Arguments
+///
+/// * `x` - A `u32` number whose bits are to be reversed.
+/// * `bit_length` - A `u32` specifying the number of bits to be reversed.
+///
+/// # Returns
+///
+/// * A `u32` number with the first `bit_length` bits reversed.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(reverse_bits(0b1011, 4), 0b1101);
+/// ```
 fn reverse_bits(x: u32, bit_length: u32) -> u32 {
     let x = ((x & 0xaaaaaaaa) >> 1) | ((x & 0x55555555) << 1);
     let x = ((x & 0xcccccccc) >> 2) | ((x & 0x33333333) << 2);
@@ -16,16 +67,78 @@ fn reverse_bits(x: u32, bit_length: u32) -> u32 {
     let x = ((x & 0xff00ff00) >> 8) | ((x & 0x00ff00ff) << 8);
     ((x >> 16) | (x << 16)) >> (32 - bit_length)
 }
+
 #[inline]
+/// Checks whether a `u64` number is a power of two.
+///
+/// # Arguments
+///
+/// * `x` - A `u64` number to be checked.
+///
+/// # Returns
+///
+/// * A `bool` that is `true` if `x` is a power of two and `false` otherwise.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(is_power_of_two(4), true);
+/// assert_eq!(is_power_of_two(6), false);
+/// ```
 fn is_power_of_two(x: u64) -> bool {
     x != 0 && (x & (x - 1)) == 0
 }
 
 #[inline]
+/// Checks whether a `usize` number is a power of two.
+///
+/// # Arguments
+///
+/// * `x` - A `usize` number to be checked.
+///
+/// # Returns
+///
+/// * A `bool` that is `true` if `x` is a power of two and `false` otherwise.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(is_power_of_two_usize(4), true);
+/// assert_eq!(is_power_of_two_usize(6), false);
+/// ```
 fn is_power_of_two_usize(x: usize) -> bool {
     x != 0 && (x & (x - 1)) == 0
 }
 
+/// Copies a polynomial from `src` to `dest` with specified numbers of coefficients.
+///
+/// This function copies the first `num_src_coefficients` coefficients from `src` to `dest`. If 
+/// `num_target_coefficients` is greater than `num_src_coefficients`, the remaining coefficients in 
+/// `dest` are set to zero.
+///
+/// # Type Parameters
+///
+/// * `Fr` - A type that implements `Copy` and `Default` traits.
+///
+/// # Arguments
+///
+/// * `src` - A slice of coefficients from the source polynomial.
+/// * `dest` - A mutable slice of coefficients where the coefficients from `src` are copied.
+/// * `num_src_coefficients` - The number of coefficients to copy from `src`.
+/// * `num_target_coefficients` - The total number of coefficients in the target polynomial.
+///
+/// # Examples
+///
+/// ```
+/// use ...;  // import the appropriate crate and function
+///
+/// let src = vec![Fr::from(1), Fr::from(2), Fr::from(3)];  // replace `Fr::from` with the appropriate constructor for your field type
+/// let mut dest = vec![Fr::default(); 4];
+///
+/// copy_polynomial(&src, &mut dest, src.len(), dest.len());
+///
+/// assert_eq!(dest, vec![Fr::from(1), Fr::from(2), Fr::from(3), Fr::default()]);  // replace `Fr::from` and `Fr::default` with the appropriate constructor for your field type
+/// ```
 fn copy_polynomial<Fr: Copy + Default>(
     src: &[Fr],
     dest: &mut [Fr],
@@ -51,6 +164,50 @@ use std::ops::{Add, Mul, Sub};
 
 use super::{evaluation_domain::EvaluationDomain, Polynomial};
 
+/// Performs a serial Fast Fourier Transform (FFT) on a set of polynomials.
+///
+/// This function computes the FFT on a set of polynomials represented by `coeffs`. The 
+/// polynomials are evaluated at the `domain_size`-th roots of unity, given in the `root_table`.
+///
+/// It uses an iterative in-place Cooley-Tukey FFT algorithm, which requires that the number 
+/// of polynomial coefficients (i.e., `domain_size`) is a power of two.
+///
+/// The computation is performed in serial, meaning it uses a single thread. For large inputs, 
+/// a parallel FFT algorithm may be more efficient.
+///
+/// # Type Parameters
+///
+/// * `Fr` - A field type that implements `Copy`, `Default`, `Add`, `Sub` and `Mul`. The operations 
+///          must take no arguments and return an instance of the same type.
+///
+/// # Arguments
+///
+/// * `coeffs` - A mutable slice of vectors representing the coefficients of the polynomials. 
+///              Each vector is a polynomial and the FFT is performed in-place, meaning the output 
+///              is stored in `coeffs`.
+/// * `domain_size` - The size of the domain over which the FFT is computed. It must be a power 
+///                   of two and divide evenly into the number of polynomials.
+/// * `root_table` - A slice of vectors representing the `domain_size`-th roots of unity. These 
+///                  are used in the FFT computation.
+///
+/// # Panics
+///
+/// Panics if `domain_size` is not a power of two, or if `domain_size` does not divide evenly 
+/// into the number of polynomials.
+///
+/// # Examples
+///
+/// ```
+/// use ...;  // import the appropriate crate and function
+///
+/// let mut coeffs = vec![vec![Fr::from(1), Fr::from(2)], vec![Fr::from(3), Fr::from(4)]];
+/// let root_table = ...;  // compute or provide the roots of unity
+/// let domain_size = 2;
+///
+/// fft_inner_serial(&mut coeffs, domain_size, &root_table);
+///
+/// // `coeffs` now contains the FFT of the input polynomials
+/// ```
 fn fft_inner_serial<Fr: Copy + Default + Add<Output = Fr> + Sub<Output = Fr> + Mul<Output = Fr>>(
     coeffs: &mut [Vec<Fr>],
     domain_size: usize,
@@ -811,11 +968,73 @@ impl<Fr: Field + FftField> EvaluationDomain<Fr> {
     }
 }
 
+/// Compute the sum of field elements in a given slice.
+///
+/// This function computes the sum of all elements in the input slice `slice` of type `Fr`. It
+/// is useful for computing the sum of coefficients of a polynomial represented in coefficient form.
+///
+/// # Type Parameters
+///
+/// * `Fr` - A type that implements the `Field` trait.
+///
+/// # Arguments
+///
+/// * `slice` - A slice containing elements of the field `Fr`.
+///
+/// # Returns
+///
+/// * A field element of type `Fr` representing the sum of all elements in `slice`.
+///
+/// # Examples
+///
+/// ```
+/// use ...;  // import the appropriate crate and function
+///
+/// let coeffs = vec![Fr::from(1), Fr::from(2), Fr::from(3)];  // replace `Fr::from` with the appropriate constructor for your field type
+///
+/// let sum = compute_sum(&coeffs);
+///
+/// assert_eq!(sum, Fr::from(6));  // replace `Fr::from` with the appropriate constructor for your field type
+/// ```
 fn compute_sum<Fr: Field>(slice: &[Fr]) -> Fr {
     slice.iter().copied().fold(Fr::zero(), Add::add)
 }
 
-pub(crate) fn compute_linear_polynomial_product<Fr: Field + FftField>(
+/// Compute the coefficients of a polynomial that is the product of linear polynomials.
+///
+/// This function computes the coefficients of a polynomial which is the product of linear (degree 1)
+/// polynomials with roots specified by `roots`. Each linear polynomial is of the form `(x - root)`,
+/// where `root` is an element from the `roots` slice. The resulting polynomial is therefore of the
+/// form `(x - root_1) * (x - root_2) * ... * (x - root_n)`.
+///
+/// # Arguments
+///
+/// * `roots` - A slice that holds the roots of the linear polynomials.
+///
+/// * `dest` - A mutable slice where the computed polynomial coefficients will be stored. It should
+///   have length `n + 1` where `n` is the number of roots.
+///
+/// * `n` - The number of roots and hence the degree of the resulting polynomial.
+///
+/// # Examples
+///
+/// ```
+/// use ...;  // import the appropriate crate and function
+///
+/// let roots = vec![Fr::from(1), Fr::from(2), Fr::from(3)];  // replace `Fr::from` with the appropriate constructor for your field type
+/// let mut dest = vec![Fr; 4];
+/// let n = 3;
+///
+/// compute_linear_polynomial_product(&roots, &mut dest, n);
+///
+/// assert_eq!(dest, vec![24, -50, 35, 1]); 
+/// ```
+///
+/// # Panics
+///
+/// This function will panic if the length of `dest` is not `n + 1`.
+
+pub(crate) fn compute_linear_polynomial_product<Fr: Field>(
     roots: &[Fr],
     dest: &mut [Fr],
     n: usize,
@@ -840,7 +1059,47 @@ pub(crate) fn compute_linear_polynomial_product<Fr: Field + FftField>(
     }
 }
 
-pub(crate) fn compute_efficient_interpolation<Fr: Field + FftField>(
+/// Computes efficient interpolation of a polynomial using Lagrange's formula.
+///
+/// This function computes an efficient interpolation of a polynomial using Lagrange's technique.
+/// Given a set of points (x_i, y_i), it computes the function f(X) such that f(x_i) = y_i for all i.
+/// The polynomial is computed as a product of linear factors, divided by a denominator computed from the 
+/// evaluation points.
+///
+/// It uses a technique similar to the Kate commitment scheme for dividing by (X - x_i).
+///
+/// # Type Parameters
+///
+/// * `Fr` - A field type that implements the `Field` trait. The operations must take no arguments and return an 
+///          instance of the same type.
+///
+/// # Arguments
+///
+/// * `src` - A slice representing the coefficients of the polynomial (y_i values).
+/// * `dest` - A mutable slice where the interpolated polynomial will be stored.
+/// * `evaluation_points` - A slice representing the points at which the polynomial is evaluated (x_i values).
+/// * `n` - The number of points.
+///
+/// # Returns
+///
+/// This function returns a `Result<(), anyhow::Error>`. If the interpolation is successful, it returns `Ok(())`. 
+/// If an error occurs (e.g., if it fails to find an inverse during computation), it returns `Err(anyhow::Error)`.
+///
+/// # Examples
+///
+/// ```
+/// use ...;  // import the appropriate crate and function
+///
+/// let src = vec![Fr::from(1), Fr::from(2), Fr::from(3)];
+/// let evaluation_points = vec![Fr::from(1), Fr::from(2), Fr::from(3)];
+/// let mut dest = vec![Fr::zero(); src.len()];
+/// let n = src.len();
+///
+/// compute_efficient_interpolation(&src, &mut dest, &evaluation_points, n).unwrap();
+///
+/// // `dest` now contains the interpolated polynomial
+/// ```
+pub(crate) fn compute_efficient_interpolation<Fr: Field>(
     src: &[Fr],
     dest: &mut [Fr],
     evaluation_points: &[Fr],
@@ -956,6 +1215,46 @@ pub(crate) fn compute_kate_opening_coefficients<Fr: Field>(
     Ok(f)
 }
 
+/// Evaluates a polynomial at a given point.
+///
+/// This function evaluates a polynomial represented by `coeffs` at a given point `z`.
+/// The computation is parallelized into threads for efficiency. The number of threads is determined by 
+/// the `compute_num_threads` function, which is assumed to be appropriately defined elsewhere.
+///
+/// The polynomial is evaluated using the formula:
+/// 
+/// f(z) = c0 * z^0 + c1 * z^1 + c2 * z^2 + ... + cn * z^n
+///
+/// where `ci` are the coefficients of the polynomial.
+///
+/// # Type Parameters
+///
+/// * `F` - A field type that implements the `Field` trait. The operations must take no arguments and return an 
+///          instance of the same type.
+///
+/// # Arguments
+///
+/// * `coeffs` - A slice representing the coefficients of the polynomial.
+/// * `z` - A reference to the point at which the polynomial should be evaluated.
+/// * `n` - The degree of the polynomial plus one (i.e., the number of coefficients).
+///
+/// # Returns
+///
+/// This function returns an instance of type `F`, which is the result of the polynomial evaluation at point `z`.
+///
+/// # Examples
+///
+/// ```
+/// use ...;  // import the appropriate crate and function
+///
+/// let coeffs = vec![Fr::from(1), Fr::from(2), Fr::from(3)];
+/// let z = Fr::from(5);
+/// let n = coeffs.len();
+///
+/// let result = evaluate(&coeffs, &z, n);
+///
+/// // `result` is the value of the polynomial at z
+/// ```
 pub(crate) fn evaluate<F: Field>(coeffs: &[F], z: &F, n: usize) -> F {
     let num_threads = compute_num_threads();
     let range_per_thread = n / num_threads;
