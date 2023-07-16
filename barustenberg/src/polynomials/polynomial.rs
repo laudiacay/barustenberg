@@ -3,25 +3,25 @@
 #![deny(unreachable_pub, private_in_public)]
 //! This module provides the `Polynomial` struct, which represents a polynomial over a field `F`.
 //!
-//! The `Polynomial` struct contains methods for constructing polynomials, accessing their 
-//! components, and performing operations on them. It also provides implementations for common 
+//! The `Polynomial` struct contains methods for constructing polynomials, accessing their
+//! components, and performing operations on them. It also provides implementations for common
 //! arithmetic operations such as addition, subtraction, and scalar multiplication.
-//! 
+//!
 //! Here is a brief description of the main features of this module:
 //!
 //! # `Polynomial` Struct
 //!
-//! The `Polynomial` struct holds a vector of coefficients and the size of the polynomial. 
+//! The `Polynomial` struct holds a vector of coefficients and the size of the polynomial.
 //! It is parameterized over a type `F` which is required to implement the `Field` trait.
 //! The size of the polynomial corresponds to the number of terms in the polynomial (i.e., degree + 1).
-//! The coefficients of the polynomial are represented by a vector of field elements. 
+//! The coefficients of the polynomial are represented by a vector of field elements.
 //! The `i`-th element of this vector represents the coefficient of the `x^i` term of the polynomial.
 //!
 //! # Constructors
 //!
 //! Two constructors are provided:
 //!
-//! - `from_interpolations`: Constructs a `Polynomial` instance from given interpolation points 
+//! - `from_interpolations`: Constructs a `Polynomial` instance from given interpolation points
 //! and function evaluations at these points.
 //! - `new`: Creates a new `Polynomial` of a given size, with all coefficients initialized to zero.
 //!
@@ -35,19 +35,17 @@
 //!
 //! # Trait Implementations
 //!
-//! The `Polynomial` struct also implements several traits to provide convenient and efficient 
+//! The `Polynomial` struct also implements several traits to provide convenient and efficient
 //! operations on the polynomials:
 //!
 //! - `AddAssign`, `SubAssign`, `MulAssign`: For in-place addition, subtraction, and scalar multiplication.
 //! - `IntoIterator`: To convert a `Polynomial` into an iterator over its coefficients.
 //! - `Index` and `IndexMut`: To access or modify the coefficients of a `Polynomial` by their indices.
 //!
-//! This module serves as the core for polynomial operations in this library, providing the basis 
+//! This module serves as the core for polynomial operations in this library, providing the basis
 //! for efficient polynomial arithmetic over arbitrary fields.
 
-use std::{
-    ops::{AddAssign, Index, IndexMut, MulAssign, Range, SubAssign},
-};
+use std::ops::{AddAssign, Index, IndexMut, MulAssign, Range, SubAssign};
 
 use anyhow::Result;
 use ark_ff::{FftField, Field};
@@ -108,7 +106,7 @@ impl<F: Field + FftField> Polynomial<F> {
     }
 }
 
-impl<F: Field+FftField> AddAssign for Polynomial<F> {
+impl<F: Field + FftField> AddAssign for Polynomial<F> {
     /// Adds another polynomial to `self` in-place.
     /// If the other polynomial has a higher degree, `self` is extended with zeros.
     fn add_assign(&mut self, rhs: Self) {
@@ -122,7 +120,7 @@ impl<F: Field+FftField> AddAssign for Polynomial<F> {
     }
 }
 
-impl<F: Field+FftField> SubAssign for Polynomial<F> {
+impl<F: Field + FftField> SubAssign for Polynomial<F> {
     /// Subtracts another polynomial from `self` in-place.
     /// If the other polynomial has a higher degree, `self` is extended with zeros.
     fn sub_assign(&mut self, rhs: Self) {
@@ -136,7 +134,7 @@ impl<F: Field+FftField> SubAssign for Polynomial<F> {
     }
 }
 
-impl<F: Field+FftField> MulAssign<F> for Polynomial<F> {
+impl<F: Field + FftField> MulAssign<F> for Polynomial<F> {
     /// Multiplies `self` by a scalar in-place.
     fn mul_assign(&mut self, rhs: F) {
         for i in 0..self.size {
@@ -164,7 +162,7 @@ impl<F: Field + FftField> Index<usize> for Polynomial<F> {
     }
 }
 
-impl<F: Field+FftField> IndexMut<usize> for Polynomial<F> {
+impl<F: Field + FftField> IndexMut<usize> for Polynomial<F> {
     /// Returns a mutable reference to the coefficient at a given index.
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         &mut self.coefficients[index]

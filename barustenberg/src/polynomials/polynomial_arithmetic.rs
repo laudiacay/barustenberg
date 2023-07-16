@@ -1,32 +1,32 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![warn(missing_debug_implementations, missing_docs)]
 #![deny(unreachable_pub, private_in_public)]
-//! This module provides various functions to perform operations on polynomials, with a focus on 
-//! arithmetic and evaluation functionality. 
+//! This module provides various functions to perform operations on polynomials, with a focus on
+//! arithmetic and evaluation functionality.
 //!
-//! Polynomials are represented as vectors of field elements where each element is a coefficient 
+//! Polynomials are represented as vectors of field elements where each element is a coefficient
 //! in the polynomial. The i-th element of the vector represents the coefficient for the x^i term.
-//! 
+//!
 //! # Main Functions
-//! 
-//! - `compute_efficient_interpolation`: Computes the polynomial that interpolates a given set 
+//!
+//! - `compute_efficient_interpolation`: Computes the polynomial that interpolates a given set
 //! of points in an efficient manner using the Lagrange Interpolation formula.
-//! 
-//! - `evaluate`: Evaluates a given polynomial at a specific point. This function can use parallel 
+//!
+//! - `evaluate`: Evaluates a given polynomial at a specific point. This function can use parallel
 //! computation to speed up the evaluation.
 //!
 //! - `*_fft_*`: Computes the Fast Fourier Transform (FFT) of a polynomial in multiple different ways.
 //!
 //! # Helper Functions
-//! 
-//! - `compute_linear_polynomial_product`, `compute_num_threads`, `reverse_bits`, 
-//! `is_power_of_two_usize`, `compute_barycentric_lagrange_weights`, `compute_multiexp`, 
-//! `compute_inner_product`: These functions are used as helpers for the main functions to 
-//! perform operations such as product of linear terms, computation of weights for interpolation, 
+//!
+//! - `compute_linear_polynomial_product`, `compute_num_threads`, `reverse_bits`,
+//! `is_power_of_two_usize`, `compute_barycentric_lagrange_weights`, `compute_multiexp`,
+//! `compute_inner_product`: These functions are used as helpers for the main functions to
+//! perform operations such as product of linear terms, computation of weights for interpolation,
 //! computing multi-exponentiation and inner products, as well as bit manipulation for the FFT.
 //!
-//! This module forms the computational backbone for performing operations on polynomials, 
-//! including interpolation, evaluation, and transformations like the FFT. It is built with 
+//! This module forms the computational backbone for performing operations on polynomials,
+//! including interpolation, evaluation, and transformations like the FFT. It is built with
 //! performance in mind, leveraging concurrent processing where possible.
 
 use ark_ff::batch_inversion;
@@ -112,8 +112,8 @@ fn is_power_of_two_usize(x: usize) -> bool {
 
 /// Copies a polynomial from `src` to `dest` with specified numbers of coefficients.
 ///
-/// This function copies the first `num_src_coefficients` coefficients from `src` to `dest`. If 
-/// `num_target_coefficients` is greater than `num_src_coefficients`, the remaining coefficients in 
+/// This function copies the first `num_src_coefficients` coefficients from `src` to `dest`. If
+/// `num_target_coefficients` is greater than `num_src_coefficients`, the remaining coefficients in
 /// `dest` are set to zero.
 ///
 /// # Type Parameters
@@ -166,33 +166,33 @@ use super::{evaluation_domain::EvaluationDomain, Polynomial};
 
 /// Performs a serial Fast Fourier Transform (FFT) on a set of polynomials.
 ///
-/// This function computes the FFT on a set of polynomials represented by `coeffs`. The 
+/// This function computes the FFT on a set of polynomials represented by `coeffs`. The
 /// polynomials are evaluated at the `domain_size`-th roots of unity, given in the `root_table`.
 ///
-/// It uses an iterative in-place Cooley-Tukey FFT algorithm, which requires that the number 
+/// It uses an iterative in-place Cooley-Tukey FFT algorithm, which requires that the number
 /// of polynomial coefficients (i.e., `domain_size`) is a power of two.
 ///
-/// The computation is performed in serial, meaning it uses a single thread. For large inputs, 
+/// The computation is performed in serial, meaning it uses a single thread. For large inputs,
 /// a parallel FFT algorithm may be more efficient.
 ///
 /// # Type Parameters
 ///
-/// * `Fr` - A field type that implements `Copy`, `Default`, `Add`, `Sub` and `Mul`. The operations 
+/// * `Fr` - A field type that implements `Copy`, `Default`, `Add`, `Sub` and `Mul`. The operations
 ///          must take no arguments and return an instance of the same type.
 ///
 /// # Arguments
 ///
-/// * `coeffs` - A mutable slice of vectors representing the coefficients of the polynomials. 
-///              Each vector is a polynomial and the FFT is performed in-place, meaning the output 
+/// * `coeffs` - A mutable slice of vectors representing the coefficients of the polynomials.
+///              Each vector is a polynomial and the FFT is performed in-place, meaning the output
 ///              is stored in `coeffs`.
-/// * `domain_size` - The size of the domain over which the FFT is computed. It must be a power 
+/// * `domain_size` - The size of the domain over which the FFT is computed. It must be a power
 ///                   of two and divide evenly into the number of polynomials.
-/// * `root_table` - A slice of vectors representing the `domain_size`-th roots of unity. These 
+/// * `root_table` - A slice of vectors representing the `domain_size`-th roots of unity. These
 ///                  are used in the FFT computation.
 ///
 /// # Panics
 ///
-/// Panics if `domain_size` is not a power of two, or if `domain_size` does not divide evenly 
+/// Panics if `domain_size` is not a power of two, or if `domain_size` does not divide evenly
 /// into the number of polynomials.
 ///
 /// # Examples
@@ -1027,7 +1027,7 @@ fn compute_sum<Fr: Field>(slice: &[Fr]) -> Fr {
 ///
 /// compute_linear_polynomial_product(&roots, &mut dest, n);
 ///
-/// assert_eq!(dest, vec![24, -50, 35, 1]); 
+/// assert_eq!(dest, vec![24, -50, 35, 1]);
 /// ```
 ///
 /// # Panics
@@ -1063,14 +1063,14 @@ pub(crate) fn compute_linear_polynomial_product<Fr: Field>(
 ///
 /// This function computes an efficient interpolation of a polynomial using Lagrange's technique.
 /// Given a set of points (x_i, y_i), it computes the function f(X) such that f(x_i) = y_i for all i.
-/// The polynomial is computed as a product of linear factors, divided by a denominator computed from the 
+/// The polynomial is computed as a product of linear factors, divided by a denominator computed from the
 /// evaluation points.
 ///
 /// It uses a technique similar to the Kate commitment scheme for dividing by (X - x_i).
 ///
 /// # Type Parameters
 ///
-/// * `Fr` - A field type that implements the `Field` trait. The operations must take no arguments and return an 
+/// * `Fr` - A field type that implements the `Field` trait. The operations must take no arguments and return an
 ///          instance of the same type.
 ///
 /// # Arguments
@@ -1082,7 +1082,7 @@ pub(crate) fn compute_linear_polynomial_product<Fr: Field>(
 ///
 /// # Returns
 ///
-/// This function returns a `Result<(), anyhow::Error>`. If the interpolation is successful, it returns `Ok(())`. 
+/// This function returns a `Result<(), anyhow::Error>`. If the interpolation is successful, it returns `Ok(())`.
 /// If an error occurs (e.g., if it fails to find an inverse during computation), it returns `Err(anyhow::Error)`.
 ///
 /// # Examples
@@ -1218,18 +1218,18 @@ pub(crate) fn compute_kate_opening_coefficients<Fr: Field>(
 /// Evaluates a polynomial at a given point.
 ///
 /// This function evaluates a polynomial represented by `coeffs` at a given point `z`.
-/// The computation is parallelized into threads for efficiency. The number of threads is determined by 
+/// The computation is parallelized into threads for efficiency. The number of threads is determined by
 /// the `compute_num_threads` function, which is assumed to be appropriately defined elsewhere.
 ///
 /// The polynomial is evaluated using the formula:
-/// 
+///
 /// f(z) = c0 * z^0 + c1 * z^1 + c2 * z^2 + ... + cn * z^n
 ///
 /// where `ci` are the coefficients of the polynomial.
 ///
 /// # Type Parameters
 ///
-/// * `F` - A field type that implements the `Field` trait. The operations must take no arguments and return an 
+/// * `F` - A field type that implements the `Field` trait. The operations must take no arguments and return an
 ///          instance of the same type.
 ///
 /// # Arguments

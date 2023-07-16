@@ -42,7 +42,7 @@ pub(crate) enum ComposerType {
 }
 
 impl ComposerType {
-    pub(crate) fn create_manifest(self, x: usize) -> Manifest {
+    pub(crate) fn create_manifest(self, _x: usize) -> Manifest {
         unimplemented!("ComposerType::create_manifest")
     }
 }
@@ -659,7 +659,7 @@ pub(crate) trait ComposerBase {
                 let mut selector_poly = (*selector_poly).borrow_mut();
                 let selector_poly_coefficients = &mut selector_poly.coefficients;
 
-                let mut reference_string = (*proving_key.reference_string).borrow_mut();
+                let reference_string = (*proving_key.reference_string).borrow_mut();
                 let mut pippenger_runtime_state = proving_key.pippenger_runtime_state.clone();
 
                 // Commit to the constraint selector polynomial and insert the commitment in the verification key.

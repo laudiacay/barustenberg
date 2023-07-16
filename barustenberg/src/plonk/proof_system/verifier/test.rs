@@ -20,7 +20,7 @@ use crate::{
     },
     transcript::Keccak256,
 };
-use ark_ff::{FftField, UniformRand};
+use ark_ff::UniformRand;
 use std::{cell::RefCell, rc::Rc};
 
 use super::*;
@@ -435,7 +435,7 @@ fn verify_arithmetic_proof() {
     let n = 1 << 14;
 
     let mut state = generate_test_data::<Keccak256>(n);
-    let verifier: Verifier<Keccak256, StandardSettings<Keccak256>> =
+    let _verifier: Verifier<Keccak256, StandardSettings<Keccak256>> =
         Verifier::generate_verifier(state.key.clone());
 
     // Construct proof
