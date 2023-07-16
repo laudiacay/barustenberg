@@ -1,3 +1,4 @@
+use ark_bn254::{Fr, G1Affine};
 use ark_ec::AffineRepr;
 use ark_ff::{FftField, Field};
 use typenum::U1;
@@ -11,17 +12,19 @@ use crate::{
 };
 
 use std::{
+    cell::RefCell,
     collections::{HashMap, HashSet},
     marker::PhantomData,
-    sync::Arc,
+    rc::Rc,
 };
 
 use super::{
     containers::{ChallengeArray, CoefficientArray, CHALLENGE_BIT_ALPHA},
     getters::BaseGetter,
-    transition_widget::KernelBase,
+    transition_widget::{KernelBase, TransitionWidget, TransitionWidgetBase},
 };
 
+#[derive(Debug)]
 pub(crate) struct ArithmeticKernel<H: BarretenHasher, F: Field + FftField, G: AffineRepr> {
     _marker: PhantomData<(H, F, G)>,
 }
@@ -195,7 +198,28 @@ impl<H: BarretenHasher, F: Field + FftField, G: AffineRepr> KernelBase
     }
 }
 
-pub(crate) struct ProverArithmeticWidget<'a, Fr: Field + FftField, G: AffineRepr, H, S> {
-    key: Arc<ProvingKey<'a, Fr, G>>,
-    phantom: PhantomData<(H, S)>,
+#[derive(Debug)]
+pub(crate) struct ProverArithmeticWidget<H: BarretenHasher>(
+    TransitionWidget<H, Fr, G1Affine, U1, ArithmeticKernel<H, Fr, G1Affine>>,
+);
+
+impl<H: BarretenHasher> TransitionWidgetBase for ProverArithmeticWidget<H> {
+    type Hasher = H;
+    type Field = Fr;
+
+    fn compute_quotient_contribution(
+        &self,
+        alpha_base: Self::Field,
+        transcript: &crate::transcript::Transcript<Self::Hasher>,
+        rng: &mut dyn rand::RngCore,
+    ) -> Self::Field {
+        self.0
+            .compute_quotient_contribution(alpha_base, transcript, rng)
+    }
+}
+
+impl<H: BarretenHasher> ProverArithmeticWidget<H> {
+    pub(crate) fn new(key: Rc<RefCell<ProvingKey<Fr, G1Affine>>>) -> Self {
+        Self(TransitionWidget::new(key))
+    }
 }

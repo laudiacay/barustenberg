@@ -11,6 +11,7 @@ use crate::{
     transcript::BarretenHasher,
 };
 
+#[derive(Debug, Clone)]
 pub(crate) struct PermutationSubgroupElement {
     subgroup_index: u32,
     column_index: u8,
@@ -21,11 +22,10 @@ pub(crate) struct PermutationSubgroupElement {
 pub(crate) fn compute_permutation_lagrange_base_single<
     H: BarretenHasher,
     Fr: Field + FftField,
-    G: AffineRepr,
 >(
     output: &mut Polynomial<Fr>,
     permutation: &[u32],
-    small_domain: &EvaluationDomain<'_, Fr>,
+    small_domain: &EvaluationDomain<Fr>,
 ) {
     let subgroup_elements: Vec<PermutationSubgroupElement> = permutation
         .iter()
@@ -41,7 +41,7 @@ pub(crate) fn compute_permutation_lagrange_base_single<
         })
         .collect();
 
-    compute_permutation_lagrange_base_single_helper::<H, Fr, G>(
+    compute_permutation_lagrange_base_single_helper::<H, Fr>(
         output,
         &subgroup_elements,
         small_domain,
@@ -51,11 +51,10 @@ pub(crate) fn compute_permutation_lagrange_base_single<
 pub(crate) fn compute_permutation_lagrange_base_single_helper<
     H: BarretenHasher,
     Fr: Field + FftField,
-    G: AffineRepr,
 >(
     output: &mut Polynomial<Fr>,
     permutation: &[PermutationSubgroupElement],
-    small_domain: &EvaluationDomain<'_, Fr>,
+    small_domain: &EvaluationDomain<Fr>,
 ) {
     if output.size() < permutation.len() {
         panic!("Permutation polynomial size is insufficient to store permutations.");

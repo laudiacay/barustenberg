@@ -102,7 +102,7 @@ fn fft_inner_serial<Fr: Copy + Default + Add<Output = Fr> + Sub<Output = Fr> + M
     }
 }
 
-impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
+impl<Fr: Field + FftField> EvaluationDomain<Fr> {
     /// modifies target[..generator_size]
     fn scale_by_generator(
         &self,
@@ -247,7 +247,7 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
                 // our indexer, because we don't store the precomputed root values for the 1st round (because they're
                 // all 1).
 
-                let round_roots = root_table[((m.trailing_zeros() - 1) as usize)];
+                let round_roots = root_table[(m.trailing_zeros() - 1) as usize];
 
                 // Finally, we want to treat the final round differently from the others,
                 // so that we can reduce out of our 'coarse' reduction and store the output in `coeffs` instead of
@@ -579,7 +579,7 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
     pub(crate) fn divide_by_pseudo_vanishing_polynomial(
         &self,
         _coeffs: &[&mut [&mut Fr]],
-        _target: &EvaluationDomain<'a, Fr>,
+        _target: &EvaluationDomain<Fr>,
         _num_roots_cut_out_of_vanishing_poly: usize,
     ) {
         unimplemented!()
@@ -705,7 +705,7 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
     pub(crate) fn compute_lagrange_polynomial_fft(
         &self,
         l_1_coefficients: &mut Polynomial<Fr>,
-        target_domain: &EvaluationDomain<'a, Fr>,
+        target_domain: &EvaluationDomain<Fr>,
     ) -> anyhow::Result<()> {
         // Step 1: Compute the 1/denominator for each evaluation: 1 / (X_i - 1)
         let multiplicand = target_domain.root; // kn'th root of unity w'
@@ -725,17 +725,15 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
         // Note: This is a placeholder, replace with actual batch invert function.
         // TODO add batch invert
         // invert them all
-        let result: Result<(), anyhow::Error> = l_1_coefficients
+            let result: Result<(), anyhow::Error> = l_1_coefficients
             .coefficients
-            .iter_mut()
-            .map(|x| {
-                let inverse = x
-                    .inverse()
-                    .ok_or_else(|| anyhow::anyhow!("Failed to find inverse"))?;
-                *x = inverse;
-                Ok(())
-            })
-            .collect();
+                .iter_mut().try_for_each(|x| {
+                  let inverse = x
+                  .inverse()
+                        .ok_or_else(|| anyhow::anyhow!("Failed to find inverse"))?;
+                 *x = inverse;
+                   Ok(())
+             });
         result?;
 
         // Step 2: Compute numerator (1/n)*(X_i^n - 1)
@@ -792,10 +790,10 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
 
         denominators[0] = *z - Fr::one();
         let mut work_root = self.root_inverse; // ω^{-1}
-        for i in 1..num_coeffs {
-            denominators[i] = work_root * *z; // denominators[i] will correspond to L_[i+1] (since our 'commented maths' notation indexes
+        for denominator in denominators.iter_mut().take(num_coeffs).skip(1) {
+            *denominator = work_root * *z; // denominators[i] will correspond to L_[i+1] (since our 'commented maths' notation indexes
                                               // L_i from 1). So ʓ.ω^{-i} = ʓ.ω^{1-(i+1)} is correct for L_{i+1}.
-            denominators[i] -= Fr::one();
+            *denominator -= Fr::one();
             work_root *= self.root_inverse;
         }
 
@@ -890,16 +888,13 @@ pub(crate) fn compute_efficient_interpolation<Fr: Field + FftField>(
 
     // TODO make this a batch_invert
     // invert them all
-    let result: Result<(), anyhow::Error> = roots_and_denominators
-        .iter_mut()
-        .map(|x| {
-            let inverse = x
-                .inverse()
-                .ok_or_else(|| anyhow::anyhow!("Failed to find inverse"))?;
-            *x = inverse;
-            Ok(())
-        })
-        .collect();
+    let result: Result<(), anyhow::Error> = roots_and_denominators.iter_mut().try_for_each(|x| {
+        let inverse = x
+            .inverse()
+            .ok_or_else(|| anyhow::anyhow!("Failed to find inverse"))?;
+        *x = inverse;
+        Ok(())
+    });
     result?;
 
     let mut z;
