@@ -1,4 +1,3 @@
-use ark_ec::AffineRepr;
 use ark_ff::{FftField, Field};
 
 use crate::{
@@ -19,10 +18,7 @@ pub(crate) struct PermutationSubgroupElement {
     is_tag: bool,
 }
 
-pub(crate) fn compute_permutation_lagrange_base_single<
-    H: BarretenHasher,
-    Fr: Field + FftField,
->(
+pub(crate) fn compute_permutation_lagrange_base_single<H: BarretenHasher, Fr: Field + FftField>(
     output: &mut Polynomial<Fr>,
     permutation: &[u32],
     small_domain: &EvaluationDomain<Fr>,

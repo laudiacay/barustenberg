@@ -276,7 +276,7 @@ impl<H: BarretenHasher, Fr: Field + FftField, G: AffineRepr> WorkQueue<H, Fr, G>
                     assert!(
                         msm_size
                             <= (*(*self.key).borrow().reference_string)
-                                .borrow()
+                                .borrow_mut()
                                 .get_monomial_size()
                     );
 
