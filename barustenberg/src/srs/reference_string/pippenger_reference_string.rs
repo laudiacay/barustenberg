@@ -32,7 +32,8 @@ impl ProverReferenceString for PippengerReferenceString {
         todo!()
     }
 
-    fn get_monomial_points(&mut self) -> Rc<Vec<G1Affine>> {
+    fn get_monomial_points(&self) -> Rc<Vec<G1Affine>> {
+        // will we mutate self here?
         todo!()
     }
 }

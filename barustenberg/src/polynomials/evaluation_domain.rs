@@ -1,3 +1,31 @@
+#![cfg_attr(docsrs, feature(doc_cfg))]
+#![warn(missing_debug_implementations, missing_docs)]
+#![deny(unreachable_pub, private_in_public)]
+//! # Evaluation Domain
+//!
+//! This module contains the `EvaluationDomain` struct and related functionality.
+//! It plays an important role in finite field and number-theoretic computations,
+//! especially Fast Fourier Transforms (FFTs). In the context of FFTs, the evaluation
+//! domain represents a set of points in a finite field where a polynomial is evaluated.
+//!
+//! The `EvaluationDomain` struct stores various properties of the finite field,
+//! such as the size of the domain, the root of unity, and its inverse, among other things.
+//! It also maintains lookup tables for the roots of unity required for each FFT round.
+//!
+//! Furthermore, this struct is designed to support parallel computation. It includes fields
+//! that denote the number of threads and thread sizes for these computations.
+//!
+//! This module also provides specific types for evaluation domains over the fields
+//! defined by the ark_bn254 and grumpkin crates, namely `BarretenbergEvaluationDomain`
+//! and `GrumpkinEvaluationDomain`.
+//!
+//! The `compute_num_threads` function calculates the number of threads for parallel
+//! computations, depending on the size of the domain and whether multithreading is enabled.
+//! It is particularly useful when working with large polynomials and fields.
+//!
+//! The `compute_lookup_table_single` function is a utility for precomputing and storing
+//! the roots of a polynomial in a lookup table, which can greatly accelerate subsequent FFT operations.
+
 use ark_ff::{FftField, Field};
 
 use crate::numeric::bitop::Msb;
@@ -9,23 +37,32 @@ pub(crate) const MIN_GROUP_PER_THREAD: usize = 4;
 pub(crate) struct EvaluationDomain<F: Field + FftField> {
     /// n, always a power of 2
     pub(crate) size: usize,
-    /// num_threads * thread_size = size
+    /// The number of threads used for parallel computation.
     pub(crate) num_threads: usize,
+    /// The size of each thread.
+    /// num_threads * thread_size = size
     pub(crate) thread_size: usize,
+    /// The logarithm base 2 of the domain size (i.e., n).
     pub(crate) log2_size: usize,
+    /// The logarithm base 2 of the thread size.
     pub(crate) log2_thread_size: usize,
+    /// The logarithm base 2 of the number of threads
     pub(crate) log2_num_threads: usize,
+    /// The size of the generator.
     pub(crate) generator_size: usize,
-    /// omega; the nth root of unity
+    /// The Nth root of unity,
     pub(crate) root: F,
-    /// omega^{-1}
+    /// The inverse of the root of unity, omega^{-1}.
     pub(crate) root_inverse: F,
-    /// n; same as size
+    /// The domain, equivalent to the size (i.e., 2^n).
     pub(crate) domain: F,
-    /// n^{-1}
+    /// Equivalent to the domain, but as an inverse (i.e., 2^{-n}).
     pub(crate) domain_inverse: F,
+    /// The generator.
     pub(crate) generator: F,
+    /// The inverse of the generator.
     pub(crate) generator_inverse: F,
+    /// The inverse of four.
     pub(crate) four_inverse: F,
     /// An entry for each of the log(n) rounds: each entry is a range that
     /// specifies the subset of the roots of unity required for that fft round.
@@ -37,6 +74,16 @@ pub(crate) struct EvaluationDomain<F: Field + FftField> {
     pub(crate) roots: Vec<F>,
 }
 
+/// Computes the number of threads to be used based on the domain size and the
+/// minimum number of groups per thread.
+///
+/// If multithreading feature is enabled, it uses the maximum number of threads
+/// that can run simultaneously. If the domain size is smaller than the
+/// product of the number of threads and the minimum number of groups per
+/// thread, it uses a single thread.
+///
+/// Otherwise, it uses the number of threads computed by the `max_threads`
+/// function from the `common` module.
 fn compute_num_threads(size: usize) -> usize {
     #[cfg(feature = "multithreading")]
     let num_threads = crate::common::max_threads::compute_num_threads();

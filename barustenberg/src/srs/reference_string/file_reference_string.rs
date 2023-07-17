@@ -60,7 +60,7 @@ impl FileReferenceString {
 }
 
 impl ProverReferenceString for FileReferenceString {
-    fn get_monomial_points(&mut self) -> Rc<Vec<G1Affine>> {
+    fn get_monomial_points(&self) -> Rc<Vec<G1Affine>> {
         // Implementation depends on your project.
         todo!()
     }
