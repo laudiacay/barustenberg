@@ -29,63 +29,49 @@ impl<H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>> V
     pub fn generate_verifier<G: AffineRepr>(
         circuit_proving_key: Rc<RefCell<ProvingKey<Fr, G>>>,
     ) -> Self {
-        let mut polynomials: Vec<Rc<RefCell<Polynomial<Fr>>>> = Vec::with_capacity(8);
-        polynomials.push(
+        let mut polynomials: Vec<Rc<RefCell<Polynomial<Fr>>>> = vec![
+        
             circuit_proving_key
                 .borrow()
                 .polynomial_store
                 .get(&"q_1".to_owned())
                 .unwrap(),
-        );
-        polynomials.push(
             circuit_proving_key
                 .borrow()
                 .polynomial_store
                 .get(&"q_2".to_owned())
                 .unwrap(),
-        );
-        polynomials.push(
             circuit_proving_key
                 .borrow()
                 .polynomial_store
                 .get(&"q_3".to_owned())
                 .unwrap(),
-        );
-        polynomials.push(
             circuit_proving_key
                 .borrow()
                 .polynomial_store
                 .get(&"q_m".to_owned())
                 .unwrap(),
-        );
-        polynomials.push(
             circuit_proving_key
                 .borrow()
                 .polynomial_store
                 .get(&"q_c".to_owned())
                 .unwrap(),
-        );
-        polynomials.push(
             circuit_proving_key
                 .borrow()
                 .polynomial_store
                 .get(&"sigma_1".to_owned())
                 .unwrap(),
-        );
-        polynomials.push(
             circuit_proving_key
                 .borrow()
                 .polynomial_store
                 .get(&"sigma_2".to_owned())
                 .unwrap(),
-        );
-        polynomials.push(
             circuit_proving_key
                 .borrow()
                 .polynomial_store
                 .get(&"sigma_3".to_owned())
                 .unwrap(),
-        );
+        ];
 
         let mut commitments = vec![G1Affine::default(); 8];
         let mut state = PippengerRuntimeState::new(circuit_proving_key.borrow().circuit_size);
@@ -276,9 +262,9 @@ fn generate_test_data<'a, H: BarretenHasher + Default + 'static>(
         .polynomial_store
         .insert(&"sigma_3_lagrange".to_string(), sigma_3_lagrange_base);
 
-    key.borrow().small_domain.ifft_inplace(&mut sigma_1);
-    key.borrow().small_domain.ifft_inplace(&mut sigma_2);
-    key.borrow().small_domain.ifft_inplace(&mut sigma_3);
+    key.borrow().small_domain.ifft_inplace(&mut sigma_1.coefficients);
+    key.borrow().small_domain.ifft_inplace(&mut sigma_2.coefficients);
+    key.borrow().small_domain.ifft_inplace(&mut sigma_3.coefficients);
 
     const WIDTH: usize = 4;
     let mut sigma_1_fft = sigma_1.clone();
@@ -328,11 +314,11 @@ fn generate_test_data<'a, H: BarretenHasher + Default + 'static>(
         .polynomial_store
         .insert(&"w_3_lagrange".to_string(), w_o);
 
-    key.borrow().small_domain.ifft_inplace(&mut q_l);
-    key.borrow().small_domain.ifft_inplace(&mut q_r);
-    key.borrow().small_domain.ifft_inplace(&mut q_o);
-    key.borrow().small_domain.ifft_inplace(&mut q_m);
-    key.borrow().small_domain.ifft_inplace(&mut q_c);
+    key.borrow().small_domain.ifft_inplace(&mut q_l.coefficients);
+    key.borrow().small_domain.ifft_inplace(&mut q_r.coefficients);
+    key.borrow().small_domain.ifft_inplace(&mut q_o.coefficients);
+    key.borrow().small_domain.ifft_inplace(&mut q_m.coefficients);
+    key.borrow().small_domain.ifft_inplace(&mut q_c.coefficients);
 
     let mut q_1_fft = q_l.clone();
     q_1_fft.resize(n * 4, Fr::zero());
