@@ -32,6 +32,8 @@
 use ark_ff::batch_inversion;
 use ark_ff::{FftField, Field};
 
+use anyhow::Result;
+
 use crate::{common::max_threads::compute_num_threads, numeric::bitop::Msb};
 
 pub(crate) struct LagrangeEvaluations<Fr: Field + FftField> {
@@ -139,18 +141,20 @@ fn is_power_of_two_usize(x: usize) -> bool {
 ///
 /// assert_eq!(dest, vec![Fr::from(1), Fr::from(2), Fr::from(3), Fr::default()]);  // replace `Fr::from` and `Fr::default` with the appropriate constructor for your field type
 /// ```
-fn copy_polynomial<Fr: Copy + Default>(
-    src: &[Fr],
-    dest: &mut [Fr],
+    pub(crate) fn copy_polynomial<Fr: Field + FftField + Copy + Default>(
+        src: &Polynomial<Fr>,
+        dest: &mut Polynomial<Fr>,
     num_src_coefficients: usize,
     num_target_coefficients: usize,
 ) {
     // TODO: fiddle around with avx asm to see if we can speed up
-    dest[..num_src_coefficients].copy_from_slice(&src[..num_src_coefficients]);
+    dest.coefficients[..num_src_coefficients]
+        .copy_from_slice(&src.coefficients[..num_src_coefficients]);
 
     if num_target_coefficients > num_src_coefficients {
         // fill out the polynomial coefficients with zeroes
         for item in dest
+            .coefficients
             .iter_mut()
             .take(num_target_coefficients)
             .skip(num_src_coefficients)
@@ -261,16 +265,48 @@ fn fft_inner_serial<Fr: Copy + Default + Add<Output = Fr> + Sub<Output = Fr> + M
 
 impl<Fr: Field + FftField> EvaluationDomain<Fr> {
     /// modifies target[..generator_size]
-    fn scale_by_generator(
+    fn scale_by_generator_inplace(
         &self,
-        _coeffs: &mut [Fr],
-        _target: &mut [Fr],
-        _generator_start: Fr,
-        _generator_shift: Fr,
+        coeffs: &mut [Fr],
+        generator_start: Fr,
+        generator_shift: Fr,
         generator_size: usize,
     ) {
-        let _generator_size_per_thread = generator_size / self.num_threads;
-        todo!("parallelism");
+        // TODO: parallelize
+        for j in 0..self.num_threads {
+            let thread_shift =
+                generator_shift.pow(&[(j * (generator_size / self.num_threads)) as u64]);
+            let mut work_generator = generator_start * thread_shift;
+            let offset = j * (generator_size / self.num_threads);
+            let end = offset + (generator_size / self.num_threads);
+            for i in offset..end {
+                coeffs[i] = coeffs[i] * work_generator;
+                work_generator *= generator_shift;
+            }
+        }
+    }
+
+    /// modifies target[..generator_size]
+    fn scale_by_generator(
+        &self,
+        coeffs: &[Fr],
+        target: &mut [Fr],
+        generator_start: Fr,
+        generator_shift: Fr,
+        generator_size: usize,
+    ) {
+        // TODO: parallelize
+        for j in 0..self.num_threads {
+            let thread_shift =
+                generator_shift.pow(&[(j * (generator_size / self.num_threads)) as u64]);
+            let mut work_generator = generator_start * thread_shift;
+            let offset = j * (generator_size / self.num_threads);
+            let end = offset + (generator_size / self.num_threads);
+            for i in offset..end {
+                target[i] = coeffs[i] * work_generator;
+                work_generator *= generator_shift;
+            }
+        }
     }
 
     /// Compute multiplicative subgroup (g.X)^n.
@@ -288,7 +324,7 @@ impl<Fr: Field + FftField> EvaluationDomain<Fr> {
         let subgroup_size = 1 << log2_subgroup_size;
 
         // Step 1: get primitive 4th root of unity
-        let subgroup_root = Fr::get_root_of_unity(log2_subgroup_size as u64)
+        let subgroup_root = Fr::get_root_of_unity(subgroup_size as u64)
             .ok_or_else(|| anyhow::anyhow!("Failed to find root of unity"))?;
 
         // Step 2: compute the cofactor term g^n
@@ -321,7 +357,7 @@ impl<Fr: Field + FftField> EvaluationDomain<Fr> {
         let poly_size = self.size / num_polys;
         assert!(poly_size.is_power_of_two());
         let poly_mask = poly_size - 1;
-        let log2_poly_size = poly_size.trailing_zeros() as usize;
+        let log2_poly_size = poly_size.get_msb();
 
         // First FFT round is a special case - no need to multiply by root table, because all entries are 1.
         // We also combine the bit reversal step into the first round, to avoid a redundant round of copying data
@@ -354,7 +390,8 @@ impl<Fr: Field + FftField> EvaluationDomain<Fr> {
             coeffs[0][1] = scratch_space[1];
         }
         // Outer FFT loop - iterates over the FFT rounds
-        for m in (2..=self.size).step_by(2) {
+        let mut m = 2;
+        while m < self.size {
             for j in 0..self.num_threads {
                 let mut temp: Fr;
 
@@ -404,7 +441,7 @@ impl<Fr: Field + FftField> EvaluationDomain<Fr> {
                 // our indexer, because we don't store the precomputed root values for the 1st round (because they're
                 // all 1).
 
-                let round_roots = root_table[(m.trailing_zeros() - 1) as usize];
+                let round_roots = root_table[m.get_msb() - 1];
 
                 // Finally, we want to treat the final round differently from the others,
                 // so that we can reduce out of our 'coarse' reduction and store the output in `coeffs` instead of
@@ -434,6 +471,7 @@ impl<Fr: Field + FftField> EvaluationDomain<Fr> {
                     }
                 }
             }
+            m <<= 1;
         }
     }
 
@@ -533,48 +571,74 @@ impl<Fr: Field + FftField> EvaluationDomain<Fr> {
         constant: Fr,
         is_coset: bool,
     ) {
+        // We wish to compute a partial modified FFT of 2 rounds from given coefficients.
+        // We need a 2-round modified FFT for commiting to the 4n-sized quotient polynomial for
+        // the PLONK prover.
+        //
+        // We assume that the number of coefficients is a multiplicand of 4, since the domain size
+        // we use in PLONK would always be a power of 2, this is a reasonable assumption.
+        // Let n = N / 4 where N is the input domain size, we wish to compute
+        // R_{i,s} = \sum_{j=0}^{3} Y_{i + jn} * \omega^{(i + jn)(s + 1)}
+        //
+        // Input `coeffs` is the evaluation form (FFT) of a polynomial.
+        // (Y_{0,0} , Y_{1,0}, Y_{3,0}, ..., Y_{n, 0})
+        // (Y_{0,1} , Y_{1,1}, Y_{3,1}, ..., Y_{n, 1})
+        // (Y_{0,2} , Y_{1,2}, Y_{3,2}, ..., Y_{n, 2})
+        // (Y_{0,3} , Y_{1,3}, Y_{3,3}, ..., Y_{n, 3})
+        //
+        // We should store the result in the following way:
+        // (R_{0,3} , R_{1,3}, R_{3,3}, ..., R_{n, 3})  {coefficients of X^0}
+        // (R_{0,2} , R_{1,2}, R_{3,2}, ..., R_{n, 2})  {coefficients of X^1}
+        // (R_{0,1} , R_{1,1}, R_{3,1}, ..., R_{n, 1})  {coefficients of X^2}
+        // (R_{0,0} , R_{1,0}, R_{3,0}, ..., R_{n, 0})  {coefficients of X^3}
+
         let n = self.size >> 2;
         let full_mask = self.size - 1;
         let m = self.size >> 1;
         let half_mask = m - 1;
-        let round_roots = &root_table[((m as f64).log2() as usize) - 1];
+        let round_roots = &root_table[m.get_msb() - 1];
 
         let small_domain = EvaluationDomain::<Fr>::new(n, None);
 
-        for i in 0..small_domain.size {
-            let temp = [
-                coeffs[i],
-                coeffs[i + n],
-                coeffs[i + 2 * n],
-                coeffs[i + 3 * n],
-            ];
-            coeffs[i] = Fr::zero();
-            coeffs[i + n] = Fr::zero();
-            coeffs[i + 2 * n] = Fr::zero();
-            coeffs[i + 3 * n] = Fr::zero();
+        // iterate for s = 0, 1, 2, 3 to compute R_{i,s}
+        for j in 0..small_domain.num_threads {
+            let internal_bound_start = j * small_domain.thread_size;
+            let internal_bound_end = (j + 1) * small_domain.thread_size;
+            for i in internal_bound_start..internal_bound_end {
+                let temp = [
+                    coeffs[i],
+                    coeffs[i + n],
+                    coeffs[i + 2 * n],
+                    coeffs[i + 3 * n],
+                ];
+                coeffs[i] = Fr::zero();
+                coeffs[i + n] = Fr::zero();
+                coeffs[i + 2 * n] = Fr::zero();
+                coeffs[i + 3 * n] = Fr::zero();
 
-            let mut index;
-            let mut root_index;
-            let mut root_multiplier;
-            let mut temp_constant = constant;
+                let mut index;
+                let mut root_index;
+                let mut root_multiplier;
+                let mut temp_constant = constant;
 
-            for s in 0..4 {
-                for (j, t_j) in temp.iter().enumerate() {
-                    index = i + j * n;
-                    root_index = index * (s + 1);
+                for s in 0..4 {
+                    for (j, t_j) in temp.iter().enumerate() {
+                        index = i + j * n;
+                        root_index = index * (s + 1);
+                        if is_coset {
+                            root_index = root_index.wrapping_sub(4 * i);
+                        }
+                        root_index &= full_mask;
+                        root_multiplier = round_roots[root_index & half_mask];
+                        if root_index >= m {
+                            root_multiplier = -round_roots[root_index & half_mask];
+                        }
+                        coeffs[(3 - s) * n + i] += root_multiplier * t_j;
+                    }
                     if is_coset {
-                        root_index -= 4 * i;
+                        temp_constant *= self.generator;
+                        coeffs[(3 - s) * n + i] *= temp_constant;
                     }
-                    root_index &= full_mask;
-                    root_multiplier = round_roots[root_index & half_mask];
-                    if root_index >= m {
-                        root_multiplier = -round_roots[root_index & half_mask];
-                    }
-                    coeffs[(3 - s) * n + i] += root_multiplier * t_j;
-                }
-                if is_coset {
-                    temp_constant *= self.generator;
-                    coeffs[(3 - s) * n + i] *= temp_constant;
                 }
             }
         }
@@ -584,34 +648,41 @@ impl<Fr: Field + FftField> EvaluationDomain<Fr> {
         self.partial_fft_serial_inner(coeffs, target, &self.get_round_roots()[..]);
     }
 
-    pub(crate) fn partial_fft(&self, coeffs: &mut [Fr], constant: Fr, is_coset: bool) {
-        self.partial_fft_parallel_inner(coeffs, &self.get_round_roots()[..], constant, is_coset);
+    pub(crate) fn partial_fft(&self, coeffs: &mut [Fr], constant: Option<Fr>, is_coset: bool) {
+        self.partial_fft_parallel_inner(
+            coeffs,
+            &self.get_round_roots()[..],
+            constant.unwrap_or(Fr::one()),
+            is_coset,
+        );
     }
 
-    fn fft_inplace(&self, coeffs: &mut [Fr]) {
+    pub(crate) fn fft_inplace(&self, coeffs: &mut [Fr]) {
         self.fft_inner_parallel_vec_inplace(&mut [coeffs], &self.root, &self.get_round_roots()[..]);
     }
 
-    fn fft(&self, coeffs: &mut [Fr], target: &mut [Fr]) {
+    pub(crate) fn fft(&self, coeffs: &mut [Fr], target: &mut [Fr]) {
         self.fft_inner_parallel(coeffs, target, &self.root, &self.get_round_roots()[..]);
     }
 
-    fn fft_vec_inplace(&self, _coeffs: &mut [&mut [Fr]]) {
-        todo!();
+    pub(crate) fn fft_vec_inplace(&self, coeffs: &mut [&mut [Fr]]) {
+        self.fft_inner_parallel_vec_inplace(coeffs, &self.root, &self.get_round_roots()[..]);
     }
 
     // The remaining functions require you to create a version of `fft_inner_parallel` that accepts a Vec<&[T]> as the first parameter.
 
-    pub(crate) fn ifft_inplace(&self, coeffs: &mut Polynomial<Fr>) {
+    pub(crate) fn ifft_inplace(&self, coeffs: &mut [Fr]) {
         self.fft_inner_parallel_vec_inplace(
-            &mut [coeffs.coefficients.as_mut_slice()],
+            &mut [coeffs],
             &self.root_inverse,
             &self.get_inverse_round_roots()[..],
         );
-        todo!("parallelize")
-        // for i in 0..self.size {
-        //     coeffs[i] *= self.domain_inverse;
-        // }
+        // todo!("parallelize")
+        for j in 0..self.num_threads {
+            for i in j * self.thread_size..(j + 1) * self.thread_size {
+                coeffs[i] *= self.domain_inverse;
+            }
+        }
     }
 
     pub(crate) fn ifft(&self, coeffs: &mut [Fr], target: &mut [Fr]) {
@@ -628,17 +699,66 @@ impl<Fr: Field + FftField> EvaluationDomain<Fr> {
         // }
     }
 
-    fn ifft_vec_inplace(&self, _coeffs: &mut [&mut [Fr]]) {
-        todo!();
+    pub(crate) fn ifft_vec_inplace(&self, coeffs: &mut [&mut [Fr]]) {
+        self.fft_inner_parallel_vec_inplace(
+            coeffs,
+            &self.root_inverse,
+            &self.get_inverse_round_roots()[..],
+        );
+
+        let num_polys = coeffs.len();
+        assert!(num_polys.is_power_of_two());
+        let poly_size = self.size / num_polys;
+        assert!(poly_size.is_power_of_two());
+        let poly_mask = poly_size - 1;
+        let log2_poly_size = poly_size.get_msb();
+
+        // todo!("parallelize")
+        for j in 0..self.num_threads {
+            for i in j * self.thread_size..(j + 1) * self.thread_size {
+                coeffs[i >> log2_poly_size][i & poly_mask] *= self.domain_inverse;
+            }
+        }
     }
     fn ifft_with_constant(&self, _coeffs: &mut [Fr], _value: Fr) {
         todo!();
     }
 
+    pub(crate) fn coset_ifft_inplace(&self, coeffs: &mut [Fr]) {
+        self.ifft_inplace(coeffs);
+        self.scale_by_generator_inplace(
+            coeffs,
+            Fr::one(),
+            self.generator_inverse,
+            self.generator_size,
+        );
+    }
+
     pub(crate) fn coset_ifft(&self, _coeffs: &mut [Fr]) {
         todo!()
     }
-    pub(crate) fn coset_ifft_vec(&self, _coeffs: &[&mut [&mut Fr]]) {
+
+    pub(crate) fn coset_ifft_vec_inplace(&self, coeffs: &mut [&mut [Fr]]) {
+        self.ifft_vec_inplace(coeffs);
+
+        let num_polys = coeffs.len();
+        assert!(num_polys.is_power_of_two());
+        let poly_size = self.size / num_polys;
+        let generator_inv_pow_n = self.generator_inverse.pow(&[poly_size as u64]);
+        let mut generator_start = Fr::one();
+
+        for i in 0..num_polys {
+            self.scale_by_generator_inplace(
+                coeffs[i],
+                generator_start,
+                self.generator_inverse,
+                poly_size,
+            );
+            generator_start *= generator_inv_pow_n;
+        }
+    }
+
+    pub(crate) fn coset_ifft_vec(&self, _coeffs: &mut [&mut [Fr]]) {
         todo!()
     }
 
@@ -720,26 +840,181 @@ impl<Fr: Field + FftField> EvaluationDomain<Fr> {
         }
         Ok(())
     }
-    pub(crate) fn coset_fft_inplace(&self, _coeffs: &mut [Fr]) {
-        unimplemented!()
+
+    pub(crate) fn coset_fft_inplace(&self, coeffs: &mut [Fr]) {
+        self.scale_by_generator_inplace(coeffs, Fr::one(), self.generator, self.generator_size);
+        self.fft_inplace(coeffs);
     }
-    fn coset_fft_vec_inplace(&self, _coeffs: &mut [&mut [Fr]]) {
-        unimplemented!()
+
+    pub(crate) fn coset_fft_vec_inplace(&self, coeffs: &mut [&mut [Fr]]) {
+        let num_polys = coeffs.len();
+        assert!(num_polys.is_power_of_two());
+        let poly_size = self.size / num_polys;
+        let generator_pow_n = self.generator.pow(&[poly_size as u64]);
+        let mut generator_start = Fr::one();
+
+        for i in 0..num_polys {
+            self.scale_by_generator_inplace(coeffs[i], generator_start, self.generator, poly_size);
+            generator_start *= generator_pow_n;
+        }
+        self.fft_vec_inplace(coeffs);
     }
+
     pub(crate) fn coset_fft(&self, _coeffs: &[Fr], _target: &mut [Fr]) {
         unimplemented!()
     }
+
     pub(crate) fn coset_fft_with_generator_shift(&self, _coeffs: &mut [Fr], _constant: Fr) {
         unimplemented!()
     }
 
+    pub(crate) fn add(&self, a_coeffs: &[Fr], b_coeffs: &[Fr], r_coeffs: &mut [Fr]) {
+        for j in 0..self.num_threads {
+            let internal_bound_start = j * self.thread_size;
+            let internal_bound_end = (j + 1) * self.thread_size;
+            for i in internal_bound_start..internal_bound_end {
+                r_coeffs[i] = a_coeffs[i] + b_coeffs[i];
+            }
+        }
+    }
+
+    pub(crate) fn sub(&self, a_coeffs: &[Fr], b_coeffs: &[Fr], r_coeffs: &mut [Fr]) {
+        for j in 0..self.num_threads {
+            let internal_bound_start = j * self.thread_size;
+            let internal_bound_end = (j + 1) * self.thread_size;
+            for i in internal_bound_start..internal_bound_end {
+                r_coeffs[i] = a_coeffs[i] - b_coeffs[i];
+            }
+        }
+    }
+
+    // TODO: Ugly, should probably implement traits like SubAssign
+    pub(crate) fn sub_inplace(&self, a_coeffs: &mut [Fr], b_coeffs: &[Fr]) {
+        for j in 0..self.num_threads {
+            let internal_bound_start = j * self.thread_size;
+            let internal_bound_end = (j + 1) * self.thread_size;
+            for i in internal_bound_start..internal_bound_end {
+                a_coeffs[i] = a_coeffs[i] - b_coeffs[i];
+            }
+        }
+    }
+
+    pub(crate) fn mul(&self, a_coeffs: &[Fr], b_coeffs: &[Fr], r_coeffs: &mut [Fr]) {
+        for j in 0..self.num_threads {
+            let internal_bound_start = j * self.thread_size;
+            let internal_bound_end = (j + 1) * self.thread_size;
+            for i in internal_bound_start..internal_bound_end {
+                r_coeffs[i] = a_coeffs[i] * b_coeffs[i];
+            }
+        }
+    }
+
     pub(crate) fn divide_by_pseudo_vanishing_polynomial(
         &self,
-        _coeffs: &[&mut [&mut Fr]],
-        _target: &EvaluationDomain<Fr>,
-        _num_roots_cut_out_of_vanishing_poly: usize,
-    ) {
-        unimplemented!()
+        coeffs: &mut [&mut [Fr]],
+        target_domain: &EvaluationDomain<Fr>,
+        num_roots_cut_out_of_vanishing_polynomial: usize,
+    ) -> Result<()> {
+        // Older version:
+        // the PLONK divisor polynomial is equal to the vanishing polynomial divided by the vanishing polynomial for the
+        // last subgroup element Z_H(X) = \prod_{i=1}^{n-1}(X - w^i) = (X^n - 1) / (X - w^{n-1}) i.e. we divide by vanishing
+        // polynomial, then multiply by degree-1 polynomial (X - w^{n-1})
+
+        // Updated version:
+        // We wish to implement this function such that it supports a modified vanishing polynomial, in which
+        // k (= num_roots_cut_out_of_vanishing_polynomial) roots are cut out. i.e.
+        //                           (X^n - 1)
+        // Z*_H(X) = ------------------------------------------
+        //           (X - w^{n-1}).(X - w^{n-2})...(X - w^{k})
+        //
+        // We set the default value of k as 4 so as to ensure that the evaluation domain is 4n. The reason for cutting out
+        // some roots is described here: https://hackmd.io/@zacwilliamson/r1dm8Rj7D#The-problem-with-this-approach.
+        // Briefly, the reason we need to cut roots is because on adding randomness to permutation polynomial z(X),
+        // its degree becomes (n + 2), so for fft evaluation, we will need an evaluation domain of size >= 4(n + 2) = 8n
+        // since size of evalutation domain needs to be a power of two. To avoid this, we need to bring down the degree
+        // of the permutation polynomial (after adding randomness) to <= n.
+        //
+        //
+        // NOTE: If in future, there arises a need to cut off more zeros, this method will not require any changes.
+        //
+
+        // Assert that the number of polynomials in coeffs is a power of 2.
+        let num_polys = coeffs.len();
+        assert!(num_polys.is_power_of_two());
+        let poly_size = target_domain.size / num_polys;
+        assert!(poly_size.is_power_of_two());
+        let poly_mask = poly_size - 1;
+        let log2_poly_size = poly_size.trailing_zeros() as usize;
+
+        // `fft_point_evaluations` should be in point-evaluation form, evaluated at the 4n'th roots of unity mulitplied by
+        // `target_domain`'s coset generator P(X) = X^n - 1 will form a subgroup of order 4 when evaluated at these points
+        // If X = w^i, P(X) = 1
+        // If X = w^{i + j/4}, P(X) = w^{n/4} = w^{n/2}^{n/2} = sqrt(-1)
+        // If X = w^{i + j/2}, P(X) = -1
+        // If X = w^{i + j/2 + k/4}, P(X) = w^{n/4}.-1 = -w^{i} = -sqrt(-1)
+        // i.e. the 4th roots of unity
+        let log2_subgroup_size = target_domain.log2_size - self.log2_size;
+        let subgroup_size = 1usize << log2_subgroup_size;
+        assert!(target_domain.log2_size >= self.log2_size);
+
+        let mut subgroup_roots = vec![Fr::zero(); subgroup_size];
+        self.compute_multiplicative_subgroup(log2_subgroup_size, &mut subgroup_roots)?;
+
+        // Step 3: fill array with values of (g.X)^n - 1, scaled by the cofactor
+        subgroup_roots.iter_mut().for_each(|x| *x -= Fr::one());
+
+        // Step 4: invert array entries to compute denominator term of 1/Z_H*(X)
+        batch_inversion(&mut subgroup_roots);
+
+        // The numerator term of Z_H*(X) is the polynomial (X - w^{n-1})(X - w^{n-2})...(X - w^{n-k})
+        // => (g.w_i - w^{n-1})(g.w_i - w^{n-2})...(g.w_i - w^{n-k})
+        // Compute w^{n-1}
+        let mut numerator_constants = vec![Fr::zero(); num_roots_cut_out_of_vanishing_polynomial];
+        if num_roots_cut_out_of_vanishing_polynomial > 0 {
+            numerator_constants[0] = -self.root_inverse;
+            for i in 1..num_roots_cut_out_of_vanishing_polynomial {
+                numerator_constants[i] = numerator_constants[i - 1] * self.root_inverse;
+            }
+        }
+        // Compute first value of g.w_i
+
+        // Step 5: iterate over point evaluations, scaling each one by the inverse of the vanishing polynomial
+        if subgroup_size >= target_domain.thread_size {
+            let mut work_root = self.generator;
+            for i in 0..target_domain.size {
+                for j in 0..subgroup_size {
+                    let poly_idx = (i + j) >> log2_poly_size;
+                    let elem_idx = (i + j) & poly_mask;
+                    coeffs[poly_idx][elem_idx] *= subgroup_roots[j];
+
+                    for k in 0..num_roots_cut_out_of_vanishing_polynomial {
+                        coeffs[poly_idx][elem_idx] *= work_root + numerator_constants[k];
+                    }
+                    work_root *= target_domain.root;
+                }
+            }
+        } else {
+            // TODO: Parallelize
+            for k in 0..target_domain.num_threads {
+                let offset = k * target_domain.thread_size;
+                let root_shift = target_domain.root.pow(&[offset as u64]);
+                let mut work_root = self.generator * root_shift;
+                for i in (offset..offset + target_domain.thread_size).step_by(subgroup_size) {
+                    for j in 0..subgroup_size {
+                        let poly_idx = (i + j) >> log2_poly_size;
+                        let elem_idx = (i + j) & poly_mask;
+                        coeffs[poly_idx][elem_idx] *= subgroup_roots[j];
+
+                        for k in 0..num_roots_cut_out_of_vanishing_polynomial {
+                            coeffs[poly_idx][elem_idx] *= work_root + numerator_constants[k];
+                        }
+
+                        work_root *= target_domain.root;
+                    }
+                }
+            }
+        };
+        Ok(())
     }
 
     /// Computes evaluations of vanishing polynomial Z_H, l_start, l_end at ʓ.
@@ -879,25 +1154,14 @@ impl<Fr: Field + FftField> EvaluationDomain<Fr> {
         }
 
         // Compute 1/(X_i - 1) using Montgomery batch inversion
-        // Note: This is a placeholder, replace with actual batch invert function.
-        // TODO add batch invert
-        // invert them all
-        let result: Result<(), anyhow::Error> =
-            l_1_coefficients.coefficients.iter_mut().try_for_each(|x| {
-                let inverse = x
-                    .inverse()
-                    .ok_or_else(|| anyhow::anyhow!("Failed to find inverse"))?;
-                *x = inverse;
-                Ok(())
-            });
-        result?;
+        batch_inversion(l_1_coefficients.coefficients.as_mut_slice());
 
         // Step 2: Compute numerator (1/n)*(X_i^n - 1)
         // First compute X_i^n (which forms a multiplicative subgroup of order k)
         let log2_subgroup_size = target_domain.log2_size - self.log2_size; // log_2(k)
         let subgroup_size = 1usize << log2_subgroup_size; // k
         assert!(target_domain.log2_size >= self.log2_size);
-        let mut subgroup_roots = vec![Fr::one(); subgroup_size];
+        let mut subgroup_roots = vec![Fr::default(); subgroup_size];
         // Note: compute_multiplicative_subgroup function is missing, replace this with your own.
         self.compute_multiplicative_subgroup(log2_subgroup_size, &mut subgroup_roots)?;
 
@@ -966,6 +1230,29 @@ impl<Fr: Field + FftField> EvaluationDomain<Fr> {
 
         result
     }
+
+    pub(crate) fn fft_linear_polynomial_product(
+        &self,
+        roots: &[Fr],
+        dest: &mut [Fr],
+        n: usize,
+        is_coset: bool,
+    ) {
+        let m = self.size >> 1;
+        let round_roots = &self.get_round_roots()[m.get_msb() - 1];
+
+        let mut current_root;
+        for i in 0..m {
+            current_root = round_roots[i];
+            current_root *= if is_coset { self.generator } else { Fr::one() };
+            dest[i] = Fr::one();
+            dest[i + m] = Fr::one();
+            for j in 0..n {
+                dest[i] *= current_root - roots[j];
+                dest[i + m] *= -current_root - roots[j];
+            }
+        }
+    }
 }
 
 /// Compute the sum of field elements in a given slice.
@@ -1033,7 +1320,7 @@ fn compute_sum<Fr: Field>(slice: &[Fr]) -> Fr {
 /// # Panics
 ///
 /// This function will panic if the length of `dest` is not `n + 1`.
-
+/// TODO: Can probably remove n from these function
 pub(crate) fn compute_linear_polynomial_product<Fr: Field>(
     roots: &[Fr],
     dest: &mut [Fr],
@@ -1051,11 +1338,59 @@ pub(crate) fn compute_linear_polynomial_product<Fr: Field>(
     for i in 0..n - 1 {
         temp = Fr::default();
         for j in 0..n - 1 - i {
-            scratch_space[j] = roots[j] * compute_sum(&scratch_space[j + 1..n - 1 - i - j]);
+            scratch_space[j] = roots[j] * compute_sum(&scratch_space[j + 1..n - i]);
             temp += scratch_space[j];
         }
         dest[n - 2 - i] = temp * constant;
         constant = constant.neg();
+    }
+}
+
+pub(crate) fn compute_linear_polynomial_product_evaluation<Fr: Field + FftField>(
+    roots: &[Fr],
+    z: Fr,
+    n: usize,
+) -> Fr {
+    let mut result = Fr::one();
+    for i in 0..n {
+        result *= z - roots[i];
+    }
+    result
+}
+
+pub(crate) fn compute_interpolation<Fr: Field + FftField>(
+    src: &[Fr],
+    dest: &mut [Fr],
+    evaluation_points: &[Fr],
+    n: usize,
+) {
+    let mut local_roots = Vec::new();
+    let mut local_polynomial = vec![Fr::zero(); n];
+    let mut denominator;
+    let mut multiplicand;
+
+    if n == 1 {
+        return;
+    }
+
+    for i in 0..n {
+        denominator = Fr::one();
+        for j in 0..n {
+            if j == i {
+                continue;
+            }
+            local_roots.push(evaluation_points[j]);
+            denominator *= evaluation_points[i] - evaluation_points[j];
+        }
+
+        compute_linear_polynomial_product(&local_roots, &mut local_polynomial, n - 1);
+
+        multiplicand = src[i] / denominator;
+        for j in 0..n {
+            dest[j] += multiplicand * local_polynomial[j];
+        }
+
+        local_roots.clear();
     }
 }
 
@@ -1144,16 +1479,7 @@ pub(crate) fn compute_efficient_interpolation<Fr: Field>(
         }
     }
 
-    // TODO make this a batch_invert
-    // invert them all
-    let result: Result<(), anyhow::Error> = roots_and_denominators.iter_mut().try_for_each(|x| {
-        let inverse = x
-            .inverse()
-            .ok_or_else(|| anyhow::anyhow!("Failed to find inverse"))?;
-        *x = inverse;
-        Ok(())
-    });
-    result?;
+    batch_inversion(roots_and_denominators.as_mut_slice());
 
     let mut z;
     let mut multiplier;
@@ -1210,6 +1536,32 @@ pub(crate) fn compute_kate_opening_coefficients<Fr: Field>(
     for i in 1..n {
         dest[i] = src[i] - dest[i - 1];
         dest[i] *= divisor;
+    }
+
+    Ok(f)
+}
+
+pub(crate) fn compute_kate_opening_coefficients_inplace<Fr: Field>(
+    src: &mut [Fr],
+    z: &Fr,
+    n: usize,
+) -> anyhow::Result<Fr> {
+    // We assume that the commitment is well-formed and that there is no remainder term.
+    // Under these conditions we can perform this polynomial division in linear time with good constants let f = evaluate(src, z, n);
+    let f = evaluate(src, z, n);
+
+    let divisor = z
+        .neg()
+        .inverse()
+        .ok_or_else(|| anyhow::anyhow!("Failed to find inverse"))?;
+
+    // we're about to shove these coefficients into a pippenger multi-exponentiation routine, where we need
+    // to convert out of montgomery form. So, we can use lazy reduction techniques here without triggering overflows
+    src[0] -= f;
+    src[0] *= divisor;
+    for i in 1..n {
+        src[i] -= src[i - 1];
+        src[i] *= divisor;
     }
 
     Ok(f)
@@ -1280,4 +1632,181 @@ pub(crate) fn evaluate<F: Field>(coeffs: &[F], z: &F, n: usize) -> F {
         r += evaluation;
     }
     r
+}
+
+// TODO: Should this be inside of `EvaluationDomain`?
+pub(crate) fn evaluate_from_fft<F: Field + FftField>(
+    poly_coset_fft: &[F],
+    large_domain: &EvaluationDomain<F>,
+    z: &F,
+    small_domain: &EvaluationDomain<F>,
+) -> F {
+    let n = small_domain.size;
+    let mut small_poly_coset_fft = vec![F::zero(); n];
+    for i in 0..n {
+        small_poly_coset_fft[i] = poly_coset_fft[4 * i];
+    }
+
+    let zeta_by_g = large_domain.generator_inverse * z;
+
+    let result = small_domain.compute_barycentric_evaluation(&small_poly_coset_fft, n, &zeta_by_g);
+    result
+}
+
+// Divides p(X) by (X-r) in-place.
+pub(crate) fn factor_root<F: Field + FftField>(polynomial: &mut [F], root: &F) {
+    let size = polynomial.len();
+
+    if root.is_zero() {
+        // if one of the roots is 0 after having divided by all other roots,
+        // then p(X) = a₁⋅X + ⋯ + aₙ₋₁⋅Xⁿ⁻¹
+        // so we shift the array of coefficients to the left
+        // and the result is p(X) = a₁ + ⋯ + aₙ₋₁⋅Xⁿ⁻² and we subtract 1 from the size.
+        polynomial.copy_within(1.., 0);
+    } else {
+        // assume
+        //  • r != 0
+        //  • (X−r) | p(X)
+        //  • q(X) = ∑ᵢⁿ⁻² bᵢ⋅Xⁱ
+        //  • p(X) = ∑ᵢⁿ⁻¹ aᵢ⋅Xⁱ = (X-r)⋅q(X)
+        //
+        // p(X)         0           1           2       ...     n-2             n-1
+        //              a₀          a₁          a₂              aₙ₋₂            aₙ₋₁
+        //
+        // q(X)         0           1           2       ...     n-2             n-1
+        //              b₀          b₁          b₂              bₙ₋₂            0
+        //
+        // (X-r)⋅q(X)   0           1           2       ...     n-2             n-1
+        //              -r⋅b₀       b₀-r⋅b₁     b₁-r⋅b₂         bₙ₋₃−r⋅bₙ₋₂      bₙ₋₂
+        //
+        // b₀   = a₀⋅(−r)⁻¹
+        // b₁   = (a₁ - b₀)⋅(−r)⁻¹
+        // b₂   = (a₂ - b₁)⋅(−r)⁻¹
+        //      ⋮
+        // bᵢ   = (aᵢ − bᵢ₋₁)⋅(−r)⁻¹
+        //      ⋮
+        // bₙ₋₂ = (aₙ₋₂ − bₙ₋₃)⋅(−r)⁻¹
+        // bₙ₋₁ = 0
+
+        // For the simple case of one root we compute (−r)⁻¹ and
+        let root_inverse = -root.inverse().unwrap();
+        // set b₋₁ = 0
+        let mut temp = F::zero();
+        // We start multiplying lower coefficient by the inverse and subtracting those from highter coefficients
+        // Since (x - r) should divide the polynomial cleanly, we can guide division with lower coefficients
+        for i in 0..size - 1 {
+            // at the start of the loop, temp = bᵢ₋₁
+            // and we can compute bᵢ   = (aᵢ − bᵢ₋₁)⋅(−r)⁻¹
+            temp = polynomial[i] - temp;
+            temp *= root_inverse;
+            polynomial[i] = temp;
+        }
+    }
+    polynomial[size - 1] = F::zero();
+}
+
+/// Divides p(X) by (X-r₁)⋯(X−rₘ) in-place.
+/// Assumes that p(rⱼ)=0 for all j
+///
+/// we specialize the method when only a single root is given.
+/// if one of the roots is 0, then we first factor all other roots.
+/// dividing by X requires only a left shift of all coefficient.
+///
+/// # Arguments
+///
+/// * `polynomial` - list of roots (r₁,…,rₘ)
+/// * `roots` - list of roots
+pub(crate) fn factor_roots<F: Field + FftField>(polynomial: &mut [F], roots: &[F]) {
+    let size = polynomial.len();
+    if roots.len() == 1 {
+        factor_root(polynomial, &roots[0]);
+    } else {
+        // For division by several roots at once we need cache.
+        // Let's say we are dividing a₀, a₁, a₂, ... by (r₀, r₁, r₂)
+        // What we need to compute are the inverses: ((-r₀)⁻¹, (-r₁)⁻¹,(-r₂)⁻¹)
+        // Then for a₀ we compute:
+        //      a₀'   = a₀   * (-r₀)⁻¹
+        //      a₀''  = a₀'  * (-r₁)⁻¹
+        //      a₀''' = a₀'' * (-r₂)⁻¹
+        // a₀''' is the lowest coefficient of the resulting polynomial
+        // For a₁ we compute:
+        //      a₁'   = (a₁   - a₀')   * (-r₀)⁻¹
+        //      a₁''  = (a₁'  - a₀'')  * (-r₁)⁻¹
+        //      a₁''' = (a₁'' - a₀''') * (-r₂)⁻¹
+        // a₁''' is the second lowest coefficient of the resulting polynomial
+        // As you see, we only need the intermediate results of the previous round in addition to inversed roots and the
+        // original coefficient to calculate the resulting monomial coefficient. If we cache these results, we don't
+        // have to do several passes over the polynomial
+
+        let num_roots = roots.len();
+        assert!(num_roots < size);
+        let new_size = size - num_roots;
+
+        let mut minus_root_inverses = Vec::new();
+
+        // after the loop, this iterator points to the start of the polynomial
+        // after having divided by all zero roots.
+        let mut num_zero_roots = 0;
+        // Compute negated root inverses, and skip the 0 root
+        for root in roots.iter() {
+            if root.is_zero() {
+                // if one of the roots is zero, then the first coefficient must be as well
+                // so we need to start the iteration from the second coefficient on-wards
+                num_zero_roots += 1;
+            } else {
+                minus_root_inverses.push(-*root);
+            }
+        }
+        // If there are M zero roots, then the first M coefficients of polynomial must be zero
+        for i in 0..num_zero_roots {
+            assert!(polynomial[i].is_zero());
+        }
+
+        // View over the polynomial factored by all the zeros
+        // If there are no zeros, then zero_factored == polynomial
+        let zero_factored_offset = num_zero_roots as usize;
+
+        let num_non_zero_roots = minus_root_inverses.len();
+        if num_non_zero_roots > 0 {
+            batch_inversion(&mut minus_root_inverses);
+
+            let mut division_cache = Vec::new();
+            division_cache.reserve(num_non_zero_roots);
+
+            // Compute the a₀', a₀'', a₀''' and put them in cache
+            let mut temp = polynomial[zero_factored_offset];
+            for minus_root_inverse in minus_root_inverses.iter() {
+                temp *= *minus_root_inverse;
+                division_cache.push(temp);
+            }
+            // We already know the lower coefficient of the result
+            polynomial[0] = division_cache[num_non_zero_roots - 1];
+
+            // Compute the resulting coefficients one by one
+            for i in 1..(polynomial.len() - zero_factored_offset - num_non_zero_roots) {
+                temp = polynomial[zero_factored_offset + i];
+                // Compute the intermediate values for the coefficient and save in cache
+                for j in 0..num_non_zero_roots {
+                    temp -= division_cache[j];
+                    temp *= minus_root_inverses[j];
+                    division_cache[j] = temp;
+                }
+                // Save the resulting coefficient
+                polynomial[i] = temp;
+            }
+        } else if num_zero_roots > 0 {
+            // if one of the roots is 0 after having divided by all other roots,
+            // then p(X) = a₁⋅X + ⋯ + aₙ₋₁⋅Xⁿ⁻¹
+            // so we shift the array of coefficients to the left
+            // and the result is p(X) = a₁ + ⋯ + aₙ₋₁⋅Xⁿ⁻² and we subtract 1 from the size.
+            for i in 0..new_size {
+                polynomial[i] = polynomial[i + num_zero_roots];
+            }
+        }
+
+        // Clear the last coefficients to prevent accidents
+        for i in new_size..size {
+            polynomial[i] = F::zero();
+        }
+    }
 }

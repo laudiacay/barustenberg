@@ -1,4 +1,4 @@
-use std::{cell::RefCell, marker::PhantomData, ops::IndexMut, rc::Rc};
+use std::{cell::RefCell, marker::PhantomData, rc::Rc};
 
 use ark_bn254::{Fq, Fr, G1Affine};
 use ark_ff::{Field, One, UniformRand, Zero};
@@ -253,7 +253,10 @@ impl<H: BarretenHasher + Default, S: Settings<Hasher = H, Field = Fr, Group = G1
 
             // compute poly w_4 from w_4_lagrange and add it to the cache
             let mut w_4 = w_4_lagrange.clone();
-            self.key.borrow().small_domain.ifft_inplace(&mut w_4);
+            self.key
+                .borrow()
+                .small_domain
+                .ifft_inplace(&mut w_4.coefficients);
             self.key
                 .borrow_mut()
                 .polynomial_store
@@ -331,30 +334,30 @@ impl<H: BarretenHasher + Default, S: Settings<Hasher = H, Field = Fr, Group = G1
         // We avoid redundant copy of the parts t_1, t_2, t_3, t_4 and instead just tweak the
         // relevant functions to work on quotient polynomial parts.
         // TODO this does not work so good in rust. for now, we copy... is it still okay to do this?
-        let mut quotient_poly_parts: Vec<&mut [&mut Fr]> = Vec::new();
+        let mut quotient_poly_parts: Vec<&mut [Fr]> = Vec::new();
         {
             let key = self.key.borrow();
-            let mut poly0 = (*key.quotient_polynomial_parts[0]).borrow_mut();
-            let mut poly_sliced0 = [poly0.index_mut(0)];
+            let poly0 = (*key.quotient_polynomial_parts[0]).borrow_mut();
+            let mut poly_sliced0 = [poly0[0]];
             quotient_poly_parts.push(&mut poly_sliced0);
-            let mut poly1 = (*key.quotient_polynomial_parts[1]).borrow_mut();
-            let mut poly_sliced1 = [poly1.index_mut(0)];
+            let poly1 = (*key.quotient_polynomial_parts[1]).borrow_mut();
+            let mut poly_sliced1 = [poly1[0]];
             quotient_poly_parts.push(&mut poly_sliced1);
-            let mut poly2 = (*key.quotient_polynomial_parts[2]).borrow_mut();
-            let mut poly_sliced2 = [poly2.index_mut(0)];
+            let poly2 = (*key.quotient_polynomial_parts[2]).borrow_mut();
+            let mut poly_sliced2 = [poly2[0]];
             quotient_poly_parts.push(&mut poly_sliced2);
-            let mut poly3 = (*key.quotient_polynomial_parts[3]).borrow_mut();
-            let mut poly_sliced3 = [poly3.index_mut(0)];
+            let poly3 = (*key.quotient_polynomial_parts[3]).borrow_mut();
+            let mut poly_sliced3 = [poly3[0]];
             quotient_poly_parts.push(&mut poly_sliced3);
 
             self.key
                 .borrow()
                 .small_domain
                 .divide_by_pseudo_vanishing_polynomial(
-                    &quotient_poly_parts,
+                    quotient_poly_parts.as_mut_slice(),
                     &self.key.borrow().large_domain,
                     0,
-                );
+                )?;
 
             self.key
                 .borrow()
@@ -391,9 +394,13 @@ impl<H: BarretenHasher + Default, S: Settings<Hasher = H, Field = Fr, Group = G1
     }
 
     /// note that this is never defined in barettenberg
-    fn add_polynomial_evaluations_to_transcript(&self) {}
+    fn add_polynomial_evaluations_to_transcript(&self) {
+        todo!("yeehaw")
+    }
     /// note that this is never defined in barettenberg
-    fn compute_batch_opening_polynomials(&self) {}
+    fn compute_batch_opening_polynomials(&self) {
+        todo!("yeehaw")
+    }
     /// - Compute wire commitments and add them to the transcript.
     /// - Add public_inputs from w_2_fft to transcript.
     fn compute_wire_commitments(&mut self) -> Result<()> {

@@ -161,7 +161,7 @@ impl<F: Field + FftField> EvaluationDomain<F> {
         let log2_size = size.get_msb();
         let log2_thread_size = thread_size.get_msb();
         let log2_num_threads = num_threads.get_msb();
-        let root = F::get_root_of_unity(log2_size as u64).unwrap();
+        let root = F::get_root_of_unity(domain_size as u64).unwrap();
         // TODO: I guess we don't need the conversion since arkworks internally uses a Montgomery form
         let domain = F::from(size as u64); // .to_montgomery_form();
         let domain_inverse = domain.inverse().unwrap();
@@ -198,7 +198,7 @@ impl<F: Field + FftField> EvaluationDomain<F> {
 
     pub(crate) fn compute_lookup_table(&mut self) {
         assert!(self.roots.is_empty());
-        self.roots = vec![F::zero(); 2 * self.size];
+        self.roots = vec![F::default(); 2 * self.size];
 
         compute_lookup_table_single(
             &self.root,
