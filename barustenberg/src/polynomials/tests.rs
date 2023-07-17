@@ -297,8 +297,8 @@ mod tests {
         small_domain.compute_lookup_table();
         mid_domain.compute_lookup_table();
 
-        let mut l_1_coefficients = vec![Fr::zero(); 2 * n];
-        let mut scratch_memory = vec![Fr::zero(); 2 * n + 4];
+        let mut l_1_coefficients = Polynomial::new(2 * n);
+        let mut scratch_memory = Polynomial::new(2 * n + 4);
 
         small_domain.compute_lagrange_polynomial_fft(&mut l_1_coefficients, &mid_domain);
 
@@ -309,20 +309,23 @@ mod tests {
             2 * n,
         );
 
-        mid_domain.coset_ifft_inplace(&mut l_1_coefficients);
+        mid_domain.coset_ifft_inplace(&mut l_1_coefficients.coefficients);
 
         let z = Fr::rand(&mut rand::thread_rng());
         let mut shifted_z = z * small_domain.root;
         shifted_z *= small_domain.root;
 
-        let eval =
-            polynomial_arithmetic::evaluate(&l_1_coefficients, &shifted_z, small_domain.size);
-        small_domain.fft_inplace(&mut l_1_coefficients);
+        let eval = polynomial_arithmetic::evaluate(
+            &l_1_coefficients.coefficients,
+            &shifted_z,
+            small_domain.size,
+        );
+        small_domain.fft_inplace(&mut l_1_coefficients.coefficients);
 
-        let temp_slice = scratch_memory[..4].to_vec();
+        let temp_slice = scratch_memory.coefficients[..4].to_vec();
         scratch_memory[2 * n..2 * n + 4].copy_from_slice(&temp_slice);
 
-        let l_n_minus_one_coefficients = &mut scratch_memory[4..];
+        let l_n_minus_one_coefficients = &mut scratch_memory.coefficients[4..];
         mid_domain.coset_ifft_inplace(l_n_minus_one_coefficients);
 
         let shifted_eval =
@@ -354,8 +357,8 @@ mod tests {
         small_domain.compute_lookup_table();
         large_domain.compute_lookup_table();
 
-        let mut l_1_coefficients = vec![Fr::zero(); M * n];
-        let mut scratch_memory = vec![Fr::zero(); M * n + M * 2];
+        let mut l_1_coefficients = Polynomial::new(M * n);
+        let mut scratch_memory = Polynomial::new(M * n + M * 2);
 
         // Compute FFT on target domain
         small_domain.compute_lagrange_polynomial_fft(&mut l_1_coefficients, &large_domain);
@@ -372,10 +375,10 @@ mod tests {
         let temp_slice = scratch_memory[..M * 2].to_vec();
         scratch_memory[M * n..M * n + M * 2].copy_from_slice(&temp_slice);
 
-        let l_n_minus_one_coefficients = &mut scratch_memory[M * 2..];
+        let l_n_minus_one_coefficients = &mut scratch_memory.coefficients[M * 2..];
 
         // Recover monomial forms of L_1 and L_{n-1} (from manually shifted L_1 FFT)
-        large_domain.coset_ifft_inplace(&mut l_1_coefficients);
+        large_domain.coset_ifft_inplace(&mut l_1_coefficients.coefficients);
         large_domain.coset_ifft_inplace(l_n_minus_one_coefficients);
 
         // Compute shifted random eval point z*ω^2
@@ -383,8 +386,11 @@ mod tests {
         let shifted_z = z * small_domain.root * small_domain.root; // z*ω^2
 
         // Compute L_1(z_shifted) and L_{n-1}(z)
-        let eval =
-            polynomial_arithmetic::evaluate(&l_1_coefficients, &shifted_z, small_domain.size);
+        let eval = polynomial_arithmetic::evaluate(
+            &l_1_coefficients.coefficients,
+            &shifted_z,
+            small_domain.size,
+        );
         let shifted_eval =
             polynomial_arithmetic::evaluate(l_n_minus_one_coefficients, &z, small_domain.size);
 
@@ -393,7 +399,7 @@ mod tests {
 
         // Compute evaluation forms of L_1 and L_{n-1} and check that they have
         // a one in the right place and zeros elsewhere
-        small_domain.fft_inplace(&mut l_1_coefficients);
+        small_domain.fft_inplace(&mut l_1_coefficients.coefficients);
         small_domain.fft_inplace(l_n_minus_one_coefficients);
 
         assert_eq!(l_1_coefficients[0], Fr::one());
@@ -867,7 +873,7 @@ mod tests {
 
         for i in 0..n {
             roots[i] = Fr::rand(&mut rng);
-            expected *= (z - roots[i]);
+            expected *= z - roots[i];
         }
 
         let mut dest = vec![Fr::zero(); n + 1];

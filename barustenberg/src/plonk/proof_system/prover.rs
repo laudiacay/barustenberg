@@ -1,4 +1,4 @@
-use std::{cell::RefCell, marker::PhantomData, ops::IndexMut, rc::Rc};
+use std::{cell::RefCell, marker::PhantomData, rc::Rc};
 
 use ark_bn254::{Fq, Fr, G1Affine};
 use ark_ff::{Field, One, UniformRand, Zero};
@@ -29,24 +29,22 @@ use crate::proof_system::work_queue::WorkQueue;
 // todo https://doc.rust-lang.org/reference/const_eval.html
 /// Plonk prover.
 #[derive(Debug)]
-pub struct Prover<'a, H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>> {
+pub struct Prover<H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>> {
     pub(crate) circuit_size: usize,
     pub(crate) transcript: Rc<RefCell<Transcript<H>>>,
-    pub(crate) key: Rc<RefCell<ProvingKey<'a, Fr, G1Affine>>>,
-    pub(crate) queue: WorkQueue<'a, H, Fr, G1Affine>,
-    pub(crate) random_widgets:
-        Vec<Box<dyn ProverRandomWidget<'a, Fr = Fr, G1 = G1Affine, Hasher = H>>>,
-    pub(crate) transition_widgets: Vec<Box<dyn TransitionWidgetBase<'a, Hasher = H, Field = Fr>>>,
+    pub(crate) key: Rc<RefCell<ProvingKey<Fr, G1Affine>>>,
+    pub(crate) queue: WorkQueue<H, Fr, G1Affine>,
+    pub(crate) random_widgets: Vec<Box<dyn ProverRandomWidget<Fr = Fr, G1 = G1Affine, Hasher = H>>>,
+    pub(crate) transition_widgets: Vec<Box<dyn TransitionWidgetBase<Hasher = H, Field = Fr>>>,
     pub(crate) commitment_scheme: KateCommitmentScheme<H, Fq, Fr, G1Affine>,
     pub(crate) settings: S,
     phantom: PhantomData<Fq>,
 }
 
 impl<
-        'a,
         H: BarretenHasher + Default,
         S: Settings<Hasher = H, Field = Fr, Group = G1Affine> + Default,
-    > Prover<'a, H, S>
+    > Prover<H, S>
 {
     /// Create a new prover.
     /// Parameters:
@@ -56,7 +54,7 @@ impl<
     /// Returns:
     /// - `Self` Prover.
     pub fn new(
-        input_key: Option<Rc<RefCell<ProvingKey<'a, Fr, G1Affine>>>>,
+        input_key: Option<Rc<RefCell<ProvingKey<Fr, G1Affine>>>>,
         input_manifest: Option<Manifest>,
         input_settings: Option<S>,
     ) -> Self {
@@ -88,8 +86,8 @@ impl<
     }
 }
 
-impl<'a, H: BarretenHasher + Default, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>>
-    Prover<'a, H, S>
+impl<H: BarretenHasher + Default, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>>
+    Prover<H, S>
 {
     fn copy_placeholder(&self) {
         todo!("LOOK AT THE COMMENTS IN PROVERBASE");
@@ -339,16 +337,16 @@ impl<'a, H: BarretenHasher + Default, S: Settings<Hasher = H, Field = Fr, Group 
         let mut quotient_poly_parts: Vec<&mut [Fr]> = Vec::new();
         {
             let key = self.key.borrow();
-            let mut poly0 = (*key.quotient_polynomial_parts[0]).borrow_mut();
+            let poly0 = (*key.quotient_polynomial_parts[0]).borrow_mut();
             let mut poly_sliced0 = [poly0[0]];
             quotient_poly_parts.push(&mut poly_sliced0);
-            let mut poly1 = (*key.quotient_polynomial_parts[1]).borrow_mut();
+            let poly1 = (*key.quotient_polynomial_parts[1]).borrow_mut();
             let mut poly_sliced1 = [poly1[0]];
             quotient_poly_parts.push(&mut poly_sliced1);
-            let mut poly2 = (*key.quotient_polynomial_parts[2]).borrow_mut();
+            let poly2 = (*key.quotient_polynomial_parts[2]).borrow_mut();
             let mut poly_sliced2 = [poly2[0]];
             quotient_poly_parts.push(&mut poly_sliced2);
-            let mut poly3 = (*key.quotient_polynomial_parts[3]).borrow_mut();
+            let poly3 = (*key.quotient_polynomial_parts[3]).borrow_mut();
             let mut poly_sliced3 = [poly3[0]];
             quotient_poly_parts.push(&mut poly_sliced3);
 
@@ -359,7 +357,7 @@ impl<'a, H: BarretenHasher + Default, S: Settings<Hasher = H, Field = Fr, Group 
                     quotient_poly_parts.as_mut_slice(),
                     &self.key.borrow().large_domain,
                     0,
-                );
+                )?;
 
             self.key
                 .borrow()
@@ -396,9 +394,13 @@ impl<'a, H: BarretenHasher + Default, S: Settings<Hasher = H, Field = Fr, Group 
     }
 
     /// note that this is never defined in barettenberg
-    fn add_polynomial_evaluations_to_transcript(&self) {}
+    fn add_polynomial_evaluations_to_transcript(&self) {
+        todo!("yeehaw")
+    }
     /// note that this is never defined in barettenberg
-    fn compute_batch_opening_polynomials(&self) {}
+    fn compute_batch_opening_polynomials(&self) {
+        todo!("yeehaw")
+    }
     /// - Compute wire commitments and add them to the transcript.
     /// - Add public_inputs from w_2_fft to transcript.
     fn compute_wire_commitments(&mut self) -> Result<()> {
@@ -619,10 +621,8 @@ impl<'a, H: BarretenHasher + Default, S: Settings<Hasher = H, Field = Fr, Group 
 
         {
             let key = self.key.borrow();
-            key.small_domain.compute_lagrange_polynomial_fft(
-                &mut lagrange_1_fft.coefficients,
-                &key.large_domain,
-            )?;
+            key.small_domain
+                .compute_lagrange_polynomial_fft(&mut lagrange_1_fft, &key.large_domain)?;
             for i in 0..8 {
                 lagrange_1_fft[4 * self.circuit_size + i] = lagrange_1_fft[i];
             }

@@ -30,19 +30,20 @@ use anyhow::{anyhow, Result};
 // mod test;
 
 #[derive(Debug)]
-pub struct Verifier<'a, H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>> {
+pub struct Verifier<H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>> {
     settings: S,
-    key: Rc<RefCell<VerificationKey<'a, Fr>>>,
+    key: Rc<RefCell<VerificationKey<Fr>>>,
     manifest: Manifest,
     kate_g1_elements: HashMap<String, G1Affine>,
     kate_fr_elements: HashMap<String, Fr>,
-    commitment_scheme: Box<KateCommitmentScheme<H, Fq, Fr, G1Affine>>,
+    pub(crate) commitment_scheme: Box<KateCommitmentScheme<H, Fq, Fr, G1Affine>>,
 }
 
-impl<'a, H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>>
-    Verifier<'a, H, S>
-{
-    pub fn new(_verifier_key: Option<Rc<VerificationKey<'a, Fr>>>, _manifest: Manifest) -> Self {
+impl<H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>> Verifier<H, S> {
+    pub fn new(
+        _verifier_key: Option<Rc<RefCell<VerificationKey<Fr>>>>,
+        _manifest: Manifest,
+    ) -> Self {
         // Implement constructor logic here.
         todo!("Verifier::new")
     }
@@ -123,7 +124,7 @@ impl<'a, H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine
         // where Z_H*(X) is the modified vanishing polynomial.
 
         // Compute ʓ^n.
-        let z_pow_n = zeta.pow(&[(*self.key).borrow().domain.size as u64]);
+        let z_pow_n = zeta.pow([(*self.key).borrow().domain.size as u64]);
         (*self.key).borrow_mut().z_pow_n = z_pow_n;
 
         // compute the quotient polynomial numerator contribution
@@ -181,7 +182,7 @@ impl<'a, H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine
             &(*self.key).borrow(),
             &alpha,
             &transcript,
-            &mut self.kate_fr_elements,
+            &self.kate_fr_elements,
         );
 
         // Fetch the group elements [W_z]_1,[W_zω]_1 from the transcript
@@ -204,13 +205,13 @@ impl<'a, H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine
 
         // Accumulate pairs of scalars and group elements which would be used in the final pairing check.
         self.kate_g1_elements
-            .insert("PI_Z_OMEGA".to_string(), pi_z_omega.into());
+            .insert("PI_Z_OMEGA".to_string(), pi_z_omega);
         self.kate_fr_elements.insert(
             "PI_Z_OMEGA".to_string(),
             zeta * (*self.key).borrow().domain.root * separator_challenge,
         );
 
-        self.kate_g1_elements.insert("PI_Z".to_owned(), pi_z.into());
+        self.kate_g1_elements.insert("PI_Z".to_owned(), pi_z);
         self.kate_fr_elements.insert("PI_Z".to_owned(), zeta);
 
         // Initialize vectors for scalars and elements
@@ -305,6 +306,7 @@ impl<'a, H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine
             (*self.key)
                 .borrow()
                 .reference_string
+                .borrow()
                 .get_precomputed_g2_lines()
                 .as_ref(),
             2,

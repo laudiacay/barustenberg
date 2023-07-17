@@ -1,5 +1,7 @@
 use ark_ff::{batch_inversion, FftField, Field};
 
+use anyhow::Result;
+
 use crate::{common::max_threads::compute_num_threads, numeric::bitop::Msb};
 
 pub(crate) struct LagrangeEvaluations<Fr: Field + FftField> {
@@ -26,18 +28,20 @@ fn is_power_of_two_usize(x: usize) -> bool {
     x != 0 && (x & (x - 1)) == 0
 }
 
-pub(crate) fn copy_polynomial<Fr: Copy + Default>(
-    src: &[Fr],
-    dest: &mut [Fr],
+pub(crate) fn copy_polynomial<Fr: Field + FftField + Copy + Default>(
+    src: &Polynomial<Fr>,
+    dest: &mut Polynomial<Fr>,
     num_src_coefficients: usize,
     num_target_coefficients: usize,
 ) {
     // TODO: fiddle around with avx asm to see if we can speed up
-    dest[..num_src_coefficients].copy_from_slice(&src[..num_src_coefficients]);
+    dest.coefficients[..num_src_coefficients]
+        .copy_from_slice(&src.coefficients[..num_src_coefficients]);
 
     if num_target_coefficients > num_src_coefficients {
         // fill out the polynomial coefficients with zeroes
         for item in dest
+            .coefficients
             .iter_mut()
             .take(num_target_coefficients)
             .skip(num_src_coefficients)
@@ -102,7 +106,7 @@ fn fft_inner_serial<Fr: Copy + Default + Add<Output = Fr> + Sub<Output = Fr> + M
     }
 }
 
-impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
+impl<Fr: Field + FftField> EvaluationDomain<Fr> {
     /// modifies target[..generator_size]
     fn scale_by_generator_inplace(
         &self,
@@ -753,7 +757,7 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
         coeffs: &mut [&mut [Fr]],
         target_domain: &EvaluationDomain<Fr>,
         num_roots_cut_out_of_vanishing_polynomial: usize,
-    ) {
+    ) -> Result<()> {
         // Older version:
         // the PLONK divisor polynomial is equal to the vanishing polynomial divided by the vanishing polynomial for the
         // last subgroup element Z_H(X) = \prod_{i=1}^{n-1}(X - w^i) = (X^n - 1) / (X - w^{n-1}) i.e. we divide by vanishing
@@ -852,7 +856,8 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
                     }
                 }
             }
-        }
+        };
+        Ok(())
     }
 
     /// Computes evaluations of vanishing polynomial Z_H, l_start, l_end at ʓ.
@@ -974,8 +979,8 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
     /// L_i(X), we perform a (k*i)-left-shift of this vector.
     pub(crate) fn compute_lagrange_polynomial_fft(
         &self,
-        l_1_coefficients: &mut Vec<Fr>,
-        target_domain: &EvaluationDomain<'a, Fr>,
+        l_1_coefficients: &mut Polynomial<Fr>,
+        target_domain: &EvaluationDomain<Fr>,
     ) -> anyhow::Result<()> {
         // Step 1: Compute the 1/denominator for each evaluation: 1 / (X_i - 1)
         let multiplicand = target_domain.root; // kn'th root of unity w'
@@ -992,7 +997,7 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
         }
 
         // Compute 1/(X_i - 1) using Montgomery batch inversion
-        batch_inversion(l_1_coefficients.as_mut_slice());
+        batch_inversion(l_1_coefficients.coefficients.as_mut_slice());
 
         // Step 2: Compute numerator (1/n)*(X_i^n - 1)
         // First compute X_i^n (which forms a multiplicative subgroup of order k)
@@ -1048,10 +1053,10 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
 
         denominators[0] = *z - Fr::one();
         let mut work_root = self.root_inverse; // ω^{-1}
-        for i in 1..num_coeffs {
-            denominators[i] = work_root * *z; // denominators[i] will correspond to L_[i+1] (since our 'commented maths' notation indexes
-                                              // L_i from 1). So ʓ.ω^{-i} = ʓ.ω^{1-(i+1)} is correct for L_{i+1}.
-            denominators[i] -= Fr::one();
+        for denominator in denominators.iter_mut().take(num_coeffs).skip(1) {
+            *denominator = work_root * *z; // denominators[i] will correspond to L_[i+1] (since our 'commented maths' notation indexes
+                                           // L_i from 1). So ʓ.ω^{-i} = ʓ.ω^{1-(i+1)} is correct for L_{i+1}.
+            *denominator -= Fr::one();
             work_root *= self.root_inverse;
         }
 
@@ -1079,7 +1084,7 @@ impl<'a, Fr: Field + FftField> EvaluationDomain<'a, Fr> {
         let m = self.size >> 1;
         let round_roots = &self.get_round_roots()[m.get_msb() - 1];
 
-        let mut current_root = Fr::zero();
+        let mut current_root;
         for i in 0..m {
             current_root = round_roots[i];
             current_root *= if is_coset { self.generator } else { Fr::one() };
@@ -1143,7 +1148,7 @@ pub(crate) fn compute_interpolation<Fr: Field + FftField>(
 ) {
     let mut local_roots = Vec::new();
     let mut local_polynomial = vec![Fr::zero(); n];
-    let mut denominator = Fr::one();
+    let mut denominator;
     let mut multiplicand;
 
     if n == 1 {
@@ -1157,7 +1162,7 @@ pub(crate) fn compute_interpolation<Fr: Field + FftField>(
                 continue;
             }
             local_roots.push(evaluation_points[j]);
-            denominator *= (evaluation_points[i] - evaluation_points[j]);
+            denominator *= evaluation_points[i] - evaluation_points[j];
         }
 
         compute_linear_polynomial_product(&local_roots, &mut local_polynomial, n - 1);
@@ -1332,11 +1337,11 @@ pub(crate) fn evaluate<F: Field>(coeffs: &[F], z: &F, n: usize) -> F {
 }
 
 // TODO: Should this be inside of `EvaluationDomain`?
-pub(crate) fn evaluate_from_fft<'a, F: Field + FftField>(
+pub(crate) fn evaluate_from_fft<F: Field + FftField>(
     poly_coset_fft: &[F],
-    large_domain: &EvaluationDomain<'a, F>,
+    large_domain: &EvaluationDomain<F>,
     z: &F,
-    small_domain: &EvaluationDomain<'a, F>,
+    small_domain: &EvaluationDomain<F>,
 ) -> F {
     let n = small_domain.size;
     let mut small_poly_coset_fft = vec![F::zero(); n];

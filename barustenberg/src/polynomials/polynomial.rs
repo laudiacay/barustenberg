@@ -128,6 +128,14 @@ impl<F: Field + FftField> Index<std::ops::RangeFrom<usize>> for Polynomial<F> {
     }
 }
 
+impl<F: Field + FftField> Index<std::ops::RangeTo<usize>> for Polynomial<F> {
+    type Output = [F];
+
+    fn index(&self, index: std::ops::RangeTo<usize>) -> &Self::Output {
+        &self.coefficients[index]
+    }
+}
+
 impl<F: Field + FftField> Polynomial<F> {
     // Evaluate the polynomial at a given point
     pub(crate) fn evaluate(&self, z: &F) -> F {

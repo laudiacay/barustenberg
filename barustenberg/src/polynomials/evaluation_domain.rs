@@ -1,13 +1,12 @@
 use ark_ff::{FftField, Field};
 
 use crate::numeric::bitop::Msb;
-use std::marker::PhantomData;
 use std::vec::Vec;
 
 pub(crate) const MIN_GROUP_PER_THREAD: usize = 4;
 
 #[derive(Debug, Default)]
-pub(crate) struct EvaluationDomain<'a, F: Field + FftField> {
+pub(crate) struct EvaluationDomain<F: Field + FftField> {
     /// n, always a power of 2
     pub(crate) size: usize,
     /// num_threads * thread_size = size
@@ -36,7 +35,6 @@ pub(crate) struct EvaluationDomain<'a, F: Field + FftField> {
     pub(crate) round_roots: Vec<std::ops::Range<usize>>,
     pub(crate) inverse_round_roots: Vec<std::ops::Range<usize>>,
     pub(crate) roots: Vec<F>,
-    pub(crate) phantom: PhantomData<&'a ()>,
 }
 
 fn compute_num_threads(size: usize) -> usize {
@@ -83,7 +81,7 @@ fn compute_num_threads(size: usize) -> usize {
 fn compute_lookup_table_single<Fr: Field + FftField>(
     input_root: &Fr,
     size: usize,
-    roots: &mut Vec<Fr>,
+    roots: &mut [Fr],
     roots_offset: usize,
     round_roots: &mut Vec<std::ops::Range<usize>>,
 ) {
@@ -108,7 +106,7 @@ fn compute_lookup_table_single<Fr: Field + FftField>(
     }
 }
 
-impl<'a, F: Field + FftField> EvaluationDomain<'a, F> {
+impl<F: Field + FftField> EvaluationDomain<F> {
     pub(crate) fn new(domain_size: usize, target_generator_size: Option<usize>) -> Self {
         let size = domain_size;
         let num_threads = compute_num_threads(size);
@@ -131,7 +129,7 @@ impl<'a, F: Field + FftField> EvaluationDomain<'a, F> {
         assert!((1 << log2_num_threads) == num_threads || (size == 0));
 
         EvaluationDomain {
-            size: size,
+            size,
             num_threads,
             thread_size,
             log2_size,
@@ -148,7 +146,6 @@ impl<'a, F: Field + FftField> EvaluationDomain<'a, F> {
             round_roots: Vec::new(),
             inverse_round_roots: Vec::new(),
             roots,
-            phantom: PhantomData,
         }
     }
 
@@ -192,5 +189,5 @@ impl<'a, F: Field + FftField> EvaluationDomain<'a, F> {
     }
 }
 
-pub(crate) type BarretenbergEvaluationDomain<'a> = EvaluationDomain<'a, ark_bn254::Fr>;
-pub(crate) type GrumpkinEvaluationDomain<'a> = EvaluationDomain<'a, grumpkin::Fr>;
+pub(crate) type BarretenbergEvaluationDomain = EvaluationDomain<ark_bn254::Fr>;
+pub(crate) type GrumpkinEvaluationDomain = EvaluationDomain<grumpkin::Fr>;
