@@ -2,10 +2,10 @@ use std::{cell::RefCell, rc::Rc};
 
 use ark_bn254::{G1Affine, G2Affine};
 
-use crate::ecc::MillerLines;
+use crate::{ecc::{MillerLines, curves::bn254_scalar_multiplication::Pippenger}, srs::io::read_transcript_g2};
 
 use super::{
-    pippenger_reference_string::Pippenger, ProverReferenceString, ReferenceStringFactory,
+    ProverReferenceString, ReferenceStringFactory,
     VerifierReferenceString,
 };
 
@@ -16,18 +16,20 @@ pub(crate) struct VerifierFileReferenceString {
 }
 
 impl VerifierFileReferenceString {
-    pub(crate) fn new(_path: &str) -> Self {
-        // Please replace the actual types and functions with ones that you have in your Rust codebase.
-        // let g2_x: G2Affine = read_transcript_g2(path);
-        // let precomputed_g2_lines: Vec<MillerLines> = vec![MillerLines::default(); 2];
+    pub(crate) fn new(path: &str) -> Self {
 
-        // precompute_miller_lines(g2_x, &mut precomputed_g2_lines[1]);
+        let g2_x: G2Affine = read_transcript_g2(path);
 
-        // Self {
-        //     g2_x,
-        //     precomputed_g2_lines,
-        // }
-        unimplemented!()
+        let mut precomputed_g2_lines_inner = vec![MillerLines::default(); 2];
+        precompute_miller_lines(G2Affine::one(), &mut precomputed_g2_lines_inner[0]);
+        precompute_miller_lines(g2_x, &mut precomputed_g2_lines_inner[1]);
+
+        let precomputed_g2_lines = Rc::new(precomputed_g2_lines_inner);
+
+        Self {
+            g2_x,
+            precomputed_g2_lines,
+        }
     }
 }
 
@@ -48,9 +50,13 @@ pub(crate) struct FileReferenceString {
 }
 
 impl FileReferenceString {
-    pub(crate) fn new(_num_points: usize, _path: &str) -> Self {
+    pub(crate) fn new(num_points: usize, path: &str) -> Self {
         // Implementation depends on your project.
-        todo!("FileReferenceString::new")
+        let pippenger = Pippenger::new(num_points, path);
+        Self {
+            num_points,
+            pippenger,
+        }
     }
 
     pub(crate) fn read_from_path(_path: &str) -> Result<Self, std::io::Error> {
