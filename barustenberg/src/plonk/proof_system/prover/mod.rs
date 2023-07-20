@@ -1,4 +1,4 @@
-use std::{cell::RefCell, rc::Rc};
+use std::sync::{Arc, RwLock};
 
 use ark_bn254::{Fq, Fr, G1Affine};
 use ark_ff::{Field, One, UniformRand, Zero};
@@ -34,8 +34,8 @@ mod test;
 #[derive(Debug)]
 pub struct Prover<H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>> {
     pub(crate) circuit_size: usize,
-    pub(crate) transcript: Rc<RefCell<Transcript<H>>>,
-    pub(crate) key: Rc<RefCell<ProvingKey<Fr>>>,
+    pub(crate) transcript: Arc<RwLock<Transcript<H>>>,
+    pub(crate) key: Arc<RwLock<ProvingKey<Fr>>>,
     pub(crate) queue: WorkQueue<H>,
     pub(crate) random_widgets: Vec<Box<dyn ProverRandomWidget<Fr = Fr, G1 = G1Affine, Hasher = H>>>,
     pub(crate) transition_widgets: Vec<Box<dyn TransitionWidgetBase<Hasher = H, Field = Fr>>>,
@@ -56,20 +56,20 @@ impl<
     /// Returns:
     /// - `Self` Prover.
     pub fn new(
-        input_key: Option<Rc<RefCell<ProvingKey<Fr>>>>,
+        input_key: Option<Arc<RwLock<ProvingKey<Fr>>>>,
         input_manifest: Option<Manifest>,
         input_settings: Option<S>,
     ) -> Self {
         let circuit_size = input_key
             .as_ref()
-            .map_or(0, |key| key.borrow().circuit_size);
-        let transcript = Rc::new(RefCell::new(Transcript::new(
+            .map_or(0, |key| key.read().unwrap().circuit_size);
+        let transcript = Arc::new(RwLock::new(Transcript::new(
             input_manifest,
             H::PrngOutputSize::USIZE,
         )));
         let input_key = match input_key {
             Some(ik) => ik,
-            None => Rc::new(RefCell::new(ProvingKey::default())),
+            None => Arc::new(RwLock::new(ProvingKey::default())),
         };
         let queue = WorkQueue::new(Some(input_key.clone()), Some(transcript.clone()));
         let settings = input_settings.unwrap_or_default();
@@ -90,7 +90,7 @@ impl<
 impl<H: BarretenHasher + Default, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>>
     Prover<H, S>
 {
-    fn copy_placeholder(&self) {
+    fn _copy_placeholder(&self) {
         todo!("LOOK AT THE COMMENTS IN PROVERBASE");
     }
 
@@ -104,7 +104,7 @@ impl<H: BarretenHasher + Default, S: Settings<Hasher = H, Field = Fr, Group = G1
     fn execute_preamble_round(&mut self, rng: &mut dyn RngCore) -> Result<()> {
         self.queue.flush_queue();
 
-        (*self.transcript).borrow_mut().add_element(
+        (*self.transcript).write().unwrap().add_element(
             "circuit_size",
             vec![
                 (self.circuit_size >> 24) as u8,
@@ -114,17 +114,20 @@ impl<H: BarretenHasher + Default, S: Settings<Hasher = H, Field = Fr, Group = G1
             ],
         );
 
-        (*self.transcript).borrow_mut().add_element(
+        (*self.transcript).write().unwrap().add_element(
             "public_input_size",
             vec![
-                (self.key.borrow().num_public_inputs >> 24) as u8,
-                (self.key.borrow().num_public_inputs >> 16) as u8,
-                (self.key.borrow().num_public_inputs >> 8) as u8,
-                (self.key.borrow().num_public_inputs) as u8,
+                (self.key.read().unwrap().num_public_inputs >> 24) as u8,
+                (self.key.read().unwrap().num_public_inputs >> 16) as u8,
+                (self.key.read().unwrap().num_public_inputs >> 8) as u8,
+                (self.key.read().unwrap().num_public_inputs) as u8,
             ],
         );
 
-        (*self.transcript).borrow_mut().apply_fiat_shamir("init");
+        (*self.transcript)
+            .write()
+            .unwrap()
+            .apply_fiat_shamir("init");
 
         // If this is a plookup proof, do not queue up an ifft on W_4 - we can only finish computing
         // the lagrange-base values in W_4 once eta has been generated.
@@ -138,11 +141,12 @@ impl<H: BarretenHasher + Default, S: Settings<Hasher = H, Field = Fr, Group = G1
             let wire_tag = format!("w_{}", i + 1);
             let wire_lagrange = self
                 .key
-                .borrow()
+                .read()
+                .unwrap()
                 .polynomial_store
                 .get(&format!("{}_lagrange", wire_tag))?
                 .clone();
-            let mut wire_lagrange = wire_lagrange.borrow_mut();
+            let mut wire_lagrange = wire_lagrange.write().unwrap();
 
             /*
             Adding zero knowledge to the witness polynomials.
@@ -202,10 +206,10 @@ impl<H: BarretenHasher + Default, S: Settings<Hasher = H, Field = Fr, Group = G1
 
         for widget in self.random_widgets.iter() {
             widget.compute_round_commitments(
-                &mut (*self.transcript).borrow_mut(),
+                &mut (*self.transcript).write().unwrap(),
                 1,
                 &mut self.queue,
-            );
+            )?;
         }
         Ok(())
     }
@@ -218,14 +222,14 @@ impl<H: BarretenHasher + Default, S: Settings<Hasher = H, Field = Fr, Group = G1
     fn execute_second_round(&mut self, rng: &mut dyn RngCore) -> Result<()> {
         self.queue.flush_queue();
 
-        (*self.transcript).borrow_mut().apply_fiat_shamir("eta");
+        (*self.transcript).write().unwrap().apply_fiat_shamir("eta");
 
         for widget in self.random_widgets.iter() {
             widget.compute_round_commitments(
-                &mut (*self.transcript).borrow_mut(),
+                &mut (*self.transcript).write().unwrap(),
                 2,
                 &mut self.queue,
-            );
+            )?;
         }
 
         // RAM/ROM memory subprotocol requires eta is generated before w_4 is comitted
@@ -235,10 +239,11 @@ impl<H: BarretenHasher + Default, S: Settings<Hasher = H, Field = Fr, Group = G1
 
             let w_4_lagrange = self
                 .key
-                .borrow()
+                .read()
+                .unwrap()
                 .polynomial_store
                 .get(&format!("{}_lagrange", wire_tag))?;
-            let mut w_4_lagrange = w_4_lagrange.borrow_mut();
+            let mut w_4_lagrange = w_4_lagrange.write().unwrap();
 
             // add randomness to w_4_lagrange
             let w_randomness = 3;
@@ -255,11 +260,13 @@ impl<H: BarretenHasher + Default, S: Settings<Hasher = H, Field = Fr, Group = G1
             // compute poly w_4 from w_4_lagrange and add it to the cache
             let mut w_4 = w_4_lagrange.clone();
             self.key
-                .borrow()
+                .read()
+                .unwrap()
                 .small_domain
                 .ifft_inplace(&mut w_4.coefficients);
             self.key
-                .borrow_mut()
+                .write()
+                .unwrap()
                 .polynomial_store
                 .put(wire_tag.to_string(), w_4);
 
@@ -268,10 +275,11 @@ impl<H: BarretenHasher + Default, S: Settings<Hasher = H, Field = Fr, Group = G1
                 work: work_queue::Work::ScalarMultiplication {
                     mul_scalars: self
                         .key
-                        .borrow()
+                        .read()
+                        .unwrap()
                         .polynomial_store
                         .get(&wire_tag.to_string())?,
-                    constant: Fr::from((self.key.borrow().circuit_size + 1) as u64),
+                    constant: Fr::from((self.key.read().unwrap().circuit_size + 1) as u64),
                 },
                 tag: "W_4".to_owned(),
             });
@@ -285,17 +293,20 @@ impl<H: BarretenHasher + Default, S: Settings<Hasher = H, Field = Fr, Group = G1
     /// - FFT the wires.
     ///
     /// *For example, standard composer executes permutation widget for z polynomial construction at this round.
-    fn execute_third_round(&mut self) {
+    fn execute_third_round(&mut self) -> Result<()> {
         self.queue.flush_queue();
 
-        (*self.transcript).borrow_mut().apply_fiat_shamir("beta");
+        (*self.transcript)
+            .write()
+            .unwrap()
+            .apply_fiat_shamir("beta");
 
         for widget in &mut self.random_widgets {
             widget.compute_round_commitments(
-                &mut (*self.transcript).borrow_mut(),
+                &mut (*self.transcript).write().unwrap(),
                 3,
                 &mut self.queue,
-            );
+            )?;
         }
 
         for i in 0..self.settings.program_width() {
@@ -305,28 +316,36 @@ impl<H: BarretenHasher + Default, S: Settings<Hasher = H, Field = Fr, Group = G1
                 tag: wire_tag,
             });
         }
+        Ok(())
     }
 
     /// Computes the quotient polynomial, then commits to its degree-n split parts.
     fn execute_fourth_round(&mut self, rng: &mut dyn RngCore) -> Result<()> {
         self.queue.flush_queue();
-        (*self.transcript).borrow_mut().apply_fiat_shamir("alpha");
+        (*self.transcript)
+            .write()
+            .unwrap()
+            .apply_fiat_shamir("alpha");
 
         let mut alpha_base = (*self.transcript)
-            .borrow_mut()
+            .write()
+            .unwrap()
             .get_challenge_field_element("alpha", None);
 
         // Compute FFT of lagrange polynomial L_1 (needed in random widgets only)
         self.compute_lagrange_1_fft()?;
 
         for widget in &mut self.random_widgets {
-            alpha_base =
-                widget.compute_quotient_contribution(alpha_base, &self.transcript.borrow());
+            alpha_base = widget
+                .compute_quotient_contribution(alpha_base, &self.transcript.read().unwrap())?;
         }
 
         for widget in &mut self.transition_widgets {
-            alpha_base =
-                widget.compute_quotient_contribution(alpha_base, &self.transcript.borrow(), rng);
+            alpha_base = widget.compute_quotient_contribution(
+                alpha_base,
+                &self.transcript.read().unwrap(),
+                rng,
+            );
         }
 
         // The parts of the quotient polynomial t(X) are stored as 4 separate polynomials in
@@ -337,40 +356,48 @@ impl<H: BarretenHasher + Default, S: Settings<Hasher = H, Field = Fr, Group = G1
         // TODO this does not work so good in rust. for now, we copy... is it still okay to do this?
         let mut quotient_poly_parts: Vec<&mut [Fr]> = Vec::new();
         {
-            let key = self.key.borrow();
-            let poly0 = (*key.quotient_polynomial_parts[0]).borrow_mut();
+            let key = self.key.read().unwrap();
+            let poly0 = (*key.quotient_polynomial_parts[0]).write().unwrap();
             let mut poly_sliced0 = [poly0[0]];
             quotient_poly_parts.push(&mut poly_sliced0);
-            let poly1 = (*key.quotient_polynomial_parts[1]).borrow_mut();
+            let poly1 = (*key.quotient_polynomial_parts[1]).write().unwrap();
             let mut poly_sliced1 = [poly1[0]];
             quotient_poly_parts.push(&mut poly_sliced1);
-            let poly2 = (*key.quotient_polynomial_parts[2]).borrow_mut();
+            let poly2 = (*key.quotient_polynomial_parts[2]).write().unwrap();
             let mut poly_sliced2 = [poly2[0]];
             quotient_poly_parts.push(&mut poly_sliced2);
-            let poly3 = (*key.quotient_polynomial_parts[3]).borrow_mut();
+            let poly3 = (*key.quotient_polynomial_parts[3]).write().unwrap();
             let mut poly_sliced3 = [poly3[0]];
             quotient_poly_parts.push(&mut poly_sliced3);
 
             self.key
-                .borrow()
+                .read()
+                .unwrap()
                 .small_domain
                 .divide_by_pseudo_vanishing_polynomial(
                     quotient_poly_parts.as_mut_slice(),
-                    &self.key.borrow().large_domain,
+                    &self.key.read().unwrap().large_domain,
                     0,
                 )?;
 
             self.key
-                .borrow()
+                .read()
+                .unwrap()
                 .large_domain
                 .coset_ifft_vec(quotient_poly_parts.as_mut_slice());
         }
         // Manually copy the (n + 1)th coefficient of t_3 for StandardPlonk from t_4.
         // This is because the degree of t_3 for StandardPlonk is n.
         if self.settings.program_width() == 3 {
-            self.key.borrow().quotient_polynomial_parts[2].borrow_mut()[self.circuit_size] =
-                self.key.borrow().quotient_polynomial_parts[3].borrow_mut()[0];
-            self.key.borrow().quotient_polynomial_parts[3].borrow_mut()[0] = Fr::zero();
+            self.key.read().unwrap().quotient_polynomial_parts[2]
+                .write()
+                .unwrap()[self.circuit_size] = self.key.read().unwrap().quotient_polynomial_parts
+                [3]
+            .write()
+            .unwrap()[0];
+            self.key.read().unwrap().quotient_polynomial_parts[3]
+                .write()
+                .unwrap()[0] = Fr::zero();
         }
 
         self.add_blinding_to_quotient_polynomial_parts(rng);
@@ -380,26 +407,26 @@ impl<H: BarretenHasher + Default, S: Settings<Hasher = H, Field = Fr, Group = G1
     }
     fn execute_fifth_round(&mut self) -> Result<()> {
         self.queue.flush_queue();
-        (*self.transcript).borrow_mut().apply_fiat_shamir("z"); // end of 4th round
+        (*self.transcript).write().unwrap().apply_fiat_shamir("z"); // end of 4th round
         self.compute_quotient_evaluation()
     }
 
     fn execute_sixth_round(&mut self) {
         self.queue.flush_queue();
-        (*self.transcript).borrow_mut().apply_fiat_shamir("nu");
+        (*self.transcript).write().unwrap().apply_fiat_shamir("nu");
         self.commitment_scheme.batch_open(
-            &(*self.transcript).borrow(),
+            &(*self.transcript).read().unwrap(),
             &mut self.queue,
             Some(self.key.clone()),
         );
     }
 
     /// note that this is never defined in barettenberg
-    fn add_polynomial_evaluations_to_transcript(&self) {
+    fn _add_polynomial_evaluations_to_transcript(&self) {
         todo!("yeehaw")
     }
     /// note that this is never defined in barettenberg
-    fn compute_batch_opening_polynomials(&self) {
+    fn _compute_batch_opening_polynomials(&self) {
         todo!("yeehaw")
     }
     /// - Compute wire commitments and add them to the transcript.
@@ -411,7 +438,7 @@ impl<H: BarretenHasher + Default, S: Settings<Hasher = H, Field = Fr, Group = G1
         } else {
             self.settings.program_width()
         };
-        let key = self.key.borrow();
+        let key = self.key.read().unwrap();
         for i in 0..end {
             let wire_tag = format!("w_{}", i + 1);
             let commit_tag = format!("W_{}", i + 1);
@@ -435,10 +462,11 @@ impl<H: BarretenHasher + Default, S: Settings<Hasher = H, Field = Fr, Group = G1
         let public_wires_source = key.polynomial_store.get(&"w_2_lagrange".to_string())?;
         let mut public_wires = vec![];
         for i in 0..key.num_public_inputs {
-            public_wires.push(public_wires_source.borrow()[i]);
+            public_wires.push(public_wires_source.read().unwrap()[i]);
         }
         (*self.transcript)
-            .borrow_mut()
+            .write()
+            .unwrap()
             .put_field_element_vector("public_inputs", &public_wires);
         Ok(())
     }
@@ -482,7 +510,7 @@ impl<H: BarretenHasher + Default, S: Settings<Hasher = H, Field = Fr, Group = G1
     /// computing the commitments to these polynomials.
     ///
     fn compute_quotient_commitments(&mut self) {
-        let key = self.key.borrow();
+        let key = self.key.read().unwrap();
         for i in 0..self.settings.program_width() {
             let coefficients = key.quotient_polynomial_parts[i].clone();
             let quotient_tag = format!("T_{}", i + 1);
@@ -502,30 +530,30 @@ impl<H: BarretenHasher + Default, S: Settings<Hasher = H, Field = Fr, Group = G1
             );
         }
     }
-    fn init_quotient_polynomials(&self) {
+    fn _init_quotient_polynomials(&self) {
         todo!("yeehaw")
     }
-    fn compute_opening_elements(&self) {
+    fn _compute_opening_elements(&self) {
         todo!("yeehaw")
     }
     fn add_plookup_memory_records_to_w_4(&mut self) -> Result<()> {
         // We can only compute memory record values once W_1, W_2, W_3 have been comitted to,
         // due to the dependence on the `eta` challenge.
 
-        let eta: Fr = (*self.transcript).borrow_mut().get_field_element("eta");
-        let key = self.key.borrow();
+        let eta: Fr = (*self.transcript).write().unwrap().get_field_element("eta");
+        let key = self.key.read().unwrap();
 
         // We need the lagrange-base forms of the first 3 wires to compute the plookup memory record
         // value. w4 = w3 * eta^3 + w2 * eta^2 + w1 * eta + read_write_flag;
         // a RAM write. See plookup_auxiliary_widget.hpp for details)
         let w_1 = key.polynomial_store.get(&"w_1_lagrange".to_string())?;
-        let w_1 = w_1.borrow();
+        let w_1 = w_1.read().unwrap();
         let w_2 = key.polynomial_store.get(&"w_2_lagrange".to_string())?;
-        let w_2 = w_2.borrow();
+        let w_2 = w_2.read().unwrap();
         let w_3 = key.polynomial_store.get(&"w_3_lagrange".to_string())?;
-        let w_3 = w_3.borrow();
+        let w_3 = w_3.read().unwrap();
         let w_4 = key.polynomial_store.get(&"w_4_lagrange".to_string())?;
-        let mut w_4 = w_4.borrow_mut();
+        let mut w_4 = w_4.write().unwrap();
         for gate_idx in key.memory_read_records.iter() {
             w_4[*gate_idx] += w_3[*gate_idx];
             w_4[*gate_idx] *= eta;
@@ -547,23 +575,26 @@ impl<H: BarretenHasher + Default, S: Settings<Hasher = H, Field = Fr, Group = G1
     }
 
     fn compute_quotient_evaluation(&self) -> Result<()> {
-        let key = self.key.borrow();
+        let key = self.key.read().unwrap();
 
-        let zeta = (*self.transcript).borrow_mut().get_field_element("zeta");
+        let zeta = (*self.transcript)
+            .write()
+            .unwrap()
+            .get_field_element("zeta");
 
         self.commitment_scheme
             .add_opening_evaluations_to_transcript(
-                &mut (*self.transcript).borrow_mut(),
+                &mut (*self.transcript).write().unwrap(),
                 Some(self.key.clone()),
                 false,
             );
 
         let mut t_eval = polynomial_arithmetic::evaluate(
             &[
-                key.quotient_polynomial_parts[0].borrow()[0],
-                key.quotient_polynomial_parts[1].borrow()[0],
-                key.quotient_polynomial_parts[2].borrow()[0],
-                key.quotient_polynomial_parts[3].borrow()[0],
+                key.quotient_polynomial_parts[0].read().unwrap()[0],
+                key.quotient_polynomial_parts[1].read().unwrap()[0],
+                key.quotient_polynomial_parts[2].read().unwrap()[0],
+                key.quotient_polynomial_parts[3].read().unwrap()[0],
             ],
             &zeta,
             4 * self.circuit_size,
@@ -580,12 +611,13 @@ impl<H: BarretenHasher + Default, S: Settings<Hasher = H, Field = Fr, Group = G1
             self.settings.program_width() - 1
         };
         for j in 0..num_deg_n_poly {
-            t_eval += key.quotient_polynomial_parts[j].borrow()[key.circuit_size] * scalar;
+            t_eval += key.quotient_polynomial_parts[j].read().unwrap()[key.circuit_size] * scalar;
             scalar *= zeta_pow_n;
         }
 
         (*self.transcript)
-            .borrow_mut()
+            .write()
+            .unwrap()
             .add_field_element("t", &t_eval);
         Ok(())
     }
@@ -605,13 +637,14 @@ impl<H: BarretenHasher + Default, S: Settings<Hasher = H, Field = Fr, Group = G1
         //              t_4 = t_4' - b_2
         //
         // For details, please head to: https://hackmd.io/JiyexiqRQJW55TMRrBqp1g.
-        let key = self.key.borrow();
+        let key = self.key.read().unwrap();
         for i in 0..self.settings.program_width() - 1 {
             // Note that only program_width-1 random elements are required for full blinding
             let quotient_randomness = Fr::rand(rng);
 
-            key.quotient_polynomial_parts[i].borrow_mut()[key.circuit_size] += quotient_randomness; // update coefficient of X^n'th term
-            key.quotient_polynomial_parts[i + 1].borrow_mut()[0] -= quotient_randomness;
+            key.quotient_polynomial_parts[i].write().unwrap()[key.circuit_size] +=
+                quotient_randomness; // update coefficient of X^n'th term
+            key.quotient_polynomial_parts[i + 1].write().unwrap()[0] -= quotient_randomness;
             // update constant coefficient
         }
     }
@@ -621,7 +654,7 @@ impl<H: BarretenHasher + Default, S: Settings<Hasher = H, Field = Fr, Group = G1
         let mut lagrange_1_fft: Polynomial<Fr> = Polynomial::new(4 * self.circuit_size + 8);
 
         {
-            let key = self.key.borrow();
+            let key = self.key.read().unwrap();
             key.small_domain
                 .compute_lagrange_polynomial_fft(&mut lagrange_1_fft, &key.large_domain)?;
             for i in 0..8 {
@@ -629,7 +662,8 @@ impl<H: BarretenHasher + Default, S: Settings<Hasher = H, Field = Fr, Group = G1
             }
         }
         self.key
-            .borrow_mut()
+            .write()
+            .unwrap()
             .polynomial_store
             .put("lagrange_1_fft".to_string(), lagrange_1_fft);
 
@@ -639,7 +673,7 @@ impl<H: BarretenHasher + Default, S: Settings<Hasher = H, Field = Fr, Group = G1
     /// export the proof from the prover's transcript
     pub fn export_proof(&self) -> Proof {
         Proof {
-            proof_data: (*self.transcript).borrow_mut().export_transcript(),
+            proof_data: (*self.transcript).write().unwrap().export_transcript(),
         }
     }
 
@@ -661,7 +695,7 @@ impl<H: BarretenHasher + Default, S: Settings<Hasher = H, Field = Fr, Group = G1
 
         // Fiat-Shamir beta & gamma, execute random widgets (Permutation widget is executed here)
         // and fft the witnesses
-        self.execute_third_round();
+        self.execute_third_round()?;
         self.queue.process_queue()?;
 
         // Fiat-Shamir alpha, compute & commit to quotient polynomial.
@@ -684,10 +718,10 @@ impl<H: BarretenHasher + Default, S: Settings<Hasher = H, Field = Fr, Group = G1
 
     /// Reset the transcript to the initial state
     fn reset(&mut self) {
-        let manifest = (*self.transcript).borrow_mut().get_manifest();
-        *(*self.transcript).borrow_mut() = Transcript::<H>::new(
+        let manifest = (*self.transcript).write().unwrap().get_manifest();
+        *(*self.transcript).write().unwrap() = Transcript::<H>::new(
             Some(manifest),
-            (*self.transcript).borrow().num_challenge_bytes,
+            (*self.transcript).read().unwrap().num_challenge_bytes,
         );
     }
 }

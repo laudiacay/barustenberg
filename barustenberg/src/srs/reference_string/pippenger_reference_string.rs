@@ -1,4 +1,4 @@
-use std::{cell::RefCell, rc::Rc, sync::Arc};
+use std::sync::{Arc, RwLock};
 
 use ark_bn254::G1Affine;
 
@@ -28,7 +28,7 @@ impl ProverReferenceString for PippengerReferenceString {
         todo!()
     }
 
-    fn get_monomial_points(&self) -> Rc<Vec<G1Affine>> {
+    fn get_monomial_points(&self) -> Arc<Vec<G1Affine>> {
         // will we mutate self here?
         todo!()
     }
@@ -50,14 +50,14 @@ impl<'a> ReferenceStringFactory for PippengerReferenceStringFactory<'a> {
     type Pro = PippengerReferenceString;
     type Ver = VerifierMemReferenceString;
 
-    fn get_prover_crs(&self, degree: usize) -> Result<Option<Rc<RefCell<Self::Pro>>>> {
+    fn get_prover_crs(&self, degree: usize) -> Result<Option<Arc<RwLock<Self::Pro>>>> {
         assert!(degree <= self.pippenger.get_num_points());
-        Ok(Some(Rc::new(RefCell::new(PippengerReferenceString::new(
+        Ok(Some(Arc::new(RwLock::new(PippengerReferenceString::new(
             self.pippenger.clone(),
         )))))
     }
-    fn get_verifier_crs(&self) -> Result<Option<Rc<RefCell<Self::Ver>>>> {
-        Ok(Some(Rc::new(RefCell::new(
+    fn get_verifier_crs(&self) -> Result<Option<Arc<RwLock<Self::Ver>>>> {
+        Ok(Some(Arc::new(RwLock::new(
             VerifierMemReferenceString::new(self.g2x),
         ))))
     }

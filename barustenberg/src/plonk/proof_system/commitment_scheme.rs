@@ -1,7 +1,6 @@
-use std::cell::RefCell;
 use std::collections::HashMap;
 use std::marker::PhantomData;
-use std::rc::Rc;
+use std::sync::{Arc, RwLock};
 
 use ark_bn254::{Fq, Fr, G1Affine};
 use ark_ec::AffineRepr;
@@ -24,7 +23,7 @@ pub(crate) trait CommitmentScheme {
     type Hasher: BarretenHasher;
     fn commit(
         &mut self,
-        coefficients: Rc<RefCell<Polynomial<Self::Fr>>>,
+        coefficients: Arc<RwLock<Polynomial<Self::Fr>>>,
         tag: String,
         item_constant: Self::Fr,
         queue: &mut WorkQueue<Self::Hasher>,
@@ -42,7 +41,7 @@ pub(crate) trait CommitmentScheme {
     fn generic_batch_open(
         &mut self,
         src: &[Self::Fr],
-        dest: Rc<RefCell<Polynomial<Self::Fr>>>,
+        dest: Arc<RwLock<Polynomial<Self::Fr>>>,
         num_polynomials: usize,
         z_points: &[Self::Fr],
         num_z_points: usize,
@@ -57,7 +56,7 @@ pub(crate) trait CommitmentScheme {
         &mut self,
         transcript: &Transcript<Self::Hasher>,
         queue: &mut WorkQueue<Self::Hasher>,
-        input_key: Option<Rc<RefCell<ProvingKey<Self::Fr>>>>,
+        input_key: Option<Arc<RwLock<ProvingKey<Self::Fr>>>>,
     );
 
     fn batch_verify(
@@ -71,7 +70,7 @@ pub(crate) trait CommitmentScheme {
     fn add_opening_evaluations_to_transcript(
         &self,
         transcript: &mut Transcript<Self::Hasher>,
-        input_key: Option<Rc<RefCell<ProvingKey<Self::Fr>>>>,
+        input_key: Option<Arc<RwLock<ProvingKey<Self::Fr>>>>,
         in_lagrange_form: bool,
     );
 }
@@ -106,7 +105,7 @@ impl<H: BarretenHasher> CommitmentScheme for KateCommitmentScheme<H, Fq, Fr, G1A
 
     fn commit(
         &mut self,
-        coefficients: Rc<RefCell<Polynomial<Fr>>>,
+        coefficients: Arc<RwLock<Polynomial<Fr>>>,
         tag: String,
         item_constant: Fr,
         queue: &mut WorkQueue<H>,
@@ -123,7 +122,7 @@ impl<H: BarretenHasher> CommitmentScheme for KateCommitmentScheme<H, Fq, Fr, G1A
     fn add_opening_evaluations_to_transcript(
         &self,
         _transcript: &mut Transcript<H>,
-        _input_key: Option<Rc<RefCell<ProvingKey<Self::Fr>>>>,
+        _input_key: Option<Arc<RwLock<ProvingKey<Self::Fr>>>>,
         _in_lagrange_form: bool,
     ) {
         todo!()
@@ -136,7 +135,7 @@ impl<H: BarretenHasher> CommitmentScheme for KateCommitmentScheme<H, Fq, Fr, G1A
     fn generic_batch_open(
         &mut self,
         src: &[Fr],
-        dest: Rc<RefCell<Polynomial<Fr>>>,
+        dest: Arc<RwLock<Polynomial<Fr>>>,
         num_polynomials: usize,
         z_points: &[Fr],
         num_z_points: usize,
@@ -180,7 +179,7 @@ impl<H: BarretenHasher> CommitmentScheme for KateCommitmentScheme<H, Fq, Fr, G1A
 
         for i in 0..num_z_points {
             {
-                let mut dest_mut = dest.borrow_mut();
+                let mut dest_mut = dest.write().unwrap();
                 let challenge = challenges[i];
                 let divisor = divisors[i];
                 let src_offset = i * n * num_polynomials;
@@ -227,7 +226,7 @@ impl<H: BarretenHasher> CommitmentScheme for KateCommitmentScheme<H, Fq, Fr, G1A
         &mut self,
         _transcript: &Transcript<H>,
         _queue: &mut WorkQueue<H>,
-        _input_key: Option<Rc<RefCell<ProvingKey<Self::Fr>>>>,
+        _input_key: Option<Arc<RwLock<ProvingKey<Self::Fr>>>>,
     ) {
         todo!()
     }

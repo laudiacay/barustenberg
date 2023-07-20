@@ -36,18 +36,16 @@ fn get_transcript_size(manifest: &Manifest) -> usize {
 
 fn read_manifest(filename: &str) -> Result<Manifest> {
     let mut file = File::open(filename)?;
-    let mut manifest = Manifest::default(); // Make sure your Manifest struct implements Default
 
-    // Here you need to call file.read_u32::<BigEndian>()? for each field in Manifest
-    manifest.transcript_number = file.read_u32::<BigEndian>()?;
-    manifest.total_transcripts = file.read_u32::<BigEndian>()?;
-    manifest.total_g1_points = file.read_u32::<BigEndian>()?;
-    manifest.total_g2_points = file.read_u32::<BigEndian>()?;
-    manifest.num_g1_points = file.read_u32::<BigEndian>()?;
-    manifest.num_g2_points = file.read_u32::<BigEndian>()?;
-    manifest.start_from = file.read_u32::<BigEndian>()?;
-
-    Ok(manifest)
+    Ok(Manifest {
+        transcript_number: file.read_u32::<BigEndian>()?,
+        total_transcripts: file.read_u32::<BigEndian>()?,
+        total_g1_points: file.read_u32::<BigEndian>()?,
+        total_g2_points: file.read_u32::<BigEndian>()?,
+        num_g1_points: file.read_u32::<BigEndian>()?,
+        num_g2_points: file.read_u32::<BigEndian>()?,
+        start_from: file.read_u32::<BigEndian>()?,
+    })
 }
 
 fn write_manifest(filename: &str, manifest: &Manifest) -> Result<()> {
@@ -68,9 +66,9 @@ fn write_manifest(filename: &str, manifest: &Manifest) -> Result<()> {
 fn read_elements_from_buffer<G: AffineRepr>(elements: &mut [G], buffer: &[u8]) {
     // cursor on the buffer
     let cursor = &mut &buffer[..];
-    for i in 0..elements.len() {
+    for this_elem in elements.iter_mut() {
         if let Ok(element) = G::deserialize_uncompressed(&mut *cursor) {
-            elements[i] = element;
+            *this_elem = element;
         } else {
             break;
         }
@@ -113,7 +111,7 @@ fn is_file_exist(file_name: &str) -> bool {
 }
 
 pub(crate) fn read_transcript_g1(
-    monomials: &mut Vec<G1Affine>,
+    monomials: &mut [G1Affine],
     degree: usize,
     dir: &str,
 ) -> Result<()> {
@@ -196,7 +194,7 @@ pub(crate) fn read_transcript_g2(g2_x: &mut G2Affine, dir: &str) -> Result<()> {
 }
 
 fn read_transcript(
-    monomials: &mut Vec<G1Affine>,
+    monomials: &mut [G1Affine],
     g2_x: &mut G2Affine,
     degree: usize,
     path: &str,
