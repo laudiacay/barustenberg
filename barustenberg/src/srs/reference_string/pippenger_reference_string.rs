@@ -2,18 +2,9 @@ use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 use ark_bn254::G1Affine;
 
-use crate::srs::reference_string::{ProverReferenceString, ReferenceStringFactory};
+use crate::{srs::reference_string::{ProverReferenceString, ReferenceStringFactory}, ecc::curves::bn254_scalar_multiplication::{generate_pippenger_point_table, Pippenger}};
 
 use super::mem_reference_string::VerifierMemReferenceString;
-
-#[derive(Clone, Debug, Default)]
-pub(crate) struct Pippenger {}
-
-impl Pippenger {
-    pub(crate) fn get_num_points(&self) -> usize {
-        todo!()
-    }
-}
 
 #[derive(Debug)]
 pub(crate) struct PippengerReferenceString {

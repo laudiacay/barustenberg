@@ -1,8 +1,10 @@
-use std::marker::PhantomData;
+use ark_bn254::{Fq, Fr};
 
 use ark_bn254::{G1Affine, G1Projective};
 use ark_ec::AffineRepr;
 use ark_ff::{FftField, Field, Zero};
+
+use crate::srs::io::read_transcript_g1;
 
 pub(crate) type G1AffineGroup = <ark_ec::short_weierstrass::Affine<
     <ark_bn254::Config as ark_ec::bn::BnConfig>::G1Config,
@@ -30,31 +32,63 @@ pub(crate) fn is_point_at_infinity(point: &G1Projective) -> bool {
     !(point.x.is_zero() && point.y.is_zero()) && point.z.is_zero()
 }
 
-#[derive(Clone, Default, Debug)]
-pub(crate) struct PippengerRuntimeState<Fr: Field + FftField, G: AffineRepr> {
-    phantom: PhantomData<(Fr, G)>,
+#[derive(Clone, Debug, Default)]
+pub(crate) struct Pippenger {
+    monomials: Vec<G1Affine>,
+    num_points: usize,
 }
 
-impl<Fr: Field + FftField, G: AffineRepr> PippengerRuntimeState<Fr, G> {
+impl Pippenger {
+    pub(crate) fn get_num_points(&self) -> usize {
+        todo!()
+    }
+
+    pub(crate) fn from_points(_points: &[G1Affine], num_points: usize) -> Self {
+        todo!()
+    }
+
+    pub(crate) fn from_path(path: &str, num_points: usize) -> Self {
+        let mut monomials = vec![G1Affine::default(); num_points];
+        read_transcript_g1(path, &mut monomials);
+        generate_pippenger_point_table(&mut monomials, &mut monomials, num_points);
+        Self { monomials, num_points}
+    }
+}
+
+#[derive(Clone, Default, Debug)]
+pub(crate) struct PippengerRuntimeState {
+    point_schedule: Vec<u64>,
+    skew_table: Vec<bool>,
+    point_pairs_1: Vec<G1Affine>,
+    point_pairs_2: Vec<G1Affine>,
+    scratch_space: Vec<Fq>,
+    bucket_counts: Vec<u32>,
+    bit_counts: Vec<u32>,
+    bucket_empty_status: Vec<bool>,
+    round_counts: Vec<u64>,
+    num_points: u64,
+}
+
+impl PippengerRuntimeState {
     pub(crate) fn new(_size: usize) -> Self {
         todo!()
     }
     pub(crate) fn pippenger_unsafe(
         &mut self,
         _mul_scalars: &mut [Fr],
-        _srs_points: &[G],
+        _srs_points: &[G1Affine],
         _msm_size: usize,
-    ) -> G {
+    ) -> G1Affine {
         todo!()
     }
 
     pub(crate) fn pippenger(
         &mut self,
         _scalars: &mut [Fr],
-        _points: &[G],
+        _points: &[G1Affine],
         _num_initial_points: usize,
         _handle_edge_cases: bool,
-    ) -> G {
+    ) -> G1Affine {
         todo!()
     }
 }
