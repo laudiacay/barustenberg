@@ -26,6 +26,10 @@ use anyhow::{ensure, Result};
 
 use crate::proof_system::work_queue::WorkQueue;
 
+#[cfg(test)]
+mod test;
+
+
 // todo https://doc.rust-lang.org/reference/const_eval.html
 /// Plonk prover.
 #[derive(Debug)]
