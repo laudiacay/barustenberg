@@ -7,10 +7,11 @@ use crate::{
             commitment_scheme::KateCommitmentScheme,
             proving_key::ProvingKey,
             types::prover_settings::StandardSettings,
+            utils::permutation::compute_permutation_lagrange_base_single,
             widgets::{
                 random_widgets::permutation_widget::ProverPermutationWidget,
                 transition_widgets::arithmetic_widget::ProverArithmeticWidget,
-            }, utils::permutation::compute_permutation_lagrange_base_single,
+            },
         },
     },
     polynomials::Polynomial,
