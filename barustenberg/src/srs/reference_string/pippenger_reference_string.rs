@@ -2,7 +2,10 @@ use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 use ark_bn254::G1Affine;
 
-use crate::{srs::reference_string::{ProverReferenceString, ReferenceStringFactory}, ecc::curves::bn254_scalar_multiplication::{generate_pippenger_point_table, Pippenger}};
+use crate::{
+    ecc::curves::bn254_scalar_multiplication::Pippenger,
+    srs::reference_string::{ProverReferenceString, ReferenceStringFactory},
+};
 
 use super::mem_reference_string::VerifierMemReferenceString;
 

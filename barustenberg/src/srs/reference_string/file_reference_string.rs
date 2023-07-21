@@ -2,12 +2,15 @@ use std::{cell::RefCell, rc::Rc};
 
 use ark_bn254::{G1Affine, G2Affine};
 
-use crate::{ecc::{MillerLines, curves::bn254_scalar_multiplication::Pippenger}, srs::io::read_transcript_g2};
-
-use super::{
-    ProverReferenceString, ReferenceStringFactory,
-    VerifierReferenceString,
+use crate::{
+    ecc::{
+        curves::{bn254_scalar_multiplication::Pippenger, pairings::precompute_miller_lines},
+        MillerLines,
+    },
+    srs::io::read_transcript_g2,
 };
+
+use super::{ProverReferenceString, ReferenceStringFactory, VerifierReferenceString};
 
 #[derive(Debug, Default)]
 pub(crate) struct VerifierFileReferenceString {
@@ -17,7 +20,6 @@ pub(crate) struct VerifierFileReferenceString {
 
 impl VerifierFileReferenceString {
     pub(crate) fn new(path: &str) -> Self {
-
         let g2_x: G2Affine = read_transcript_g2(path);
 
         let mut precomputed_g2_lines_inner = vec![MillerLines::default(); 2];

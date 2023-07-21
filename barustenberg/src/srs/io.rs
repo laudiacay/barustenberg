@@ -1,18 +1,29 @@
+use anyhow::{anyhow, Result};
+use ark_bn254::Fq;
+use ark_bn254::Fq2;
+use ark_bn254::{G1Affine, G2Affine};
+use byteorder::BigEndian;
+use byteorder::ReadBytesExt;
+use byteorder::WriteBytesExt;
 use std::cmp::min;
 use std::fs::File;
 use std::io::Read;
 use std::io::Seek;
 use std::io::SeekFrom;
 use std::path::Path;
-use ark_bn254::Fq;
-use ark_bn254::Fq2;
-use ark_bn254::{G1Affine, G2Affine};
-use byteorder::BigEndian;
-use byteorder::{ReadBytesExt};
-use anyhow::Result;
-use crate::transcript::Manifest;
 
 const BLAKE2B_CHECKSUM_LENGTH: usize = 64;
+
+#[derive(Debug, Default)]
+struct Manifest {
+    transcript_number: u32,
+    total_transcripts: u32,
+    total_g1_points: u32,
+    total_g2_points: u32,
+    num_g1_points: u32,
+    num_g2_points: u32,
+    start_from: u32,
+}
 
 fn get_transcript_size(manifest: &Manifest) -> usize {
     let manifest_size = std::mem::size_of::<Manifest>();
@@ -98,13 +109,23 @@ fn get_file_size(filename: &str) -> std::io::Result<u64> {
 }
 
 fn read_file_into_buffer(
-    buffer: &mut [u8], size: usize, filename: &str, offset: u64, amount: usize
+    buffer: &mut [u8],
+    size: usize,
+    filename: &str,
+    offset: u64,
+    amount: usize,
 ) -> std::io::Result<()> {
     let mut file = File::open(filename)?;
     file.seek(SeekFrom::Start(offset))?;
     let actual_size = file.read(buffer)?;
     if actual_size != size {
-        return Err(std::io::Error::new(std::io::ErrorKind::Other, format!("Only read {} bytes from file but expected {}.", actual_size, size)));
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            format!(
+                "Only read {} bytes from file but expected {}.",
+                actual_size, size
+            ),
+        ));
     }
     Ok(())
 }
@@ -117,11 +138,14 @@ fn is_file_exist(file_name: &str) -> bool {
     Path::new(file_name).exists()
 }
 
-
-pub(crate) fn read_transcript_g1(monomials: &mut Vec<G1Affine>, degree: usize, dir: &str) -> Result<()> {
+pub(crate) fn read_transcript_g1(
+    monomials: &mut Vec<G1Affine>,
+    degree: usize,
+    dir: &str,
+) -> Result<()> {
     let mut num = 0;
     let mut num_read = 0;
-    let mut path = get_transcript_path(dir, num)?;
+    let mut path = get_transcript_path(dir, num);
 
     while Path::new(&path).exists() && num_read < degree {
         let mut manifest = read_manifest(&path)?;
@@ -141,13 +165,11 @@ pub(crate) fn read_transcript_g1(monomials: &mut Vec<G1Affine>, degree: usize, d
         byteswap_g1(&mut monomial);
 
         num_read += num_to_read;
-        path = get_transcript_path(dir, num + 1)?;
+        path = get_transcript_path(dir, num + 1);
     }
 
     if num_read < degree {
-        return Err(Box::new(std::io::Error::new(
-            std::io::ErrorKind::Other, 
-            format!(
+        return Err(anyhow!(
                 "Only read {} points from {}, but require {}. Is your SRS large enough? \
                  Either run bootstrap.sh to download the transcript.dat files to `srs_db/ignition/`, \
                  or you might need to download extra transcript.dat files by editing \
@@ -155,13 +177,13 @@ pub(crate) fn read_transcript_g1(monomials: &mut Vec<G1Affine>, degree: usize, d
                  just changed a circuit to exceed a new 'power of two' boundary).",
                 num_read, path, degree
             )
-        )));
+        );
     }
 
     Ok(())
 }
 
-pub(crate) fn read_transcript_g2(g2_x: &mut G2Affine, dir: &str) -> Result<()> {
+pub(crate) fn read_transcript_g2(g2_x: &mut [G2Affine], dir: &str) -> Result<()> {
     let g2_size = std::mem::size_of::<Fq2>() * 2;
     let mut path = format!("{}/g2.dat", dir);
 
@@ -178,25 +200,32 @@ pub(crate) fn read_transcript_g2(g2_x: &mut G2Affine, dir: &str) -> Result<()> {
     }
 
     // Get transcript starting at g0.dat
-    path = get_transcript_path(dir, 0)?;
+    path = get_transcript_path(dir, 0);
 
     let mut manifest = read_manifest(&path)?;
 
     let g2_buffer_offset = std::mem::size_of::<Fq>() * 2 * manifest.num_g1_points as usize;
     let offset = std::mem::size_of::<Manifest>() + g2_buffer_offset;
 
-    let file = File::open(&path)?;
-    let mut file = file.take(g2_size as u64);
+    let mut file = File::open(&path)?;
     file.seek(SeekFrom::Start(offset as u64))?;
+    let mut buf = vec![0; g2_size];
+    file.read_exact(&mut buf[..]);
+
+    g2_x.copy_from_slice(&mut buf);
 
     // Again, size passed to second function should be size actually read
-    file.read_exact(g2_x)?;
     byteswap_g2(g2_x);
 
     Ok(())
 }
 
-fn read_transcript(monomials: &mut Vec<G1Affine>, g2_x: &mut G2Affine, degree: usize, path: &str) -> Result<()> {
+fn read_transcript(
+    monomials: &mut Vec<G1Affine>,
+    g2_x: &mut G2Affine,
+    degree: usize,
+    path: &str,
+) -> Result<()> {
     read_transcript_g1(monomials, degree, path)?;
     read_transcript_g2(g2_x, path)?;
     Ok(())

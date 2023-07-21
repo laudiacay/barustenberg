@@ -72,7 +72,7 @@ impl<'a, RSF: ReferenceStringFactory> ComposerBase for StandardComposer<RSF> {
     }
 
     fn with_keys(
-        p_key: Rc<RefCell<ProvingKey<Fr, G1Affine>>>,
+        p_key: Rc<RefCell<ProvingKey<Fr>>>,
         v_key: Rc<RefCell<VerificationKey<Fr>>>,
         num_selectors: usize,
         size_hint: usize,
@@ -734,7 +734,7 @@ impl<RSF: ReferenceStringFactory> StandardComposer<RSF> {
     ///
     /// * Returns a `Rc<ProvingKey>`, a reference counted proving key.
 
-    fn compute_proving_key(&mut self) -> Rc<RefCell<ProvingKey<Fr, G1Affine>>> {
+    fn compute_proving_key(&mut self) -> Rc<RefCell<ProvingKey<Fr>>> {
         let cbd = self.cbd.clone();
         let cbd = cbd.borrow();
 
