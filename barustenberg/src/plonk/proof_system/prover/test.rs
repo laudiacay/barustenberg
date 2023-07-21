@@ -15,7 +15,7 @@ use crate::{
         },
     },
     polynomials::Polynomial,
-    srs::reference_string::{self, file_reference_string::FileReferenceString},
+    srs::reference_string::file_reference_string::FileReferenceString,
     transcript::{BarretenHasher, Keccak256, Manifest, ManifestEntry, RoundManifest},
 };
 use ark_bn254::{Fq, Fr, G1Affine};
@@ -257,7 +257,6 @@ fn generate_test_data<'a, H: BarretenHasher + Default + 'static>(
     n: usize,
 ) -> Prover<H, StandardSettings<H>> {
     // create some constraints that satisfy our arithmetic circuit relation
-    let mut T0: Fr = Fr::zero();
     let reference_string = Rc::new(RefCell::new(FileReferenceString::new(
         n + 1,
         "../srs_db/ignition",
@@ -295,8 +294,8 @@ fn generate_test_data<'a, H: BarretenHasher + Default + 'static>(
         w_r.coefficients[i * 2 + 1] = Fr::rand(&mut rand);
         w_o.coefficients[i * 2 + 1] = Fr::rand(&mut rand);
 
-        T0 = w_l.coefficients[i * 2 + 1] + w_r.coefficients[i * 2 + 1];
-        q_c.coefficients[i * 2 + 1] = T0 + w_o.coefficients[i * 2 + 1];
+        let t0 = w_l.coefficients[i * 2 + 1] + w_r.coefficients[i * 2 + 1];
+        q_c.coefficients[i * 2 + 1] = t0 + w_o.coefficients[i * 2 + 1];
         q_c.coefficients[i * 2 + 1] = -q_c.coefficients[i * 2 + 1];
         q_l.coefficients[i * 2 + 1] = Fr::one();
         q_r.coefficients[i * 2 + 1] = Fr::one();
@@ -534,20 +533,20 @@ fn generate_test_data<'a, H: BarretenHasher + Default + 'static>(
 }
 
 #[test]
-fn compute_quotient_polynomial() {
+fn compute_quotient_polynomial() -> anyhow::Result<()> {
     let n = 1 << 10;
     let mut state = generate_test_data::<Keccak256>(n);
 
     let mut rng = rand::thread_rng();
 
-    state.execute_preamble_round(&mut rng);
-    state.queue.process_queue();
-    state.execute_first_round();
-    state.queue.process_queue();
-    state.execute_second_round(&mut rng);
-    state.queue.process_queue();
+    state.execute_preamble_round(&mut rng)?;
+    state.queue.process_queue()?;
+    state.execute_first_round()?;
+    state.queue.process_queue()?;
+    state.execute_second_round(&mut rng)?;
+    state.queue.process_queue()?;
     state.execute_third_round();
-    state.queue.process_queue();
+    state.queue.process_queue()?;
 
     // check that the max degree of our quotient polynomial is 3n
     for i in 0..n {
@@ -558,4 +557,5 @@ fn compute_quotient_polynomial() {
             Fr::zero()
         );
     }
+    Ok(())
 }
