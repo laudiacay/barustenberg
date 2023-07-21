@@ -56,7 +56,7 @@ pub(crate) trait CommitmentScheme {
         &mut self,
         transcript: &Transcript<Self::Hasher>,
         queue: &mut WorkQueue<Self::Hasher, Self::Fr, Self::Group>,
-        input_key: Option<Rc<RefCell<ProvingKey<Self::Fr, Self::Group>>>>,
+        input_key: Option<Rc<RefCell<ProvingKey<Self::Fr>>>>,
     );
 
     fn batch_verify(
@@ -70,7 +70,7 @@ pub(crate) trait CommitmentScheme {
     fn add_opening_evaluations_to_transcript(
         &self,
         transcript: &mut Transcript<Self::Hasher>,
-        input_key: Option<Rc<RefCell<ProvingKey<Self::Fr, Self::Group>>>>,
+        input_key: Option<Rc<RefCell<ProvingKey<Self::Fr>>>>,
         in_lagrange_form: bool,
     );
 }
@@ -124,7 +124,7 @@ impl<Fq: Field + FftField, Fr: Field + FftField, G: AffineRepr, H: BarretenHashe
     fn add_opening_evaluations_to_transcript(
         &self,
         _transcript: &mut Transcript<H>,
-        _input_key: Option<Rc<RefCell<ProvingKey<Self::Fr, Self::Group>>>>,
+        _input_key: Option<Rc<RefCell<ProvingKey<Self::Fr>>>>,
         _in_lagrange_form: bool,
     ) {
         todo!()
@@ -228,7 +228,7 @@ impl<Fq: Field + FftField, Fr: Field + FftField, G: AffineRepr, H: BarretenHashe
         &mut self,
         _transcript: &Transcript<H>,
         _queue: &mut WorkQueue<H, Fr, G>,
-        _input_key: Option<Rc<RefCell<ProvingKey<Self::Fr, Self::Group>>>>,
+        _input_key: Option<Rc<RefCell<ProvingKey<Self::Fr>>>>,
     ) {
         todo!()
     }

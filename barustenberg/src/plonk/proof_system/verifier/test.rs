@@ -27,7 +27,7 @@ use super::*;
 
 impl<H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>> Verifier<H, S> {
     pub fn generate_verifier<G: AffineRepr>(
-        circuit_proving_key: Rc<RefCell<ProvingKey<Fr, G>>>,
+        circuit_proving_key: Rc<RefCell<ProvingKey<Fr>>>,
     ) -> Self {
         let mut polynomials: Vec<Rc<RefCell<Polynomial<Fr>>>> = vec![
             circuit_proving_key
@@ -423,7 +423,7 @@ fn verify_arithmetic_proof_small() {
     let proof = state.construct_proof().unwrap();
 
     let mut verifier: Verifier<Keccak256, StandardSettings<Keccak256>> =
-        Verifier::generate_verifier(state.key);
+        Verifier::generate_verifier::<G1Affine>(state.key);
 
     // Verify proof
     let result = verifier.verify_proof(&proof).unwrap();
@@ -437,13 +437,13 @@ fn verify_arithmetic_proof() {
 
     let mut state = generate_test_data::<Keccak256>(n);
     let _verifier: Verifier<Keccak256, StandardSettings<Keccak256>> =
-        Verifier::generate_verifier(state.key.clone());
+        Verifier::generate_verifier::<G1Affine>(state.key.clone());
 
     // Construct proof
     let proof = state.construct_proof().unwrap();
 
     let mut verifier: Verifier<Keccak256, StandardSettings<Keccak256>> =
-        Verifier::generate_verifier(state.key.clone());
+        Verifier::generate_verifier::<G1Affine>(state.key.clone());
 
     // Verify proof
     let result = verifier.verify_proof(&proof).unwrap();
@@ -458,7 +458,7 @@ fn verify_damaged_proof() {
 
     let state = generate_test_data::<Keccak256>(n);
     let mut verifier: Verifier<Keccak256, StandardSettings<Keccak256>> =
-        Verifier::generate_verifier(state.key);
+        Verifier::generate_verifier::<G1Affine>(state.key);
 
     // Create empty proof
     let proof = Proof::default();

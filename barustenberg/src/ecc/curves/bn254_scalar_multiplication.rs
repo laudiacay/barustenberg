@@ -1,8 +1,8 @@
-use ark_bn254::{Fq, Fr};
+use ark_bn254::Fr;
 
 use ark_bn254::{G1Affine, G1Projective};
 use ark_ec::AffineRepr;
-use ark_ff::{FftField, Field, Zero};
+use ark_ff::{Field, Zero};
 
 use crate::srs::io::read_transcript_g1;
 
@@ -51,12 +51,15 @@ impl Pippenger {
         let mut monomials = vec![G1Affine::default(); num_points];
         read_transcript_g1(path, &mut monomials);
         generate_pippenger_point_table(&mut monomials, &mut monomials, num_points);
-        Self { monomials, num_points}
+        Self {
+            monomials,
+            num_points,
+        }
     }
 }
 
 #[derive(Clone, Default, Debug)]
-pub(crate) struct PippengerRuntimeState {
+pub(crate) struct PippengerRuntimeState<Fq: Field, G1Affine: AffineRepr> {
     point_schedule: Vec<u64>,
     skew_table: Vec<bool>,
     point_pairs_1: Vec<G1Affine>,
@@ -69,7 +72,7 @@ pub(crate) struct PippengerRuntimeState {
     num_points: u64,
 }
 
-impl PippengerRuntimeState {
+impl<Fq: Field, G1: AffineRepr> PippengerRuntimeState<Fq, G1> {
     pub(crate) fn new(_size: usize) -> Self {
         todo!()
     }

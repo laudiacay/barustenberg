@@ -79,8 +79,8 @@ pub(crate) struct TransitionWidget<
     NIndependentRelations: generic_array::ArrayLength<F>,
     KB: KernelBase,
 {
-    key: Rc<RefCell<ProvingKey<F, G>>>,
-    phantom: PhantomData<(H, NIndependentRelations, KB)>,
+    key: Rc<RefCell<ProvingKey<F>>>,
+    phantom: PhantomData<(H, NIndependentRelations, KB, G)>,
 }
 
 impl<H: BarretenHasher, F: Field + FftField, G: AffineRepr, NIndependentRelations, KB>
@@ -94,7 +94,7 @@ where
         Hasher = H,
     >,
 {
-    pub(crate) fn new(key: Rc<RefCell<ProvingKey<F, G>>>) -> Self {
+    pub(crate) fn new(key: Rc<RefCell<ProvingKey<F>>>) -> Self {
         Self {
             key,
             phantom: PhantomData,

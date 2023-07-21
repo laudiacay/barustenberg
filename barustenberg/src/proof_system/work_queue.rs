@@ -1,6 +1,7 @@
 use ark_ec::AffineRepr;
 use ark_ff::{FftField, Field};
 use std::cell::RefCell;
+use std::marker::PhantomData;
 use std::rc::Rc;
 
 use anyhow::Result;
@@ -58,9 +59,10 @@ pub(crate) struct QueuedFftInputs<Fr: Field + FftField> {
 
 #[derive(Debug)]
 pub(crate) struct WorkQueue<H: BarretenHasher, Fr: Field + FftField, G: AffineRepr> {
-    key: Rc<RefCell<ProvingKey<Fr, G>>>,
+    key: Rc<RefCell<ProvingKey<Fr>>>,
     transcript: Rc<RefCell<Transcript<H>>>,
     work_items: Vec<WorkItem<Fr>>,
+    phantom: PhantomData<G>,
 }
 
 /// TODO this is super fucked up...
@@ -73,13 +75,14 @@ unsafe fn field_element_to_usize<F: Field + FftField>(element: F) -> usize {
 
 impl<H: BarretenHasher, Fr: Field + FftField, G: AffineRepr> WorkQueue<H, Fr, G> {
     pub(crate) fn new(
-        prover_key: Option<Rc<RefCell<ProvingKey<Fr, G>>>>,
+        prover_key: Option<Rc<RefCell<ProvingKey<Fr>>>>,
         prover_transcript: Option<Rc<RefCell<Transcript<H>>>>,
     ) -> Self {
         WorkQueue {
             key: prover_key.unwrap_or_default(),
             transcript: prover_transcript.unwrap_or_default(),
             work_items: Vec::new(),
+            phantom: PhantomData,
         }
     }
 
@@ -284,7 +287,7 @@ impl<H: BarretenHasher, Fr: Field + FftField, G: AffineRepr> WorkQueue<H, Fr, G>
                         .borrow_mut()
                         .get_monomial_points();
 
-                    let mut runtime_state: PippengerRuntimeState<Fr, G1Affine> =
+                    let mut runtime_state: PippengerRuntimeState =
                         PippengerRuntimeState::new(msm_size);
                     let result = G1Affine::from(runtime_state.pippenger_unsafe(
                         (*mul_scalars).borrow_mut().coefficients.as_mut_slice(),

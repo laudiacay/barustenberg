@@ -1,4 +1,4 @@
-use ark_ec::AffineRepr;
+use ark_bn254::G1Affine;
 use ark_ff::{FftField, Field};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::cell::RefCell;
@@ -33,7 +33,7 @@ pub(crate) struct ProvingKeyData<F: Field + FftField> {
 }
 
 #[derive(Debug)]
-pub struct ProvingKey<Fr: Field + FftField, G: AffineRepr> {
+pub struct ProvingKey<Fr: Field + FftField> {
     pub(crate) composer_type: ComposerType,
     pub(crate) circuit_size: usize,
     pub(crate) log_circuit_size: usize,
@@ -52,11 +52,11 @@ pub struct ProvingKey<Fr: Field + FftField, G: AffineRepr> {
     pub(crate) reference_string: Rc<RefCell<dyn ProverReferenceString>>,
     pub(crate) quotient_polynomial_parts:
         [Rc<RefCell<Polynomial<Fr>>>; NUM_QUOTIENT_PARTS as usize],
-    pub(crate) pippenger_runtime_state: PippengerRuntimeState<Fr, G>,
+    pub(crate) pippenger_runtime_state: PippengerRuntimeState<Fr, G1Affine>,
     pub(crate) polynomial_manifest: PolynomialManifest,
 }
 
-impl<Fr: Field + FftField, G: AffineRepr> Default for ProvingKey<Fr, G> {
+impl<Fr: Field + FftField> Default for ProvingKey<Fr> {
     fn default() -> Self {
         Self {
             polynomial_store: PolynomialStore::new(),
@@ -78,7 +78,7 @@ impl<Fr: Field + FftField, G: AffineRepr> Default for ProvingKey<Fr, G> {
     }
 }
 
-impl<Fr: Field + FftField, G: AffineRepr> ProvingKey<Fr, G> {
+impl<Fr: Field + FftField> ProvingKey<Fr> {
     pub(crate) fn new_with_data(
         data: ProvingKeyData<Fr>,
         crs: Rc<RefCell<dyn ProverReferenceString>>,
@@ -173,7 +173,7 @@ impl<Fr: Field + FftField, G: AffineRepr> ProvingKey<Fr, G> {
     }
 }
 
-impl<Fr: Field + FftField, G: AffineRepr> Serialize for ProvingKey<Fr, G> {
+impl<Fr: Field + FftField> Serialize for ProvingKey<Fr> {
     fn serialize<S: Serializer>(&self, _serializer: S) -> Result<S::Ok, S::Error> {
         // TODO
         /*
@@ -238,7 +238,7 @@ impl<Fr: Field + FftField, G: AffineRepr> Serialize for ProvingKey<Fr, G> {
     }
 }
 
-impl<'de, Fr: Field + FftField, G: AffineRepr> Deserialize<'de> for ProvingKey<Fr, G> {
+impl<'de, Fr: Field + FftField> Deserialize<'de> for ProvingKey<Fr> {
     fn deserialize<D>(_deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
