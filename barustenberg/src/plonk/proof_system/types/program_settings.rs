@@ -1,11 +1,11 @@
-// use ark_ff::Field;
+// use ark_ff::FieldExt;
 
 // use crate::{ecc::Group, transcript::{HasherType, Transcript, self}, plonk::proof_system::verification_key::VerificationKey};
 // use std::collections::HashMap;
 
 // use super::prover_settings::SettingsBase;
 
-// pub trait VerifierSettings<Fr: Field, G1: Group, H: HasherType>: SettingsBase<H> {
+// pub trait VerifierSettings<Fr: FieldExt, G1: Group, H: HasherType>: SettingsBase<H> {
 //     type ArithmeticWidget; // Define ArithmeticWidget trait
 //     type PermutationWidget; // Define PermutationWidget trait
 //     type Transcript;
@@ -31,7 +31,7 @@
 
 // pub struct StandardVerifierSettings;
 
-// impl<Fr: ark_bn254::fr::Fr, G1: ark_bn254::g1::G1Affine, H: transcript::HasherType::PedersenBlake3s> VerifierSettings for StandardVerifierSettings {
+// impl<Fr: ark_bn254::fr::Fr, G1: ark_bn254::g1::G, H: transcript::HasherType::PedersenBlake3s> VerifierSettings for StandardVerifierSettings {
 //     type Transcript = transcript::Transcript;
 //     type ArithmeticWidget; // Define ArithmeticWidget trait
 //     type PermutationWidget; // Define PermutationWidget trait

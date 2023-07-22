@@ -26,7 +26,7 @@ fn get_msb32(in_val: u32) -> u32 {
     let v = v | (v >> 8);
     let v = v | (v >> 16);
 
-    MULTIPLY_DE_BRUIJN_BIT_POSITION[((v * 0x07C4ACDDu32) >> 27) as usize] as u32
+    MULTIPLY_DE_BRUIJN_BIT_POSITION[((v.wrapping_mul(0x07C4ACDDu32)) >> 27) as usize] as u32
 }
 
 fn get_msb64(in_val: u64) -> u64 {
@@ -37,7 +37,7 @@ fn get_msb64(in_val: u64) -> u64 {
     let t = t | (t >> 16);
     let t = t | (t >> 32);
 
-    DE_BRUIJN_SEQUENCE[((t * 0x03F79D71B4CB0A89u64) >> 58) as usize] as u64
+    DE_BRUIJN_SEQUENCE[((t.wrapping_mul(0x03F79D71B4CB0A89u64)) >> 58) as usize] as u64
 }
 
 pub(crate) trait Msb {

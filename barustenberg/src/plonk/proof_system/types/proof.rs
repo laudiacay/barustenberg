@@ -1,12 +1,12 @@
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
-#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub(crate) struct Proof {
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct Proof {
     pub(crate) proof_data: Vec<u8>,
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub(crate) struct CommitmentOpenProof {
     pub(crate) proof_data: Vec<u8>,
 }

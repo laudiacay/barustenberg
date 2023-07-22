@@ -1,14 +1,12 @@
-use std::{marker::PhantomData, sync::Arc};
+use std::{cell::RefCell, rc::Rc, sync::Arc};
 
-use ark_ec::AffineRepr;
+use ark_bn254::G1Affine;
 
-use crate::srs::reference_string::{
-    ProverReferenceString, ReferenceStringFactory, VerifierReferenceString,
-};
+use crate::srs::reference_string::{ProverReferenceString, ReferenceStringFactory};
 
 use super::mem_reference_string::VerifierMemReferenceString;
 
-#[derive(Clone, Default)]
+#[derive(Clone, Debug, Default)]
 pub(crate) struct Pippenger {}
 
 impl Pippenger {
@@ -17,59 +15,54 @@ impl Pippenger {
     }
 }
 
-pub(crate) struct PippengerReferenceString<G1Affine: AffineRepr> {
+#[derive(Debug)]
+pub(crate) struct PippengerReferenceString {
     pippenger: Arc<Pippenger>,
-    phantom: PhantomData<G1Affine>,
 }
 
-impl<G1Affine: AffineRepr> PippengerReferenceString<G1Affine> {
+impl PippengerReferenceString {
     pub(crate) fn new(pippenger: Arc<Pippenger>) -> Self {
-        PippengerReferenceString {
-            pippenger,
-            phantom: PhantomData,
-        }
+        PippengerReferenceString { pippenger }
     }
 }
 
-impl<G1Affine: AffineRepr> ProverReferenceString<G1Affine> for PippengerReferenceString<G1Affine> {
+impl ProverReferenceString for PippengerReferenceString {
     // TODO
     fn get_monomial_size(&self) -> usize {
         todo!()
     }
 
-    fn get_monomial_points(&mut self) -> &Vec<G1Affine> {
+    fn get_monomial_points(&self) -> Rc<Vec<G1Affine>> {
+        // will we mutate self here?
         todo!()
     }
 }
 
-pub(crate) struct PippengerReferenceStringFactory<'a, G1Affine: AffineRepr, G2Affine: AffineRepr> {
+#[derive(Debug, Default)]
+pub(crate) struct PippengerReferenceStringFactory<'a> {
     pippenger: Arc<Pippenger>,
     g2x: &'a [u8],
-    phantom: PhantomData<(G1Affine, G2Affine)>,
 }
 
-impl<'a, G1Affine: AffineRepr, G2Affine: AffineRepr>
-    PippengerReferenceStringFactory<'a, G1Affine, G2Affine>
-{
+impl<'a> PippengerReferenceStringFactory<'a> {
     pub(crate) fn new(pippenger: Arc<Pippenger>, g2x: &'a [u8]) -> Self {
-        PippengerReferenceStringFactory {
-            pippenger: pippenger.clone(),
-            g2x,
-            phantom: PhantomData,
-        }
+        PippengerReferenceStringFactory { pippenger, g2x }
     }
 }
 
-impl<'a, G1Affine: AffineRepr, G2Affine: AffineRepr> ReferenceStringFactory<G1Affine, G2Affine>
-    for PippengerReferenceStringFactory<'a, G1Affine, G2Affine>
-{
-    fn get_prover_crs(&self, degree: usize) -> Option<Arc<dyn ProverReferenceString<G1Affine>>> {
+impl<'a> ReferenceStringFactory for PippengerReferenceStringFactory<'a> {
+    type Pro = PippengerReferenceString;
+    type Ver = VerifierMemReferenceString;
+
+    fn get_prover_crs(&self, degree: usize) -> Option<Rc<RefCell<Self::Pro>>> {
         assert!(degree <= self.pippenger.get_num_points());
-        Some(Arc::new(PippengerReferenceString::new(
+        Some(Rc::new(RefCell::new(PippengerReferenceString::new(
             self.pippenger.clone(),
-        )))
+        ))))
     }
-    fn get_verifier_crs(&self) -> Option<Arc<dyn VerifierReferenceString<G2Affine>>> {
-        Some(Arc::new(VerifierMemReferenceString::new(self.g2x)))
+    fn get_verifier_crs(&self) -> Option<Rc<RefCell<Self::Ver>>> {
+        Some(Rc::new(RefCell::new(VerifierMemReferenceString::new(
+            self.g2x,
+        ))))
     }
 }

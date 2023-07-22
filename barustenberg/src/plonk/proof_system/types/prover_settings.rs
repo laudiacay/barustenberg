@@ -1,8 +1,22 @@
-use crate::transcript::{BarretenHasher, Keccak256, PedersenBlake3s, PlookupPedersenBlake3s};
+use std::collections::HashMap;
+
+use ark_ec::AffineRepr;
+use ark_ff::{FftField, Field};
+
+use ark_bn254::{Fr, G1Affine};
+
+use crate::{
+    plonk::proof_system::verification_key::VerificationKey,
+    transcript::{BarretenHasher, Keccak256, PedersenBlake3s, PlookupPedersenBlake3s, Transcript},
+};
 
 // TODO bevy_reflect? or what
-// todo at least inline it all
-pub(crate) trait Settings<H: BarretenHasher> {
+// or inline everything!
+pub trait Settings: Sized {
+    type Hasher: BarretenHasher;
+    type Field: Field + FftField;
+    type Group: AffineRepr;
+
     #[inline]
     fn requires_shifted_wire(wire_shift_settings: u64, wire_index: u64) -> bool {
         ((wire_shift_settings >> wire_index) & 1u64) == 1u64
@@ -14,10 +28,27 @@ pub(crate) trait Settings<H: BarretenHasher> {
     fn permutation_shift(&self) -> u32;
     fn permutation_mask(&self) -> u32;
     fn num_roots_cut_out_of_vanishing_polynomial(&self) -> usize;
+    fn compute_quotient_evaluation_contribution(
+        verification_key: &VerificationKey<Self::Field>,
+        alpha_base: &Self::Field,
+        transcript: &Transcript<Self::Hasher>,
+        quotient_numerator_eval: &Self::Field,
+    ) -> Self::Field
+    where
+        Self: Sized;
+    fn append_scalar_multiplication_inputs(
+        verification_key: &VerificationKey<Self::Field>,
+        alpha_base: &Self::Field,
+        transcript: &Transcript<Self::Hasher>,
+        scalars: &HashMap<String, Self::Field>,
+    ) -> Self::Field
+    where
+        Self: Sized;
     fn is_plookup(&self) -> bool;
-    fn hasher(&self) -> &H;
+    fn hasher(&self) -> &Self::Hasher;
 }
 
+#[derive(Default, Debug)]
 pub(crate) struct StandardSettings<H: BarretenHasher> {
     hasher: H,
 }
@@ -28,7 +59,10 @@ impl<H: BarretenHasher> StandardSettings<H> {
     }
 }
 
-impl<H: BarretenHasher> Settings<H> for StandardSettings<H> {
+impl<H: BarretenHasher> Settings for StandardSettings<H> {
+    type Hasher = H;
+    type Field = Fr;
+    type Group = G1Affine;
     #[inline]
     fn num_challenge_bytes(&self) -> usize {
         16
@@ -70,6 +104,38 @@ impl<H: BarretenHasher> Settings<H> for StandardSettings<H> {
     fn requires_shifted_wire(wire_shift_settings: u64, wire_index: u64) -> bool {
         ((wire_shift_settings >> wire_index) & 1u64) == 1u64
     }
+
+    #[inline]
+    fn compute_quotient_evaluation_contribution(
+        _verification_key: &VerificationKey<Fr>,
+        _alpha_base: &Fr,
+        _transcript: &Transcript<H>,
+        _quotient_numerator_eval: &Fr,
+    ) -> Fr {
+        unimplemented!("todo");
+        /*
+                auto updated_alpha_base = VerifierPermutationWidget<
+            barretenberg::fr,
+            barretenberg::g1::affine_element,
+            transcript::StandardTranscript>::compute_quotient_evaluation_contribution(key,
+                                                                                      alpha_base,
+                                                                                      transcript,
+                                                                                      quotient_numerator_eval);
+
+        return ArithmeticWidget::compute_quotient_evaluation_contribution(
+            key, updated_alpha_base, transcript, quotient_numerator_eval);
+         */
+    }
+
+    #[inline]
+    fn append_scalar_multiplication_inputs(
+        _verification_key: &VerificationKey<Fr>,
+        _alpha_base: &Fr,
+        _transcript: &Transcript<H>,
+        _scalars: &HashMap<String, Fr>,
+    ) -> Fr {
+        unimplemented!("todo");
+    }
 }
 
 pub(crate) struct TurboSettings {}
@@ -80,7 +146,11 @@ impl TurboSettings {
     }
 }
 
-impl Settings<PedersenBlake3s> for TurboSettings {
+impl Settings for TurboSettings {
+    type Hasher = PedersenBlake3s;
+    type Field = Fr;
+    type Group = G1Affine;
+
     #[inline]
     fn num_challenge_bytes(&self) -> usize {
         16
@@ -117,11 +187,47 @@ impl Settings<PedersenBlake3s> for TurboSettings {
     fn hasher(&self) -> &PedersenBlake3s {
         &PedersenBlake3s {}
     }
+    #[inline]
+    fn compute_quotient_evaluation_contribution(
+        _verification_key: &VerificationKey<Fr>,
+        _alpha_base: &Fr,
+        _transcript: &Transcript<PedersenBlake3s>,
+        _quotient_numerator_eval: &Fr,
+    ) -> Fr {
+        unimplemented!();
+        /*
+                auto updated_alpha_base = PermutationWidget::compute_quotient_evaluation_contribution(
+            key, alpha_base, transcript, quotient_numerator_eval, idpolys);
+
+        updated_alpha_base = TurboArithmeticWidget::compute_quotient_evaluation_contribution(
+            key, updated_alpha_base, transcript, quotient_numerator_eval);
+        updated_alpha_base = TurboFixedBaseWidget::compute_quotient_evaluation_contribution(
+            key, updated_alpha_base, transcript, quotient_numerator_eval);
+        updated_alpha_base = TurboRangeWidget::compute_quotient_evaluation_contribution(
+            key, updated_alpha_base, transcript, quotient_numerator_eval);
+        updated_alpha_base = TurboLogicWidget::compute_quotient_evaluation_contribution(
+            key, updated_alpha_base, transcript, quotient_numerator_eval);
+
+        return updated_alpha_base;
+         */
+    }
+    fn append_scalar_multiplication_inputs(
+        _verification_key: &VerificationKey<Fr>,
+        _alpha_base: &Fr,
+        _transcript: &Transcript<PedersenBlake3s>,
+        _scalars: &HashMap<String, Fr>,
+    ) -> Fr {
+        unimplemented!("todo");
+    }
 }
 
 pub(crate) struct UltraSettings {}
 
-impl Settings<PlookupPedersenBlake3s> for UltraSettings {
+impl Settings for UltraSettings {
+    type Hasher = PlookupPedersenBlake3s;
+    type Field = Fr;
+    type Group = G1Affine;
+
     #[inline]
     fn num_challenge_bytes(&self) -> usize {
         16
@@ -158,11 +264,50 @@ impl Settings<PlookupPedersenBlake3s> for UltraSettings {
     fn hasher(&self) -> &PlookupPedersenBlake3s {
         &PlookupPedersenBlake3s {}
     }
+
+    #[inline]
+    fn compute_quotient_evaluation_contribution(
+        _verification_key: &VerificationKey<Fr>,
+        _alpha_base: &Fr,
+        _transcript: &Transcript<PlookupPedersenBlake3s>,
+        _quotient_numerator_eval: &Fr,
+    ) -> Fr {
+        /*
+                auto updated_alpha_base = PermutationWidget::compute_quotient_evaluation_contribution(
+            key, alpha_base, transcript, quotient_numerator_eval, idpolys);
+        updated_alpha_base = PlookupWidget::compute_quotient_evaluation_contribution(
+            key, updated_alpha_base, transcript, quotient_numerator_eval);
+        updated_alpha_base = PlookupArithmeticWidget::compute_quotient_evaluation_contribution(
+            key, updated_alpha_base, transcript, quotient_numerator_eval);
+        updated_alpha_base = GenPermSortWidget::compute_quotient_evaluation_contribution(
+            key, updated_alpha_base, transcript, quotient_numerator_eval);
+        updated_alpha_base = EllipticWidget::compute_quotient_evaluation_contribution(
+            key, updated_alpha_base, transcript, quotient_numerator_eval);
+        updated_alpha_base = PlookupAuxiliaryWidget::compute_quotient_evaluation_contribution(
+            key, updated_alpha_base, transcript, quotient_numerator_eval);
+
+        return updated_alpha_base;
+         */
+        unimplemented!()
+    }
+
+    fn append_scalar_multiplication_inputs(
+        _verification_key: &VerificationKey<Fr>,
+        _alpha_base: &Fr,
+        _transcript: &Transcript<PlookupPedersenBlake3s>,
+        _scalars: &HashMap<String, Fr>,
+    ) -> Fr {
+        unimplemented!("todo");
+    }
 }
 
 pub(crate) struct UltraToStandardSettings {}
 
-impl Settings<PedersenBlake3s> for UltraToStandardSettings {
+impl Settings for UltraToStandardSettings {
+    type Hasher = PedersenBlake3s;
+    type Field = Fr;
+    type Group = G1Affine;
+
     #[inline]
     fn num_challenge_bytes(&self) -> usize {
         16
@@ -199,11 +344,34 @@ impl Settings<PedersenBlake3s> for UltraToStandardSettings {
     fn hasher(&self) -> &PedersenBlake3s {
         &PedersenBlake3s {}
     }
+    #[inline]
+    fn compute_quotient_evaluation_contribution(
+        _verification_key: &VerificationKey<Fr>,
+        _alpha_base: &Fr,
+        _transcript: &Transcript<PedersenBlake3s>,
+        _quotient_numerator_eval: &Fr,
+    ) -> Fr {
+        // UltraSettings::compute_quotient_evaluation_contribution(verification_key, alpha_base, transcript, quotient_numerator_eval)
+        todo!()
+    }
+
+    fn append_scalar_multiplication_inputs(
+        _verification_key: &VerificationKey<Fr>,
+        _alpha_base: &Fr,
+        _transcript: &Transcript<PedersenBlake3s>,
+        _scalars: &HashMap<String, Fr>,
+    ) -> Fr {
+        unimplemented!("todo");
+    }
 }
 
 pub(crate) struct UltraWithKeccakSettings {}
 
-impl Settings<Keccak256> for UltraWithKeccakSettings {
+impl Settings for UltraWithKeccakSettings {
+    type Hasher = Keccak256;
+    type Field = Fr;
+    type Group = G1Affine;
+
     #[inline]
     fn num_challenge_bytes(&self) -> usize {
         32
@@ -239,5 +407,23 @@ impl Settings<Keccak256> for UltraWithKeccakSettings {
     #[inline]
     fn hasher(&self) -> &Keccak256 {
         &Keccak256 {}
+    }
+    #[inline]
+    fn compute_quotient_evaluation_contribution(
+        _verification_key: &VerificationKey<Fr>,
+        _alpha_base: &Fr,
+        _transcript: &Transcript<Keccak256>,
+        _quotient_numerator_eval: &Fr,
+    ) -> Fr {
+        //UltraSettings::compute_quotient_evaluation_contribution(verification_key, alpha_base, transcript, quotient_numerator_eval)
+        todo!()
+    }
+    fn append_scalar_multiplication_inputs(
+        _verification_key: &VerificationKey<Fr>,
+        _alpha_base: &Fr,
+        _transcript: &Transcript<Keccak256>,
+        _scalars: &HashMap<String, Fr>,
+    ) -> Fr {
+        unimplemented!("todo");
     }
 }
