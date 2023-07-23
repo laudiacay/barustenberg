@@ -7,7 +7,9 @@ use std::{cell::RefCell, fmt::Debug};
 
 use ark_bn254::{G1Affine, G2Affine};
 
-use crate::ecc::MillerLines;
+use anyhow::Result;
+
+use crate::ecc::curves::pairings::MillerLines;
 
 pub(crate) trait VerifierReferenceString: Debug {
     fn get_g2x(&self) -> G2Affine;
@@ -27,7 +29,7 @@ pub(crate) trait ReferenceStringFactory: Default {
         todo!()
     }
 
-    fn get_verifier_crs(&self) -> Option<Rc<RefCell<Self::Ver>>> {
+    fn get_verifier_crs(&self) -> Result<Option<Rc<RefCell<Self::Ver>>>> {
         todo!()
     }
 }

@@ -287,7 +287,7 @@ impl<H: BarretenHasher, Fr: Field + FftField, G: AffineRepr> WorkQueue<H, Fr, G>
                         .borrow_mut()
                         .get_monomial_points();
 
-                    let mut runtime_state: PippengerRuntimeState =
+                    let mut runtime_state: PippengerRuntimeState<Fp, G1Affine> =
                         PippengerRuntimeState::new(msm_size);
                     let result = G1Affine::from(runtime_state.pippenger_unsafe(
                         (*mul_scalars).borrow_mut().coefficients.as_mut_slice(),

@@ -243,7 +243,7 @@ impl<H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>> V
         let mut elements_clone = elements.clone();
         let elements_len = elements.len();
         generate_pippenger_point_table(&mut elements_clone[..], &mut elements[..], elements_len);
-        let mut state = PippengerRuntimeState::new(n);
+        let mut state: PippengerRuntimeState<Fr, G1Affine> = PippengerRuntimeState::new(n);
 
         let mut p: [G1Affine; 2] = [G1Affine::zero(); 2];
         p[0] = state.pippenger(&mut [scalars[0]], &[elements[0]], n, false);

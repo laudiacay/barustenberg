@@ -2,6 +2,8 @@ use anyhow::{anyhow, Result};
 use ark_bn254::Fq;
 use ark_bn254::Fq2;
 use ark_bn254::{G1Affine, G2Affine};
+use ark_ec::AffineRepr;
+use ark_serialize::CanonicalDeserialize;
 use byteorder::BigEndian;
 use byteorder::ReadBytesExt;
 use byteorder::WriteBytesExt;
@@ -63,42 +65,14 @@ fn write_manifest(filename: &str, manifest: &Manifest) -> Result<()> {
     Ok(())
 }
 
-fn read_g1_elements_from_buffer(elements: &mut [G1Affine], buffer: &[u8]) {
-    elements.copy_from_slice(&buffer);
-    byteswap_g1(elements);
-}
-
-fn byteswap_g1(elements: &mut [G1Affine]) {
-    let num_elements = elements.len();
-
-    if cfg!(target_endian = "little") {
-        for element in elements.iter_mut() {
-            element.x.data = element.x.data.to_be_bytes();
-            element.y.data = element.y.data.to_be_bytes();
-            element.x.self_to_montgomery_form();
-            element.y.self_to_montgomery_form();
-        }
-    }
-}
-
-fn read_g2_elements_from_buffer(elements: &mut [G2Affine], buffer: &[u8]) {
-    elements.copy_from_slice(&buffer);
-    byteswap_g2(elements);
-}
-
-fn byteswap_g2(elements: &mut [G2Affine]) {
-    let num_elements = elements.len();
-
-    if cfg!(target_endian = "little") {
-        for element in elements.iter_mut() {
-            element.x.c0.data = element.x.c0.data.to_be_bytes();
-            element.x.c1.data = element.x.c1.data.to_be_bytes();
-            element.y.c0.data = element.y.c0.data.to_be_bytes();
-            element.y.c1.data = element.y.c1.data.to_be_bytes();
-            element.x.c0.self_to_montgomery_form();
-            element.x.c1.self_to_montgomery_form();
-            element.y.c0.self_to_montgomery_form();
-            element.y.c1.self_to_montgomery_form();
+fn read_elements_from_buffer<G: AffineRepr>(elements: &mut [G], buffer: &[u8]) {
+    // cursor on the buffer
+    let cursor = &mut &buffer[..];
+    for i in 0..elements.len() {
+        if let Ok(element) = G::deserialize_uncompressed(cursor) {
+            elements[i] = element;
+        } else {
+            break;
         }
     }
 }
@@ -153,16 +127,16 @@ pub(crate) fn read_transcript_g1(
         let offset = std::mem::size_of::<Manifest>();
         let num_to_read = min(manifest.num_g1_points as usize, degree - num_read);
         let g1_buffer_size = std::mem::size_of::<Fq>() * 2 * num_to_read;
+        let mut buffer = vec![0_u8; g1_buffer_size];
 
         let file = File::open(&path)?;
-        let mut buffer = file.take(g1_buffer_size as u64);
-        let mut monomial = &mut monomials[num_read..];
+        let mut file = file.take(g1_buffer_size as u64);
+        file.read_exact(&mut buffer[..])?;
 
         // We must pass the size actually read to the second call, not the desired
         // g1_buffer_size as the file may have been smaller than this.
-        buffer.read_exact(&mut monomial)?;
-
-        byteswap_g1(&mut monomial);
+        let mut monomial = &mut monomials[num_read..];
+        read_elements_from_buffer(monomial, &buffer);
 
         num_read += num_to_read;
         path = get_transcript_path(dir, num + 1);
@@ -183,18 +157,21 @@ pub(crate) fn read_transcript_g1(
     Ok(())
 }
 
-pub(crate) fn read_transcript_g2(g2_x: &mut [G2Affine], dir: &str) -> Result<()> {
+pub(crate) fn read_transcript_g2(g2_x: &mut G2Affine, dir: &str) -> Result<()> {
     let g2_size = std::mem::size_of::<Fq2>() * 2;
+    assert!(std::mem::size_of::<G2Affine>() >= g2_size);
     let mut path = format!("{}/g2.dat", dir);
 
     if Path::new(&path).exists() {
+        let mut buffer = vec![0_u8; g2_size];
+
         let file = File::open(&path)?;
-        let mut buffer = file.take(g2_size as u64);
+        let mut file = file.take(g2_size as u64);
+        file.read_exact(&mut buffer[..]);
 
         // Again, size passed to second function should be size actually read
-        buffer.read_exact(g2_x)?;
-
-        byteswap_g2(g2_x);
+        *g2_x = G2Affine::deserialize_uncompressed(&mut &buffer[..])
+            .map_err(|e| anyhow!("Failed to deserialize G2Affine from transcript file: {}", e))?;
 
         return Ok(());
     }
@@ -212,10 +189,8 @@ pub(crate) fn read_transcript_g2(g2_x: &mut [G2Affine], dir: &str) -> Result<()>
     let mut buf = vec![0; g2_size];
     file.read_exact(&mut buf[..]);
 
-    g2_x.copy_from_slice(&mut buf);
-
-    // Again, size passed to second function should be size actually read
-    byteswap_g2(g2_x);
+    *g2_x = G2Affine::deserialize_uncompressed(&mut &buf[..])
+        .map_err(|e| anyhow!("Failed to deserialize G2Affine from transcript file: {}", e))?;
 
     Ok(())
 }

@@ -786,7 +786,7 @@ impl<RSF: ReferenceStringFactory> StandardComposer<RSF> {
 
         let circuit_verification_key = self.compute_verification_key_base(
             cbd.circuit_proving_key.clone().unwrap(),
-            cbd.crs_factory.get_verifier_crs().unwrap(),
+            cbd.crs_factory.get_verifier_crs()?.unwrap(),
         )?;
         cbd.circuit_verification_key = Some(circuit_verification_key.clone());
 

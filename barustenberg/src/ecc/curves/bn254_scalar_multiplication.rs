@@ -49,7 +49,7 @@ impl Pippenger {
 
     pub(crate) fn from_path(path: &str, num_points: usize) -> Self {
         let mut monomials = vec![G1Affine::default(); num_points];
-        read_transcript_g1(path, &mut monomials);
+        read_transcript_g1(&mut monomials, num_points, path);
         generate_pippenger_point_table(&mut monomials, &mut monomials, num_points);
         Self {
             monomials,
@@ -79,19 +79,19 @@ impl<Fq: Field, G1: AffineRepr> PippengerRuntimeState<Fq, G1> {
     pub(crate) fn pippenger_unsafe(
         &mut self,
         _mul_scalars: &mut [Fr],
-        _srs_points: &[G1Affine],
+        _srs_points: &[G1],
         _msm_size: usize,
-    ) -> G1Affine {
+    ) -> G1 {
         todo!()
     }
 
     pub(crate) fn pippenger(
         &mut self,
         _scalars: &mut [Fr],
-        _points: &[G1Affine],
+        _points: &[G1],
         _num_initial_points: usize,
         _handle_edge_cases: bool,
-    ) -> G1Affine {
+    ) -> G1 {
         todo!()
     }
 }

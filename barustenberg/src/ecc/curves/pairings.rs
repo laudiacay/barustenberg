@@ -1,5 +1,5 @@
+use ark_bn254::G2Projective;
 use ark_bn254::{Fq2, Fq6};
-use ark_bn254::{G2Affine, G2Projective};
 use ark_ff::{Field, One};
 
 const LOOP_LENGTH: usize = 64;
@@ -20,16 +20,24 @@ lazy_static::lazy_static! {
     static ref TWO_INV: Fq2 = Fq2::from_repr(Fq2::one().double().inverse().unwrap()).unwrap();
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default, Clone, Copy)]
 struct EllCoeffs<QuadFP: ark_ff::Field> {
     o: QuadFP,
     vw: QuadFP,
     vv: QuadFP,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct MillerLines {
     lines: [EllCoeffs<Fq2>; PRECOMPUTED_COEFFICIENTS_LENGTH],
+}
+
+impl Default for MillerLines {
+    fn default() -> Self {
+        Self {
+            lines: [EllCoeffs::default(); PRECOMPUTED_COEFFICIENTS_LENGTH],
+        }
+    }
 }
 
 fn doubling_step_for_flipped_miller_loop(current: &mut G2Projective, ell: &mut EllCoeffs<Fq2>) {
@@ -108,7 +116,7 @@ fn mixed_addition_step_for_flipped_miller_loop(
     line.vw = d;
 }
 
-fn mul_by_q(a: &G2Affine) -> G2Projective {
+fn mul_by_q(a: &G2Projective) -> G2Projective {
     let t0 = a.x.frobenius_map();
     let t1 = a.y.frobenius_map();
 
@@ -119,8 +127,8 @@ fn mul_by_q(a: &G2Affine) -> G2Projective {
     }
 }
 
-pub(crate) fn precompute_miller_lines(q: G2Affine, lines: &mut MillerLines) {
-    let q_neg = G2Affine::new(q.x, -q.y);
+pub(crate) fn precompute_miller_lines(q: G2Projective, lines: &mut MillerLines) {
+    let q_neg = G2Projective::new(q.x, -q.y, Fq2::one());
     let mut work_point = q.clone();
 
     let mut it: usize = 0;

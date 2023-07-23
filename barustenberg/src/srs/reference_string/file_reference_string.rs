@@ -3,14 +3,16 @@ use std::{cell::RefCell, rc::Rc};
 use ark_bn254::{G1Affine, G2Affine};
 
 use crate::{
-    ecc::{
-        curves::{bn254_scalar_multiplication::Pippenger, pairings::precompute_miller_lines},
-        MillerLines,
+    ecc::curves::{
+        bn254_scalar_multiplication::Pippenger,
+        pairings::{precompute_miller_lines, MillerLines},
     },
     srs::io::read_transcript_g2,
 };
 
 use super::{ProverReferenceString, ReferenceStringFactory, VerifierReferenceString};
+
+use anyhow::Result;
 
 #[derive(Debug, Default)]
 pub(crate) struct VerifierFileReferenceString {
@@ -19,25 +21,29 @@ pub(crate) struct VerifierFileReferenceString {
 }
 
 impl VerifierFileReferenceString {
-    pub(crate) fn new(path: &str) -> Self {
-        let g2_x: G2Affine = read_transcript_g2(path);
+    pub(crate) fn new(path: &str) -> Result<Self> {
+        let mut g2_x = G2Affine::default();
+        read_transcript_g2(&mut g2_x, path)?;
 
         let mut precomputed_g2_lines_inner = vec![MillerLines::default(); 2];
-        precompute_miller_lines(G2Affine::one(), &mut precomputed_g2_lines_inner[0]);
-        precompute_miller_lines(g2_x, &mut precomputed_g2_lines_inner[1]);
+        precompute_miller_lines(
+            G2Affine::identity().into(),
+            &mut precomputed_g2_lines_inner[0],
+        );
+        precompute_miller_lines(g2_x.into(), &mut precomputed_g2_lines_inner[1]);
 
         let precomputed_g2_lines = Rc::new(precomputed_g2_lines_inner);
 
-        Self {
+        Ok(Self {
             g2_x,
             precomputed_g2_lines,
-        }
+        })
     }
 }
 
 impl VerifierReferenceString for VerifierFileReferenceString {
     fn get_g2x(&self) -> G2Affine {
-        self.g2_x
+        self.g2_x.clone()
     }
 
     fn get_precomputed_g2_lines(&self) -> Rc<Vec<MillerLines>> {
@@ -54,7 +60,7 @@ pub(crate) struct FileReferenceString {
 impl FileReferenceString {
     pub(crate) fn new(num_points: usize, path: &str) -> Self {
         // Implementation depends on your project.
-        let pippenger = Pippenger::new(num_points, path);
+        let pippenger = Pippenger::from_path(path, num_points);
         Self {
             num_points,
             pippenger,
@@ -97,9 +103,9 @@ impl ReferenceStringFactory for FileReferenceStringFactory {
         ))))
     }
 
-    fn get_verifier_crs(&self) -> Option<Rc<RefCell<Self::Ver>>> {
-        Some(Rc::new(RefCell::new(VerifierFileReferenceString::new(
-            &self.path,
+    fn get_verifier_crs(&self) -> Result<Option<Rc<RefCell<Self::Ver>>>> {
+        Ok(Some(Rc::new(RefCell::new(
+            VerifierFileReferenceString::new(&self.path)?,
         ))))
     }
 }
@@ -113,18 +119,18 @@ pub(crate) struct DynamicFileReferenceStringFactory {
 }
 
 impl DynamicFileReferenceStringFactory {
-    pub(crate) fn new(path: String, initial_degree: usize) -> Self {
-        let verifier_crs = Rc::new(RefCell::new(VerifierFileReferenceString::new(&path)));
+    pub(crate) fn new(path: String, initial_degree: usize) -> Result<Self> {
+        let verifier_crs = Rc::new(RefCell::new(VerifierFileReferenceString::new(&path)?));
         let prover_crs = Rc::new(RefCell::new(FileReferenceString::new(
             initial_degree,
             &path,
         )));
-        Self {
+        Ok(Self {
             path,
             degree: RefCell::new(initial_degree),
             prover_crs,
             verifier_crs,
-        }
+        })
     }
 }
 
@@ -139,7 +145,7 @@ impl ReferenceStringFactory for DynamicFileReferenceStringFactory {
         Some(self.prover_crs.clone())
     }
 
-    fn get_verifier_crs(&self) -> Option<Rc<RefCell<Self::Ver>>> {
-        Some(self.verifier_crs.clone())
+    fn get_verifier_crs(&self) -> Result<Option<Rc<RefCell<Self::Ver>>>> {
+        Ok(Some(self.verifier_crs.clone()))
     }
 }
