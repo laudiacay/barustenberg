@@ -1,17 +1,14 @@
 use crate::{common::max_threads::compute_num_threads, numeric::bitop::Msb};
 // use ark_bn254::{G1Affine, G1Projective};
-use crate::ecc::groups::wnaf::wnaf_size;
 use ark_ec::AffineRepr;
 use ark_ff::{FftField, Field};
+
+use crate::ecc::scalar_multiplication::process_buckets::*;
 
 #[derive(Clone, Default, Debug)]
 pub(crate) struct PippengerRuntimeState<Fr: Field + FftField, G: AffineRepr> {
     // TODO: maybe arc should be used here for threads. think later.
     // TODO: check why are they used, for now commenting them
-    // point_schedule_ptr: Rc<Vec<u64>>,
-    // point_pairs_1: Rc<Vec<G>>,
-    // point_pairs_2: Rc<Vec<G>>,
-    // scratch_space_ptr: Rc<Vec<Fr>>,
     point_schedule: Vec<u64>,
     point_pairs_1: Vec<G>,
     point_pairs_2: Vec<G>,
@@ -37,61 +34,6 @@ pub(crate) struct AffinePippengerRuntimeState<Fr: Field, G: AffineRepr> {
     num_points: u32,
     num_buckets: u32,
 }
-
-pub(crate) fn get_optimal_bucket_width(num_points: usize) -> usize {
-    if num_points >= 14617149 {
-        return 21;
-    }
-    if num_points >= 1139094 {
-        return 18;
-    }
-    // if (num_points >= 100000)
-    if num_points >= 155975 {
-        return 15;
-    }
-    if num_points >= 144834
-    // if (num_points >= 100000)
-    {
-        return 14;
-    }
-    if num_points >= 25067 {
-        return 12;
-    }
-    if num_points >= 13926 {
-        return 11;
-    }
-    if num_points >= 7659 {
-        return 10;
-    }
-    if num_points >= 2436 {
-        return 9;
-    }
-    if num_points >= 376 {
-        return 7;
-    }
-    if num_points >= 231 {
-        return 6;
-    }
-    if num_points >= 97 {
-        return 5;
-    }
-    if num_points >= 35 {
-        return 4;
-    }
-    if num_points >= 10 {
-        return 3;
-    }
-    if num_points >= 2 {
-        return 2;
-    }
-    return 1;
-}
-
-pub(crate) fn get_num_rounds(num_points: usize) -> usize {
-    let bits_per_bucket = get_optimal_bucket_width(num_points / 2);
-    wnaf_size(bits_per_bucket + 1)
-}
-
 impl<Fr: Field + FftField, G: AffineRepr> PippengerRuntimeState<Fr, G> {
     pub(crate) fn new(num_initial_points: usize) -> Self {
         const MAX_NUM_ROUNDS: u32 = 256;

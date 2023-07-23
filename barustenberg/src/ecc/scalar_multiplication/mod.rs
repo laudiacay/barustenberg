@@ -1,6 +1,13 @@
+//pub mod runtime_states;
 pub(crate) mod process_buckets;
 pub(crate) mod runtime_states;
-pub(crate) mod scalar_multiplication;
+// pub(crate) mod wnaf;
+
+// #[cfg(test)]
+// pub mod tests;
+
+use ark_bn254::{Fq, G1Affine};
+use ark_ff::Field;
 
 #[inline]
 fn cube_root_of_unity<F: ark_ff::Field>() -> F {
@@ -19,4 +26,20 @@ fn cube_root_of_unity<F: ark_ff::Field>() -> F {
     // constexpr field result = two_inv * numerator;
     // return result;
     //}
+}
+
+pub(crate) fn generate_pippenger_point_table<F: Field>(
+    points: &mut [G1Affine],
+    table: &mut [G1Affine],
+    num_points: usize,
+) {
+    // calculate the cube root of unity
+    let beta = cube_root_of_unity::<Fq>();
+
+    // iterate backwards, so that `points` and `table` can point to the same memory location
+    for i in (0..num_points).rev() {
+        table[i * 2] = points[i];
+        table[i * 2 + 1].x = beta * points[i].x;
+        table[i * 2 + 1].y = -points[i].y;
+    }
 }
