@@ -73,7 +73,8 @@ impl<H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>> V
         ];
 
         let mut commitments = vec![G1Affine::default(); 8];
-        let mut state = PippengerRuntimeState::new(circuit_proving_key.borrow().circuit_size);
+        let mut state: PippengerRuntimeState<Fr, G1Affine> =
+            PippengerRuntimeState::new(circuit_proving_key.borrow().circuit_size);
 
         for i in 0..8 {
             commitments[i] = G1Affine::from(

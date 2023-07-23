@@ -2,7 +2,7 @@ use std::rc::Rc;
 
 use ark_bn254::G2Affine;
 
-use crate::ecc::MillerLines;
+use crate::ecc::curves::pairings::MillerLines;
 
 use super::VerifierReferenceString;
 

@@ -2,6 +2,8 @@ use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 use ark_bn254::G1Affine;
 
+use anyhow::Result;
+
 use crate::{
     ecc::curves::bn254_scalar_multiplication::Pippenger,
     srs::reference_string::{ProverReferenceString, ReferenceStringFactory},
@@ -54,9 +56,9 @@ impl<'a> ReferenceStringFactory for PippengerReferenceStringFactory<'a> {
             self.pippenger.clone(),
         ))))
     }
-    fn get_verifier_crs(&self) -> Option<Rc<RefCell<Self::Ver>>> {
-        Some(Rc::new(RefCell::new(VerifierMemReferenceString::new(
-            self.g2x,
+    fn get_verifier_crs(&self) -> Result<Option<Rc<RefCell<Self::Ver>>>> {
+        Ok(Some(Rc::new(RefCell::new(
+            VerifierMemReferenceString::new(self.g2x),
         ))))
     }
 }
