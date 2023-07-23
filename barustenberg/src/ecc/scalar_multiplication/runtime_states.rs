@@ -3,8 +3,6 @@ use crate::{common::max_threads::compute_num_threads, numeric::bitop::Msb};
 use ark_ec::AffineRepr;
 use ark_ff::{FftField, Field};
 
-use crate::ecc::scalar_multiplication::process_buckets::*;
-
 #[derive(Clone, Default, Debug)]
 pub(crate) struct PippengerRuntimeState<Fr: Field + FftField, G: AffineRepr> {
     // TODO: maybe arc should be used here for threads. think later.
