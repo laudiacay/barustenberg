@@ -50,6 +50,17 @@ impl BarretenHasher for PedersenBlake3s {
         }
         return result;
              */
+        // let input = grumpkin::fq::from_uniform_bytes(_input);
+        // let input = grumpkin::Fq::;
+
+        // let compressed = common::crypto::pedersen_hash::hash_single::compress_native(input);
+        // // let res = to_buffer(compressed);
+        
+        // let mut result = GenericArray::default(); // Create an array of size PrngOutputSize filled with zeros
+        // for i in 0..Self::PrngOutputSize::USIZE {
+        //     result[i] = res[i];
+        // }
+        // result
         todo!("check comment to see what gpt told us to do")
     }
 }
@@ -71,6 +82,8 @@ impl BarretenHasher for PlookupPedersenBlake3s {
         }
         return result;
          */
+        // let input = pedersen_hash::hash_single(_buffer, CryptoRng);
+
         todo!("check comment to see what gpt told us to do")
     }
 }

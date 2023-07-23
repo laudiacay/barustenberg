@@ -1,4 +1,4 @@
-mod crypto {
+pub(crate) mod crypto {
     pub mod pedersen_hash {
         use crate::generators::{get_generator_data, generator_index_t, fixed_base_ladder};
         use crate::grumpkin::{g1::element as g1_element, fq};
