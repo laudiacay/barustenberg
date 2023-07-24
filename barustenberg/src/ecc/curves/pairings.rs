@@ -1,6 +1,7 @@
-use ark_bn254::G2Projective;
-use ark_bn254::{Fq2, Fq6};
-use ark_ff::{Field, One};
+use ark_bn254::{G2Projective, Fq, Fq6Config};
+use ark_bn254::{Fq2};
+use ark_ec::bn::BnConfig;
+use ark_ff::{Field, One, Fp6Config};
 
 const LOOP_LENGTH: usize = 64;
 const NEG_Z_LOOP_LENGTH: usize = 62;
@@ -17,7 +18,7 @@ const NEG_Z_LOOP_BITS: [u8; NEG_Z_LOOP_LENGTH] = [
 ];
 
 lazy_static::lazy_static! {
-    static ref TWO_INV: Fq2 = Fq2::from_repr(Fq2::one().double().inverse().unwrap()).unwrap();
+    static ref TWO_INV: Fq = Fq::one().double().inverse().unwrap();
 }
 
 #[derive(Debug, Default, Clone, Copy)]
@@ -41,7 +42,7 @@ impl Default for MillerLines {
 }
 
 fn doubling_step_for_flipped_miller_loop(current: &mut G2Projective, ell: &mut EllCoeffs<Fq2>) {
-    let mut a = current.x.mul_by_fq(TWO_INV);
+    let mut a = mul_by_fq(current.x, *TWO_INV);
     a *= &current.y;
 
     let mut b = current.y.square();
@@ -53,7 +54,7 @@ fn doubling_step_for_flipped_miller_loop(current: &mut G2Projective, ell: &mut E
     f += &e;
 
     let mut g = &b + &f;
-    g = g.mul_by_fq(TWO_INV);
+    g = mul_by_fq(g, *TWO_INV);
     let mut h = &current.y + &current.z;
     h = h.square();
     let mut i = &b + &c;
@@ -71,7 +72,7 @@ fn doubling_step_for_flipped_miller_loop(current: &mut G2Projective, ell: &mut E
     current.y = c - k;
     current.z = b * h;
 
-    ell.o = Fq6::mul_by_non_residue(i);
+    ell.o = Fq6Config::mul_fp2_by_nonresidue(i);
 
     ell.vw = -h;
     ell.vv = &j + &j;
@@ -110,7 +111,7 @@ fn mixed_addition_step_for_flipped_miller_loop(
     i = &d * &base.y;
 
     h -= &i;
-    line.o = Fq6::mul_by_non_residue(h);
+    line.o = Fq6Config::mul_fp2_by_nonresidue(h);
 
     line.vv = -e;
     line.vw = d;
@@ -121,10 +122,20 @@ fn mul_by_q(a: &G2Projective) -> G2Projective {
     let t1 = a.y.frobenius_map();
 
     G2Projective {
-        x: Fq2::twist_mul_by_q_x() * &t0,
-        y: Fq2::twist_mul_by_q_y() * &t1,
+        x: ark_bn254::Config::TWIST_MUL_BY_Q_X * &t0,
+        y: ark_bn254::Config::TWIST_MUL_BY_Q_Y * &t1,
         z: a.z.frobenius_map(),
     }
+}
+
+fn mul_by_fq(f: Fq2, a: Fq) -> Fq2 {
+    let mut c0 = f.c0;
+    let mut c1 = f.c1;
+
+    c0 *= a;
+    c1 *= a;
+
+    Fq2 { c0, c1 }
 }
 
 pub(crate) fn precompute_miller_lines(q: G2Projective, lines: &mut MillerLines) {
