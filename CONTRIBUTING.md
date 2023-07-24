@@ -6,11 +6,27 @@ probably something you can help out with. Check out our
 [good first issues][good-first-issues] label for in the issues tab to see a list
 of issue that good for those new to the project.
 
-# THE REST OF THIS DOC IS MOOOOSTLY TRUE, BUT READ THIS FIRST!
-This is very much a WIP of a repo. None of it works right now. 
-Right now main compiles with a ton of warnings. No tests work.
-You can start porting tests or removing TODOs and then stick it in a PR.
-I would love that.
+# THE REST OF THIS DOC IS MOSTLY TRUE, BUT READ THIS FIRST!
+
+This is very much a WIP of a repo. It does not work right now. We have a team of folks who are actively working on getting it mostly into conformance with the commit hash of barettenberg listed in the README.
+
+If you'd like something to work on, email a contributor or comment on an issue. We try to keep the issues mostly up to date, although they're not perfect or complete.
+
+The current standard for code going into main is "compiles with no warnings except unused variables and missing docs using nightly + clippy". 
+
+A gist listing tests from the original is here. We're working on getting those turned into issues and implementing them: https://gist.github.com/shuklaayush/d3952ae12124082b28aa71834e3cafe1 
+
+Adding tests to a piece of code that we maintain is ALWAYS welcome, and is a great way to get introduced to what's going on in the repo.
+
+## External library usage policy
+
+If you decide you want to implement functionality using an external library that Aztec didn't use, ask first and justify why you're doing it. They have a lot of optimizations that are unique to this codebase, and we want to carefully consider whenever we leave them out! 
+
+The general philosophy is we're focused on Plonk right now, and trying to avoid bikeshedding on things like "rewriting elliptic curve implementations" or "implementing blake3 again from scratch".
+
+Most of our externally-sourced stuff comes from arkworks-rs or various bignum/bytes libraries. There's a ton of good stuff you can find in there, most of it is fine to use as a library. 
+
+If you tear out functionality that Aztec wrote themselves, especially if there are optimizations involved, to use an external library instead, OPEN AN ISSUE. Arkworks has a lot of the optimizations from barettenberg listed as issues on their repo. We need to make note that our code now lacks those optimizations, so we can come back to them later once we're optimizing things.
 
 ## Where to Get Help
 
