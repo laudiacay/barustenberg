@@ -1,4 +1,4 @@
-use std::{cell::RefCell, marker::PhantomData, rc::Rc};
+use std::{cell::RefCell, rc::Rc};
 
 use ark_bn254::{Fq, Fr, G1Affine};
 use ark_ff::{Field, One, UniformRand, Zero};
@@ -26,6 +26,9 @@ use anyhow::{ensure, Result};
 
 use crate::proof_system::work_queue::WorkQueue;
 
+#[cfg(test)]
+mod test;
+
 // todo https://doc.rust-lang.org/reference/const_eval.html
 /// Plonk prover.
 #[derive(Debug)]
@@ -38,7 +41,6 @@ pub struct Prover<H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group =
     pub(crate) transition_widgets: Vec<Box<dyn TransitionWidgetBase<Hasher = H, Field = Fr>>>,
     pub(crate) commitment_scheme: KateCommitmentScheme<H, Fq, Fr, G1Affine>,
     pub(crate) settings: S,
-    phantom: PhantomData<Fq>,
 }
 
 impl<
@@ -81,7 +83,6 @@ impl<
             transition_widgets: Vec::new(),
             commitment_scheme: KateCommitmentScheme::<H, Fq, Fr, G1Affine>::default(),
             settings,
-            phantom: PhantomData,
         }
     }
 }

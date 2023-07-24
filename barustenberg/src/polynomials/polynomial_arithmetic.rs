@@ -141,9 +141,9 @@ fn is_power_of_two_usize(x: usize) -> bool {
 ///
 /// assert_eq!(dest, vec![Fr::from(1), Fr::from(2), Fr::from(3), Fr::default()]);  // replace `Fr::from` and `Fr::default` with the appropriate constructor for your field type
 /// ```
-    pub(crate) fn copy_polynomial<Fr: Field + FftField + Copy + Default>(
-        src: &Polynomial<Fr>,
-        dest: &mut Polynomial<Fr>,
+pub(crate) fn copy_polynomial<Fr: Field + FftField + Copy + Default>(
+    src: &Polynomial<Fr>,
+    dest: &mut Polynomial<Fr>,
     num_src_coefficients: usize,
     num_target_coefficients: usize,
 ) {
