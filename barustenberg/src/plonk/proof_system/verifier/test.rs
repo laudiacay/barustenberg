@@ -30,7 +30,6 @@ impl<H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>> V
         circuit_proving_key: Rc<RefCell<ProvingKey<Fr, G>>>,
     ) -> Self {
         let mut polynomials: Vec<Rc<RefCell<Polynomial<Fr>>>> = vec![
-        
             circuit_proving_key
                 .borrow()
                 .polynomial_store
@@ -262,9 +261,15 @@ fn generate_test_data<'a, H: BarretenHasher + Default + 'static>(
         .polynomial_store
         .insert(&"sigma_3_lagrange".to_string(), sigma_3_lagrange_base);
 
-    key.borrow().small_domain.ifft_inplace(&mut sigma_1.coefficients);
-    key.borrow().small_domain.ifft_inplace(&mut sigma_2.coefficients);
-    key.borrow().small_domain.ifft_inplace(&mut sigma_3.coefficients);
+    key.borrow()
+        .small_domain
+        .ifft_inplace(&mut sigma_1.coefficients);
+    key.borrow()
+        .small_domain
+        .ifft_inplace(&mut sigma_2.coefficients);
+    key.borrow()
+        .small_domain
+        .ifft_inplace(&mut sigma_3.coefficients);
 
     const WIDTH: usize = 4;
     let mut sigma_1_fft = sigma_1.clone();
@@ -314,11 +319,21 @@ fn generate_test_data<'a, H: BarretenHasher + Default + 'static>(
         .polynomial_store
         .insert(&"w_3_lagrange".to_string(), w_o);
 
-    key.borrow().small_domain.ifft_inplace(&mut q_l.coefficients);
-    key.borrow().small_domain.ifft_inplace(&mut q_r.coefficients);
-    key.borrow().small_domain.ifft_inplace(&mut q_o.coefficients);
-    key.borrow().small_domain.ifft_inplace(&mut q_m.coefficients);
-    key.borrow().small_domain.ifft_inplace(&mut q_c.coefficients);
+    key.borrow()
+        .small_domain
+        .ifft_inplace(&mut q_l.coefficients);
+    key.borrow()
+        .small_domain
+        .ifft_inplace(&mut q_r.coefficients);
+    key.borrow()
+        .small_domain
+        .ifft_inplace(&mut q_o.coefficients);
+    key.borrow()
+        .small_domain
+        .ifft_inplace(&mut q_m.coefficients);
+    key.borrow()
+        .small_domain
+        .ifft_inplace(&mut q_c.coefficients);
 
     let mut q_1_fft = q_l.clone();
     q_1_fft.resize(n * 4, Fr::zero());
