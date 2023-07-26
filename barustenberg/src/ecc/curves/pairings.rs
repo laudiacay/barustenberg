@@ -49,7 +49,7 @@ fn doubling_step_for_flipped_miller_loop(current: &mut G2Projective, ell: &mut E
     let mut c = current.z.square();
     let mut d = &c + &c;
     d += &c;
-    let mut e = d * Fq2::twist_coeff_b();
+    let mut e = d * <Fq2 as super::Fq2Coeffs>::twist_coeff_b();
     let mut f = &e + &e;
     f += &e;
 
