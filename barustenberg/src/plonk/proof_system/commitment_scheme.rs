@@ -3,9 +3,9 @@ use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::rc::Rc;
 
-use ark_bn254::{G1Affine, Fq, Fr};
+use ark_bn254::{Fq, Fr, G1Affine};
 use ark_ec::AffineRepr;
-use ark_ff::{FftField, Field, Zero, One};
+use ark_ff::{FftField, Field, One, Zero};
 
 use crate::polynomials::{polynomial_arithmetic, Polynomial};
 use crate::proof_system::work_queue::{Work, WorkItem, WorkQueue};
@@ -98,9 +98,7 @@ impl<H: BarretenHasher, Fq: Field + FftField, Fr: Field + FftField, G: AffineRep
     }
 }
 
-impl<H: BarretenHasher> CommitmentScheme
-    for KateCommitmentScheme<H, Fq, Fr, G1Affine>
-{
+impl<H: BarretenHasher> CommitmentScheme for KateCommitmentScheme<H, Fq, Fr, G1Affine> {
     type Fq = Fq;
     type Fr = Fr;
     type Group = G1Affine;

@@ -2,10 +2,7 @@ use std::{cell::RefCell, rc::Rc};
 
 use ark_bn254::{G1Affine, G2Affine};
 
-use crate::{
-    ecc::curves::bn254_scalar_multiplication::Pippenger,
-    srs::io::read_transcript_g2,
-};
+use crate::{ecc::curves::bn254_scalar_multiplication::Pippenger, srs::io::read_transcript_g2};
 
 use super::{ProverReferenceString, ReferenceStringFactory, VerifierReferenceString};
 
@@ -21,9 +18,7 @@ impl VerifierFileReferenceString {
         let mut g2_x = G2Affine::default();
         read_transcript_g2(&mut g2_x, path)?;
 
-        Ok(Self {
-            g2_x,
-        })
+        Ok(Self { g2_x })
     }
 }
 
@@ -31,7 +26,6 @@ impl VerifierReferenceString for VerifierFileReferenceString {
     fn get_g2x(&self) -> G2Affine {
         self.g2_x.clone()
     }
-
 }
 
 #[derive(Debug, Default)]

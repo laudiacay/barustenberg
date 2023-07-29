@@ -307,11 +307,7 @@ impl<H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>> V
         }
 
         // The final pairing check of step 12.
-        let result: Fq12 = reduced_ate_pairing_batch_precomputed(
-            &p,
-            &vec![MillerLines],
-            2,
-        );
+        let result: Fq12 = reduced_ate_pairing_batch_precomputed(&p, &vec![MillerLines], 2);
 
         Ok(result == Fq12::one())
     }

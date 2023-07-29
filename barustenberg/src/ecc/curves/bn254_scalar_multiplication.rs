@@ -4,8 +4,6 @@ use ark_bn254::{G1Affine, G1Projective};
 use ark_ec::AffineRepr;
 use ark_ff::{Field, Zero};
 
-use crate::srs::io::read_transcript_g1;
-
 pub(crate) type G1AffineGroup = <ark_ec::short_weierstrass::Affine<
     <ark_bn254::Config as ark_ec::bn::BnConfig>::G1Config,
 > as ark_ec::AffineRepr>::Group;
@@ -47,7 +45,7 @@ impl Pippenger {
         todo!()
     }
 
-    pub(crate) fn from_path(path: &str, num_points: usize) -> Self {
+    pub(crate) fn from_path(_path: &str, _num_points: usize) -> Self {
         todo!("from_path");
         // let mut monomials = vec![G1Affine::default(); num_points];
         // read_transcript_g1(&mut monomials, num_points, path);

@@ -87,7 +87,7 @@ fn read_file_into_buffer(
     size: usize,
     filename: &str,
     offset: u64,
-    amount: usize,
+    _amount: usize,
 ) -> std::io::Result<()> {
     let mut file = File::open(filename)?;
     file.seek(SeekFrom::Start(offset))?;
@@ -117,14 +117,14 @@ pub(crate) fn read_transcript_g1(
     degree: usize,
     dir: &str,
 ) -> Result<()> {
-    let mut num = 0;
+    let num = 0;
     let mut num_read = 0;
     let mut path = get_transcript_path(dir, num);
 
     while Path::new(&path).exists() && num_read < degree {
-        let mut manifest = read_manifest(&path)?;
+        let manifest = read_manifest(&path)?;
 
-        let offset = std::mem::size_of::<Manifest>();
+        let _offset = std::mem::size_of::<Manifest>();
         let num_to_read = min(manifest.num_g1_points as usize, degree - num_read);
         let g1_buffer_size = std::mem::size_of::<Fq>() * 2 * num_to_read;
         let mut buffer = vec![0_u8; g1_buffer_size];
@@ -135,7 +135,7 @@ pub(crate) fn read_transcript_g1(
 
         // We must pass the size actually read to the second call, not the desired
         // g1_buffer_size as the file may have been smaller than this.
-        let mut monomial = &mut monomials[num_read..];
+        let monomial = &mut monomials[num_read..];
         read_elements_from_buffer(monomial, &buffer);
 
         num_read += num_to_read;
@@ -167,7 +167,7 @@ pub(crate) fn read_transcript_g2(g2_x: &mut G2Affine, dir: &str) -> Result<()> {
 
         let file = File::open(&path)?;
         let mut file = file.take(g2_size as u64);
-        file.read_exact(&mut buffer[..]);
+        file.read_exact(&mut buffer[..])?;
 
         // Again, size passed to second function should be size actually read
         *g2_x = G2Affine::deserialize_uncompressed(&mut &buffer[..])
@@ -179,7 +179,7 @@ pub(crate) fn read_transcript_g2(g2_x: &mut G2Affine, dir: &str) -> Result<()> {
     // Get transcript starting at g0.dat
     path = get_transcript_path(dir, 0);
 
-    let mut manifest = read_manifest(&path)?;
+    let manifest = read_manifest(&path)?;
 
     let g2_buffer_offset = std::mem::size_of::<Fq>() * 2 * manifest.num_g1_points as usize;
     let offset = std::mem::size_of::<Manifest>() + g2_buffer_offset;
@@ -187,7 +187,7 @@ pub(crate) fn read_transcript_g2(g2_x: &mut G2Affine, dir: &str) -> Result<()> {
     let mut file = File::open(&path)?;
     file.seek(SeekFrom::Start(offset as u64))?;
     let mut buf = vec![0; g2_size];
-    file.read_exact(&mut buf[..]);
+    file.read_exact(&mut buf[..])?;
 
     *g2_x = G2Affine::deserialize_uncompressed(&mut &buf[..])
         .map_err(|e| anyhow!("Failed to deserialize G2Affine from transcript file: {}", e))?;

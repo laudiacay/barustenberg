@@ -4,7 +4,7 @@ use std::rc::Rc;
 
 use anyhow::Result;
 
-use ark_bn254::{G1Affine, Fr};
+use ark_bn254::{Fr, G1Affine};
 
 use crate::ecc::curves::bn254_scalar_multiplication::PippengerRuntimeState;
 use crate::plonk::proof_system::proving_key::ProvingKey;

@@ -2,7 +2,6 @@ use ark_bn254::Fq12;
 use ark_ec::AffineRepr;
 use ark_ff::{FftField, Field};
 
-
 // TODO todo - stubs to get the compiler to cooperate.
 pub(crate) mod curves;
 

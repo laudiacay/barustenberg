@@ -650,7 +650,7 @@ fn test_partial_fft_serial() {
     let x_pow_3 = eval_point.pow(&[3]);
     let x_pow_2 = eval_point.pow(&[2]);
     let root = large_domain.root;
-    let mut root_pow ;
+    let mut root_pow;
     let mut result = Fr::zero();
 
     for i in 0..n {
@@ -693,7 +693,7 @@ fn test_partial_fft_parallel() {
     let x_pow_3 = eval_point.pow(&[3]);
     let x_pow_2 = eval_point.pow(&[2]);
     let root = large_domain.root;
-    let mut root_pow ;
+    let mut root_pow;
     let mut result = Fr::zero();
 
     for i in 0..n {
