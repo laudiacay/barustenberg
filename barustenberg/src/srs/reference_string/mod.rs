@@ -22,11 +22,7 @@ pub(crate) trait ProverReferenceString: Debug {
 pub(crate) trait ReferenceStringFactory: Default {
     type Pro: ProverReferenceString + 'static;
     type Ver: VerifierReferenceString + 'static;
-    fn get_prover_crs(&self, _size: usize) -> Result<Option<Rc<RefCell<Self::Pro>>>> {
-        todo!()
-    }
+    fn get_prover_crs(&self, _size: usize) -> Result<Option<Rc<RefCell<Self::Pro>>>>;
 
-    fn get_verifier_crs(&self) -> Result<Option<Rc<RefCell<Self::Ver>>>> {
-        todo!()
-    }
+    fn get_verifier_crs(&self) -> Result<Option<Rc<RefCell<Self::Ver>>>>;
 }
