@@ -4,9 +4,13 @@ use ark_bn254::{G1Affine, G1Projective};
 use ark_ec::AffineRepr;
 use ark_ff::{Field, Zero};
 
+use crate::srs::io::read_transcript_g1;
+
 pub(crate) type G1AffineGroup = <ark_ec::short_weierstrass::Affine<
     <ark_bn254::Config as ark_ec::bn::BnConfig>::G1Config,
 > as ark_ec::AffineRepr>::Group;
+
+use anyhow::Result;
 
 #[inline]
 fn cube_root_of_unity<F: ark_ff::Field>() -> F {
@@ -45,15 +49,15 @@ impl Pippenger {
         todo!()
     }
 
-    pub(crate) fn from_path(_path: &str, _num_points: usize) -> Self {
-        todo!("from_path");
-        // let mut monomials = vec![G1Affine::default(); num_points];
-        // read_transcript_g1(&mut monomials, num_points, path);
-        // generate_pippenger_point_table(&mut monomials, &mut monomials, num_points);
-        // Self {
-        //     monomials,
-        //     num_points,
-        // }
+    pub(crate) fn from_path(path: &str, num_points: usize) -> Result<Self> {
+        let mut monomials = vec![G1Affine::default(); num_points];
+        read_transcript_g1(&mut monomials, num_points, path)?;
+        let point_table = monomials.clone();
+        generate_pippenger_point_table(&point_table, &mut monomials, num_points);
+        Ok(Self {
+            monomials,
+            num_points,
+        })
     }
 }
 
@@ -95,7 +99,7 @@ impl<Fq: Field, G1: AffineRepr> PippengerRuntimeState<Fq, G1> {
     }
 }
 pub(crate) fn generate_pippenger_point_table(
-    points: &mut [G1Affine],
+    points: &[G1Affine],
     table: &mut [G1Affine],
     num_points: usize,
 ) {

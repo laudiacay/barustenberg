@@ -550,7 +550,7 @@ pub(crate) trait ComposerBase {
         let crs = cbd
             .crs_factory
             .get_prover_crs(subgroup_size + 1)
-            .clone()
+            .unwrap().clone()
             .unwrap();
         // initialize proving key
         cbd.circuit_proving_key = Some(Rc::new(RefCell::new(ProvingKey::new(

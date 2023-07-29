@@ -35,13 +35,13 @@ pub(crate) struct FileReferenceString {
 }
 
 impl FileReferenceString {
-    pub(crate) fn new(num_points: usize, path: &str) -> Self {
+    pub(crate) fn new(num_points: usize, path: &str) -> Result<Self> {
         // Implementation depends on your project.
-        let pippenger = Pippenger::from_path(path, num_points);
-        Self {
+        let pippenger = Pippenger::from_path(path, num_points)?;
+        Ok(Self {
             num_points,
             pippenger,
-        }
+        })
     }
 
     pub(crate) fn read_from_path(_path: &str) -> Result<Self, std::io::Error> {
@@ -74,10 +74,10 @@ impl FileReferenceStringFactory {
 impl ReferenceStringFactory for FileReferenceStringFactory {
     type Pro = FileReferenceString;
     type Ver = VerifierFileReferenceString;
-    fn get_prover_crs(&self, degree: usize) -> Option<Rc<RefCell<Self::Pro>>> {
-        Some(Rc::new(RefCell::new(FileReferenceString::new(
+    fn get_prover_crs(&self, degree: usize) -> Result<Option<Rc<RefCell<Self::Pro>>>> {
+        Ok(Some(Rc::new(RefCell::new(FileReferenceString::new(
             degree, &self.path,
-        ))))
+        )?))))
     }
 
     fn get_verifier_crs(&self) -> Result<Option<Rc<RefCell<Self::Ver>>>> {
@@ -101,7 +101,7 @@ impl DynamicFileReferenceStringFactory {
         let prover_crs = Rc::new(RefCell::new(FileReferenceString::new(
             initial_degree,
             &path,
-        )));
+        )?));
         Ok(Self {
             path,
             degree: RefCell::new(initial_degree),
@@ -114,12 +114,12 @@ impl DynamicFileReferenceStringFactory {
 impl ReferenceStringFactory for DynamicFileReferenceStringFactory {
     type Pro = FileReferenceString;
     type Ver = VerifierFileReferenceString;
-    fn get_prover_crs(&self, degree: usize) -> Option<Rc<RefCell<Self::Pro>>> {
+    fn get_prover_crs(&self, degree: usize) -> Result<Option<Rc<RefCell<Self::Pro>>>> {
         if degree != *self.degree.borrow() {
-            *self.prover_crs.borrow_mut() = FileReferenceString::new(degree, &self.path);
+            *self.prover_crs.borrow_mut() = FileReferenceString::new(degree, &self.path)?;
             *self.degree.borrow_mut() = degree;
         }
-        Some(self.prover_crs.clone())
+        Ok(Some(self.prover_crs.clone()))
     }
 
     fn get_verifier_crs(&self) -> Result<Option<Rc<RefCell<Self::Ver>>>> {

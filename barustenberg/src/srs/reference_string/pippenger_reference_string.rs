@@ -50,11 +50,11 @@ impl<'a> ReferenceStringFactory for PippengerReferenceStringFactory<'a> {
     type Pro = PippengerReferenceString;
     type Ver = VerifierMemReferenceString;
 
-    fn get_prover_crs(&self, degree: usize) -> Option<Rc<RefCell<Self::Pro>>> {
+    fn get_prover_crs(&self, degree: usize) -> Result<Option<Rc<RefCell<Self::Pro>>>> {
         assert!(degree <= self.pippenger.get_num_points());
-        Some(Rc::new(RefCell::new(PippengerReferenceString::new(
+        Ok(Some(Rc::new(RefCell::new(PippengerReferenceString::new(
             self.pippenger.clone(),
-        ))))
+        )))))
     }
     fn get_verifier_crs(&self) -> Result<Option<Rc<RefCell<Self::Ver>>>> {
         Ok(Some(Rc::new(RefCell::new(
