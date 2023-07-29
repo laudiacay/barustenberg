@@ -43,18 +43,19 @@ impl Pippenger {
         todo!()
     }
 
-    pub(crate) fn from_points(_points: &[G1Affine], num_points: usize) -> Self {
+    pub(crate) fn from_points(_points: &[G1Affine], _num_points: usize) -> Self {
         todo!()
     }
 
     pub(crate) fn from_path(path: &str, num_points: usize) -> Self {
-        let mut monomials = vec![G1Affine::default(); num_points];
-        read_transcript_g1(&mut monomials, num_points, path);
-        generate_pippenger_point_table(&mut monomials, &mut monomials, num_points);
-        Self {
-            monomials,
-            num_points,
-        }
+        todo!("from_path");
+        // let mut monomials = vec![G1Affine::default(); num_points];
+        // read_transcript_g1(&mut monomials, num_points, path);
+        // generate_pippenger_point_table(&mut monomials, &mut monomials, num_points);
+        // Self {
+        //     monomials,
+        //     num_points,
+        // }
     }
 }
 
