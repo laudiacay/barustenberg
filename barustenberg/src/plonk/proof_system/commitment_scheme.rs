@@ -3,8 +3,9 @@ use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::rc::Rc;
 
+use ark_bn254::{G1Affine, Fq, Fr};
 use ark_ec::AffineRepr;
-use ark_ff::{FftField, Field};
+use ark_ff::{FftField, Field, Zero, One};
 
 use crate::polynomials::{polynomial_arithmetic, Polynomial};
 use crate::proof_system::work_queue::{Work, WorkItem, WorkQueue};
@@ -26,7 +27,7 @@ pub(crate) trait CommitmentScheme {
         coefficients: Rc<RefCell<Polynomial<Self::Fr>>>,
         tag: String,
         item_constant: Self::Fr,
-        queue: &mut WorkQueue<Self::Hasher, Self::Fr, Self::Group>,
+        queue: &mut WorkQueue<Self::Hasher>,
     );
 
     fn compute_opening_polynomial(
@@ -49,13 +50,13 @@ pub(crate) trait CommitmentScheme {
         n: usize,
         tags: &[String],
         item_constants: &[Self::Fr],
-        queue: &mut WorkQueue<Self::Hasher, Self::Fr, Self::Group>,
+        queue: &mut WorkQueue<Self::Hasher>,
     );
 
     fn batch_open(
         &mut self,
         transcript: &Transcript<Self::Hasher>,
-        queue: &mut WorkQueue<Self::Hasher, Self::Fr, Self::Group>,
+        queue: &mut WorkQueue<Self::Hasher>,
         input_key: Option<Rc<RefCell<ProvingKey<Self::Fr>>>>,
     );
 
@@ -97,12 +98,12 @@ impl<H: BarretenHasher, Fq: Field + FftField, Fr: Field + FftField, G: AffineRep
     }
 }
 
-impl<Fq: Field + FftField, Fr: Field + FftField, G: AffineRepr, H: BarretenHasher> CommitmentScheme
-    for KateCommitmentScheme<H, Fq, Fr, G>
+impl<H: BarretenHasher> CommitmentScheme
+    for KateCommitmentScheme<H, Fq, Fr, G1Affine>
 {
     type Fq = Fq;
     type Fr = Fr;
-    type Group = G;
+    type Group = G1Affine;
     type Hasher = H;
 
     fn commit(
@@ -110,7 +111,7 @@ impl<Fq: Field + FftField, Fr: Field + FftField, G: AffineRepr, H: BarretenHashe
         coefficients: Rc<RefCell<Polynomial<Fr>>>,
         tag: String,
         item_constant: Fr,
-        queue: &mut WorkQueue<H, Fr, G>,
+        queue: &mut WorkQueue<H>,
     ) {
         queue.add_to_queue(WorkItem {
             work: Work::ScalarMultiplication {
@@ -145,7 +146,7 @@ impl<Fq: Field + FftField, Fr: Field + FftField, G: AffineRepr, H: BarretenHashe
         n: usize,
         tags: &[String],
         item_constants: &[Fr],
-        queue: &mut WorkQueue<H, Fr, G>,
+        queue: &mut WorkQueue<H>,
     ) {
         // In this function, we compute the opening polynomials using Kate scheme for multiple input
         // polynomials with multiple evaluation points. The input polynomials are separated according
@@ -227,7 +228,7 @@ impl<Fq: Field + FftField, Fr: Field + FftField, G: AffineRepr, H: BarretenHashe
     fn batch_open(
         &mut self,
         _transcript: &Transcript<H>,
-        _queue: &mut WorkQueue<H, Fr, G>,
+        _queue: &mut WorkQueue<H>,
         _input_key: Option<Rc<RefCell<ProvingKey<Self::Fr>>>>,
     ) {
         todo!()
@@ -236,7 +237,7 @@ impl<Fq: Field + FftField, Fr: Field + FftField, G: AffineRepr, H: BarretenHashe
     fn batch_verify(
         &self,
         _transcript: &Transcript<H>,
-        _kate_g1_elements: &mut HashMap<String, G>,
+        _kate_g1_elements: &mut HashMap<String, G1Affine>,
         _kate_fr_elements: &mut HashMap<String, Fr>,
         _input_key: Option<&VerificationKey<Fr>>,
     ) {

@@ -15,7 +15,7 @@ pub(crate) trait ProverRandomWidget: std::fmt::Debug {
         &self,
         _transcript: &mut Transcript<Self::Hasher>,
         _size: usize,
-        _work_queue: &mut WorkQueue<Self::Hasher, Self::Fr, Self::G1>,
+        _work_queue: &mut WorkQueue<Self::Hasher>,
     );
 
     fn compute_quotient_contribution(

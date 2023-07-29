@@ -310,7 +310,7 @@ impl<
         &self,
         _transcript: &mut Transcript<Hash>,
         _size: usize,
-        _work_queue: &mut WorkQueue<Hash, Fr, G1Affine>,
+        _work_queue: &mut WorkQueue<Hash>,
     ) {
         todo!()
     }
@@ -349,7 +349,7 @@ impl<
         &mut self,
         _transcript: &mut Transcript<Hash>,
         _round_number: usize,
-        _queue: &mut WorkQueue<Hash, Fr, G1Affine>,
+        _queue: &mut WorkQueue<Hash>,
     ) {
         // ...
     }

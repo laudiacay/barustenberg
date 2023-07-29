@@ -9,11 +9,8 @@ use ark_bn254::{G1Affine, G2Affine};
 
 use anyhow::Result;
 
-use crate::ecc::curves::pairings::MillerLines;
-
 pub(crate) trait VerifierReferenceString: Debug {
     fn get_g2x(&self) -> G2Affine;
-    fn get_precomputed_g2_lines(&self) -> Rc<Vec<MillerLines>>;
 }
 
 pub(crate) trait ProverReferenceString: Debug {

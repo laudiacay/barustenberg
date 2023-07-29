@@ -344,26 +344,26 @@ fn test_compute_lagrange_polynomial_fft() {
 #[test]
 fn test_compute_lagrange_polynomial_fft_large_domain() {
     let n = 256; // size of small_domain
-    let M = 4; // size of large_domain == M * n
+    let m = 4; // size of large_domain == M * n
     let mut small_domain = EvaluationDomain::new(n, None);
-    let mut large_domain = EvaluationDomain::new(M * n, None);
+    let mut large_domain = EvaluationDomain::new(m * n, None);
     small_domain.compute_lookup_table();
     large_domain.compute_lookup_table();
 
-    let mut l_1_coefficients = Polynomial::new(M * n);
-    let mut scratch_memory = Polynomial::new(M * n + M * 2);
+    let mut l_1_coefficients = Polynomial::new(m * n);
+    let mut scratch_memory = Polynomial::new(m * n + m * 2);
 
     // Compute FFT on target domain
     small_domain.compute_lagrange_polynomial_fft(&mut l_1_coefficients, &large_domain);
 
     // Copy L_1 FFT into scratch space and shift it to get FFT of L_{n-1}
-    polynomial_arithmetic::copy_polynomial(&l_1_coefficients, &mut scratch_memory, M * n, M * n);
+    polynomial_arithmetic::copy_polynomial(&l_1_coefficients, &mut scratch_memory, m * n, m * n);
 
     // Manually 'shift' L_1 FFT in scratch memory by m*2
-    let temp_slice = scratch_memory[..M * 2].to_vec();
-    scratch_memory[M * n..M * n + M * 2].copy_from_slice(&temp_slice);
+    let temp_slice = scratch_memory[..m * 2].to_vec();
+    scratch_memory[m * n..m * n + m * 2].copy_from_slice(&temp_slice);
 
-    let l_n_minus_one_coefficients = &mut scratch_memory.coefficients[M * 2..];
+    let l_n_minus_one_coefficients = &mut scratch_memory.coefficients[m * 2..];
 
     // Recover monomial forms of L_1 and L_{n-1} (from manually shifted L_1 FFT)
     large_domain.coset_ifft_inplace(&mut l_1_coefficients.coefficients);
@@ -644,13 +644,13 @@ fn test_partial_fft_serial() {
     let eval_point = Fr::rand(&mut rng);
     let expected = large_domain.compute_barycentric_evaluation(&poly_eval, 4 * n, &eval_point);
 
-    let mut inner_poly_eval = Fr::zero();
+    let mut inner_poly_eval;
     let x_pow_4n = eval_point.pow(&[4 * n as u64]);
     let x_pow_4 = eval_point.pow(&[4]);
     let x_pow_3 = eval_point.pow(&[3]);
     let x_pow_2 = eval_point.pow(&[2]);
     let root = large_domain.root;
-    let mut root_pow = Fr::one();
+    let mut root_pow ;
     let mut result = Fr::zero();
 
     for i in 0..n {
@@ -687,13 +687,13 @@ fn test_partial_fft_parallel() {
 
     large_domain.partial_fft(poly_eval.as_mut_slice(), None, false);
 
-    let mut inner_poly_eval = Fr::zero();
+    let mut inner_poly_eval;
     let x_pow_4n = eval_point.pow(&[4 * n as u64]);
     let x_pow_4 = eval_point.pow(&[4]);
     let x_pow_3 = eval_point.pow(&[3]);
     let x_pow_2 = eval_point.pow(&[2]);
     let root = large_domain.root;
-    let mut root_pow = Fr::one();
+    let mut root_pow ;
     let mut result = Fr::zero();
 
     for i in 0..n {
@@ -882,19 +882,19 @@ fn test_fft_linear_poly_product() {
     }
 
     let log2_n = n.next_power_of_two().trailing_zeros();
-    let N = 1 << (log2_n + 1);
+    let n = 1 << (log2_n + 1);
 
-    let mut domain = EvaluationDomain::<Fr>::new(N, None);
+    let mut domain = EvaluationDomain::<Fr>::new(n, None);
     domain.compute_lookup_table();
 
-    let mut dest = vec![Fr::zero(); N];
+    let mut dest = vec![Fr::zero(); n];
     domain.fft_linear_polynomial_product(&roots, &mut dest, n, false);
-    let result = domain.compute_barycentric_evaluation(&dest, N, &z);
+    let result = domain.compute_barycentric_evaluation(&dest, n, &z);
 
-    let mut dest_coset = vec![Fr::zero(); N];
+    let mut dest_coset = vec![Fr::zero(); n];
     let z_by_g = z * domain.generator_inverse;
     domain.fft_linear_polynomial_product(&roots, &mut dest_coset, n, true);
-    let result1 = domain.compute_barycentric_evaluation(&dest_coset, N, &z_by_g);
+    let result1 = domain.compute_barycentric_evaluation(&dest_coset, n, &z_by_g);
 
     let mut coeffs = vec![Fr::zero(); n + 1];
     polynomial_arithmetic::compute_linear_polynomial_product(&roots, &mut coeffs, n);
@@ -972,14 +972,14 @@ fn test_interpolation_constructor_single() {
 
 #[test]
 fn test_interpolation_constructor() {
-    let N = 32;
+    let n = 32;
 
     let mut rng = rand::thread_rng();
 
-    let mut roots = vec![Fr::zero(); N];
-    let mut evaluations = vec![Fr::zero(); N];
+    let mut roots = vec![Fr::zero(); n];
+    let mut evaluations = vec![Fr::zero(); n];
 
-    for i in 0..N {
+    for i in 0..n {
         roots[i] = Fr::rand(&mut rng);
         evaluations[i] = Fr::rand(&mut rng);
     }
@@ -989,27 +989,27 @@ fn test_interpolation_constructor() {
 
     let interpolated = Polynomial::from_interpolations(&roots, &evaluations).unwrap();
 
-    assert_eq!(interpolated.size(), N);
+    assert_eq!(interpolated.size(), n);
     assert_eq!(roots, roots_copy);
     assert_eq!(evaluations, evaluations_copy);
 
-    for i in 0..N {
-        let eval = polynomial_arithmetic::evaluate(&interpolated.coefficients, &roots[i], N);
+    for i in 0..n {
+        let eval = polynomial_arithmetic::evaluate(&interpolated.coefficients, &roots[i], n);
         assert_eq!(eval, evaluations[i]);
     }
 }
 
 #[test]
 fn test_evaluate_mle() {
-    fn test_case(N: usize) {
+    fn test_case(n: usize) {
         let mut rng = rand::thread_rng();
-        let m = N.next_power_of_two().trailing_zeros();
-        assert_eq!(N, 1 << m);
-        let mut poly = Polynomial::new(N);
-        for i in 1..(N - 1) {
+        let m = n.next_power_of_two().trailing_zeros();
+        assert_eq!(n, 1 << m);
+        let mut poly = Polynomial::new(n);
+        for i in 1..(n - 1) {
             poly[i] = Fr::rand(&mut rng);
         }
-        poly[N - 1] = Fr::zero();
+        poly[n - 1] = Fr::zero();
 
         assert!(poly[0].is_zero());
 
@@ -1019,8 +1019,8 @@ fn test_evaluate_mle() {
             u[l as usize] = Fr::rand(&mut rng);
         }
 
-        let mut lagrange_evals = vec![Fr::one(); N];
-        for i in 0..N {
+        let mut lagrange_evals = vec![Fr::one(); n];
+        for i in 0..n {
             let mut coef = Fr::one();
             for l in 0..m {
                 let mask = 1 << l;
@@ -1036,7 +1036,7 @@ fn test_evaluate_mle() {
         // check eval by computing scalar product between
         // lagrange evaluations and coefficients
         let mut real_eval = Fr::zero();
-        for i in 0..N {
+        for i in 0..n {
             real_eval += poly[i] * lagrange_evals[i];
         }
         let computed_eval = poly.evaluate_mle(&u, false);
@@ -1044,7 +1044,7 @@ fn test_evaluate_mle() {
 
         // also check shifted eval
         let mut real_eval_shift = Fr::zero();
-        for i in 1..N {
+        for i in 1..n {
             real_eval_shift += poly[i] * lagrange_evals[i - 1];
         }
         let computed_eval_shift = poly.evaluate_mle(&u, true);

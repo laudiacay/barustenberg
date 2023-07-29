@@ -2,7 +2,6 @@ use ark_ff::{FftField, Field};
 
 //pub(crate) mod grumpkin;
 pub(crate) mod bn254_scalar_multiplication;
-pub(crate) mod pairings;
 
 pub(crate) fn coset_generator<F: Field + FftField>(_idx: usize) -> F {
     /*

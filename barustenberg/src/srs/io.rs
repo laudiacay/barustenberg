@@ -69,7 +69,7 @@ fn read_elements_from_buffer<G: AffineRepr>(elements: &mut [G], buffer: &[u8]) {
     // cursor on the buffer
     let cursor = &mut &buffer[..];
     for i in 0..elements.len() {
-        if let Ok(element) = G::deserialize_uncompressed(cursor) {
+        if let Ok(element) = G::deserialize_uncompressed(&mut *cursor) {
             elements[i] = element;
         } else {
             break;

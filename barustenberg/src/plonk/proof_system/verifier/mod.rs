@@ -3,7 +3,7 @@ use crate::{
         curves::bn254_scalar_multiplication::{
             generate_pippenger_point_table, PippengerRuntimeState,
         },
-        reduced_ate_pairing_batch_precomputed,
+        reduced_ate_pairing_batch_precomputed, MillerLines,
     },
     plonk::proof_system::constants::NUM_LIMB_BITS_IN_FIELD_SIMULATION,
     transcript::{BarretenHasher, Manifest, Transcript},
@@ -309,12 +309,7 @@ impl<H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>> V
         // The final pairing check of step 12.
         let result: Fq12 = reduced_ate_pairing_batch_precomputed(
             &p,
-            (*self.key)
-                .borrow()
-                .reference_string
-                .borrow()
-                .get_precomputed_g2_lines()
-                .as_ref(),
+            &vec![MillerLines],
             2,
         );
 

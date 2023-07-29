@@ -3,10 +3,7 @@ use std::{cell::RefCell, rc::Rc};
 use ark_bn254::{G1Affine, G2Affine};
 
 use crate::{
-    ecc::curves::{
-        bn254_scalar_multiplication::Pippenger,
-        pairings::{precompute_miller_lines, MillerLines},
-    },
+    ecc::curves::bn254_scalar_multiplication::Pippenger,
     srs::io::read_transcript_g2,
 };
 
@@ -17,7 +14,6 @@ use anyhow::Result;
 #[derive(Debug, Default)]
 pub(crate) struct VerifierFileReferenceString {
     g2_x: G2Affine,
-    precomputed_g2_lines: Rc<Vec<MillerLines>>,
 }
 
 impl VerifierFileReferenceString {
@@ -25,18 +21,8 @@ impl VerifierFileReferenceString {
         let mut g2_x = G2Affine::default();
         read_transcript_g2(&mut g2_x, path)?;
 
-        let mut precomputed_g2_lines_inner = vec![MillerLines::default(); 2];
-        precompute_miller_lines(
-            G2Affine::identity().into(),
-            &mut precomputed_g2_lines_inner[0],
-        );
-        precompute_miller_lines(g2_x.into(), &mut precomputed_g2_lines_inner[1]);
-
-        let precomputed_g2_lines = Rc::new(precomputed_g2_lines_inner);
-
         Ok(Self {
             g2_x,
-            precomputed_g2_lines,
         })
     }
 }
@@ -46,9 +32,6 @@ impl VerifierReferenceString for VerifierFileReferenceString {
         self.g2_x.clone()
     }
 
-    fn get_precomputed_g2_lines(&self) -> Rc<Vec<MillerLines>> {
-        self.precomputed_g2_lines.clone()
-    }
 }
 
 #[derive(Debug, Default)]
