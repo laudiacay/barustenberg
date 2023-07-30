@@ -7,11 +7,10 @@ use std::{cell::RefCell, fmt::Debug};
 
 use ark_bn254::{G1Affine, G2Affine};
 
-use crate::ecc::MillerLines;
+use anyhow::Result;
 
 pub(crate) trait VerifierReferenceString: Debug {
     fn get_g2x(&self) -> G2Affine;
-    fn get_precomputed_g2_lines(&self) -> Rc<Vec<MillerLines>>;
 }
 
 pub(crate) trait ProverReferenceString: Debug {
@@ -23,11 +22,7 @@ pub(crate) trait ProverReferenceString: Debug {
 pub(crate) trait ReferenceStringFactory: Default {
     type Pro: ProverReferenceString + 'static;
     type Ver: VerifierReferenceString + 'static;
-    fn get_prover_crs(&self, _size: usize) -> Option<Rc<RefCell<Self::Pro>>> {
-        todo!()
-    }
+    fn get_prover_crs(&self, _size: usize) -> Result<Option<Rc<RefCell<Self::Pro>>>>;
 
-    fn get_verifier_crs(&self) -> Option<Rc<RefCell<Self::Ver>>> {
-        todo!()
-    }
+    fn get_verifier_crs(&self) -> Result<Option<Rc<RefCell<Self::Ver>>>>;
 }

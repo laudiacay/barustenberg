@@ -1,11 +1,10 @@
-use ark_ec::AffineRepr;
-use ark_ff::{FftField, Field};
+use ark_ff::{FftField, Field, Zero};
 use std::cell::RefCell;
 use std::rc::Rc;
 
 use anyhow::Result;
 
-use ark_bn254::G1Affine;
+use ark_bn254::{Fr, G1Affine};
 
 use crate::ecc::curves::bn254_scalar_multiplication::PippengerRuntimeState;
 use crate::plonk::proof_system::proving_key::ProvingKey;
@@ -13,7 +12,7 @@ use crate::polynomials::Polynomial;
 use crate::transcript::{BarretenHasher, Transcript};
 
 #[derive(PartialEq, Eq, Clone, Debug)]
-pub(crate) enum Work<Fr: Field + FftField> {
+pub(crate) enum Work {
     Fft {
         index: usize,
     },
@@ -46,8 +45,8 @@ impl<Fr: Field + FftField> From<usize> for WorkItemConstant<Fr> {
 }
 
 #[derive(Debug)]
-pub(crate) struct WorkItem<Fr: Field + FftField> {
-    pub(crate) work: Work<Fr>,
+pub(crate) struct WorkItem {
+    pub(crate) work: Work,
     pub(crate) tag: String,
 }
 
@@ -57,10 +56,10 @@ pub(crate) struct QueuedFftInputs<Fr: Field + FftField> {
 }
 
 #[derive(Debug)]
-pub(crate) struct WorkQueue<H: BarretenHasher, Fr: Field + FftField, G: AffineRepr> {
-    key: Rc<RefCell<ProvingKey<Fr, G>>>,
+pub(crate) struct WorkQueue<H: BarretenHasher> {
+    key: Rc<RefCell<ProvingKey<Fr>>>,
     transcript: Rc<RefCell<Transcript<H>>>,
-    work_items: Vec<WorkItem<Fr>>,
+    work_items: Vec<WorkItem>,
 }
 
 /// TODO this is super fucked up...
@@ -71,9 +70,9 @@ unsafe fn field_element_to_usize<F: Field + FftField>(element: F) -> usize {
     std::mem::transmute_copy(&u256_bytes)
 }
 
-impl<H: BarretenHasher, Fr: Field + FftField, G: AffineRepr> WorkQueue<H, Fr, G> {
+impl<H: BarretenHasher> WorkQueue<H> {
     pub(crate) fn new(
-        prover_key: Option<Rc<RefCell<ProvingKey<Fr, G>>>>,
+        prover_key: Option<Rc<RefCell<ProvingKey<Fr>>>>,
         prover_transcript: Option<Rc<RefCell<Transcript<H>>>>,
     ) -> Self {
         WorkQueue {
@@ -217,7 +216,7 @@ impl<H: BarretenHasher, Fr: Field + FftField, G: AffineRepr> WorkQueue<H, Fr, G>
 
     pub(crate) fn put_scalar_multiplication_data(
         &self,
-        result: G,
+        result: G1Affine,
         work_item_number: usize,
     ) -> Result<()> {
         for (idx, item) in self.work_items.iter().enumerate() {
@@ -236,7 +235,7 @@ impl<H: BarretenHasher, Fr: Field + FftField, G: AffineRepr> WorkQueue<H, Fr, G>
     pub(crate) fn flush_queue(&mut self) {
         self.work_items = vec![];
     }
-    pub(crate) fn add_to_queue(&mut self, work_item: WorkItem<Fr>) {
+    pub(crate) fn add_to_queue(&mut self, work_item: WorkItem) {
         #[cfg(target_arch = "wasm32")]
         // #[cfg(debug_assertions)]
         todo!("unimplemented");
@@ -380,7 +379,7 @@ impl<H: BarretenHasher, Fr: Field + FftField, G: AffineRepr> WorkQueue<H, Fr, G>
         Ok(())
     }
 
-    fn get_queue(&self) -> &Vec<WorkItem<Fr>> {
+    fn get_queue(&self) -> &Vec<WorkItem> {
         &self.work_items
     }
 }

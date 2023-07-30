@@ -10,25 +10,25 @@ use std::marker::PhantomData;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use ark_ec::{AffineRepr, Group};
+use ark_ec::AffineRepr;
 use ark_ff::{FftField, Field};
 
 pub(crate) struct VerifierPermutationWidget<
     H: BarretenHasher,
-    F: Field + FftField,
-    G: Group,
+    F: Field,
+    Group: AffineRepr,
     const NUM_ROOTS_CUT_OUT_OF_VANISHING_POLYNOMIAL: usize,
 > {
     transcript: Transcript<H>,
-    phantom: PhantomData<(F, G)>,
+    phantom: PhantomData<(F, Group)>,
 }
 
-impl<H, F, G, const NUM_ROOTS_CUT_OUT_OF_VANISHING_POLYNOMIAL: usize>
-    VerifierPermutationWidget<H, F, G, NUM_ROOTS_CUT_OUT_OF_VANISHING_POLYNOMIAL>
+impl<H, F, G1Affine, const NUM_ROOTS_CUT_OUT_OF_VANISHING_POLYNOMIAL: usize>
+    VerifierPermutationWidget<H, F, G1Affine, NUM_ROOTS_CUT_OUT_OF_VANISHING_POLYNOMIAL>
 where
     H: BarretenHasher,
     F: Field + FftField,
-    G: Group,
+    G1Affine: AffineRepr,
 {
     pub(crate) fn new() -> Self {
         Self {
@@ -274,19 +274,20 @@ where
 pub(crate) struct ProverPermutationWidget<
     Fr: Field + FftField,
     Hash: BarretenHasher,
-    G: AffineRepr,
+    G1Affine: AffineRepr,
     const PROGRAM_WIDTH: usize,
     const IDPOLYS: bool,
     const NUM_ROOTS_CUT_OUT_OF_VANISHING_POLYNOMIAL: usize,
 > {
-    pub(crate) key: Rc<RefCell<ProvingKey<Fr, G>>>,
-    phantom: PhantomData<Hash>,
+    pub(crate) key: Rc<RefCell<ProvingKey<Fr>>>,
+    phantom: PhantomData<(Hash, Fr, G1Affine)>,
 }
 
 impl<
+        'a,
         Fr: Field + FftField,
-        Hash: BarretenHasher + std::fmt::Debug,
-        G: AffineRepr,
+        Hash: BarretenHasher,
+        G1Affine: AffineRepr,
         const PROGRAM_WIDTH: usize,
         const IDPOLYS: bool,
         const NUM_ROOTS_CUT_OUT_OF_VANISHING_POLYNOMIAL: usize,
@@ -294,21 +295,22 @@ impl<
     for ProverPermutationWidget<
         Fr,
         Hash,
-        G,
+        G1Affine,
         PROGRAM_WIDTH,
         IDPOLYS,
         NUM_ROOTS_CUT_OUT_OF_VANISHING_POLYNOMIAL,
     >
 {
     type Hasher = Hash;
+
     type Fr = Fr;
-    type G1 = G;
+    type G1 = G1Affine;
 
     fn compute_round_commitments(
         &self,
         _transcript: &mut Transcript<Hash>,
         _size: usize,
-        _work_queue: &mut WorkQueue<Hash, Fr, G>,
+        _work_queue: &mut WorkQueue<Hash>,
     ) {
         todo!()
     }
@@ -319,8 +321,9 @@ impl<
 }
 
 impl<
+        'a,
         Fr: Field + FftField,
-        G: AffineRepr,
+        G1Affine: AffineRepr,
         Hash: BarretenHasher,
         const PROGRAM_WIDTH: usize,
         const IDPOLYS: bool,
@@ -329,13 +332,13 @@ impl<
     ProverPermutationWidget<
         Fr,
         Hash,
-        G,
+        G1Affine,
         PROGRAM_WIDTH,
         IDPOLYS,
         NUM_ROOTS_CUT_OUT_OF_VANISHING_POLYNOMIAL,
     >
 {
-    pub(crate) fn new(proving_key: Rc<RefCell<ProvingKey<Fr, G>>>) -> Self {
+    pub(crate) fn new(proving_key: Rc<RefCell<ProvingKey<Fr>>>) -> Self {
         Self {
             key: proving_key,
             phantom: PhantomData,
@@ -346,7 +349,7 @@ impl<
         &mut self,
         _transcript: &mut Transcript<Hash>,
         _round_number: usize,
-        _queue: &mut WorkQueue<Hash, Fr, G>,
+        _queue: &mut WorkQueue<Hash>,
     ) {
         // ...
     }

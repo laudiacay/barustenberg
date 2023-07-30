@@ -5,19 +5,7 @@ use ark_ff::{FftField, Field};
 // TODO todo - stubs to get the compiler to cooperate.
 pub(crate) mod curves;
 
-#[derive(Debug)]
-struct EllCoeffs<QuadFP: ark_ff::Field> {
-    o: QuadFP,
-    vw: QuadFP,
-    vv: QuadFP,
-}
-
-const PRECOMPUTED_COEFFICIENTS_LENGTH: usize = 87;
-
-#[derive(Debug)]
-pub(crate) struct MillerLines {
-    lines: [EllCoeffs<Fq12>; PRECOMPUTED_COEFFICIENTS_LENGTH],
-}
+pub(crate) struct MillerLines;
 
 pub(crate) fn reduced_ate_pairing_batch_precomputed<G: AffineRepr>(
     _p_affines: &[G],

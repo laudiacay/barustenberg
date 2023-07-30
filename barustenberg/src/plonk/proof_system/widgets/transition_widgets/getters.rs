@@ -315,7 +315,7 @@ pub(crate) trait FFTGetter {
     type NWidgetRelations: generic_array::ArrayLength<Self::Fr>;
 
     fn get_polynomials(
-        key: &ProvingKey<Self::Fr, Self::G1>,
+        key: &ProvingKey<Self::Fr>,
         required_polynomial_ids: &HashSet<PolynomialIndex>,
     ) -> PolyPtrMap<Self::Fr>
     where

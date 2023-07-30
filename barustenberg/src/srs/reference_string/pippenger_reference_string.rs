@@ -2,18 +2,14 @@ use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 use ark_bn254::G1Affine;
 
-use crate::srs::reference_string::{ProverReferenceString, ReferenceStringFactory};
+use anyhow::Result;
+
+use crate::{
+    ecc::curves::bn254_scalar_multiplication::Pippenger,
+    srs::reference_string::{ProverReferenceString, ReferenceStringFactory},
+};
 
 use super::mem_reference_string::VerifierMemReferenceString;
-
-#[derive(Clone, Debug, Default)]
-pub(crate) struct Pippenger {}
-
-impl Pippenger {
-    pub(crate) fn get_num_points(&self) -> usize {
-        todo!()
-    }
-}
 
 #[derive(Debug)]
 pub(crate) struct PippengerReferenceString {
@@ -54,15 +50,15 @@ impl<'a> ReferenceStringFactory for PippengerReferenceStringFactory<'a> {
     type Pro = PippengerReferenceString;
     type Ver = VerifierMemReferenceString;
 
-    fn get_prover_crs(&self, degree: usize) -> Option<Rc<RefCell<Self::Pro>>> {
+    fn get_prover_crs(&self, degree: usize) -> Result<Option<Rc<RefCell<Self::Pro>>>> {
         assert!(degree <= self.pippenger.get_num_points());
-        Some(Rc::new(RefCell::new(PippengerReferenceString::new(
+        Ok(Some(Rc::new(RefCell::new(PippengerReferenceString::new(
             self.pippenger.clone(),
-        ))))
+        )))))
     }
-    fn get_verifier_crs(&self) -> Option<Rc<RefCell<Self::Ver>>> {
-        Some(Rc::new(RefCell::new(VerifierMemReferenceString::new(
-            self.g2x,
+    fn get_verifier_crs(&self) -> Result<Option<Rc<RefCell<Self::Ver>>>> {
+        Ok(Some(Rc::new(RefCell::new(
+            VerifierMemReferenceString::new(self.g2x),
         ))))
     }
 }

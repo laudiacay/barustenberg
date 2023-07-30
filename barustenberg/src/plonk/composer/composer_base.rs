@@ -1,6 +1,6 @@
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
-use ark_bn254::{Fr, G1Affine};
+use ark_bn254::Fr;
 use ark_ff::Zero;
 use rand::RngCore;
 
@@ -76,7 +76,7 @@ pub(crate) struct ComposerBaseData<RSF: ReferenceStringFactory> {
     pub(crate) selectors: Vec<Vec<Fr>>,
     pub(crate) selector_properties: Vec<SelectorProperties>,
     pub(crate) rand_engine: Option<Box<dyn RngCore>>,
-    pub(crate) circuit_proving_key: Option<Rc<RefCell<ProvingKey<Fr, G1Affine>>>>,
+    pub(crate) circuit_proving_key: Option<Rc<RefCell<ProvingKey<Fr>>>>,
     pub(crate) circuit_verification_key: Option<Rc<RefCell<VerificationKey<Fr>>>>,
     pub(crate) w_l: Vec<u32>,
     pub(crate) w_r: Vec<u32>,
@@ -114,7 +114,7 @@ pub(crate) trait ComposerBase {
     ) -> Self;
 
     fn with_keys(
-        p_key: Rc<RefCell<ProvingKey<Fr, G1Affine>>>,
+        p_key: Rc<RefCell<ProvingKey<Fr>>>,
         v_key: Rc<RefCell<VerificationKey<Fr>>>,
         num_selectors: usize,
         size_hint: usize,
@@ -356,7 +356,7 @@ pub(crate) trait ComposerBase {
     ///                 permutation polynomials are circuit-specific and stored in the proving/verification key (id_poly = true).
     fn compute_sigma_permutations(
         &mut self,
-        _key: Rc<RefCell<ProvingKey<Fr, G1Affine>>>,
+        _key: Rc<RefCell<ProvingKey<Fr>>>,
         _program_width: usize,
         _with_tags: bool,
     ) {
@@ -528,7 +528,7 @@ pub(crate) trait ComposerBase {
         composer_type: ComposerType,
         minimum_circuit_size: usize,
         num_reserved_gates: usize,
-    ) -> Rc<RefCell<ProvingKey<Fr, G1Affine>>> {
+    ) -> Rc<RefCell<ProvingKey<Fr>>> {
         let cbd = self.composer_base_data().clone();
         let mut cbd = (*cbd).borrow_mut();
         let num_filled_gates = cbd.num_gates + cbd.public_inputs.len();
@@ -550,7 +550,7 @@ pub(crate) trait ComposerBase {
         let crs = cbd
             .crs_factory
             .get_prover_crs(subgroup_size + 1)
-            .clone()
+            .unwrap().clone()
             .unwrap();
         // initialize proving key
         cbd.circuit_proving_key = Some(Rc::new(RefCell::new(ProvingKey::new(
@@ -633,7 +633,7 @@ pub(crate) trait ComposerBase {
      */
     fn compute_verification_key_base(
         &mut self,
-        proving_key: Rc<RefCell<ProvingKey<Fr, G1Affine>>>,
+        proving_key: Rc<RefCell<ProvingKey<Fr>>>,
         vrs: Rc<RefCell<<<Self as ComposerBase>::RSF as ReferenceStringFactory>::Ver>>,
     ) -> Result<Rc<RefCell<VerificationKey<Fr>>>> {
         let proving_key = proving_key.as_ref().borrow();

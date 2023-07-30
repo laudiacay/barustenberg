@@ -183,6 +183,7 @@ dependencies = [
  "ark-ec",
  "ark-ff",
  "ark-serialize",
+ "byteorder",
  "either",
  "ff",
  "generic-array",

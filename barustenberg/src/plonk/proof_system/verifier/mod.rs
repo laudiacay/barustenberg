@@ -3,7 +3,7 @@ use crate::{
         curves::bn254_scalar_multiplication::{
             generate_pippenger_point_table, PippengerRuntimeState,
         },
-        reduced_ate_pairing_batch_precomputed,
+        reduced_ate_pairing_batch_precomputed, MillerLines,
     },
     plonk::proof_system::constants::NUM_LIMB_BITS_IN_FIELD_SIMULATION,
     transcript::{BarretenHasher, Manifest, Transcript},
@@ -243,7 +243,7 @@ impl<H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>> V
         let mut elements_clone = elements.clone();
         let elements_len = elements.len();
         generate_pippenger_point_table(&mut elements_clone[..], &mut elements[..], elements_len);
-        let mut state = PippengerRuntimeState::new(n);
+        let mut state: PippengerRuntimeState<Fr, G1Affine> = PippengerRuntimeState::new(n);
 
         let mut p: [G1Affine; 2] = [G1Affine::zero(); 2];
         p[0] = state.pippenger(&mut [scalars[0]], &[elements[0]], n, false);
@@ -307,16 +307,7 @@ impl<H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>> V
         }
 
         // The final pairing check of step 12.
-        let result: Fq12 = reduced_ate_pairing_batch_precomputed(
-            &p,
-            (*self.key)
-                .borrow()
-                .reference_string
-                .borrow()
-                .get_precomputed_g2_lines()
-                .as_ref(),
-            2,
-        );
+        let result: Fq12 = reduced_ate_pairing_batch_precomputed(&p, &vec![MillerLines], 2);
 
         Ok(result == Fq12::one())
     }
