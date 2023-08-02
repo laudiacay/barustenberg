@@ -3,7 +3,6 @@ use crate::{
         curves::bn254_scalar_multiplication::{
             generate_pippenger_point_table, PippengerRuntimeState,
         },
-        reduced_ate_pairing_batch_precomputed, MillerLines,
     },
     plonk::proof_system::constants::NUM_LIMB_BITS_IN_FIELD_SIMULATION,
     transcript::{BarretenHasher, Manifest, Transcript},
