@@ -260,7 +260,7 @@ fn generate_test_data<'a, H: BarretenHasher + Default + 'static>(
     let reference_string = Rc::new(RefCell::new(FileReferenceString::new(
         n + 1,
         "../srs_db/ignition",
-    )));
+    ).unwrap()));
     let key = Rc::new(RefCell::new(ProvingKey::new(
         n,
         0,
