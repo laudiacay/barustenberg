@@ -74,7 +74,8 @@ fn convert_endianness_inplace(buffer: &mut [u8]) {
 fn read_elements_from_buffer<G: AffineRepr>(elements: &mut [G], buffer: &mut [u8]) {
     for (element, chunk) in elements.iter_mut().zip(buffer.chunks_exact_mut(64)) {
         convert_endianness_inplace(chunk);
-        if let Ok(val) = G::deserialize_uncompressed_unchecked(chunk) {
+        #[allow(clippy::redundant_slicing)]
+        if let Ok(val) = G::deserialize_uncompressed_unchecked(&chunk[..]) {
             *element = val;
         }
     }

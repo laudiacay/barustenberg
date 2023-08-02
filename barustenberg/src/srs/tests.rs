@@ -16,13 +16,9 @@ fn read_transcript_loads_well_formed_srs() {
 
     assert_eq!(G1Affine::generator(), monomials[0]);
 
-    let mut p: Vec<G1Affine> = Vec::with_capacity(2);
-    let mut q: Vec<G2Affine> = Vec::with_capacity(2);
-    p.push(monomials[1]);
-    p.push(G1Affine::generator());
+    let mut p: Vec<G1Affine> = vec![monomials[1], G1Affine::generator()];
+    let q: Vec<G2Affine> = vec![G2Affine::generator(), g2_x];
     p[0].y.neg_in_place();
-    q.push(G2Affine::generator());
-    q.push(g2_x);
 
     let res = Bn254::multi_pairing(&p, &q).0;
 
