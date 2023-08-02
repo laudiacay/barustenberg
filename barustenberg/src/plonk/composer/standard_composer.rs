@@ -115,7 +115,7 @@ impl StandardComposer<FileReferenceStringFactory> {
         selector_properties: Vec<SelectorProperties>,
     ) -> Self {
         let crs_factory = Arc::new(FileReferenceStringFactory::new(
-            "../srs_db/ignition".to_string(),
+            "./src/srs_db/ignition".to_string(),
         ));
         Self::with_crs_factory(crs_factory, num_selectors, size_hint, selector_properties)
     }

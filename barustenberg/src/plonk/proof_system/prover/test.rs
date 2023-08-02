@@ -258,7 +258,7 @@ fn generate_test_data<H: BarretenHasher + Default + 'static>(
     // create some constraints that satisfy our arithmetic circuit relation
     let reference_string = Arc::new(RwLock::new(FileReferenceString::new(
         n + 1,
-        "../srs_db/ignition",
+        "./src/srs_db/ignition",
     ).unwrap()));
     let key = Arc::new(RwLock::new(ProvingKey::new(
         n,
