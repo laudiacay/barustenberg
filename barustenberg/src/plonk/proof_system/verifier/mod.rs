@@ -309,7 +309,7 @@ impl<H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>> V
         // The final pairing check of step 12.
         // let result: Fq12 = reduced_ate_pairing_batch_precomputed(&p, &vec![MillerLines], 2);
         // TODO: Optimize by precomputing miller lines for G2
-        let q: [G2Affine; 2] = [G2Affine::identity(), (*self.key).borrow().reference_string.borrow().get_g2x()];
+        let q: [G2Affine; 2] = [G2Affine::generator(), (*self.key).borrow().reference_string.borrow().get_g2x()];
         let result: Fq12 = Bn254::multi_pairing(&p, &q).0;
 
         Ok(result == Fq12::one())
