@@ -1,6 +1,7 @@
 //pub mod runtime_states;
 pub(crate) mod process_buckets;
 pub(crate) mod runtime_states;
+pub(crate) mod scalar_multiplication;
 // pub(crate) mod wnaf;
 
 // #[cfg(test)]

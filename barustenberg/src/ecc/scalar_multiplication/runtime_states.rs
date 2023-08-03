@@ -1,38 +1,104 @@
 use crate::{common::max_threads::compute_num_threads, numeric::bitop::Msb};
 // use ark_bn254::{G1Affine, G1Projective};
+use crate::ecc::groups::wnaf;
 use ark_ec::AffineRepr;
 use ark_ff::{FftField, Field};
 
+const NUM_BITS: usize = 8;
+// From what I've seen UL == u64
+const NUM_BUCKETS: usize = (1u64 << NUM_BITS) as usize;
+const MASK: u64 = NUM_BUCKETS as u64 - 1u64;
+
+pub(crate) const fn get_optimal_bucket_width(num_points: usize) -> usize {
+    if num_points >= 14617149 {
+        return 21;
+    }
+    if num_points >= 1139094 {
+        return 18;
+    }
+    // if (num_points >= 100000)
+    if num_points >= 155975 {
+        return 15;
+    }
+    if num_points >= 144834
+    // if (num_points >= 100000)
+    {
+        return 14;
+    }
+    if num_points >= 25067 {
+        return 12;
+    }
+    if num_points >= 13926 {
+        return 11;
+    }
+    if num_points >= 7659 {
+        return 10;
+    }
+    if num_points >= 2436 {
+        return 9;
+    }
+    if num_points >= 376 {
+        return 7;
+    }
+    if num_points >= 231 {
+        return 6;
+    }
+    if num_points >= 97 {
+        return 5;
+    }
+    if num_points >= 35 {
+        return 4;
+    }
+    if num_points >= 10 {
+        return 3;
+    }
+    if num_points >= 2 {
+        return 2;
+    }
+    return 1;
+}
+
+pub(crate) const fn get_num_buckets(num_points: usize) -> usize {
+    let bits_per_bucket = get_optimal_bucket_width(num_points / 2);
+    return (1u64 << bits_per_bucket) as usize;
+}
+
+pub(crate) const fn get_num_rounds(num_points: usize) -> usize {
+    let bits_per_bucket = get_optimal_bucket_width(num_points / 2);
+    wnaf::wnaf_size(bits_per_bucket + 1)
+}
+
 #[derive(Clone, Default, Debug)]
-pub(crate) struct PippengerRuntimeState<Fr: Field + FftField, G: AffineRepr> {
+pub(crate) struct PippengerRuntimeState<Fr: Field, G: AffineRepr> {
     // TODO: maybe arc should be used here for threads. think later.
     // TODO: check why are they used, for now commenting them
-    point_schedule: Vec<u64>,
-    point_pairs_1: Vec<G>,
-    point_pairs_2: Vec<G>,
-    scratch_space: Vec<Fr>,
-    skew_table: Vec<bool>,
-    bucket_counts: Vec<u32>,
-    bit_counts: Vec<u32>,
-    bucket_empty_status: Vec<bool>,
-    round_counts: Vec<u32>,
-    num_points: u32,
+    pub point_schedule: Vec<u64>,
+    pub point_pairs_1: Vec<G>,
+    pub point_pairs_2: Vec<G>,
+    pub scratch_space: Vec<Fr>,
+    pub skew_table: Vec<bool>,
+    pub bucket_counts: Vec<u32>,
+    pub bit_counts: Vec<u32>,
+    pub bucket_empty_status: Vec<bool>,
+    pub round_counts: Vec<u64>,
+    pub num_points: u32,
 }
 
 #[derive(Default, Clone, Debug)]
 pub(crate) struct AffinePippengerRuntimeState<Fr: Field, G: AffineRepr> {
-    points: Vec<G>,
-    point_pairs_1: Vec<G>,
-    point_pairs_2: Vec<G>,
-    scratch_space: Vec<Fr>,
-    point_schedule: Vec<u64>,
-    bucket_counts: Vec<u32>,
-    bit_offsets: Vec<u32>,
-    bucket_empty_status: Vec<bool>,
-    num_points: u32,
-    num_buckets: u32,
+    pub points: Vec<G>,
+    pub point_pairs_1: Vec<G>,
+    pub point_pairs_2: Vec<G>,
+    pub scratch_space: Vec<Fr>,
+    pub point_schedule: Vec<u64>,
+    pub bucket_counts: Vec<u32>,
+    pub bit_offsets: Vec<u32>,
+    pub bucket_empty_status: Vec<bool>,
+    pub num_points: usize,
+    pub num_buckets: usize,
 }
-impl<Fr: Field + FftField, G: AffineRepr> PippengerRuntimeState<Fr, G> {
+
+impl<Fr: Field, G: AffineRepr> PippengerRuntimeState<Fr, G> {
     pub(crate) fn new(num_initial_points: usize) -> Self {
         const MAX_NUM_ROUNDS: u32 = 256;
         let num_points = num_initial_points * 2;
@@ -51,7 +117,7 @@ impl<Fr: Field + FftField, G: AffineRepr> PippengerRuntimeState<Fr, G> {
         let bucket_counts = vec![0u32; num_threads * num_buckets];
         let bit_counts = vec![0u32; num_threads * num_buckets];
         let bucket_empty_status = vec![false; num_threads * num_buckets];
-        let round_counts = vec![0u32; MAX_NUM_ROUNDS as usize];
+        let round_counts = vec![0u64; MAX_NUM_ROUNDS as usize];
 
         PippengerRuntimeState {
             point_schedule,
@@ -141,5 +207,5 @@ impl<Fr: Field + FftField, G: AffineRepr> PippengerRuntimeState<Fr, G> {
     }
 }
 
-pub(crate) type GrumpkinRuntimeState = PippengerRuntimeState<grumpkin::Fq, grumpkin::G1Affine>;
+pub(crate) type GrumpkinRuntimeState = PippengerRuntimeState<grumpkin::Fq, grumpkin::SWAffine>;
 pub(crate) type Bn254RuntimeState = PippengerRuntimeState<ark_bn254::Fq, ark_bn254::G1Affine>;
