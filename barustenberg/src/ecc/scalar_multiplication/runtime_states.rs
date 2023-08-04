@@ -1,4 +1,8 @@
-use crate::{common::max_threads::compute_num_threads, numeric::bitop::Msb};
+use crate::{
+    common::max_threads::compute_num_threads,
+    ecc::scalar_multiplication::process_buckets::{get_num_rounds, get_optimal_bucket_width},
+    numeric::bitop::Msb,
+};
 // use ark_bn254::{G1Affine, G1Projective};
 use crate::ecc::groups::wnaf;
 use ark_ec::AffineRepr;
@@ -142,31 +146,37 @@ impl<Fr: Field, G: AffineRepr> PippengerRuntimeState<Fr, G> {
         let num_buckets = 1 << get_optimal_bucket_width(self.num_points as usize);
         // TODO: check if we can just send that particular thread's vars
         let point_pairs_1: Vec<G> = self
+            .clone()
             .point_pairs_1
             .into_iter()
             .skip((points_per_thread + 16) * thread_index)
             .collect();
         let point_pairs_2 = self
+            .clone()
             .point_pairs_2
             .into_iter()
             .skip((points_per_thread + 16) * thread_index)
             .collect();
         let scratch_space = self
+            .clone()
             .scratch_space
             .into_iter()
             .skip(thread_index * (points_per_thread as usize / 2))
             .collect();
         let bucket_counts = self
+            .clone()
             .bucket_counts
             .into_iter()
             .skip(thread_index * num_buckets)
             .collect();
         let bit_offsets = self
+            .clone()
             .bit_counts
             .into_iter()
             .skip(thread_index * num_buckets)
             .collect();
         let bucket_empty_status = self
+            .clone()
             .bucket_empty_status
             .into_iter()
             .skip(thread_index * num_buckets)

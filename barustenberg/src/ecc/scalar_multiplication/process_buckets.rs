@@ -40,17 +40,17 @@ fn radix_sort(keys: &mut [u64], num_entries: usize, shift: usize) {
 
     //Not sure if the indexing is correct
     for i in 0..NUM_BUCKETS {
-        let mut bucket_start = &keys[offsets[i] as usize];
-        let bucket_end = &keys[offsets[i + 1] as usize];
+        let mut bucket_start = keys[offsets[i] as usize];
+        let bucket_end = keys[offsets[i + 1] as usize];
         while bucket_start != bucket_end {
-            for mut it in *bucket_start..*bucket_end {
+            for mut it in bucket_start..bucket_end {
                 let value = ((it >> shift) & MASK) as usize;
                 let offset = offsets[value];
                 offsets[value] += 1;
                 //Instead of grabbing the pointer &keys[0] we just normal array access
                 mem::swap(&mut it, &mut keys[offset]);
             }
-            bucket_start = &keys[offsets[i]];
+            bucket_start = keys[offsets[i]];
         }
     }
 
