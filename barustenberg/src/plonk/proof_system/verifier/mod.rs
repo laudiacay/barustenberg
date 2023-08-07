@@ -3,15 +3,15 @@ use crate::{
         curves::bn254_scalar_multiplication::{
             generate_pippenger_point_table, PippengerRuntimeState,
         },
-        reduced_ate_pairing_batch_precomputed, MillerLines,
     },
     plonk::proof_system::constants::NUM_LIMB_BITS_IN_FIELD_SIMULATION,
     transcript::{BarretenHasher, Manifest, Transcript},
 };
 
-use ark_bn254::{Fq, Fq12, Fr, G1Affine, G1Projective};
+use ark_bn254::{Bn254, Fq, Fq12, Fr, G1Affine, G1Projective, G2Affine};
 use ark_ec::AffineRepr;
 use ark_ec::CurveGroup;
+use ark_ec::pairing::Pairing;
 use ark_ff::{BigInteger, Field, One, Zero};
 
 use super::{
@@ -29,7 +29,7 @@ use anyhow::{anyhow, Result};
 #[cfg(test)]
 mod test;
 
-/// Verifier struct 
+/// Verifier struct
 #[derive(Debug)]
 pub struct Verifier<H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>> {
     settings: S,
@@ -40,7 +40,7 @@ pub struct Verifier<H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group
     pub(crate) commitment_scheme: Box<KateCommitmentScheme<H, Fq, Fr, G1Affine>>,
 }
 
-/// verifier interface 
+/// verifier interface
 impl<H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>> Verifier<H, S> {
 
     /// Constructor
@@ -307,7 +307,10 @@ impl<H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>> V
         }
 
         // The final pairing check of step 12.
-        let result: Fq12 = reduced_ate_pairing_batch_precomputed(&p, &vec![MillerLines], 2);
+        // let result: Fq12 = reduced_ate_pairing_batch_precomputed(&p, &vec![MillerLines], 2);
+        // TODO: Optimize by precomputing miller lines for G2
+        let q: [G2Affine; 2] = [G2Affine::generator(), (*self.key).borrow().reference_string.borrow().get_g2x()];
+        let result: Fq12 = Bn254::multi_pairing(&p, &q).0;
 
         Ok(result == Fq12::one())
     }

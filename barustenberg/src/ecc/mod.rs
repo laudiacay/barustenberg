@@ -7,15 +7,6 @@ pub(crate) mod curves;
 
 pub(crate) struct MillerLines;
 
-pub(crate) fn reduced_ate_pairing_batch_precomputed<G: AffineRepr>(
-    _p_affines: &[G],
-    _miller_lines: &Vec<MillerLines>,
-    _num_points: usize,
-) -> Fq12 {
-    // TODO compilation placeholder come back here bb
-    todo!("see comment")
-}
-
 #[inline]
 pub(crate) fn conditionally_subtract_from_double_modulus<Fr: Field + FftField>(
     _this: &Fr,
