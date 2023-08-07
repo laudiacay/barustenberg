@@ -25,19 +25,3 @@ fn cube_root_of_unity<F: ark_ff::Field>() -> F {
     // return result;
     //}
 }
-
-pub(crate) fn generate_pippenger_point_table<F: Field>(
-    points: &mut [G1Affine],
-    table: &mut [G1Affine],
-    num_points: usize,
-) {
-    // calculate the cube root of unity
-    let beta = cube_root_of_unity::<Fq>();
-
-    // iterate backwards, so that `points` and `table` can point to the same memory location
-    for i in (0..num_points).rev() {
-        table[i * 2] = points[i];
-        table[i * 2 + 1].x = beta * points[i].x;
-        table[i * 2 + 1].y = -points[i].y;
-    }
-}

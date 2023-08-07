@@ -1,11 +1,8 @@
-use core::num;
-use std::{f32::consts::PI, ops::AddAssign};
-
 use ark_ec::{
     short_weierstrass::{Affine, SWCurveConfig},
     AffineRepr,
 };
-use ark_ff::{FftField, Field};
+use ark_ff::Field;
 use get_msb::Msb;
 
 use crate::{
@@ -21,31 +18,20 @@ use super::{
     },
 };
 
-pub(crate) fn generate_pippenger_point_table<C: SWCurveConfig, G: AffineRepr>(
-    points: &mut [G],
-    table: &mut [G],
+pub(crate) fn generate_pippenger_point_table<C: SWCurveConfig>(
+    points: &mut [Affine<C>],
+    table: &mut [Affine<C>],
     num_points: usize,
 ) {
     // calculate the cube root of unity
-    todo!("implement")
-    // let beta = cube_root_of_unity::<C::BaseField>();
+    let beta = cube_root_of_unity::<C::BaseField>();
 
-    // // iterate backwards, so that `points` and `table` can point to the same memory location
-    // for i in (0..num_points).rev() {
-    //     table[i * 2] = points[i];
-    //     table[i * 2 + 1].x = beta * points[i].x;
-    //     table[i * 2 + 1].y = -points[i].y;
-    // }
-}
-
-pub(crate) fn pippenger<F: Field + FftField, G: AffineRepr, C: SWCurveConfig>(
-    scalars: &mut [F],
-    points: &mut [G],
-    num_initial_points: usize,
-    state: &PippengerRuntimeState<F, G>,
-    handle_edge_cases: bool,
-) -> G {
-    todo!("implement");
+    // iterate backwards, so that `points` and `table` can point to the same memory location
+    for i in (0..num_points).rev() {
+        table[i * 2] = points[i];
+        table[i * 2 + 1].x = beta * points[i].x;
+        table[i * 2 + 1].y = -points[i].y;
+    }
 }
 
 fn compute_wnaf_states<F: Field>(
@@ -71,16 +57,102 @@ fn organise_buckets(point_schedule: &mut Vec<u64>, num_points: usize) {
     }
 }
 
-fn reduce_buckets<F: Field, G: AffineRepr>(
-    mut state: AffinePippengerRuntimeState<F, G>,
+fn construct_addition_chains<F: Field, G: AffineRepr, C: SWCurveConfig>(
+    state: &mut AffinePippengerRuntimeState<C>,
     first_round: bool,
-    handle_edge_cases: bool,
-) -> Vec<G> {
+) -> usize {
     todo!("implement");
 }
 
-fn evaluate_pippenger_rounds<F: Field, G: AffineRepr>(
-    state: &PippengerRuntimeState<F, G>,
+fn add_affine_point_with_edge_cases<F: Field, G: AffineRepr>(
+    points: &mut [G],
+    num_points: usize,
+    scratch_space: Vec<F>,
+) {
+    todo!("implement");
+}
+
+fn add_affine_points<F: Field, G: AffineRepr>(
+    pointd: &mut [G],
+    num_points: usize,
+    scratch_space: Vec<F>,
+) {
+    todo!("implement");
+}
+
+fn evaluate_addition_chains<F: Field, G: AffineRepr, C: SWCurveConfig>(
+    state: &mut AffinePippengerRuntimeState<C>,
+    max_bucket_bits: usize,
+    handle_edge_cases: bool,
+) {
+    let end = state.num_points;
+    let start = 0;
+    for i in 0..max_bucket_bits {
+        let points_in_round = (state.num_points - state.bit_offsets[i + 1] as usize) >> i;
+        let start = end - points_in_round;
+        let round_points = &mut state.point_pairs_1[start..start + points_in_round];
+        if handle_edge_cases {
+            add_affine_point_with_edge_cases(round_points, points_in_round, state.scratch_space);
+        } else {
+            add_affine_points(round_points, points_in_round, state.scratch_space);
+        }
+    }
+}
+
+fn reduce_buckets<F: Field, G: AffineRepr, C: SWCurveConfig>(
+    state: &mut AffinePippengerRuntimeState<C>,
+    first_round: bool,
+    handle_edge_cases: bool,
+) -> Vec<G> {
+    let max_bucket_bits = construct_addition_chains(state, first_round);
+
+    if max_bucket_bits == 0 {
+        return state.point_pairs_1;
+    }
+
+    evaluate_addition_chains(state, max_bucket_bits, handle_edge_cases);
+
+    let end: u32 = state.num_points as u32;
+    let start: u32 = 0;
+
+    for i in 0..max_bucket_bits {
+        let points_in_round = (state.num_points as u32 - state.bit_offsets[i + 1]) >> i;
+        let points_removed = points_in_round / 2;
+        let start = end - points_in_round;
+        let modified_start = start + points_removed;
+        state.bit_offsets[i + 1] = modified_start;
+    }
+
+    let new_num_points = 0;
+    for i in 0..state.num_buckets {
+        let count = state.bucket_counts[i];
+        let num_bits = count.get_msb();
+        let new_bucket_count = 0;
+        for j in 0..num_bits {
+            let current_offset = state.bit_offsets[i];
+            let has_entry = ((count >> j) & 1) == 1;
+            if has_entry {
+                let schedule: u64 = ((current_offset as u64) << 32) + (i as u64);
+                state.point_schedule[new_num_points] = schedule;
+                new_num_points += 1;
+                new_bucket_count += 1;
+                current_offset += 1;
+            }
+        }
+        state.bucket_counts[i] = new_bucket_count;
+    }
+
+    state.num_points = new_num_points;
+    let temp: Vec<G> = state.point_pairs_1;
+    state.points = state.point_pairs_1;
+    state.point_pairs_1 = state.point_pairs_2;
+    state.point_pairs_2 = temp;
+
+    return reduce_buckets(state, false, handle_edge_cases);
+}
+
+fn evaluate_pippenger_rounds<F: Field, G: AffineRepr, C: SWCurveConfig>(
+    state: &PippengerRuntimeState<C>,
     points: Vec<G>,
     num_points: usize,
     handle_edge_cases: bool,
@@ -126,7 +198,8 @@ fn evaluate_pippenger_rounds<F: Field, G: AffineRepr>(
                 affine_product_state.num_buckets = num_thread_buckets;
 
                 // reduce the wnaf entries into added buckets
-                let output_buckets = reduce_buckets(affine_product_state, true, handle_edge_cases);
+                let output_buckets =
+                    reduce_buckets(&mut affine_product_state, true, handle_edge_cases);
 
                 let running_sum = G::default();
 
@@ -201,7 +274,7 @@ fn pippenger_internal<F: Field, G: AffineRepr, C: SWCurveConfig>(
     scalars: &mut [F],
     points: &mut [G],
     num_initial_points: usize,
-    state: &mut PippengerRuntimeState<F, G>,
+    state: &mut PippengerRuntimeState<C>,
     handle_edge_cases: bool,
 ) -> G {
     compute_wnaf_states(
@@ -212,31 +285,79 @@ fn pippenger_internal<F: Field, G: AffineRepr, C: SWCurveConfig>(
         num_initial_points,
     );
     organise_buckets(state.point_schedule.as_mut(), num_initial_points * 2);
-    evaluate_pippenger_rounds(state, points, num_initial_points * 2, handle_edge_cases)
+    evaluate_pippenger_rounds(
+        state,
+        points.into(),
+        num_initial_points * 2,
+        handle_edge_cases,
+    )
 }
 
-pub(crate) fn pippenger_unsafe<F: Field + FftField, G: AffineRepr, C: SWCurveConfig>(
-    scalars: &mut [F],
+pub(crate) fn pippenger_unsafe<G: AffineRepr, C: SWCurveConfig>(
+    scalars: &mut [C::ScalarField],
     points: &mut [G],
     num_initial_points: usize,
-    state: &PippengerRuntimeState<F, G>,
+    state: &mut PippengerRuntimeState<C>,
 ) -> G {
-    pippenger::<F, G, C>(scalars, points, num_initial_points, state, false)
+    pippenger::<G, C>(scalars, points, num_initial_points, state, false)
 }
 
-pub(crate) fn pippenger_without_endomorphism_basis_points<
-    F: Field + FftField,
-    G: AffineRepr,
-    C: SWCurveConfig,
->(
-    scalars: &mut [F],
-    points: &mut [G],
+pub(crate) fn pippenger<G: AffineRepr, C: SWCurveConfig>(
+    scalars: &mut [C::ScalarField],
+    points: &mut [Affine<C>],
     num_initial_points: usize,
-    state: &PippengerRuntimeState<F, G>,
+    state: &mut PippengerRuntimeState<C>,
+    handle_edge_cases: bool,
+) -> Affine<C> {
+    let threshold = compute_num_threads();
+    if num_initial_points == 0 {
+        let out = C::ONE;
+        // TODO: find what is equivalent to this in arkworks
+        // out.self_set_infinity()
+        return out;
+    }
+
+    if num_initial_points <= threshold {
+        let mut exponentiation_results = vec![Affine::default(); num_initial_points];
+        for i in num_initial_points {
+            exponentiation_results[i] = points[i * 2] * scalars[i];
+        }
+        for i in (1..num_initial_points).rev() {
+            exponentiation_results[i - 1] += exponentiation_results[i];
+        }
+        return exponentiation_results[0];
+    }
+
+    let slice_bits = num_initial_points.get_msb();
+    let num_slice_points = 1 << slice_bits;
+
+    let result = pippenger_internal(scalars, points, num_slice_points, state, handle_edge_cases);
+
+    if num_slice_points != num_initial_points {
+        let leftovers = num_initial_points - num_slice_points;
+        // TODO: correct this
+        return result
+            + pippenger(
+                scalars,
+                points,
+                num_initial_points,
+                state,
+                handle_edge_cases,
+            );
+    } else {
+        return result;
+    }
+}
+
+pub(crate) fn pippenger_without_endomorphism_basis_points<G: AffineRepr, C: SWCurveConfig>(
+    scalars: &mut [C::ScalarField],
+    points: &mut [Affine<C>],
+    num_initial_points: usize,
+    state: &mut PippengerRuntimeState<C>,
 ) -> G {
     let mut g_mod: Vec<G> = vec![G::default(); num_initial_points * 2];
-    generate_pippenger_point_table::<C, G>(points, g_mod.as_mut_slice(), num_initial_points);
-    pippenger::<F, G, C>(
+    generate_pippenger_point_table::<C>(points.into(), g_mod.as_mut_slice(), num_initial_points);
+    pippenger::<C>(
         scalars,
         g_mod.as_mut_slice(),
         num_initial_points,

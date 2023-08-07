@@ -1,4 +1,6 @@
-use crate::numeric::bitop::get_msb::get_msb64;
+use get_msb::Msb;
+
+use crate::numeric::bitop::get_msb;
 
 pub(crate) const SCALAR_BITS: usize = 127;
 pub(crate) const fn WNAF_SIZE(x: usize) -> usize {
@@ -12,8 +14,8 @@ pub(crate) fn get_num_scalar_bits(scalar: &u128) -> u64 {
     let hi: u64 = (scalar >> 64) as u64;
     let lo: u64 = *scalar as u64;
 
-    let msb_1 = get_msb64(hi);
-    let msb_0 = get_msb64(lo);
+    let msb_1 = hi.get_msb();
+    let msb_0 = lo.get_msb();
 
     let scalar_1_mask = 0u64 - (hi > 0) as u64;
     let scalar_0_mask = (0u64 - (lo > 0) as u64) & !scalar_1_mask;
@@ -209,6 +211,8 @@ pub(crate) fn fixed_wnaf_with_counts(
 
 #[cfg(test)]
 mod tests {
+    use crate::ecc::scalar_multiplication::cube_root_of_unity;
+
     use super::*;
     use ark_bn254::{g1::Config, Fr, G1Affine, G1Projective};
     use ark_ec::scalar_mul::glv::GLVConfig;
