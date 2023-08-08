@@ -55,7 +55,7 @@ impl BarretenHasher for PedersenBlake3s {
 
         // let compressed = common::crypto::pedersen_hash::hash_single::compress_native(input);
         // // let res = to_buffer(compressed);
-        
+
         // let mut result = GenericArray::default(); // Create an array of size PrngOutputSize filled with zeros
         // for i in 0..Self::PrngOutputSize::USIZE {
         //     result[i] = res[i];

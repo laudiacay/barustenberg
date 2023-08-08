@@ -29,7 +29,7 @@ fn get_msb32(in_val: u32) -> u32 {
     MULTIPLY_DE_BRUIJN_BIT_POSITION[((v.wrapping_mul(0x07C4ACDDu32)) >> 27) as usize] as u32
 }
 
-fn get_msb64(in_val: u64) -> u64 {
+pub(crate) fn get_msb64(in_val: u64) -> u64 {
     let t = in_val | (in_val >> 1);
     let t = t | (t >> 2);
     let t = t | (t >> 4);

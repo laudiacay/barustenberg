@@ -1,4 +1,3 @@
-//pub mod runtime_states;
 pub(crate) mod process_buckets;
 pub(crate) mod runtime_states;
 pub(crate) mod scalar_multiplication;
@@ -8,7 +7,7 @@ use ark_bn254::{Fq, G1Affine};
 use ark_ff::Field;
 
 #[inline]
-fn cube_root_of_unity<F: ark_ff::Field>() -> F {
+pub(crate) fn cube_root_of_unity<F: ark_ff::Field>() -> F {
     // // endomorphism i.e. lambda * [P] = (beta * x, y)
     // if constexpr (Params::cube_root_0 != 0) {
     //     constexpr field result{
