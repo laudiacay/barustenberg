@@ -75,8 +75,8 @@ impl<H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>> V
         ];
 
         let mut commitments = vec![G1Affine::default(); 8];
-        let mut state: PippengerRuntimeState<Fr, G1Affine> =
-            PippengerRuntimeState::new(circuit_proving_key.borrow().circuit_size);
+        let mut state =
+            PippengerRuntimeState::<Fr, G>::new(circuit_proving_key.borrow().circuit_size);
 
         for i in 0..8 {
             commitments[i] = G1Affine::from(
@@ -143,10 +143,9 @@ fn generate_test_data<'a, H: BarretenHasher + Default + 'static>(
     n: usize,
 ) -> Prover<H, StandardSettings<H>> {
     // create some constraints that satisfy our arithmetic circuit relation
-    let crs = Rc::new(RefCell::new(FileReferenceString::new(
-        n + 1,
-        "../srs_db/ignition",
-    ).unwrap()));
+    let crs = Rc::new(RefCell::new(
+        FileReferenceString::new(n + 1, "../srs_db/ignition").unwrap(),
+    ));
     let key = Rc::new(RefCell::new(ProvingKey::new(
         n,
         0,

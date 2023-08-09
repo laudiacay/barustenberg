@@ -1,9 +1,12 @@
+use std::num;
+
 use ark_ec::{
     short_weierstrass::{Affine, SWCurveConfig},
     AffineRepr,
 };
 use ark_ff::Field;
 use get_msb::Msb;
+use ark_std::{ops::{Add, Sub, SubAssign, Mul, MulAssign}};
 
 use crate::{
     common::max_threads::compute_num_threads,
@@ -18,19 +21,21 @@ use super::{
     },
 };
 
-pub(crate) fn generate_pippenger_point_table<C: SWCurveConfig>(
-    points: &mut [Affine<C>],
-    table: &mut [Affine<C>],
+pub(crate) fn generate_pippenger_point_table<F: Field, G: AffineRepr<BaseField = F>>(
+    points: &mut [G],
+    table: &mut [G],
     num_points: usize,
 ) {
     // calculate the cube root of unity
-    let beta = cube_root_of_unity::<C::BaseField>();
+    let beta = cube_root_of_unity::<F>();
 
     // iterate backwards, so that `points` and `table` can point to the same memory location
     for i in (0..num_points).rev() {
         table[i * 2] = points[i];
-        table[i * 2 + 1].x = beta * points[i].x;
-        table[i * 2 + 1].y = -points[i].y;
+        let (table_x, table_y) = table[i * 2 + 1].xy().unwrap();
+        let (x, y) = points[i].xy().unwrap();
+        *table_x = beta * x;
+        *table_y = y.neg();
     }
 }
 
@@ -57,31 +62,168 @@ fn organise_buckets(point_schedule: &mut Vec<u64>, num_points: usize) {
     }
 }
 
-fn construct_addition_chains<F: Field, G: AffineRepr, C: SWCurveConfig>(
-    state: &mut AffinePippengerRuntimeState<C>,
+// We implement our own endomorphism split in lue of using arkworks for two reasons
+// 1.) the output of arkworks implementation returns a (sign, field) instead of just the field element
+// 2.) glv decomposition exists as a trait we would need to implement for each curve and requires the same amount of thought and code as just doing this
+// In the future i do think these implementations should live as a trait. But not a trait defined by arkworks #fuck_arkworks
+fn split_into_endomorphism_scalars<F: Field>(scalar: F) -> Vec<F> {
+    todo!();
+}
+
+fn split_into_endomorphism_scalars_384<F: Field>(scalar: F) -> Vec<F> {
+    todo!();
+}
+
+fn construct_addition_chains<F: Field, G: AffineRepr<BaseField = F>>(
+    state: &mut AffinePippengerRuntimeState<F, G>,
     first_round: bool,
 ) -> usize {
-    todo!("implement");
+    todo!()
 }
 
-fn add_affine_point_with_edge_cases<F: Field, G: AffineRepr>(
+fn add_affine_point_with_edge_cases<F: Field, G: AffineRepr<BaseField = F>>(
     points: &mut [G],
     num_points: usize,
-    scratch_space: Vec<F>,
+    scratch_space: &mut [F],
 ) {
-    todo!("implement");
+    //Fq
+    let batch_inversion_accumulator = F::one();
+
+    for i in (0..num_points).step_by(2) {
+        if points[i].is_zero() || points[i + 1].is_zero() {
+            continue;
+        }
+        let (x1, y1) = points[i].xy().expect("Failed to grab points from x1 in first part of affine addition");
+        let (x2, y2) = points[i + 1].xy().expect("Failed to grab points from x2 in first part of affine addition");
+        if x1 == x2 {
+            if y1 == y2 {
+                scratch_space[i >> 1] = x1.double(); // 2x
+                let x_squared = x1.square();
+                *x2 = y1.double();  // 2y
+                //TODO: could be better way to do this in arkworks
+                *y2 = x_squared + x_squared + x_squared; // 3x^2
+                *y2 *= batch_inversion_accumulator;
+                batch_inversion_accumulator *= x2;
+            }
+            //set to infinity
+            points[i] = G::zero();
+            points[i+1] = G::zero();
+        }
+        scratch_space[i >> 1] = *x1 + x2;   // x2 + x1
+        *x2 -= x1;                          // x2 - x1
+        *y2 -= y2;                          // y2 - y1
+        *y2 *= batch_inversion_accumulator;  // (y2 - y1) * accumulator_old
+        batch_inversion_accumulator *= x2;
+    }
+
+    if batch_inversion_accumulator.is_zero() {
+        batch_inversion_accumulator = batch_inversion_accumulator.inverse().unwrap();
+    }
+
+    for i in ((num_points - 2)..0).step_by(2) {
+        // TODO: add builtin prefetch
+
+        if points[i].is_zero() {
+            points[(i + num_points) >> 1] = points[i + 1];
+            continue;
+        }
+
+        if points[i + 1].is_zero() {
+            points[(i + num_points) >> 1] = points[i];
+            continue;
+        }
+
+        let (x1, y1) = points[i].xy().expect("Failed to grab points from x1 in first part of affine addition");
+        let (x2, y2) = points[i + 1].xy().expect("Failed to grab points from x2 in first part of affine addition");
+        let (x3, y3) = points[(i + num_points) >> 1].xy().expect("Failed to grab points from x2 in first part of affine addition");
+
+        *y2 *= batch_inversion_accumulator; //update accumulator
+        batch_inversion_accumulator * x2;
+        *x2 = y2.square();
+        *x3 = *x2 - scratch_space[i >> 1]; // x3 = lambda_squared - x2 - x1?
+        
+        *x1 -= x3;
+        *x1 *= y2;
+        *x3 = *x1 - y1;
+    }
 }
 
-fn add_affine_points<F: Field, G: AffineRepr>(
-    pointd: &mut [G],
+/**
+ * adds a bunch of points together using affine addition formulae.
+ * Paradoxically, the affine formula is crazy efficient if you have a lot of independent point additions to perform.
+ * Affine formula:
+ *
+ * \lambda = (y_2 - y_1) / (x_2 - x_1)
+ * x_3 = \lambda^2 - (x_2 + x_1)
+ * y_3 = \lambda*(x_1 - x_3) - y_1
+ *
+ * Traditionally, we avoid affine formulae like the plague, because computing lambda requires a modular inverse,
+ * which is outrageously expensive.
+ *
+ * However! We can use Montgomery's batch inversion technique to amortise the cost of the inversion to ~0.
+ *
+ * The way batch inversion works is as follows. Let's say you want to compute \{ 1/x_1, 1/x_2, ..., 1/x_n \}
+ * The trick is to compute the product x_1x_2...x_n , whilst storing all of the temporary products.
+ * i.e. we have an array A = [x_1, x_1x_2, ..., x_1x_2...x_n]
+ * We then compute a single inverse: I = 1 / x_1x_2...x_n
+ * Finally, we can use our accumulated products, to quotient out individual inverses.
+ * We can get an individual inverse at index i, by computing I.A_{i-1}.(x_nx_n-1...x_i+1)
+ * The last product term we can compute on-the-fly, as it grows by one element for each additional inverse that we
+ * require.
+ *
+ * TLDR: amortized cost of a modular inverse is 3 field multiplications per inverse.
+ * Which means we can compute a point addition with SIX field multiplications in total.
+ * The traditional Jacobian-coordinate formula requires 11.
+ *
+ * There is a catch though - we need large sequences of independent point additions!
+ * i.e. the output from one point addition in the sequence is NOT an input to any other point addition in the
+ *sequence.
+ *
+ * We can re-arrange the Pippenger algorithm to get this property, but it's...complicated
+ **/
+fn add_affine_points<F: Field, G: AffineRepr<BaseField = F>>(
+    points: &mut [G],
     num_points: usize,
-    scratch_space: Vec<F>,
+    scratch_space: &mut [F],
 ) {
-    todo!("implement");
+    //Fq
+    let batch_inversion_accumulator = F::one();
+
+    for i in (0..num_points).step_by(2) {
+        let (x1, y1) = points[i].xy().expect("Failed to grab points from x1 in first part of affine addition");
+        let (x2, y2) = points[i + 1].xy().expect("Failed to grab points from x2 in first part of affine addition");
+        scratch_space[i >> 1] = *x1 + x2;   // x2 + x1
+        *x2 -= x1;                          // x2 - x1
+        *y2 -= y2;                          // y2 - y1
+        *y2 *= batch_inversion_accumulator;  // (y2 - y1) * accumulator_old
+        batch_inversion_accumulator *= x2;
+    }
+
+    if batch_inversion_accumulator.is_zero() {
+        panic!("attempted to invert zero in add_affine_points");
+    } else {
+        batch_inversion_accumulator = batch_inversion_accumulator.inverse().unwrap();
+    }
+
+    for i in ((num_points - 2)..0).step_by(2) {
+        // TODO: add builtin prefetch
+        let (x1, y1) = points[i].xy().expect("Failed to grab points from x1 in first part of affine addition");
+        let (x2, y2) = points[i + 1].xy().expect("Failed to grab points from x2 in first part of affine addition");
+        let (x3, y3) = points[(i + num_points) >> 1].xy().expect("Failed to grab points from x2 in first part of affine addition");
+
+        *y2 *= batch_inversion_accumulator; //update accumulator
+        batch_inversion_accumulator * x2;
+        *x2 = y2.square();
+        *x3 = *x2 - scratch_space[i >> 1]; // x3 = lambda_squared - x2 - x1?
+        
+        *x1 -= x3;
+        *x1 *= y2;
+        *x3 = *x1 - y1;
+    }
 }
 
-fn evaluate_addition_chains<F: Field, G: AffineRepr, C: SWCurveConfig>(
-    state: &mut AffinePippengerRuntimeState<C>,
+fn evaluate_addition_chains<F: Field, G: AffineRepr<BaseField = F>>(
+    state: &mut AffinePippengerRuntimeState<F, G>,
     max_bucket_bits: usize,
     handle_edge_cases: bool,
 ) {
@@ -92,15 +234,15 @@ fn evaluate_addition_chains<F: Field, G: AffineRepr, C: SWCurveConfig>(
         let start = end - points_in_round;
         let round_points = &mut state.point_pairs_1[start..start + points_in_round];
         if handle_edge_cases {
-            add_affine_point_with_edge_cases(round_points, points_in_round, state.scratch_space);
+            add_affine_point_with_edge_cases(round_points, points_in_round, &mut state.scratch_space);
         } else {
-            add_affine_points(round_points, points_in_round, state.scratch_space);
+            add_affine_points(round_points, points_in_round, &mut state.scratch_space);
         }
     }
 }
 
-fn reduce_buckets<F: Field, G: AffineRepr, C: SWCurveConfig>(
-    state: &mut AffinePippengerRuntimeState<C>,
+fn reduce_buckets<F: Field, G: AffineRepr<BaseField = F>>(
+    state: &mut AffinePippengerRuntimeState<F, G>,
     first_round: bool,
     handle_edge_cases: bool,
 ) -> Vec<G> {
@@ -151,8 +293,8 @@ fn reduce_buckets<F: Field, G: AffineRepr, C: SWCurveConfig>(
     return reduce_buckets(state, false, handle_edge_cases);
 }
 
-fn evaluate_pippenger_rounds<F: Field, G: AffineRepr, C: SWCurveConfig>(
-    state: &PippengerRuntimeState<C>,
+fn evaluate_pippenger_rounds<F: Field, G: AffineRepr<BaseField = F>>(
+    state: &PippengerRuntimeState<F, G>,
     points: Vec<G>,
     num_points: usize,
     handle_edge_cases: bool,
@@ -240,11 +382,11 @@ fn evaluate_pippenger_rounds<F: Field, G: AffineRepr, C: SWCurveConfig>(
 
             // Divide the points and subtract skewed points once
             if i == num_rounds - 1 {
-                let addition_temporary = G::default();
+                let addition_temporary = G::zero();
                 let num_points_per_thread = (state.num_points as usize) / num_threads;
                 for k in 0..=bits_per_bucket {
                     if state.skew_table[j * num_points_per_thread + k] {
-                        accumulator = (accumulator - points[j * num_points_per_thread + k]).into();
+                        //accumulator.mul_assign(points[j * num_points_per_thread + k]);
                     }
                 }
             }
@@ -261,7 +403,8 @@ fn evaluate_pippenger_rounds<F: Field, G: AffineRepr, C: SWCurveConfig>(
         }
     }
 
-    let mut result = G::default();
+    //TODO for now to compile made this change
+    let mut result = G::zero();
     for (_, accumulator) in thread_accumulators.iter().enumerate() {
         // TODO: this is 100% wrong
         result = (result + *accumulator).into();
@@ -270,11 +413,11 @@ fn evaluate_pippenger_rounds<F: Field, G: AffineRepr, C: SWCurveConfig>(
     result
 }
 
-fn pippenger_internal<F: Field, G: AffineRepr, C: SWCurveConfig>(
+fn pippenger_internal<F: Field, G: AffineRepr<BaseField = F>>(
     scalars: &mut [F],
     points: &mut [G],
     num_initial_points: usize,
-    state: &mut PippengerRuntimeState<C>,
+    state: &mut PippengerRuntimeState<F, G>,
     handle_edge_cases: bool,
 ) -> G {
     compute_wnaf_states(
@@ -293,39 +436,42 @@ fn pippenger_internal<F: Field, G: AffineRepr, C: SWCurveConfig>(
     )
 }
 
-pub(crate) fn pippenger_unsafe<G: AffineRepr, C: SWCurveConfig>(
-    scalars: &mut [C::ScalarField],
+pub(crate) fn pippenger_unsafe<F: Field, G: AffineRepr<BaseField = F>>(
+    scalars: &mut [F],
     points: &mut [G],
     num_initial_points: usize,
-    state: &mut PippengerRuntimeState<C>,
-) -> G {
-    pippenger::<G, C>(scalars, points, num_initial_points, state, false)
+    state: &mut PippengerRuntimeState<F, G>,
+) -> G::Group {
+    pippenger::<F, G>(scalars, points, num_initial_points, state, false)
 }
 
-pub(crate) fn pippenger<G: AffineRepr, C: SWCurveConfig>(
-    scalars: &mut [C::ScalarField],
-    points: &mut [Affine<C>],
+pub(crate) fn pippenger<F: Field, G: AffineRepr<BaseField = F>>(
+    scalars: &mut [F],
+    points: &mut [G],
     num_initial_points: usize,
-    state: &mut PippengerRuntimeState<C>,
+    state: &mut PippengerRuntimeState<F, G>,
     handle_edge_cases: bool,
-) -> Affine<C> {
+) -> G::Group {
     let threshold = compute_num_threads();
     if num_initial_points == 0 {
-        let out = C::ONE;
+        //Don't think this is supposed to be the identity but yolo until other functions are working
+        let out = G::zero();
         // TODO: find what is equivalent to this in arkworks
         // out.self_set_infinity()
-        return out;
+        return out.into();
     }
 
     if num_initial_points <= threshold {
-        let mut exponentiation_results = vec![Affine::default(); num_initial_points];
-        for i in num_initial_points {
+        let mut exponentiation_results = vec![G::zero(); num_initial_points];
+        /*
+        for i in 0..num_initial_points {
             exponentiation_results[i] = points[i * 2] * scalars[i];
         }
+        */
         for i in (1..num_initial_points).rev() {
-            exponentiation_results[i - 1] += exponentiation_results[i];
+            exponentiation_results[i - 1] + exponentiation_results[i];
         }
-        return exponentiation_results[0];
+        return exponentiation_results[0].into();
     }
 
     let slice_bits = num_initial_points.get_msb();
@@ -345,19 +491,19 @@ pub(crate) fn pippenger<G: AffineRepr, C: SWCurveConfig>(
                 handle_edge_cases,
             );
     } else {
-        return result;
+        return result.into();
     }
 }
 
-pub(crate) fn pippenger_without_endomorphism_basis_points<G: AffineRepr, C: SWCurveConfig>(
-    scalars: &mut [C::ScalarField],
-    points: &mut [Affine<C>],
+pub(crate) fn pippenger_without_endomorphism_basis_points<F: Field, G: AffineRepr<BaseField = F>>(
+    scalars: &mut [F],
+    points: &mut [G],
     num_initial_points: usize,
-    state: &mut PippengerRuntimeState<C>,
-) -> G {
-    let mut g_mod: Vec<G> = vec![G::default(); num_initial_points * 2];
-    generate_pippenger_point_table::<C>(points.into(), g_mod.as_mut_slice(), num_initial_points);
-    pippenger::<C>(
+    state: &mut PippengerRuntimeState<F, G>,
+) -> G::Group {
+    let mut g_mod: Vec<G> = vec![G::zero(); num_initial_points * 2];
+    generate_pippenger_point_table::<F, G>(points.into(), g_mod.as_mut_slice(), num_initial_points);
+    pippenger::<F, G>(
         scalars,
         g_mod.as_mut_slice(),
         num_initial_points,

@@ -327,11 +327,11 @@ mod tests {
                        i=0
 
         */
-        let recovered = 0;
+        let recovered = 0u64;
         //NOTE this is cast to uint256 in C++
         let four_power = 1 << num_bits;
         for i in 0..num_quads {
-            let extracted: i64 = 2 * ((wnaf[i] as i64) & 1) + 1;
+            let extracted = 2 * ((wnaf[i] as u64) & 1) + 1;
             let sign = wnaf[i] >> 31;
             if sign != 0 {
                 //Note cast to uint256
@@ -346,7 +346,7 @@ mod tests {
         let skew = if skew == false { 0 } else { 1 };
         recovered -= skew;
 
-        assert_eq!(recovered, input);
+        assert_eq!(Fr::from(recovered), input);
     }
 
     #[test]
@@ -430,11 +430,11 @@ mod tests {
         println!("endo_recovered_lo: {:?}", endo_recovered_lo);
         println!("endo_recovered_hi: {:?}", endo_recovered_hi);
 
-        let lambda = cube_root_of_unity();
+        let lambda: Fr = cube_root_of_unity();
         println!("lamdba: {:?}", wnaf);
-        let result = k2_recovered * lambda;
+        let result = k2 * lambda;
         println!("k2_recovered * lambda: {:?}", result);
-        let result = k1_recovered - result;
+        let result = k1 - result;
         println!("k1_recovered - result: {:?}", result);
         assert_eq!(result, k);
     }
