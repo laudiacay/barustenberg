@@ -15,9 +15,8 @@ use super::{
     },
 };
 
-#[inline] 
-fn count_bits(bucket_counts: & [u32], bit_offsets: & [u32], num_buckets: usize, num_bits: usize)
-{
+#[inline]
+fn count_bits(bucket_counts: &[u32], bit_offsets: &[u32], num_buckets: usize, num_bits: usize) {
     for i in 0..num_buckets {
         let count = bucket_counts[i];
         for j in 0..num_bits as usize {
@@ -83,20 +82,21 @@ fn split_into_endomorphism_scalars_384<F: Field>(scalar: F) -> Vec<F> {
     todo!();
 }
 
-//Placeholder for asm implementation in barretenburg that uses arkworks library to grab the y-coordinate of the affine element, invert it, then copy the element. 
+//Placeholder for asm implementation in barretenberg that uses arkworks library to grab the y-coordinate of the affine element, invert it, then copy the element.
 //Inline notation is added for thrills but is probs useless w/o the assembly but we gotta keep appearances up #CLOUT_CHASE
 //This is based off of : https://github.com/AztecProtocol/barretenberg/blob/master/cpp/src/barretenberg/ecc/groups/group_impl_asm.tcc#L55
 #[inline]
 fn conditionally_negate_affine<G: AffineRepr>(src: &G, dest: &G, predicate: u64) {
     if predicate != 0 {
         *dest = src.clone();
-        let y = dest.y().expect("Failed to source y coordinate of affine element while conditionally negating");
+        let y = dest
+            .y()
+            .expect("Failed to source y coordinate of affine element while conditionally negating");
         //This may not be needed???? adds additionally assignment???
         *y = y.inverse().unwrap();
     } else {
         *dest = src.clone();
     }
-
 }
 
 //Note u32 chosen to be in line with c++ implementation
@@ -104,172 +104,217 @@ fn construct_addition_chains<F: Field, G: AffineRepr<BaseField = F>>(
     state: &mut AffinePippengerRuntimeState<F, G>,
     empty_bucket_counts: bool,
 ) -> usize {
-        if empty_bucket_counts {
-            //        memset((void*)state.bucket_counts, 0x00, sizeof(uint32_t) * state.num_buckets); 
-            state.bucket_counts.fill(0);
-            //TODO: Note this is const in c++ implementation.
-            let first_bucket = (state.point_schedule[0] & 0x7fffffffu64) as usize;
-            for i in 0..state.num_points {
-                let bucket_index = (state.point_schedule[i] & 0x7fffffffu64) as usize;
-                state.bucket_counts[bucket_index - first_bucket] += 1;
-            }
-            for i in 0..state.num_buckets {
-                state.bucket_counts[i] = if state.bucket_counts[i] == 0 { 1u32 } else { 0u32 };
-            }
+    if empty_bucket_counts {
+        //        memset((void*)state.bucket_counts, 0x00, sizeof(uint32_t) * state.num_buckets);
+        state.bucket_counts.fill(0);
+        //TODO: Note this is const in c++ implementation.
+        let first_bucket = (state.point_schedule[0] & 0x7fffffffu64) as usize;
+        for i in 0..state.num_points {
+            let bucket_index = (state.point_schedule[i] & 0x7fffffffu64) as usize;
+            state.bucket_counts[bucket_index - first_bucket] += 1;
         }
-        
-        let max_count = 0usize;
         for i in 0..state.num_buckets {
-            max_count = if state.bucket_counts[i] > if max_count == 0 { state.bucket_counts[i]} else { max_count as u32} { 1 } else { 0 };
+            state.bucket_counts[i] = if state.bucket_counts[i] == 0 {
+                1u32
+            } else {
+                0u32
+            };
         }
-        let max_bucket_bits = max_count.get_msb();
+    }
 
-        for i in 0..(max_bucket_bits + 1) {
-            state.bit_offsets[i] = 0;
-        }
-        
-        // theoretically, can be unrolled using templated methods.
-        // However, explicitly unrolling the loop by using recursive template calls was slower!
-        // Inner loop is currently bounded by a constexpr variable, need to see what the compiler does with that...
-        count_bits(&state.bucket_counts, &state.bit_offsets, state.num_buckets, max_bucket_bits);
+    let mut max_count = 0usize;
+    for i in 0..state.num_buckets {
+        max_count = if state.bucket_counts[i]
+            > if max_count == 0 {
+                state.bucket_counts[i]
+            } else {
+                max_count as u32
+            } {
+            1
+        } else {
+            0
+        };
+    }
+    let max_bucket_bits = max_count.get_msb();
 
-        // we need to update `bit_offsets` to compute our point shuffle,
-        // but we need the original array later on, so make a copy.
-        let bit_offsets_copy = state.bit_offsets.clone();
+    for i in 0..(max_bucket_bits + 1) {
+        state.bit_offsets[i] = 0;
+    }
 
-        // this is where we take each bucket's associated points, and arrange them
-        // in a pairwise order, so that we can compute large sequences of additions using the affine trick 
-        let schedule_it = 0;
-        let bucket_count_it = state.bucket_counts;
+    // theoretically, can be unrolled using templated methods.
+    // However, explicitly unrolling the loop by using recursive template calls was slower!
+    // Inner loop is currently bounded by a constexpr variable, need to see what the compiler does with that...
+    count_bits(
+        &state.bucket_counts,
+        &state.bit_offsets,
+        state.num_buckets,
+        max_bucket_bits,
+    );
 
-        //TODO: verify that arkworks negation negates y-coordinate. Maybe add custom assembly
-        for i in 0..state.num_buckets {
-            //unint32_t count = *bucket_count_it -> This grabs the pointer to the array aka 1st element
-            let count = bucket_count_it[0];
-            bucket_count_it[0] += 1;
-            let num_bits = count.get_msb() + 1;
-            for j in 0..num_bits as usize {
-                let current_offset = bit_offsets_copy[j] as usize;
-                let k_end = count & (1u32 << j);
-                // This section is a bottleneck - to populate our point array, we need
-                // to read from memory locations that are effectively uniformly randomly distributed!
-                // (assuming our scalar multipliers are uniformly random...)
-                // In the absence of a more elegant solution, we use ugly macro hacks to try and
-                // unroll loops, and prefetch memory a few cycles before we need it
-                match k_end {
-                    64 | 32 | 16 => {
-                        for k in 0..(k_end >> 4) {
-                            //TODO: implement BBERG_SCALAR_MULTIPLICATION_FETCH_BLOCK for now just print msg
-                            println!("BBERG_SCALAR_MULTIPLICATION_FETCH_BLOCK");
-                        }
-                        break;
-                    },
-                    8 => {
-                        let schedule_a = state.point_schedule[schedule_it];
-                        let schedule_b = state.point_schedule[schedule_it + 1];
-                        let schedule_c = state.point_schedule[schedule_it + 2];
-                        let schedule_d = state.point_schedule[schedule_it + 3];
-                        let schedule_e = state.point_schedule[schedule_it + 4];
-                        let schedule_f = state.point_schedule[schedule_it + 5];
-                        let schedule_g = state.point_schedule[schedule_it + 6];
-                        let schedule_h = state.point_schedule[schedule_it + 7];
+    // we need to update `bit_offsets` to compute our point shuffle,
+    // but we need the original array later on, so make a copy.
+    let bit_offsets_copy = state.bit_offsets.clone();
 
-                        conditionally_negate_affine(&state.points[(schedule_a >> 32u64) as usize],
-                                                    &state.point_pairs_1[current_offset],
-                                                    (schedule_a >> 31u64) & 1u64);
-                        conditionally_negate_affine(&state.points[(schedule_b >> 32u64) as usize],
-                                                    &state.point_pairs_1[current_offset + 1],
-                                                    (schedule_b >> 31u64) & 1u64);
-                        conditionally_negate_affine(&state.points[(schedule_c >> 32u64) as usize],
-                                                    &state.point_pairs_1[current_offset + 2],
-                                                    (schedule_c >> 31u64) & 1u64);
-                        conditionally_negate_affine(&state.points[(schedule_d >> 32u64) as usize],
-                                                    &state.point_pairs_1[current_offset + 3],
-                                                    (schedule_d >> 31u64) & 1u64);
-                        conditionally_negate_affine(&state.points[(schedule_e >> 32u64) as usize],
-                                                    &state.point_pairs_1[current_offset + 4],
-                                                    (schedule_e >> 31u64) & 1u64);
-                        conditionally_negate_affine(&state.points[(schedule_f >> 32u64) as usize],
-                                                    &state.point_pairs_1[current_offset + 5],
-                                                    (schedule_f >> 31u64) & 1u64);
-                        conditionally_negate_affine(&state.points[(schedule_g >> 32u64) as usize],
-                                                    &state.point_pairs_1[current_offset + 6],
-                                                    (schedule_g >> 31u64) & 1u64);
-                        conditionally_negate_affine(&state.points[(schedule_h >> 32u64) as usize],
-                                                    &state.point_pairs_1[current_offset + 7],
-                                                    (schedule_h >> 31u64) & 1u64);
+    // this is where we take each bucket's associated points, and arrange them
+    // in a pairwise order, so that we can compute large sequences of additions using the affine trick
+    let mut schedule_it = 0;
+    let mut bucket_count_it = state.bucket_counts;
 
-                        current_offset += 8;
-                        schedule_it += 8;
-                        break;
-                    },
-                    4  => {
-                        let schedule_a = state.point_schedule[schedule_it];
-                        let schedule_b = state.point_schedule[schedule_it + 1];
-                        let schedule_c = state.point_schedule[schedule_it + 2];
-                        let schedule_d = state.point_schedule[schedule_it + 3];
+    //TODO: verify that arkworks negation negates y-coordinate. Maybe add custom assembly
+    for i in 0..state.num_buckets {
+        //unint32_t count = *bucket_count_it -> This grabs the pointer to the array aka 1st element
+        let count = bucket_count_it[0];
+        bucket_count_it[0] += 1;
+        let num_bits = count.get_msb() + 1;
+        for j in 0..num_bits as usize {
+            let mut current_offset = bit_offsets_copy[j] as usize;
+            let mut k_end = count & (1u32 << j);
+            // This section is a bottleneck - to populate our point array, we need
+            // to read from memory locations that are effectively uniformly randomly distributed!
+            // (assuming our scalar multipliers are uniformly random...)
+            // In the absence of a more elegant solution, we use ugly macro hacks to try and
+            // unroll loops, and prefetch memory a few cycles before we need it
+            match k_end {
+                64 | 32 | 16 => {
+                    for k in 0..(k_end >> 4) {
+                        //TODO: implement BBERG_SCALAR_MULTIPLICATION_FETCH_BLOCK for now just print msg
+                        println!("BBERG_SCALAR_MULTIPLICATION_FETCH_BLOCK");
+                    }
+                    break;
+                }
+                8 => {
+                    let schedule_a = state.point_schedule[schedule_it];
+                    let schedule_b = state.point_schedule[schedule_it + 1];
+                    let schedule_c = state.point_schedule[schedule_it + 2];
+                    let schedule_d = state.point_schedule[schedule_it + 3];
+                    let schedule_e = state.point_schedule[schedule_it + 4];
+                    let schedule_f = state.point_schedule[schedule_it + 5];
+                    let schedule_g = state.point_schedule[schedule_it + 6];
+                    let schedule_h = state.point_schedule[schedule_it + 7];
 
+                    conditionally_negate_affine(
+                        &state.points[(schedule_a >> 32u64) as usize],
+                        &state.point_pairs_1[current_offset],
+                        (schedule_a >> 31u64) & 1u64,
+                    );
+                    conditionally_negate_affine(
+                        &state.points[(schedule_b >> 32u64) as usize],
+                        &state.point_pairs_1[current_offset + 1],
+                        (schedule_b >> 31u64) & 1u64,
+                    );
+                    conditionally_negate_affine(
+                        &state.points[(schedule_c >> 32u64) as usize],
+                        &state.point_pairs_1[current_offset + 2],
+                        (schedule_c >> 31u64) & 1u64,
+                    );
+                    conditionally_negate_affine(
+                        &state.points[(schedule_d >> 32u64) as usize],
+                        &state.point_pairs_1[current_offset + 3],
+                        (schedule_d >> 31u64) & 1u64,
+                    );
+                    conditionally_negate_affine(
+                        &state.points[(schedule_e >> 32u64) as usize],
+                        &state.point_pairs_1[current_offset + 4],
+                        (schedule_e >> 31u64) & 1u64,
+                    );
+                    conditionally_negate_affine(
+                        &state.points[(schedule_f >> 32u64) as usize],
+                        &state.point_pairs_1[current_offset + 5],
+                        (schedule_f >> 31u64) & 1u64,
+                    );
+                    conditionally_negate_affine(
+                        &state.points[(schedule_g >> 32u64) as usize],
+                        &state.point_pairs_1[current_offset + 6],
+                        (schedule_g >> 31u64) & 1u64,
+                    );
+                    conditionally_negate_affine(
+                        &state.points[(schedule_h >> 32u64) as usize],
+                        &state.point_pairs_1[current_offset + 7],
+                        (schedule_h >> 31u64) & 1u64,
+                    );
 
-                        conditionally_negate_affine(&state.points[(schedule_a >> 32u64) as usize],
-                                                    &state.point_pairs_1[current_offset],
-                                                    (schedule_a >> 31u64) & 1u64);
-                        conditionally_negate_affine(&state.points[(schedule_b >> 32u64) as usize],
-                                                    &state.point_pairs_1[current_offset + 1],
-                                                    (schedule_b >> 31u64) & 1u64);
-                        conditionally_negate_affine(&state.points[(schedule_c >> 32u64) as usize],
-                                                    &state.point_pairs_1[current_offset + 2],
-                                                    (schedule_c >> 31u64) & 1u64);
-                        conditionally_negate_affine(&state.points[(schedule_d >> 32u64) as usize],
-                                                    &state.point_pairs_1[current_offset + 3],
-                                                    (schedule_d >> 31u64) & 1u64);
+                    current_offset += 8;
+                    schedule_it += 8;
+                    break;
+                }
+                4 => {
+                    let schedule_a = state.point_schedule[schedule_it];
+                    let schedule_b = state.point_schedule[schedule_it + 1];
+                    let schedule_c = state.point_schedule[schedule_it + 2];
+                    let schedule_d = state.point_schedule[schedule_it + 3];
 
-                        current_offset += 4;
-                        schedule_it += 4;
-                        break;
-                    },
-                    2 => {
-                        let schedule_a = state.point_schedule[schedule_it];
-                        let schedule_b = state.point_schedule[schedule_it + 1];
+                    conditionally_negate_affine(
+                        &state.points[(schedule_a >> 32u64) as usize],
+                        &state.point_pairs_1[current_offset],
+                        (schedule_a >> 31u64) & 1u64,
+                    );
+                    conditionally_negate_affine(
+                        &state.points[(schedule_b >> 32u64) as usize],
+                        &state.point_pairs_1[current_offset + 1],
+                        (schedule_b >> 31u64) & 1u64,
+                    );
+                    conditionally_negate_affine(
+                        &state.points[(schedule_c >> 32u64) as usize],
+                        &state.point_pairs_1[current_offset + 2],
+                        (schedule_c >> 31u64) & 1u64,
+                    );
+                    conditionally_negate_affine(
+                        &state.points[(schedule_d >> 32u64) as usize],
+                        &state.point_pairs_1[current_offset + 3],
+                        (schedule_d >> 31u64) & 1u64,
+                    );
 
-                        conditionally_negate_affine(&state.points[(schedule_a >> 32u64) as usize],
-                                                    &state.point_pairs_1[current_offset],
-                                                    (schedule_a >> 31u64) & 1u64);
-                        conditionally_negate_affine(&state.points[(schedule_b >> 32u64) as usize],
-                                                    &state.point_pairs_1[current_offset + 1],
-                                                    (schedule_b >> 31u64) & 1u64);
+                    current_offset += 4;
+                    schedule_it += 4;
+                    break;
+                }
+                2 => {
+                    let schedule_a = state.point_schedule[schedule_it];
+                    let schedule_b = state.point_schedule[schedule_it + 1];
 
-                        current_offset += 2;
-                        schedule_it += 2;
-                        break;
+                    conditionally_negate_affine(
+                        &state.points[(schedule_a >> 32u64) as usize],
+                        &state.point_pairs_1[current_offset],
+                        (schedule_a >> 31u64) & 1u64,
+                    );
+                    conditionally_negate_affine(
+                        &state.points[(schedule_b >> 32u64) as usize],
+                        &state.point_pairs_1[current_offset + 1],
+                        (schedule_b >> 31u64) & 1u64,
+                    );
 
-                    },
-                    1 => {
-                        let schedule_a = state.point_schedule[schedule_it];
+                    current_offset += 2;
+                    schedule_it += 2;
+                    break;
+                }
+                1 => {
+                    let schedule_a = state.point_schedule[schedule_it];
 
-                        conditionally_negate_affine(&state.points[(schedule_a >> 32u64) as usize],
-                                                    &state.point_pairs_1[current_offset],
-                                                    (schedule_a >> 31u64) & 1u64);
+                    conditionally_negate_affine(
+                        &state.points[(schedule_a >> 32u64) as usize],
+                        &state.point_pairs_1[current_offset],
+                        (schedule_a >> 31u64) & 1u64,
+                    );
+
+                    current_offset += 1;
+                    schedule_it += 1;
+                    break;
+                }
+                0 => break,
+                _ => {
+                    for k in 0..k_end {
+                        let schedule = state.point_schedule[schedule_it];
+                        let predicate = (schedule >> 31u64) & 1u64;
 
                         current_offset += 1;
                         schedule_it += 1;
-                        break
-                    },
-                    0 => break,
-                    _ => {
-                        for k in 0..k_end {
-                            let schedule = state.point_schedule[schedule_it];
-                            let predicate = (schedule >> 31u64) & 1u64;
-
-                            current_offset += 1;
-                            schedule_it += 1;
-                        }
                     }
                 }
-
             }
         }
+    }
 
-    return max_bucket_bits
+    return max_bucket_bits;
 }
 
 fn add_affine_point_with_edge_cases<F: Field, G: AffineRepr<BaseField = F>>(

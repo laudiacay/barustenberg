@@ -192,8 +192,8 @@ pub(crate) fn fixed_wnaf_with_counts(
     let slice = get_wnaf_bits(&[hi, lo], final_bits, (wnaf_entries - 1) * wnaf_bits);
     let predicate = ((slice & 1) == 0) as u64;
 
-    wnaf_round_counts[(max_wnaf_entries - wnaf_entries + 1)] += 1;
-    wnaf[((max_wnaf_entries - wnaf_entries + 1) * num_points)] =
+    wnaf_round_counts[max_wnaf_entries - wnaf_entries + 1] += 1;
+    wnaf[(max_wnaf_entries - wnaf_entries + 1) * num_points] =
         ((((previous - (predicate << (wnaf_bits/*+ 1*/))) ^ (0 - predicate)) >> 1)
             | (predicate << 31))
             | (point_index);

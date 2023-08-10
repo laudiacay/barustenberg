@@ -4,7 +4,6 @@ pub(crate) mod scalar_multiplication;
 pub(crate) mod tests;
 pub(crate) mod wnaf;
 
-use ark_bn254::{Fq, G1Affine};
 use ark_ff::Field;
 
 #[inline]

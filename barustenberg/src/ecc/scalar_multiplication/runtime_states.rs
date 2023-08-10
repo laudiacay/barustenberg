@@ -71,7 +71,6 @@ pub(crate) const fn get_num_rounds(num_points: usize) -> usize {
 #[derive(Clone, Default, Debug)]
 pub(crate) struct PippengerRuntimeState<F: Field, G: AffineRepr<BaseField = F>> {
     // TODO: maybe arc should be used here for threads. think later.
-    // TODO: check why are they used, for now commenting them
     pub point_schedule: Vec<u64>,
     pub point_pairs_1: Vec<G>,
     pub point_pairs_2: Vec<G>,

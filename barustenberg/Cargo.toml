@@ -26,7 +26,6 @@ ark-ff = "0.4.2"
 ark-std = "0.4.0"
 ark-serialize = "0.4.2"
 byteorder = "1.4.3"
-ark-std = "0.4.0"
 generic-array = "0.14.7"
 grumpkin = { git = "https://github.com/noir-lang/grumpkin.git" }
 lazy_static = "1.4"
