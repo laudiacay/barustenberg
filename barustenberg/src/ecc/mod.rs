@@ -4,7 +4,6 @@ use ark_ff::{FftField, Field};
 
 // TODO todo - stubs to get the compiler to cooperate.
 pub(crate) mod curves;
-pub(crate) mod groups;
 pub(crate) mod scalar_multiplication;
 
 pub(crate) struct MillerLines;

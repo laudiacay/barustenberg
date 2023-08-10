@@ -1,12 +1,6 @@
-use std::num;
-
-use ark_ec::{
-    short_weierstrass::{Affine, SWCurveConfig},
-    AffineRepr,
-};
+use ark_ec::AffineRepr;
 use ark_ff::Field;
 use get_msb::Msb;
-use ark_std::{ops::{Add, Sub, SubAssign, Mul, MulAssign}};
 
 use crate::{
     common::max_threads::compute_num_threads,
@@ -290,26 +284,30 @@ fn add_affine_point_with_edge_cases<F: Field, G: AffineRepr<BaseField = F>>(
         if points[i].is_zero() || points[i + 1].is_zero() {
             continue;
         }
-        let (x1, y1) = points[i].xy().expect("Failed to grab points from x1 in first part of affine addition");
-        let (x2, y2) = points[i + 1].xy().expect("Failed to grab points from x2 in first part of affine addition");
+        let (x1, y1) = points[i]
+            .xy()
+            .expect("Failed to grab points from x1 in first part of affine addition");
+        let (x2, y2) = points[i + 1]
+            .xy()
+            .expect("Failed to grab points from x2 in first part of affine addition");
         if x1 == x2 {
             if y1 == y2 {
                 scratch_space[i >> 1] = x1.double(); // 2x
                 let x_squared = x1.square();
-                *x2 = y1.double();  // 2y
-                //TODO: could be better way to do this in arkworks
+                *x2 = y1.double(); // 2y
+                                   //TODO: could be better way to do this in arkworks
                 *y2 = x_squared + x_squared + x_squared; // 3x^2
                 *y2 *= batch_inversion_accumulator;
                 batch_inversion_accumulator *= x2;
             }
             //set to infinity
             points[i] = G::zero();
-            points[i+1] = G::zero();
+            points[i + 1] = G::zero();
         }
-        scratch_space[i >> 1] = *x1 + x2;   // x2 + x1
-        *x2 -= x1;                          // x2 - x1
-        *y2 -= y2;                          // y2 - y1
-        *y2 *= batch_inversion_accumulator;  // (y2 - y1) * accumulator_old
+        scratch_space[i >> 1] = *x1 + x2; // x2 + x1
+        *x2 -= x1; // x2 - x1
+        *y2 -= y2; // y2 - y1
+        *y2 *= batch_inversion_accumulator; // (y2 - y1) * accumulator_old
         batch_inversion_accumulator *= x2;
     }
 
@@ -330,15 +328,21 @@ fn add_affine_point_with_edge_cases<F: Field, G: AffineRepr<BaseField = F>>(
             continue;
         }
 
-        let (x1, y1) = points[i].xy().expect("Failed to grab points from x1 in first part of affine addition");
-        let (x2, y2) = points[i + 1].xy().expect("Failed to grab points from x2 in first part of affine addition");
-        let (x3, y3) = points[(i + num_points) >> 1].xy().expect("Failed to grab points from x2 in first part of affine addition");
+        let (x1, y1) = points[i]
+            .xy()
+            .expect("Failed to grab points from x1 in first part of affine addition");
+        let (x2, y2) = points[i + 1]
+            .xy()
+            .expect("Failed to grab points from x2 in first part of affine addition");
+        let (x3, y3) = points[(i + num_points) >> 1]
+            .xy()
+            .expect("Failed to grab points from x2 in first part of affine addition");
 
         *y2 *= batch_inversion_accumulator; //update accumulator
         batch_inversion_accumulator * x2;
         *x2 = y2.square();
         *x3 = *x2 - scratch_space[i >> 1]; // x3 = lambda_squared - x2 - x1?
-        
+
         *x1 -= x3;
         *x1 *= y2;
         *x3 = *x1 - y1;
@@ -387,12 +391,16 @@ fn add_affine_points<F: Field, G: AffineRepr<BaseField = F>>(
     let batch_inversion_accumulator = F::one();
 
     for i in (0..num_points).step_by(2) {
-        let (x1, y1) = points[i].xy().expect("Failed to grab points from x1 in first part of affine addition");
-        let (x2, y2) = points[i + 1].xy().expect("Failed to grab points from x2 in first part of affine addition");
-        scratch_space[i >> 1] = *x1 + x2;   // x2 + x1
-        *x2 -= x1;                          // x2 - x1
-        *y2 -= y2;                          // y2 - y1
-        *y2 *= batch_inversion_accumulator;  // (y2 - y1) * accumulator_old
+        let (x1, y1) = points[i]
+            .xy()
+            .expect("Failed to grab points from x1 in first part of affine addition");
+        let (x2, y2) = points[i + 1]
+            .xy()
+            .expect("Failed to grab points from x2 in first part of affine addition");
+        scratch_space[i >> 1] = *x1 + x2; // x2 + x1
+        *x2 -= x1; // x2 - x1
+        *y2 -= y2; // y2 - y1
+        *y2 *= batch_inversion_accumulator; // (y2 - y1) * accumulator_old
         batch_inversion_accumulator *= x2;
     }
 
@@ -404,15 +412,21 @@ fn add_affine_points<F: Field, G: AffineRepr<BaseField = F>>(
 
     for i in ((num_points - 2)..0).step_by(2) {
         // TODO: add builtin prefetch
-        let (x1, y1) = points[i].xy().expect("Failed to grab points from x1 in first part of affine addition");
-        let (x2, y2) = points[i + 1].xy().expect("Failed to grab points from x2 in first part of affine addition");
-        let (x3, y3) = points[(i + num_points) >> 1].xy().expect("Failed to grab points from x2 in first part of affine addition");
+        let (x1, y1) = points[i]
+            .xy()
+            .expect("Failed to grab points from x1 in first part of affine addition");
+        let (x2, y2) = points[i + 1]
+            .xy()
+            .expect("Failed to grab points from x2 in first part of affine addition");
+        let (x3, y3) = points[(i + num_points) >> 1]
+            .xy()
+            .expect("Failed to grab points from x2 in first part of affine addition");
 
         *y2 *= batch_inversion_accumulator; //update accumulator
         batch_inversion_accumulator * x2;
         *x2 = y2.square();
         *x3 = *x2 - scratch_space[i >> 1]; // x3 = lambda_squared - x2 - x1?
-        
+
         *x1 -= x3;
         *x1 *= y2;
         *x3 = *x1 - y1;
@@ -431,7 +445,11 @@ fn evaluate_addition_chains<F: Field, G: AffineRepr<BaseField = F>>(
         let start = end - points_in_round;
         let round_points = &mut state.point_pairs_1[start..start + points_in_round];
         if handle_edge_cases {
-            add_affine_point_with_edge_cases(round_points, points_in_round, &mut state.scratch_space);
+            add_affine_point_with_edge_cases(
+                round_points,
+                points_in_round,
+                &mut state.scratch_space,
+            );
         } else {
             add_affine_points(round_points, points_in_round, &mut state.scratch_space);
         }
@@ -692,7 +710,10 @@ pub(crate) fn pippenger<F: Field, G: AffineRepr<BaseField = F>>(
     }
 }
 
-pub(crate) fn pippenger_without_endomorphism_basis_points<F: Field, G: AffineRepr<BaseField = F>>(
+pub(crate) fn pippenger_without_endomorphism_basis_points<
+    F: Field,
+    G: AffineRepr<BaseField = F>,
+>(
     scalars: &mut [F],
     points: &mut [G],
     num_initial_points: usize,

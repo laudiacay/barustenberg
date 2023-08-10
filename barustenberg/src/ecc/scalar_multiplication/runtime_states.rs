@@ -1,6 +1,6 @@
 use crate::{common::max_threads::compute_num_threads, numeric::bitop::Msb};
 // use ark_bn254::{G1Affine, G1Projective};
-use crate::ecc::groups::wnaf;
+use crate::ecc::scalar_multiplication::wnaf;
 use ark_ec::AffineRepr;
 use ark_ff::Field;
 
@@ -65,11 +65,11 @@ pub(crate) const fn get_num_buckets(num_points: usize) -> usize {
 
 pub(crate) const fn get_num_rounds(num_points: usize) -> usize {
     let bits_per_bucket = get_optimal_bucket_width(num_points / 2);
-    wnaf::wnaf_size(bits_per_bucket + 1)
+    wnaf::WNAF_SIZE(bits_per_bucket + 1)
 }
 
 #[derive(Clone, Default, Debug)]
-pub(crate) struct PippengerRuntimeState<F: Field, G: AffineRepr> {
+pub(crate) struct PippengerRuntimeState<F: Field, G: AffineRepr<BaseField = F>> {
     // TODO: maybe arc should be used here for threads. think later.
     // TODO: check why are they used, for now commenting them
     pub point_schedule: Vec<u64>,
@@ -213,6 +213,6 @@ impl<F: Field, G: AffineRepr<BaseField = F>> PippengerRuntimeState<F, G> {
     }
 }
 
-//THIS IS A GREAT IDEA AND DEFINITELY THE WAY TO GO I JUST DIDN'T WANT TO HAVE TO SQUASH THE REST OF THE COMPILER BUGS OUTSIDE THIS MODULE WHILE WE DEBUG. 
+//THIS IS A GREAT IDEA AND DEFINITELY THE WAY TO GO I JUST DIDN'T WANT TO HAVE TO SQUASH THE REST OF THE COMPILER BUGS OUTSIDE THIS MODULE WHILE WE DEBUG.
 //pub(crate) type GrumpkinRuntimeState = PippengerRuntimeState<grumpkin::GrumpkinParameters>;
 //pub(crate) type Bn254RuntimeState = PippengerRuntimeState<ark_bn254::Config>;

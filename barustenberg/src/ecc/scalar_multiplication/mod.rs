@@ -1,6 +1,7 @@
 pub(crate) mod process_buckets;
 pub(crate) mod runtime_states;
 pub(crate) mod scalar_multiplication;
+pub(crate) mod tests;
 pub(crate) mod wnaf;
 
 use ark_bn254::{Fq, G1Affine};
