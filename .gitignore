@@ -1,2 +1,3 @@
 target/
 Cargo.lock
+barustenberg/src/srs_db/ignition

@@ -154,9 +154,10 @@ fn generate_test_data<'a, H: BarretenHasher + Default + 'static>(
     n: usize,
 ) -> Prover<H, StandardSettings<H>> {
     // create some constraints that satisfy our arithmetic circuit relation
-    let crs = Arc::new(RwLock::new(
-        FileReferenceString::new(n + 1, "../srs_db/ignition").unwrap(),
-    ));
+    let crs = Arc::new(RwLock::new(FileReferenceString::new(
+        n + 1,
+        "./src/srs_db/ignition",
+    ).unwrap()));
     let key = Arc::new(RwLock::new(ProvingKey::new(
         n,
         0,

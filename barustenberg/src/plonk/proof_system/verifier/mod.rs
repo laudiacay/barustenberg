@@ -316,7 +316,7 @@ impl<H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>> V
             G2Affine::generator(),
             (*self.key).read().unwrap().reference_string.read().unwrap().get_g2x(),
         ];
-        let result: Fq12 = Bn254::multi_pairing(&p, &q).0;
+        let result: Fq12 = Bn254::multi_pairing(p, q).0;
 
         Ok(result == Fq12::one())
     }
