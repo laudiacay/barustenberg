@@ -705,7 +705,7 @@ impl<H: BarretenHasher> Transcript<H> {
         let buf = self.get_challenge(challenge_name, idx);
         Fr::deserialize_uncompressed(buf.unwrap().as_slice()).unwrap()
     }
-    fn get_challenge_field_element_from_map<Fr: ark_ff::Field>(
+    pub(crate) fn get_challenge_field_element_from_map<Fr: ark_ff::Field>(
         &self,
         challenge_name: &str,
         challenge_map_name: &str,

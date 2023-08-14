@@ -24,8 +24,6 @@ use ark_ff::UniformRand;
 
 use anyhow::Result;
 
-use anyhow::Result;
-
 use super::*;
 
 impl<H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>> Verifier<H, S> {
