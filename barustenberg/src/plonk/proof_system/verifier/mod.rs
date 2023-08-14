@@ -314,7 +314,13 @@ impl<H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>> V
         // TODO: Optimize by precomputing miller lines for G2
         let q: [G2Affine; 2] = [
             G2Affine::generator(),
-            (*self.key).read().unwrap().reference_string.read().unwrap().get_g2x(),
+            (*self.key)
+                .read()
+                .unwrap()
+                .reference_string
+                .read()
+                .unwrap()
+                .get_g2x(),
         ];
         let result: Fq12 = Bn254::multi_pairing(p, q).0;
 
