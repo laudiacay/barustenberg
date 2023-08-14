@@ -141,11 +141,11 @@ fn compute_lookup_table_single<Fr: Field + FftField>(
         round_roots.push(start..start + (1 << (i + 1)));
     }
 
-    for i in 0..(num_rounds - 1) {
+    for (i, round_root_i) in round_roots.iter().enumerate().take(num_rounds - 1) {
         let m = 1 << (i + 1);
         let exponent = [(size / (2 * m)) as u64];
         let round_root = input_root.pow(exponent);
-        let offset = round_roots[i].start;
+        let offset = round_root_i.start;
         roots[offset] = Fr::one();
         for j in 1..m {
             roots[offset + j] = roots[offset + (j - 1)] * round_root;

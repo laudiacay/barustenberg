@@ -2,15 +2,14 @@ use crate::polynomials::Polynomial;
 use anyhow::{anyhow, Result};
 use ark_ff::{FftField, Field};
 use std::{
-    cell::RefCell,
     collections::HashMap,
     fmt::{self, Display, Formatter},
-    rc::Rc,
+    sync::{Arc, RwLock},
 };
 
 #[derive(Debug, Clone, Default)]
 pub(crate) struct PolynomialStore<Fr: Field + FftField> {
-    polynomial_map: HashMap<String, Rc<RefCell<Polynomial<Fr>>>>,
+    polynomial_map: HashMap<String, Arc<RwLock<Polynomial<Fr>>>>,
 }
 
 impl<Fr: Field + FftField> PolynomialStore<Fr> {
@@ -27,7 +26,11 @@ impl<Fr: Field + FftField> PolynomialStore<Fr> {
     /// - `polynomial` - the polynomial to be stored
     pub(crate) fn put(&mut self, name: String, polynomial: Polynomial<Fr>) {
         self.polynomial_map
-            .insert(name, Rc::new(RefCell::new(polynomial)));
+            .insert(name, Arc::new(RwLock::new(polynomial)));
+    }
+
+    pub(crate) fn put_owned(&mut self, name: String, polynomial: Arc<RwLock<Polynomial<Fr>>>) {
+        self.polynomial_map.insert(name, polynomial);
     }
 
     /// Get a reference to a polynomial in the PolynomialStore; will throw exception if the
@@ -38,7 +41,7 @@ impl<Fr: Field + FftField> PolynomialStore<Fr> {
     ///
     /// # Returns
     /// - `Result<Polynomial>` - a reference to the polynomial associated with the given key
-    pub(crate) fn get(&self, key: &String) -> Result<Rc<RefCell<Polynomial<Fr>>>> {
+    pub(crate) fn get(&self, key: &String) -> Result<Arc<RwLock<Polynomial<Fr>>>> {
         self.polynomial_map
             .get(key)
             .ok_or_else(|| anyhow!("didn't find polynomial..."))
@@ -57,8 +60,8 @@ impl<Fr: Field + FftField> PolynomialStore<Fr> {
             .polynomial_map
             .remove(&key)
             .ok_or_else(|| anyhow!("didn't find polynomial..."))?;
-        let poly = Rc::try_unwrap(wrapped_poly).map_err(|_| anyhow!("unwrapping rc failed"))?;
-        Ok(poly.into_inner())
+        let poly = Arc::try_unwrap(wrapped_poly).map_err(|_| anyhow!("unwrapping rc failed"))?;
+        Ok(poly.into_inner()?)
     }
 
     /// Get the current size (bytes) of all polynomials in the PolynomialStore
@@ -68,14 +71,14 @@ impl<Fr: Field + FftField> PolynomialStore<Fr> {
     fn get_size_in_bytes(&self) -> usize {
         let mut size_in_bytes: usize = 0;
         for (_, entry) in self.polynomial_map.iter() {
-            size_in_bytes += entry.borrow().size() * std::mem::size_of::<Fr>();
+            size_in_bytes += (**entry).read().unwrap().size() * std::mem::size_of::<Fr>();
         }
         size_in_bytes
     }
 
     pub(crate) fn insert(&mut self, key: &String, poly: Polynomial<Fr>) {
         self.polynomial_map
-            .insert(key.to_string(), Rc::new(RefCell::new(poly)));
+            .insert(key.to_string(), Arc::new(RwLock::new(poly)));
     }
 
     fn contains(&self, key: &String) -> bool {
@@ -93,7 +96,7 @@ impl<Fr: Field + FftField> Display for PolynomialStore<Fr> {
         let size_in_mb = (self.get_size_in_bytes() / 1_000_000) as f32;
         write!(f, "PolynomialStore contents total size: {} MB", size_in_mb)?;
         for (key, entry) in self.polynomial_map.iter() {
-            let entry_bytes = entry.borrow().size() * std::mem::size_of::<Fr>();
+            let entry_bytes = (**entry).read().unwrap().size() * std::mem::size_of::<Fr>();
             write!(
                 f,
                 "PolynomialStore: {} -> {} bytes, {:?}",

@@ -171,18 +171,7 @@ pub(crate) trait EvaluationGetter {
     type Fr: Field + FftField;
     type G1: AffineRepr;
     type NWidgetRelations: generic_array::ArrayLength<Self::Fr>;
-    // fn get_value(
-    //     polynomials: &PolyArray<F>,
-    //     evaluation_type: EvaluationType,
-    //     id: PolynomialIndex,
-    //     index: Option<usize>,
-    // ) -> &F {
-    //     assert!(index.is_none());
-    //     match evaluation_type {
-    //         EvaluationType::NonShifted => &polynomials[id].1,
-    //         EvaluationType::Shifted => &polynomials[id].0,
-    //     }
-    // }
+
     /// Get a polynomial at offset `id`
     ///
     /// # Arguments
@@ -286,9 +275,9 @@ where
         let poly = &polynomials.coefficients.get(&id).unwrap();
         if evaluation_type == EvaluationType::Shifted {
             let shifted_index = (index + polynomials.index_shift) & polynomials.block_mask;
-            poly.borrow()[shifted_index]
+            (**poly).read().unwrap()[shifted_index]
         } else {
-            poly.borrow()[index]
+            (**poly).read().unwrap()[index]
         }
     }
 }
@@ -337,20 +326,4 @@ pub(crate) trait FFTGetter {
         }
         result
     }
-
-    // fn get_value(
-    //     polynomials: &PolyPtrMap<F>,
-    //     evaluation_type: EvaluationType,
-    //     id: PolynomialIndex,
-    //     index: Option<usize>,
-    // ) -> &F {
-    //     // TODO ew
-    //     let index = index.unwrap();
-    //     if evaluation_type == EvaluationType::Shifted {
-    //         let shifted_index = (index + polynomials.index_shift) & polynomials.block_mask;
-    //         &polynomials.coefficients.get(&id).unwrap()[shifted_index]
-    //     } else {
-    //         &polynomials.coefficients.get(&id).unwrap()[index]
-    //     }
-    // }
 }

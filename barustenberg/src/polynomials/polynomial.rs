@@ -241,18 +241,17 @@ impl<F: Field + FftField> Polynomial<F> {
             prev.remove(0);
         }
 
-        let mut u_l = evaluation_points[0];
+        let u_l = evaluation_points[0];
         for i in 0..n_l {
             // curr[i] = (Fr(1) - u_l) * prev[i << 1] + u_l * prev[(i << 1) + 1];
             tmp[i] =
                 prev[i << 1] + u_l * (*prev.get((i << 1) + 1).unwrap_or(&F::zero()) - prev[i << 1]);
         }
         // partially evaluate the m-1 remaining points
-        for l in 1..m {
+        for (l, u_l) in evaluation_points.iter().enumerate().take(m).skip(1) {
             n_l = 1 << (m - l - 1);
-            u_l = evaluation_points[l];
             for i in 0..n_l {
-                tmp[i] = tmp[i << 1] + u_l * (tmp[(i << 1) + 1] - tmp[i << 1]);
+                tmp[i] = tmp[i << 1] + *u_l * (tmp[(i << 1) + 1] - tmp[i << 1]);
             }
         }
         tmp[0]

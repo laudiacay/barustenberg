@@ -21,7 +21,8 @@ use crate::{
     transcript::Keccak256,
 };
 use ark_ff::UniformRand;
-use std::{cell::RefCell, rc::Rc};
+
+use anyhow::Result;
 
 use anyhow::Result;
 
@@ -29,46 +30,54 @@ use super::*;
 
 impl<H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>> Verifier<H, S> {
     pub fn generate_verifier<G: AffineRepr>(
-        circuit_proving_key: Rc<RefCell<ProvingKey<Fr>>>,
+        circuit_proving_key: Arc<RwLock<ProvingKey<Fr>>>,
     ) -> Result<Self> {
-        let mut polynomials: Vec<Rc<RefCell<Polynomial<Fr>>>> = vec![
+        let polynomials: Vec<Arc<RwLock<Polynomial<Fr>>>> = vec![
             circuit_proving_key
-                .borrow()
+                .read()
+                .unwrap()
                 .polynomial_store
                 .get(&"q_1".to_owned())
                 .unwrap(),
             circuit_proving_key
-                .borrow()
+                .read()
+                .unwrap()
                 .polynomial_store
                 .get(&"q_2".to_owned())
                 .unwrap(),
             circuit_proving_key
-                .borrow()
+                .read()
+                .unwrap()
                 .polynomial_store
                 .get(&"q_3".to_owned())
                 .unwrap(),
             circuit_proving_key
-                .borrow()
+                .read()
+                .unwrap()
                 .polynomial_store
                 .get(&"q_m".to_owned())
                 .unwrap(),
             circuit_proving_key
-                .borrow()
+                .read()
+                .unwrap()
                 .polynomial_store
                 .get(&"q_c".to_owned())
                 .unwrap(),
             circuit_proving_key
-                .borrow()
+                .read()
+                .unwrap()
                 .polynomial_store
                 .get(&"sigma_1".to_owned())
                 .unwrap(),
             circuit_proving_key
-                .borrow()
+                .read()
+                .unwrap()
                 .polynomial_store
                 .get(&"sigma_2".to_owned())
                 .unwrap(),
             circuit_proving_key
-                .borrow()
+                .read()
+                .unwrap()
                 .polynomial_store
                 .get(&"sigma_3".to_owned())
                 .unwrap(),
@@ -76,18 +85,20 @@ impl<H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>> V
 
         let mut commitments = vec![G1Affine::default(); 8];
         let mut state: PippengerRuntimeState<Fr, G1Affine> =
-            PippengerRuntimeState::new(circuit_proving_key.borrow().circuit_size);
+            PippengerRuntimeState::new(circuit_proving_key.read().unwrap().circuit_size);
 
         for i in 0..8 {
             commitments[i] = G1Affine::from(
                 state.pippenger(
-                    polynomials[i].borrow_mut().coefficients.as_mut_slice(),
+                    polynomials[i].write().unwrap().coefficients.as_mut_slice(),
                     &((*(circuit_proving_key
-                        .borrow()
+                        .read()
+                        .unwrap()
                         .reference_string
-                        .borrow()
+                        .read()
+                        .unwrap()
                         .get_monomial_points()))[..]),
-                    circuit_proving_key.borrow().circuit_size,
+                    circuit_proving_key.read().unwrap().circuit_size,
                     false,
                 ),
             );
@@ -97,10 +108,10 @@ impl<H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>> V
         let crs = FileReferenceStringFactory::new("../srs_db/ignition".to_string());
         let vrs = crs.get_verifier_crs()?.unwrap();
         let mut circuit_verification_key = VerificationKey::new(
-            circuit_proving_key.borrow().circuit_size,
-            circuit_proving_key.borrow().num_public_inputs,
+            circuit_proving_key.read().unwrap().circuit_size,
+            circuit_proving_key.read().unwrap().num_public_inputs,
             vrs,
-            circuit_proving_key.borrow().composer_type,
+            circuit_proving_key.read().unwrap().composer_type,
         );
 
         circuit_verification_key
@@ -129,7 +140,7 @@ impl<H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>> V
             .insert("SIGMA_3".to_string(), commitments[7]);
 
         let mut verifier = Verifier::new(
-            Some(Rc::new(RefCell::new(circuit_verification_key))),
+            Some(Arc::new(RwLock::new(circuit_verification_key))),
             ComposerType::Standard.create_manifest(0),
         );
 
@@ -143,11 +154,10 @@ fn generate_test_data<'a, H: BarretenHasher + Default + 'static>(
     n: usize,
 ) -> Prover<H, StandardSettings<H>> {
     // create some constraints that satisfy our arithmetic circuit relation
-    let crs = Rc::new(RefCell::new(FileReferenceString::new(
-        n + 1,
-        "../srs_db/ignition",
-    ).unwrap()));
-    let key = Rc::new(RefCell::new(ProvingKey::new(
+    let crs = Arc::new(RwLock::new(
+        FileReferenceString::new(n + 1, "../srs_db/ignition").unwrap(),
+    ));
+    let key = Arc::new(RwLock::new(ProvingKey::new(
         n,
         0,
         crs,
@@ -230,175 +240,158 @@ fn generate_test_data<'a, H: BarretenHasher + Default + 'static>(
         sigma_3_mapping[n - 1 - j] = ((n - 1 - j) as u32) + (1 << 31);
     }
 
-    let mut sigma_1 = Polynomial::new(key.borrow().circuit_size);
-    let mut sigma_2 = Polynomial::new(key.borrow().circuit_size);
-    let mut sigma_3 = Polynomial::new(key.borrow().circuit_size);
+    {
+        let mut key_locked = key.write().unwrap();
 
-    compute_permutation_lagrange_base_single::<H, Fr>(
-        &mut sigma_1,
-        &sigma_1_mapping,
-        &key.borrow().small_domain,
-    );
-    compute_permutation_lagrange_base_single::<H, Fr>(
-        &mut sigma_2,
-        &sigma_2_mapping,
-        &key.borrow().small_domain,
-    );
-    compute_permutation_lagrange_base_single::<H, Fr>(
-        &mut sigma_3,
-        &sigma_3_mapping,
-        &key.borrow().small_domain,
-    );
+        let mut sigma_1 = Polynomial::new(key_locked.circuit_size);
+        let mut sigma_2 = Polynomial::new(key_locked.circuit_size);
+        let mut sigma_3 = Polynomial::new(key_locked.circuit_size);
 
-    let sigma_1_lagrange_base = sigma_1.clone();
-    let sigma_2_lagrange_base = sigma_2.clone();
-    let sigma_3_lagrange_base = sigma_3.clone();
+        compute_permutation_lagrange_base_single::<H, Fr>(
+            &mut sigma_1,
+            &sigma_1_mapping,
+            &key_locked.small_domain,
+        );
+        compute_permutation_lagrange_base_single::<H, Fr>(
+            &mut sigma_2,
+            &sigma_2_mapping,
+            &key_locked.small_domain,
+        );
+        compute_permutation_lagrange_base_single::<H, Fr>(
+            &mut sigma_3,
+            &sigma_3_mapping,
+            &key_locked.small_domain,
+        );
 
-    key.borrow_mut()
-        .polynomial_store
-        .insert(&"sigma_1_lagrange".to_string(), sigma_1_lagrange_base);
-    key.borrow_mut()
-        .polynomial_store
-        .insert(&"sigma_2_lagrange".to_string(), sigma_2_lagrange_base);
-    key.borrow_mut()
-        .polynomial_store
-        .insert(&"sigma_3_lagrange".to_string(), sigma_3_lagrange_base);
+        let sigma_1_lagrange_base = sigma_1.clone();
+        let sigma_2_lagrange_base = sigma_2.clone();
+        let sigma_3_lagrange_base = sigma_3.clone();
 
-    key.borrow()
-        .small_domain
-        .ifft_inplace(&mut sigma_1.coefficients);
-    key.borrow()
-        .small_domain
-        .ifft_inplace(&mut sigma_2.coefficients);
-    key.borrow()
-        .small_domain
-        .ifft_inplace(&mut sigma_3.coefficients);
+        key_locked
+            .polynomial_store
+            .insert(&"sigma_1_lagrange".to_string(), sigma_1_lagrange_base);
+        key_locked
+            .polynomial_store
+            .insert(&"sigma_2_lagrange".to_string(), sigma_2_lagrange_base);
+        key_locked
+            .polynomial_store
+            .insert(&"sigma_3_lagrange".to_string(), sigma_3_lagrange_base);
 
-    const WIDTH: usize = 4;
-    let mut sigma_1_fft = sigma_1.clone();
-    sigma_1_fft.resize(key.borrow().circuit_size * WIDTH, Fr::zero());
-    let mut sigma_2_fft = sigma_2.clone();
-    sigma_2_fft.resize(key.borrow().circuit_size * WIDTH, Fr::zero());
-    let mut sigma_3_fft = sigma_3.clone();
-    sigma_3_fft.resize(key.borrow().circuit_size * WIDTH, Fr::zero());
+        key_locked
+            .small_domain
+            .ifft_inplace(&mut sigma_1.coefficients);
+        key_locked
+            .small_domain
+            .ifft_inplace(&mut sigma_2.coefficients);
+        key_locked
+            .small_domain
+            .ifft_inplace(&mut sigma_3.coefficients);
 
-    key.borrow()
-        .large_domain
-        .coset_fft_inplace(&mut sigma_1_fft.coefficients[..]);
-    key.borrow()
-        .large_domain
-        .coset_fft_inplace(&mut sigma_2_fft.coefficients[..]);
-    key.borrow()
-        .large_domain
-        .coset_fft_inplace(&mut sigma_3_fft.coefficients[..]);
+        const WIDTH: usize = 4;
+        let mut sigma_1_fft = sigma_1.clone();
+        sigma_1_fft.resize(key_locked.circuit_size * WIDTH, Fr::zero());
+        let mut sigma_2_fft = sigma_2.clone();
+        sigma_2_fft.resize(key_locked.circuit_size * WIDTH, Fr::zero());
+        let mut sigma_3_fft = sigma_3.clone();
+        sigma_3_fft.resize(key_locked.circuit_size * WIDTH, Fr::zero());
 
-    key.borrow_mut()
-        .polynomial_store
-        .insert(&"sigma_1".to_string(), sigma_1);
-    key.borrow_mut()
-        .polynomial_store
-        .insert(&"sigma_2".to_string(), sigma_2);
-    key.borrow_mut()
-        .polynomial_store
-        .insert(&"sigma_3".to_string(), sigma_3);
+        key_locked
+            .large_domain
+            .coset_fft_inplace(&mut sigma_1_fft.coefficients[..]);
+        key_locked
+            .large_domain
+            .coset_fft_inplace(&mut sigma_2_fft.coefficients[..]);
+        key_locked
+            .large_domain
+            .coset_fft_inplace(&mut sigma_3_fft.coefficients[..]);
 
-    key.borrow_mut()
-        .polynomial_store
-        .insert(&"sigma_1_fft".to_string(), sigma_1_fft);
-    key.borrow_mut()
-        .polynomial_store
-        .insert(&"sigma_2_fft".to_string(), sigma_2_fft);
-    key.borrow_mut()
-        .polynomial_store
-        .insert(&"sigma_3_fft".to_string(), sigma_3_fft);
+        key_locked
+            .polynomial_store
+            .insert(&"sigma_1".to_string(), sigma_1);
+        key_locked
+            .polynomial_store
+            .insert(&"sigma_2".to_string(), sigma_2);
+        key_locked
+            .polynomial_store
+            .insert(&"sigma_3".to_string(), sigma_3);
 
-    key.borrow_mut()
-        .polynomial_store
-        .insert(&"w_1_lagrange".to_string(), w_l);
-    key.borrow_mut()
-        .polynomial_store
-        .insert(&"w_2_lagrange".to_string(), w_r);
-    key.borrow_mut()
-        .polynomial_store
-        .insert(&"w_3_lagrange".to_string(), w_o);
+        key_locked
+            .polynomial_store
+            .insert(&"sigma_1_fft".to_string(), sigma_1_fft);
+        key_locked
+            .polynomial_store
+            .insert(&"sigma_2_fft".to_string(), sigma_2_fft);
+        key_locked
+            .polynomial_store
+            .insert(&"sigma_3_fft".to_string(), sigma_3_fft);
 
-    key.borrow()
-        .small_domain
-        .ifft_inplace(&mut q_l.coefficients);
-    key.borrow()
-        .small_domain
-        .ifft_inplace(&mut q_r.coefficients);
-    key.borrow()
-        .small_domain
-        .ifft_inplace(&mut q_o.coefficients);
-    key.borrow()
-        .small_domain
-        .ifft_inplace(&mut q_m.coefficients);
-    key.borrow()
-        .small_domain
-        .ifft_inplace(&mut q_c.coefficients);
+        key_locked
+            .polynomial_store
+            .insert(&"w_1_lagrange".to_string(), w_l);
+        key_locked
+            .polynomial_store
+            .insert(&"w_2_lagrange".to_string(), w_r);
+        key_locked
+            .polynomial_store
+            .insert(&"w_3_lagrange".to_string(), w_o);
 
-    let mut q_1_fft = q_l.clone();
-    q_1_fft.resize(n * 4, Fr::zero());
-    let mut q_2_fft = q_r.clone();
-    q_2_fft.resize(n * 4, Fr::zero());
-    let mut q_3_fft = q_o.clone();
-    q_3_fft.resize(n * 4, Fr::zero());
-    let mut q_m_fft = q_m.clone();
-    q_m_fft.resize(n * 4, Fr::zero());
-    let mut q_c_fft = q_c.clone();
-    q_c_fft.resize(n * 4, Fr::zero());
+        key_locked.small_domain.ifft_inplace(&mut q_l.coefficients);
+        key_locked.small_domain.ifft_inplace(&mut q_r.coefficients);
+        key_locked.small_domain.ifft_inplace(&mut q_o.coefficients);
+        key_locked.small_domain.ifft_inplace(&mut q_m.coefficients);
+        key_locked.small_domain.ifft_inplace(&mut q_c.coefficients);
 
-    key.borrow_mut()
-        .large_domain
-        .coset_fft_inplace(&mut q_1_fft.coefficients[..]);
-    key.borrow_mut()
-        .large_domain
-        .coset_fft_inplace(&mut q_2_fft.coefficients[..]);
-    key.borrow_mut()
-        .large_domain
-        .coset_fft_inplace(&mut q_3_fft.coefficients[..]);
-    key.borrow_mut()
-        .large_domain
-        .coset_fft_inplace(&mut q_m_fft.coefficients[..]);
-    key.borrow_mut()
-        .large_domain
-        .coset_fft_inplace(&mut q_c_fft.coefficients[..]);
+        let mut q_1_fft = q_l.clone();
+        q_1_fft.resize(n * 4, Fr::zero());
+        let mut q_2_fft = q_r.clone();
+        q_2_fft.resize(n * 4, Fr::zero());
+        let mut q_3_fft = q_o.clone();
+        q_3_fft.resize(n * 4, Fr::zero());
+        let mut q_m_fft = q_m.clone();
+        q_m_fft.resize(n * 4, Fr::zero());
+        let mut q_c_fft = q_c.clone();
+        q_c_fft.resize(n * 4, Fr::zero());
 
-    key.borrow_mut()
-        .polynomial_store
-        .insert(&"q_1".to_string(), q_l);
-    key.borrow_mut()
-        .polynomial_store
-        .insert(&"q_2".to_string(), q_r);
-    key.borrow_mut()
-        .polynomial_store
-        .insert(&"q_3".to_string(), q_o);
-    key.borrow_mut()
-        .polynomial_store
-        .insert(&"q_m".to_string(), q_m);
-    key.borrow_mut()
-        .polynomial_store
-        .insert(&"q_c".to_string(), q_c);
+        key_locked
+            .large_domain
+            .coset_fft_inplace(&mut q_1_fft.coefficients[..]);
+        key_locked
+            .large_domain
+            .coset_fft_inplace(&mut q_2_fft.coefficients[..]);
+        key_locked
+            .large_domain
+            .coset_fft_inplace(&mut q_3_fft.coefficients[..]);
+        key_locked
+            .large_domain
+            .coset_fft_inplace(&mut q_m_fft.coefficients[..]);
+        key_locked
+            .large_domain
+            .coset_fft_inplace(&mut q_c_fft.coefficients[..]);
 
-    key.borrow_mut()
-        .polynomial_store
-        .insert(&"q_1_fft".to_string(), q_1_fft);
-    key.borrow_mut()
-        .polynomial_store
-        .insert(&"q_2_fft".to_string(), q_2_fft);
-    key.borrow_mut()
-        .polynomial_store
-        .insert(&"q_3_fft".to_string(), q_3_fft);
-    key.borrow_mut()
-        .polynomial_store
-        .insert(&"q_m_fft".to_string(), q_m_fft);
-    key.borrow_mut()
-        .polynomial_store
-        .insert(&"q_c_fft".to_string(), q_c_fft);
+        key_locked.polynomial_store.insert(&"q_1".to_string(), q_l);
+        key_locked.polynomial_store.insert(&"q_2".to_string(), q_r);
+        key_locked.polynomial_store.insert(&"q_3".to_string(), q_o);
+        key_locked.polynomial_store.insert(&"q_m".to_string(), q_m);
+        key_locked.polynomial_store.insert(&"q_c".to_string(), q_c);
 
-    let permutation_widget: Box<ProverPermutationWidget<Fr, H, G1Affine, 3, false, 4>> =
-        Box::new(ProverPermutationWidget::<Fr, H, G1Affine, 3, false, 4>::new(key.clone()));
+        key_locked
+            .polynomial_store
+            .insert(&"q_1_fft".to_string(), q_1_fft);
+        key_locked
+            .polynomial_store
+            .insert(&"q_2_fft".to_string(), q_2_fft);
+        key_locked
+            .polynomial_store
+            .insert(&"q_3_fft".to_string(), q_3_fft);
+        key_locked
+            .polynomial_store
+            .insert(&"q_m_fft".to_string(), q_m_fft);
+        key_locked
+            .polynomial_store
+            .insert(&"q_c_fft".to_string(), q_c_fft);
+    }
+    let permutation_widget: Box<ProverPermutationWidget<H, 3, false, 4>> =
+        Box::new(ProverPermutationWidget::<H, 3, false, 4>::new(key.clone()));
 
     let widget: Box<ProverArithmeticWidget<H>> =
         Box::new(ProverArithmeticWidget::<H>::new(key.clone()));

@@ -275,12 +275,12 @@ impl<Fr: Field + FftField> EvaluationDomain<Fr> {
         // TODO: parallelize
         for j in 0..self.num_threads {
             let thread_shift =
-                generator_shift.pow(&[(j * (generator_size / self.num_threads)) as u64]);
+                generator_shift.pow([(j * (generator_size / self.num_threads)) as u64]);
             let mut work_generator = generator_start * thread_shift;
             let offset = j * (generator_size / self.num_threads);
             let end = offset + (generator_size / self.num_threads);
-            for i in offset..end {
-                coeffs[i] = coeffs[i] * work_generator;
+            for coeff_i in coeffs.iter_mut().take(end).skip(offset) {
+                *coeff_i *= work_generator;
                 work_generator *= generator_shift;
             }
         }
@@ -298,7 +298,7 @@ impl<Fr: Field + FftField> EvaluationDomain<Fr> {
         // TODO: parallelize
         for j in 0..self.num_threads {
             let thread_shift =
-                generator_shift.pow(&[(j * (generator_size / self.num_threads)) as u64]);
+                generator_shift.pow([(j * (generator_size / self.num_threads)) as u64]);
             let mut work_generator = generator_start * thread_shift;
             let offset = j * (generator_size / self.num_threads);
             let end = offset + (generator_size / self.num_threads);
@@ -677,10 +677,14 @@ impl<Fr: Field + FftField> EvaluationDomain<Fr> {
             &self.root_inverse,
             &self.get_inverse_round_roots()[..],
         );
-        // todo!("parallelize")
+        // todo parallelize
         for j in 0..self.num_threads {
-            for i in j * self.thread_size..(j + 1) * self.thread_size {
-                coeffs[i] *= self.domain_inverse;
+            for coeffs_i in coeffs
+                .iter_mut()
+                .take((j + 1) * self.thread_size)
+                .skip(j * self.thread_size)
+            {
+                *coeffs_i *= self.domain_inverse;
             }
         }
     }
@@ -744,12 +748,12 @@ impl<Fr: Field + FftField> EvaluationDomain<Fr> {
         let num_polys = coeffs.len();
         assert!(num_polys.is_power_of_two());
         let poly_size = self.size / num_polys;
-        let generator_inv_pow_n = self.generator_inverse.pow(&[poly_size as u64]);
+        let generator_inv_pow_n = self.generator_inverse.pow([poly_size as u64]);
         let mut generator_start = Fr::one();
 
-        for i in 0..num_polys {
+        for coeff_i in coeffs.iter_mut().take(num_polys) {
             self.scale_by_generator_inplace(
-                coeffs[i],
+                coeff_i,
                 generator_start,
                 self.generator_inverse,
                 poly_size,
@@ -850,11 +854,11 @@ impl<Fr: Field + FftField> EvaluationDomain<Fr> {
         let num_polys = coeffs.len();
         assert!(num_polys.is_power_of_two());
         let poly_size = self.size / num_polys;
-        let generator_pow_n = self.generator.pow(&[poly_size as u64]);
+        let generator_pow_n = self.generator.pow([poly_size as u64]);
         let mut generator_start = Fr::one();
 
-        for i in 0..num_polys {
-            self.scale_by_generator_inplace(coeffs[i], generator_start, self.generator, poly_size);
+        for coeff_i in coeffs.iter_mut().take(num_polys) {
+            self.scale_by_generator_inplace(coeff_i, generator_start, self.generator, poly_size);
             generator_start *= generator_pow_n;
         }
         self.fft_vec_inplace(coeffs);
@@ -894,7 +898,7 @@ impl<Fr: Field + FftField> EvaluationDomain<Fr> {
             let internal_bound_start = j * self.thread_size;
             let internal_bound_end = (j + 1) * self.thread_size;
             for i in internal_bound_start..internal_bound_end {
-                a_coeffs[i] = a_coeffs[i] - b_coeffs[i];
+                a_coeffs[i] -= b_coeffs[i];
             }
         }
     }
@@ -982,13 +986,16 @@ impl<Fr: Field + FftField> EvaluationDomain<Fr> {
         if subgroup_size >= target_domain.thread_size {
             let mut work_root = self.generator;
             for i in 0..target_domain.size {
-                for j in 0..subgroup_size {
+                for (j, subgroup_root) in subgroup_roots.iter().enumerate().take(subgroup_size) {
                     let poly_idx = (i + j) >> log2_poly_size;
                     let elem_idx = (i + j) & poly_mask;
-                    coeffs[poly_idx][elem_idx] *= subgroup_roots[j];
+                    coeffs[poly_idx][elem_idx] *= subgroup_root;
 
-                    for k in 0..num_roots_cut_out_of_vanishing_polynomial {
-                        coeffs[poly_idx][elem_idx] *= work_root + numerator_constants[k];
+                    for num_const in numerator_constants
+                        .iter()
+                        .take(num_roots_cut_out_of_vanishing_polynomial)
+                    {
+                        coeffs[poly_idx][elem_idx] *= work_root + num_const;
                     }
                     work_root *= target_domain.root;
                 }
@@ -997,16 +1004,20 @@ impl<Fr: Field + FftField> EvaluationDomain<Fr> {
             // TODO: Parallelize
             for k in 0..target_domain.num_threads {
                 let offset = k * target_domain.thread_size;
-                let root_shift = target_domain.root.pow(&[offset as u64]);
+                let root_shift = target_domain.root.pow([offset as u64]);
                 let mut work_root = self.generator * root_shift;
                 for i in (offset..offset + target_domain.thread_size).step_by(subgroup_size) {
-                    for j in 0..subgroup_size {
+                    for (j, subgroup_root) in subgroup_roots.iter().enumerate().take(subgroup_size)
+                    {
                         let poly_idx = (i + j) >> log2_poly_size;
                         let elem_idx = (i + j) & poly_mask;
-                        coeffs[poly_idx][elem_idx] *= subgroup_roots[j];
+                        coeffs[poly_idx][elem_idx] *= subgroup_root;
 
-                        for k in 0..num_roots_cut_out_of_vanishing_polynomial {
-                            coeffs[poly_idx][elem_idx] *= work_root + numerator_constants[k];
+                        for num_const in numerator_constants
+                            .iter()
+                            .take(num_roots_cut_out_of_vanishing_polynomial)
+                        {
+                            coeffs[poly_idx][elem_idx] *= work_root + num_const;
                         }
 
                         work_root *= target_domain.root;
@@ -1247,9 +1258,9 @@ impl<Fr: Field + FftField> EvaluationDomain<Fr> {
             current_root *= if is_coset { self.generator } else { Fr::one() };
             dest[i] = Fr::one();
             dest[i + m] = Fr::one();
-            for j in 0..n {
-                dest[i] *= current_root - roots[j];
-                dest[i + m] *= -current_root - roots[j];
+            for root in roots.iter().take(n) {
+                dest[i] *= current_root - root;
+                dest[i + m] *= -current_root - root;
             }
         }
     }
@@ -1352,8 +1363,8 @@ pub(crate) fn compute_linear_polynomial_product_evaluation<Fr: Field + FftField>
     n: usize,
 ) -> Fr {
     let mut result = Fr::one();
-    for i in 0..n {
-        result *= z - roots[i];
+    for item in roots.iter().take(n) {
+        result *= z - item;
     }
     result
 }
@@ -1649,8 +1660,7 @@ pub(crate) fn evaluate_from_fft<F: Field + FftField>(
 
     let zeta_by_g = large_domain.generator_inverse * z;
 
-    let result = small_domain.compute_barycentric_evaluation(&small_poly_coset_fft, n, &zeta_by_g);
-    result
+    small_domain.compute_barycentric_evaluation(&small_poly_coset_fft, n, &zeta_by_g)
 }
 
 // Divides p(X) by (X-r) in-place.
@@ -1694,12 +1704,12 @@ pub(crate) fn factor_root<F: Field + FftField>(polynomial: &mut [F], root: &F) {
         let mut temp = F::zero();
         // We start multiplying lower coefficient by the inverse and subtracting those from highter coefficients
         // Since (x - r) should divide the polynomial cleanly, we can guide division with lower coefficients
-        for i in 0..size - 1 {
+        for item in polynomial.iter_mut().take(size - 1) {
             // at the start of the loop, temp = bᵢ₋₁
             // and we can compute bᵢ   = (aᵢ − bᵢ₋₁)⋅(−r)⁻¹
-            temp = polynomial[i] - temp;
+            temp = *item - temp;
             temp *= root_inverse;
-            polynomial[i] = temp;
+            *item = temp;
         }
     }
     polynomial[size - 1] = F::zero();
@@ -1758,13 +1768,13 @@ pub(crate) fn factor_roots<F: Field + FftField>(polynomial: &mut [F], roots: &[F
             }
         }
         // If there are M zero roots, then the first M coefficients of polynomial must be zero
-        for i in 0..num_zero_roots {
-            assert!(polynomial[i].is_zero());
+        for item in polynomial.iter().take(num_zero_roots) {
+            assert!(item.is_zero());
         }
 
         // View over the polynomial factored by all the zeros
         // If there are no zeros, then zero_factored == polynomial
-        let zero_factored_offset = num_zero_roots as usize;
+        let zero_factored_offset = num_zero_roots;
 
         let num_non_zero_roots = minus_root_inverses.len();
         if num_non_zero_roots > 0 {
@@ -1805,8 +1815,8 @@ pub(crate) fn factor_roots<F: Field + FftField>(polynomial: &mut [F], roots: &[F
         }
 
         // Clear the last coefficients to prevent accidents
-        for i in new_size..size {
-            polynomial[i] = F::zero();
+        for item in polynomial.iter_mut().take(size).skip(new_size) {
+            *item = F::zero();
         }
     }
 }

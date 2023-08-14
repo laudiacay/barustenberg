@@ -1,7 +1,7 @@
 use anyhow::Result;
-use std::cell::RefCell;
 use std::collections::HashMap;
-use std::rc::Rc;
+use std::sync::Arc;
+use std::sync::RwLock;
 
 use super::composer_base::{ComposerBase, ComposerBaseData, ComposerType};
 use crate::plonk::composer::composer_base::SelectorProperties;
@@ -23,13 +23,13 @@ use crate::{
     plonk::proof_system::proving_key::ProvingKey, srs::reference_string::ReferenceStringFactory,
 };
 
-use ark_bn254::{Fr, G1Affine};
+use ark_bn254::Fr;
 use ark_ff::{BigInteger, Field, One, PrimeField, Zero};
 
 #[derive(Default)]
 pub(crate) struct StandardComposer<RSF: ReferenceStringFactory> {
     /// base data from composer
-    cbd: Rc<RefCell<ComposerBaseData<RSF>>>,
+    cbd: Arc<RwLock<ComposerBaseData<RSF>>>,
     /// These are variables that we have used a gate on, to enforce that they are
     /// equal to a defined value.
     constant_variable_indices: HashMap<Fr, u32>,
@@ -38,30 +38,29 @@ pub(crate) struct StandardComposer<RSF: ReferenceStringFactory> {
     settings: StandardSettings<Keccak256>,
 }
 
-impl<'a, RSF: ReferenceStringFactory> ComposerBase for StandardComposer<RSF> {
+impl<RSF: ReferenceStringFactory> ComposerBase for StandardComposer<RSF> {
     type RSF = RSF;
 
     #[inline(always)]
-    fn composer_base_data(&self) -> Rc<RefCell<ComposerBaseData<Self::RSF>>> {
+    fn composer_base_data(&self) -> Arc<RwLock<ComposerBaseData<Self::RSF>>> {
         self.cbd.clone()
     }
 
     fn with_crs_factory(
-        crs_factory: Rc<RSF>,
+        crs_factory: Arc<RSF>,
         num_selectors: usize,
         size_hint: usize,
         selector_properties: Vec<SelectorProperties>,
     ) -> Self {
-        let mut cbd = ComposerBaseData::default();
-        cbd.selectors = vec![Vec::with_capacity(size_hint); num_selectors];
-        cbd.rand_engine = None;
-        cbd.circuit_proving_key = None;
-        cbd.circuit_verification_key = None;
-        cbd.num_selectors = num_selectors;
-        cbd.selector_properties = selector_properties;
-        cbd.crs_factory = crs_factory;
-        cbd.num_gates = 0;
-        let cbd = Rc::new(RefCell::new(cbd));
+        let cbd = ComposerBaseData {
+            selectors: vec![Vec::with_capacity(size_hint); num_selectors],
+            num_selectors,
+            selector_properties,
+            crs_factory,
+            ..Default::default()
+        };
+
+        let cbd = Arc::new(RwLock::new(cbd));
         Self {
             cbd,
             constant_variable_indices: HashMap::new(),
@@ -72,23 +71,25 @@ impl<'a, RSF: ReferenceStringFactory> ComposerBase for StandardComposer<RSF> {
     }
 
     fn with_keys(
-        p_key: Rc<RefCell<ProvingKey<Fr>>>,
-        v_key: Rc<RefCell<VerificationKey<Fr>>>,
+        p_key: Arc<RwLock<ProvingKey<Fr>>>,
+        v_key: Arc<RwLock<VerificationKey<Fr>>>,
         num_selectors: usize,
         size_hint: usize,
         selector_properties: Vec<SelectorProperties>,
-        crs_factory: Rc<Self::RSF>,
+        crs_factory: Arc<Self::RSF>,
     ) -> Self {
-        let mut cbd = ComposerBaseData::default();
-        cbd.selectors = vec![Vec::with_capacity(size_hint); num_selectors];
-        cbd.rand_engine = None;
-        cbd.circuit_proving_key = Some(p_key);
-        cbd.circuit_verification_key = Some(v_key);
-        cbd.num_selectors = num_selectors;
-        cbd.selector_properties = selector_properties;
-        cbd.num_gates = 0;
-        cbd.crs_factory = crs_factory;
-        let cbd = Rc::new(RefCell::new(cbd));
+        let cbd = ComposerBaseData {
+            num_gates: 0,
+            crs_factory,
+            num_selectors,
+            selector_properties,
+            circuit_proving_key: Some(p_key),
+            circuit_verification_key: Some(v_key),
+            selectors: vec![Vec::with_capacity(size_hint); num_selectors],
+            ..Default::default()
+        };
+
+        let cbd = Arc::new(RwLock::new(cbd));
         Self {
             cbd,
             constant_variable_indices: HashMap::new(),
@@ -113,7 +114,7 @@ impl StandardComposer<FileReferenceStringFactory> {
         size_hint: usize,
         selector_properties: Vec<SelectorProperties>,
     ) -> Self {
-        let crs_factory = Rc::new(FileReferenceStringFactory::new(
+        let crs_factory = Arc::new(FileReferenceStringFactory::new(
             "../srs_db/ignition".to_string(),
         ));
         Self::with_crs_factory(crs_factory, num_selectors, size_hint, selector_properties)
@@ -127,7 +128,7 @@ impl<RSF: ReferenceStringFactory> StandardComposer<RSF> {
     /// - `in` - An add_triple containing the indexes of variables to be placed into the
     /// wires w_l, w_r, w_o and addition coefficients to be placed into q_1, q_2, q_3, q_c.
     fn create_add_gate(&mut self, ins: &AddTriple<Fr>) {
-        let mut cbd = self.cbd.borrow_mut();
+        let mut cbd = self.cbd.write().unwrap();
         cbd.w_l.push(ins.a);
         cbd.w_r.push(ins.b);
         cbd.w_o.push(ins.c);
@@ -191,7 +192,7 @@ impl<RSF: ReferenceStringFactory> StandardComposer<RSF> {
         let temp_idx: u32 = self.add_variable(temp);
 
         let cbd = self.cbd.clone();
-        let mut cbd = cbd.borrow_mut();
+        let mut cbd = cbd.write().unwrap();
 
         cbd.w_l.push(ins.a);
         cbd.w_r.push(ins.b);
@@ -358,7 +359,7 @@ impl<RSF: ReferenceStringFactory> StandardComposer<RSF> {
     fn create_mul_gate(&mut self, ins: &MulTriple<Fr>) {
         self.assert_valid_variables(&[ins.a, ins.b, ins.c]);
 
-        let mut cbd = self.cbd.borrow_mut();
+        let mut cbd = self.cbd.write().unwrap();
 
         cbd.w_l.push(ins.a);
         cbd.w_r.push(ins.b);
@@ -381,7 +382,7 @@ impl<RSF: ReferenceStringFactory> StandardComposer<RSF> {
     fn create_bool_gate(&mut self, variable_index: u32) {
         self.assert_valid_variables(&[variable_index]);
 
-        let mut cbd = self.cbd.borrow_mut();
+        let mut cbd = self.cbd.write().unwrap();
 
         cbd.w_l.push(variable_index);
         cbd.w_r.push(variable_index);
@@ -403,7 +404,7 @@ impl<RSF: ReferenceStringFactory> StandardComposer<RSF> {
     fn create_poly_gate(&mut self, ins: &PolyTriple<Fr>) {
         self.assert_valid_variables(&[ins.a, ins.b, ins.c]);
 
-        let mut cbd = self.cbd.borrow_mut();
+        let mut cbd = self.cbd.write().unwrap();
 
         cbd.w_l.push(ins.a);
         cbd.w_r.push(ins.b);
@@ -475,8 +476,8 @@ impl<RSF: ReferenceStringFactory> StandardComposer<RSF> {
                 accumulator_idx = quad_idx;
             } else {
                 let mut new_accumulator = accumulator + accumulator;
-                new_accumulator = new_accumulator + new_accumulator;
-                new_accumulator = new_accumulator + self.get_variable(quad_idx);
+                new_accumulator += new_accumulator;
+                new_accumulator += self.get_variable(quad_idx);
                 let new_accumulator_idx = self.add_variable(new_accumulator);
                 self.create_add_gate(&AddTriple {
                     a: accumulator_idx,
@@ -515,9 +516,9 @@ impl<RSF: ReferenceStringFactory> StandardComposer<RSF> {
         let mut right_accumulator = Fr::zero();
         let mut out_accumulator = Fr::zero();
 
-        let mut left_accumulator_idx = self.cbd.borrow().zero_idx;
-        let mut right_accumulator_idx = self.cbd.borrow().zero_idx;
-        let mut out_accumulator_idx = self.cbd.borrow().zero_idx;
+        let mut left_accumulator_idx = self.cbd.read().unwrap().zero_idx;
+        let mut right_accumulator_idx = self.cbd.read().unwrap().zero_idx;
+        let mut out_accumulator_idx = self.cbd.read().unwrap().zero_idx;
 
         let four = Fr::from(4);
         let neg_two = -Fr::from(2);
@@ -594,8 +595,8 @@ impl<RSF: ReferenceStringFactory> StandardComposer<RSF> {
             let out_quad_idx = self.add_variable(out_quad);
 
             let mut new_left_accumulator = left_accumulator + left_accumulator;
-            new_left_accumulator = new_left_accumulator + new_left_accumulator;
-            new_left_accumulator = new_left_accumulator + left_quad;
+            new_left_accumulator += new_left_accumulator;
+            new_left_accumulator += left_quad;
             let new_left_accumulator_idx = self.add_variable(new_left_accumulator);
 
             self.create_add_gate(&AddTriple {
@@ -624,8 +625,8 @@ impl<RSF: ReferenceStringFactory> StandardComposer<RSF> {
             });
 
             let mut new_out_accumulator = out_accumulator + out_accumulator;
-            new_out_accumulator = new_out_accumulator + new_out_accumulator;
-            new_out_accumulator = new_out_accumulator + out_quad;
+            new_out_accumulator += new_out_accumulator;
+            new_out_accumulator += out_quad;
             let new_out_accumulator_idx = self.add_variable(new_out_accumulator);
 
             self.create_add_gate(&AddTriple {
@@ -658,7 +659,7 @@ impl<RSF: ReferenceStringFactory> StandardComposer<RSF> {
     fn fix_witness(&mut self, witness_index: u32, witness_value: &Fr) {
         self.assert_valid_variables(&vec![witness_index][..]);
 
-        let mut cbd = self.cbd.borrow_mut();
+        let mut cbd = self.cbd.write().unwrap();
 
         cbd.w_l.push(witness_index);
         let zero_idx = cbd.zero_idx;
@@ -683,14 +684,16 @@ impl<RSF: ReferenceStringFactory> StandardComposer<RSF> {
     /// * Returns the index of the stored variable.
 
     fn put_constant_variable(&mut self, variable: Fr) -> u32 {
+        #[allow(clippy::map_entry)]
+        // todo fix map entry syntax
         if self.constant_variable_indices.contains_key(&variable) {
-            return *self.constant_variable_indices.get(&variable).unwrap();
+            *self.constant_variable_indices.get(&variable).unwrap()
         } else {
             let variable_index = self.add_variable(variable);
             self.fix_witness(variable_index, &variable);
             self.constant_variable_indices
                 .insert(variable, variable_index);
-            return variable_index;
+            variable_index
         }
     }
 
@@ -734,9 +737,9 @@ impl<RSF: ReferenceStringFactory> StandardComposer<RSF> {
     ///
     /// * Returns a `Rc<ProvingKey>`, a reference counted proving key.
 
-    fn compute_proving_key(&mut self) -> Rc<RefCell<ProvingKey<Fr>>> {
+    fn compute_proving_key(&mut self) -> Arc<RwLock<ProvingKey<Fr>>> {
         let cbd = self.cbd.clone();
-        let cbd = cbd.borrow();
+        let cbd = cbd.read().unwrap();
 
         if let Some(proving_key) = cbd.circuit_proving_key.clone() {
             return proving_key.clone();
@@ -746,17 +749,20 @@ impl<RSF: ReferenceStringFactory> StandardComposer<RSF> {
         self.compute_sigma_permutations(cbd.circuit_proving_key.clone().unwrap(), 3, false);
 
         (*cbd.circuit_proving_key.clone().unwrap())
-            .borrow_mut()
+            .write()
+            .unwrap()
             .recursive_proof_public_input_indices = cbd
             .circuit_proving_key
             .clone()
             .unwrap()
-            .borrow()
+            .read()
+            .unwrap()
             .recursive_proof_public_input_indices
             .clone();
 
         (*cbd.circuit_proving_key.clone().unwrap())
-            .borrow_mut()
+            .write()
+            .unwrap()
             .contains_recursive_proof = self.contains_recursive_proof;
 
         cbd.circuit_proving_key.clone().unwrap()
@@ -773,9 +779,9 @@ impl<RSF: ReferenceStringFactory> StandardComposer<RSF> {
     /// # Returns
     ///
     /// * Returns an `Rc<VerificationKey>`, a reference counted verification key.
-    fn compute_verification_key(&mut self) -> Result<Rc<RefCell<VerificationKey<Fr>>>> {
+    fn compute_verification_key(&mut self) -> Result<Arc<RwLock<VerificationKey<Fr>>>> {
         let cbd = self.cbd.clone();
-        let mut cbd = cbd.borrow_mut();
+        let mut cbd = cbd.write().unwrap();
 
         if let Some(ref key) = cbd.circuit_verification_key {
             return Ok(key.clone());
@@ -791,13 +797,14 @@ impl<RSF: ReferenceStringFactory> StandardComposer<RSF> {
         cbd.circuit_verification_key = Some(circuit_verification_key.clone());
 
         {
-            let mut verification_key = circuit_verification_key.borrow_mut();
+            let mut verification_key = circuit_verification_key.write().unwrap();
             verification_key.composer_type = self.own_type;
             verification_key.recursive_proof_public_input_indices = cbd
                 .circuit_proving_key
                 .clone()
                 .unwrap()
-                .borrow()
+                .read()
+                .unwrap()
                 .recursive_proof_public_input_indices
                 .clone();
             verification_key.contains_recursive_proof = self.contains_recursive_proof;
@@ -1098,7 +1105,7 @@ impl<RSF: ReferenceStringFactory> StandardComposer<RSF> {
     /// Finally, it adds a `KateCommitmentScheme` to the verifier and returns it.
     fn create_verifier(&mut self) -> Result<Verifier<Keccak256, StandardSettings<Keccak256>>> {
         let cbd = self.cbd.clone();
-        let cbd = cbd.borrow();
+        let cbd = cbd.read().unwrap();
 
         self.compute_verification_key()?;
         let mut output_state = Verifier::new(
@@ -1126,26 +1133,19 @@ impl<RSF: ReferenceStringFactory> StandardComposer<RSF> {
         self.compute_proving_key();
         self.compute_witness();
 
-        let cbd = self.cbd.borrow();
+        let cbd = self.cbd.read().unwrap();
 
         let mut output_state = Prover::new(
-            Some(Rc::clone(cbd.circuit_proving_key.as_ref().unwrap())),
+            Some(Arc::clone(cbd.circuit_proving_key.as_ref().unwrap())),
             Some(self.create_manifest(cbd.public_inputs.len())),
             None,
         );
 
-        output_state
-            .random_widgets
-            .push(Box::new(ProverPermutationWidget::<
-                Fr,
-                Keccak256,
-                G1Affine,
-                3,
-                false,
-                4,
-            >::new(
-                cbd.circuit_proving_key.clone().unwrap()
-            )));
+        output_state.random_widgets.push(Box::new(
+            ProverPermutationWidget::<Keccak256, 3, false, 4>::new(
+                cbd.circuit_proving_key.clone().unwrap(),
+            ),
+        ));
 
         let arithmetic_widget =
             ProverArithmeticWidget::new(cbd.circuit_proving_key.clone().unwrap());
@@ -1165,7 +1165,7 @@ impl<RSF: ReferenceStringFactory> StandardComposer<RSF> {
     /// it will call the `failure` method with the provided message.
     /// Then, it gets the index of the constant variable `b` and asserts the equality between variables at `a_idx` and `b_idx`.
     fn assert_equal_constant(&mut self, a_idx: usize, b: Fr, msg: String) {
-        if self.cbd.borrow().variables[a_idx] != b && !self.failed() {
+        if self.cbd.read().unwrap().variables[a_idx] != b && !self.failed() {
             self.failure(msg.clone());
         }
         let b_idx = self.put_constant_variable(b);
@@ -1180,7 +1180,7 @@ impl<RSF: ReferenceStringFactory> StandardComposer<RSF> {
     ///
     /// * Returns `true` if the circuit is correct, `false` otherwise.
     fn check_circuit(&self) -> bool {
-        let cbd = self.cbd.borrow();
+        let cbd = self.cbd.read().unwrap();
 
         for i in 0..cbd.num_gates {
             let left = self.get_variable(cbd.w_l[i]);

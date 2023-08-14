@@ -1,4 +1,7 @@
-use std::{cell::RefCell, collections::HashMap, rc::Rc};
+use std::{
+    collections::HashMap,
+    sync::{Arc, RwLock},
+};
 
 use ark_bn254::G1Affine;
 use ark_ff::{FftField, Field};
@@ -21,7 +24,7 @@ pub struct VerificationKey<Fr: Field + FftField> {
     log_circuit_size: usize,
     pub(crate) num_public_inputs: usize,
     pub(crate) domain: EvaluationDomain<Fr>,
-    pub(crate) reference_string: Rc<RefCell<dyn VerifierReferenceString>>,
+    pub(crate) reference_string: Arc<RwLock<dyn VerifierReferenceString>>,
     pub(crate) commitments: HashMap<String, G1Affine>,
     pub(crate) polynomial_manifest: PolynomialManifest,
     /// This is a member variable so as to avoid recomputing it in the different places of the verifier algorithm.
@@ -41,7 +44,7 @@ impl<Fr: FftField + Field> Default for VerificationKey<Fr> {
             log_circuit_size: 0,
             num_public_inputs: Default::default(),
             domain: Default::default(),
-            reference_string: Rc::new(RefCell::new(VerifierMemReferenceString::default())),
+            reference_string: Arc::new(RwLock::new(VerifierMemReferenceString::default())),
             commitments: Default::default(),
             polynomial_manifest: Default::default(),
             z_pow_n: Default::default(),
@@ -56,7 +59,7 @@ impl<Fr: Field + FftField> VerificationKey<Fr> {
     pub(crate) fn new(
         circuit_size: usize,
         num_public_inputs: usize,
-        reference_string: Rc<RefCell<dyn VerifierReferenceString>>,
+        reference_string: Arc<RwLock<dyn VerifierReferenceString>>,
         composer_type: ComposerType,
     ) -> Self {
         VerificationKey {

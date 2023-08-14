@@ -1,10 +1,8 @@
 use std::{
-    cell::RefCell,
     collections::{HashMap, HashSet},
     fmt::Debug,
     marker::PhantomData,
-    rc::Rc,
-    sync::Arc,
+    sync::{Arc, RwLock},
 };
 
 use ark_ec::AffineRepr;
@@ -37,7 +35,7 @@ pub(crate) trait KernelBase {
         linear_terms: &mut CoefficientArray<Self::Field>,
         index: Option<usize>,
     );
-    fn sum_linear_terms<Get: BaseGetter>(
+    fn sum_linear_terms<Get: BaseGetter<Fr = Self::Field>>(
         polynomials: &Get::PC,
         challenges: &ChallengeArray<Self::Field, Self::NumIndependentRelations>,
         linear_terms: &CoefficientArray<Self::Field>,
@@ -79,7 +77,7 @@ pub(crate) struct TransitionWidget<
     NIndependentRelations: generic_array::ArrayLength<F>,
     KB: KernelBase,
 {
-    key: Rc<RefCell<ProvingKey<F>>>,
+    key: Arc<RwLock<ProvingKey<F>>>,
     phantom: PhantomData<(H, NIndependentRelations, KB, G)>,
 }
 
@@ -94,7 +92,7 @@ where
         Hasher = H,
     >,
 {
-    pub(crate) fn new(key: Rc<RefCell<ProvingKey<F>>>) -> Self {
+    pub(crate) fn new(key: Arc<RwLock<ProvingKey<F>>>) -> Self {
         Self {
             key,
             phantom: PhantomData,
@@ -129,7 +127,7 @@ where
     ) -> F {
         let required_polynomial_ids = KB::get_required_polynomial_ids();
         let polynomials = FFTGetterImpl::<H, F, G, NIndependentRelations>::get_polynomials(
-            &self.key.borrow(),
+            &self.key.read().unwrap(),
             &required_polynomial_ids,
         );
 
@@ -142,7 +140,7 @@ where
 
         let mut quotient_term;
 
-        let borrowed_key = self.key.borrow();
+        let borrowed_key = self.key.read().unwrap();
 
         // TODO: hidden missing multithreading here
         for i in 0..borrowed_key.large_domain.size {
@@ -159,7 +157,8 @@ where
 
             quotient_term = borrowed_key.quotient_polynomial_parts
                 [i >> borrowed_key.small_domain.log2_size]
-                .borrow()[i & (borrowed_key.circuit_size - 1)];
+                .read()
+                .unwrap()[i & (borrowed_key.circuit_size - 1)];
             quotient_term += sum_of_linear_terms;
             KB::compute_non_linear_terms::<FFTGetterImpl<H, F, G, NIndependentRelations>>(
                 &polynomials,
