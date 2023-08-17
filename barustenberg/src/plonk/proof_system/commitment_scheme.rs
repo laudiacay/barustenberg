@@ -435,7 +435,7 @@ impl<H: BarretenHasher> CommitmentScheme for KateCommitmentScheme<H, Fq, Fr, G1A
         let mut batch_eval = Fr::zero();
         let polynomial_manifest = &input_key.as_ref().unwrap().polynomial_manifest;
         for i in 0..polynomial_manifest.len() {
-            let item = &polynomial_manifest[i];
+            let item = &polynomial_manifest[i.into()];
             let label = item.commitment_label.clone();
             let poly_label = item.polynomial_label.clone();
             match item.source {
@@ -467,7 +467,8 @@ impl<H: BarretenHasher> CommitmentScheme for KateCommitmentScheme<H, Fq, Fr, G1A
             if has_shifted_evaluation {
                 let challenge = transcript
                     .get_challenge_field_element_from_map("nu", &format!("{}_omega", poly_label));
-                let separator_challenge = transcript.get_challenge_field_element("separator", 0);
+                let separator_challenge =
+                    transcript.get_challenge_field_element("separator", Some(0));
                 kate_fr_scalar += separator_challenge * challenge;
                 let poly_at_zeta_omega =
                     transcript.get_field_element(&format!("{}_omega", poly_label));
