@@ -5,12 +5,14 @@ use std::sync::{Arc, RwLock};
 use ark_bn254::{Fq, Fr, G1Affine};
 use ark_ec::AffineRepr;
 use ark_ff::{FftField, Field, One, Zero};
+use rayon::prelude::{IntoParallelIterator, ParallelIterator};
 
 use crate::polynomials::{polynomial_arithmetic, Polynomial};
 use crate::proof_system::work_queue::{Work, WorkItem, WorkQueue};
 use crate::transcript::{BarretenHasher, Transcript};
 
 use super::proving_key::ProvingKey;
+use super::types::polynomial_manifest::PolynomialSource;
 use super::types::proof::CommitmentOpenProof;
 use super::verification_key::VerificationKey;
 
@@ -122,32 +124,34 @@ impl<H: BarretenHasher> CommitmentScheme for KateCommitmentScheme<H, Fq, Fr, G1A
     fn add_opening_evaluations_to_transcript(
         &self,
         transcript: &mut Transcript<H>,
-        input_key:Option<Arc<RwLock<ProvingKey<Self::Fr>>>>,
+        input_key: Option<Arc<RwLock<ProvingKey<Self::Fr>>>>,
         in_lagrange_form: bool,
     ) {
+        // In this function, we compute the evaluations of all polynomials in the polynomial manifest at the
+        // evaluation challenge "zeta", as well as the needed evaluations at shifts.
+        //
+        // We also allow this evaluation computation for lagrange (evaluation) forms of polynomials instead of
+        // the usual coefficient forms.
 
-            // In this function, we compute the evaluations of all polynomials in the polynomial manifest at the
-    // evaluation challenge "zeta", as well as the needed evaluations at shifts.
-    //
-    // We also allow this evaluation computation for lagrange (evaluation) forms of polynomials instead of
-    // the usual coefficient forms.
-
-    //
-    let input_key = input_key.unwrap();
+        //
+        let input_key = input_key.unwrap();
         let input_key = input_key.read().unwrap();
 
-        let zeta : Self::Fr = transcript.get_challenge_field_element("z", None);
+        let zeta: Self::Fr = transcript.get_challenge_field_element("z", None);
         let shifted_z = zeta * input_key.small_domain.root;
         let n = input_key.small_domain.size;
 
         for i in 0..input_key.polynomial_manifest.len() {
             let info = input_key.polynomial_manifest[i.into()].clone();
-            let poly = input_key.polynomial_store.get(&info.polynomial_label).unwrap();
+            let poly = input_key
+                .polynomial_store
+                .get(&info.polynomial_label)
+                .unwrap();
             let poly = &poly.read().unwrap().coefficients;
-            let poly_evaluation
-        
-            = if in_lagrange_form {
-                input_key.small_domain.compute_barycentric_evaluation(poly,n,&zeta)
+            let poly_evaluation = if in_lagrange_form {
+                input_key
+                    .small_domain
+                    .compute_barycentric_evaluation(poly, n, &zeta)
             } else {
                 polynomial_arithmetic::evaluate(poly, &zeta, n)
             };
@@ -157,43 +161,44 @@ impl<H: BarretenHasher> CommitmentScheme for KateCommitmentScheme<H, Fq, Fr, G1A
             if info.requires_shifted_evaluation {
                 let poly_evaluation = if in_lagrange_form {
                     // TODO is this a bug? Shouldn't we be using shifted_z instead of zeta?
-                    input_key.small_domain.compute_barycentric_evaluation(poly,n,&zeta)
-                }
-                else {
+                    input_key
+                        .small_domain
+                        .compute_barycentric_evaluation(poly, n, &zeta)
+                } else {
                     polynomial_arithmetic::evaluate(poly, &shifted_z, n)
                 };
-                transcript.add_field_element( format!("{}_omega",info.polynomial_label).as_str(), &poly_evaluation);
+                transcript.add_field_element(
+                    format!("{}_omega", info.polynomial_label).as_str(),
+                    &poly_evaluation,
+                );
             }
         }
-
-
-}
+    }
 
     fn compute_opening_polynomial(&self, src: &[Fr], dest: &mut [Fr], z_point: &Fr, n: usize) {
-            // open({cm_i}, {cm'_i}, {z, z'}, {s_i, s'_i})
+        // open({cm_i}, {cm'_i}, {z, z'}, {s_i, s'_i})
 
-    // if `coeffs` represents F(X), we want to compute W(X)
-    // where W(X) = F(X) - F(z) / (X - z)
-    // i.e. divide by the degree-1 polynomial [-z, 1]
+        // if `coeffs` represents F(X), we want to compute W(X)
+        // where W(X) = F(X) - F(z) / (X - z)
+        // i.e. divide by the degree-1 polynomial [-z, 1]
 
-    // We assume that the commitment is well-formed and that there is no remainder term.
-    // Under these conditions we can perform this polynomial division in linear time with good constants.
-    // Note that the opening polynomial always has (n+1) coefficients for Standard/Turbo/Ultra due to
-    // the blinding of the quotient polynomial parts.
-    let f = polynomial_arithmetic::evaluate(src, z_point, n + 1);
+        // We assume that the commitment is well-formed and that there is no remainder term.
+        // Under these conditions we can perform this polynomial division in linear time with good constants.
+        // Note that the opening polynomial always has (n+1) coefficients for Standard/Turbo/Ultra due to
+        // the blinding of the quotient polynomial parts.
+        let f = polynomial_arithmetic::evaluate(src, z_point, n + 1);
 
-    // compute (1 / -z)
-    let divisor = -z_point.inverse().unwrap();
+        // compute (1 / -z)
+        let divisor = -z_point.inverse().unwrap();
 
-    // we're about to shove these coefficients into a pippenger multi-exponentiation routine, where we need
-    // to convert out of montgomery form. So, we can use lazy reduction techniques here without triggering overflows
-    dest[0] = src[0] - f;
-    dest[0] *= divisor;
-    for i in 1..n {
-        dest[i] = src[i] - dest[i - 1];
-        dest[i] *= divisor;
-    }
-    
+        // we're about to shove these coefficients into a pippenger multi-exponentiation routine, where we need
+        // to convert out of montgomery form. So, we can use lazy reduction techniques here without triggering overflows
+        dest[0] = src[0] - f;
+        dest[0] *= divisor;
+        for i in 1..n {
+            dest[i] = src[i] - dest[i - 1];
+            dest[i] *= divisor;
+        }
     }
 
     fn generic_batch_open(
@@ -292,223 +297,208 @@ impl<H: BarretenHasher> CommitmentScheme for KateCommitmentScheme<H, Fq, Fr, G1A
         queue: &mut WorkQueue<H>,
         input_key: Option<Arc<RwLock<ProvingKey<Self::Fr>>>>,
     ) {
-
         let input_key = input_key.unwrap();
         let input_key = input_key.read().unwrap();
-         /*
-    Compute batch opening polynomials according to the Kate commitment scheme.
+        /*
+        Compute batch opening polynomials according to the Kate commitment scheme.
 
-    Step 1: Compute the polynomial F(X) s.t. W_{\zeta}(X) = (F(X) - F(\zeta))/(X - \zeta) defined in round 5 of the
-    PLONK paper. Step 2: Compute the polynomial z(X) s.t. W_{\zeta \omega}(X) = (z(X) - z(\zeta \omega))/(X -
-    \zeta.\omega). Step 3: Compute coefficient form of W_{\zeta}(X) and W_{\zeta \omega}(X). Step 4: Commit to
-    W_{\zeta}(X) and W_{\zeta \omega}(X).
-    */
-    let opened_polynomials_at_zeta : Vec<(&Fr, Fr)> = Vec::new();
-    let opened_polynomials_at_zeta_omega : Vec<(&Fr, Fr)> = Vec::new();
+        Step 1: Compute the polynomial F(X) s.t. W_{\zeta}(X) = (F(X) - F(\zeta))/(X - \zeta) defined in round 5 of the
+        PLONK paper. Step 2: Compute the polynomial z(X) s.t. W_{\zeta \omega}(X) = (z(X) - z(\zeta \omega))/(X -
+        \zeta.\omega). Step 3: Compute coefficient form of W_{\zeta}(X) and W_{\zeta \omega}(X). Step 4: Commit to
+        W_{\zeta}(X) and W_{\zeta \omega}(X).
+        */
+        let mut opened_polynomials_at_zeta = Vec::new();
+        let mut opened_polynomials_at_zeta_omega = Vec::new();
 
-    // Add the following tuples to the above data structures:
-    //
-    // [a(X), nu_1], [b(X), nu_2], [c(X), nu_3],
-    // [S_{\sigma_1}(X), nu_4], [S_{\sigma_2}(X), nu_5],
-    // [z(X), nu_6]
-    //
-    // Note that the challenges nu_1, ..., nu_6 depend on the label of the respective polynomial.
+        // Add the following tuples to the above data structures:
+        //
+        // [a(X), nu_1], [b(X), nu_2], [c(X), nu_3],
+        // [S_{\sigma_1}(X), nu_4], [S_{\sigma_2}(X), nu_5],
+        // [z(X), nu_6]
+        //
+        // Note that the challenges nu_1, ..., nu_6 depend on the label of the respective polynomial.
 
-    // Add challenge-poly tuples for all polynomials in the manifest
-    for i in 0..input_key.polynomial_manifest.len() {
-        let info = input_key.polynomial_manifest[i];
-        let poly_label = info.polynomial_label;
+        // Add challenge-poly tuples for all polynomials in the manifest
+        for i in 0..input_key.polynomial_manifest.len() {
+            let info = input_key.polynomial_manifest[i.into()];
+            let poly_label = info.polynomial_label;
 
-        let poly = input_key.polynomial_store.get(&poly_label);
+            let poly = input_key.polynomial_store.get(&poly_label).unwrap();
 
-        let nu_challenge = transcript.get_challenge_field_element_from_map("nu", poly_label);
-        opened_polynomials_at_zeta.push_back({ poly, nu_challenge });
+            let nu_challenge = transcript.get_challenge_field_element_from_map("nu", &poly_label);
+            opened_polynomials_at_zeta.push((poly, nu_challenge));
 
-        if (info.requires_shifted_evaluation) {
-            let nu_challenge = transcript.get_challenge_field_element_from_map("nu", poly_label + "_omega");
-            opened_polynomials_at_zeta_omega.push_back({ poly, nu_challenge });
+            if info.requires_shifted_evaluation {
+                let nu_challenge = transcript
+                    .get_challenge_field_element_from_map("nu", &format!("{}_omega", poly_label));
+                opened_polynomials_at_zeta_omega.push((poly, nu_challenge));
+            }
         }
-    }
 
-    let zeta = transcript.get_challenge_field_element("z", None);
+        let zeta = transcript.get_challenge_field_element("z", None);
 
-    // Note: the opening poly W_\frak{z} is always size (n + 1) due to blinding
-    // of the quotient polynomial
-    polynomial opening_poly(input_key.circuit_size + 1);
-    polynomial shifted_opening_poly(input_key.circuit_size);
+        // Note: the opening poly W_\frak{z} is always size (n + 1) due to blinding
+        // of the quotient polynomial
+        let opening_poly: Polynomial<Fr> = Polynomial::new(input_key.circuit_size + 1);
+        let shifted_opening_poly: Polynomial<Fr> = Polynomial::new(input_key.circuit_size);
 
-    // Add the tuples [t_{mid}(X), \zeta^{n}], [t_{high}(X), \zeta^{2n}]
-    // Note: We don't need to include the t_{low}(X) since it is multiplied by 1 for combining with other witness
-    // polynomials.
-    //
-    for i in 1..S::program_width() {
-        let offset = i * input_key.small_domain.size;
-        let scalar = zeta.pow(static_cast<uint64_t>(offset));
-        opened_polynomials_at_zeta.push_back({ &input_key->quotient_polynomial_parts[i][0], scalar });
-    }
+        // Add the tuples [t_{mid}(X), \zeta^{n}], [t_{high}(X), \zeta^{2n}]
+        // Note: We don't need to include the t_{low}(X) since it is multiplied by 1 for combining with other witness
+        // polynomials.
+        //
+        for i in 1..S::program_width() {
+            let offset = i * input_key.small_domain.size;
+            let scalar = zeta.pow(offset);
+            opened_polynomials_at_zeta.push((&input_key.quotient_polynomial_parts[i][0], scalar));
+        }
 
-    // Add up things to get coefficients of opening polynomials.
-    ITERATE_OVER_DOMAIN_START(input_key->small_domain);
-    opening_poly[i] = input_key->quotient_polynomial_parts[0][i];
-    for (const auto& [poly, challenge] : opened_polynomials_at_zeta) {
-        opening_poly[i] += poly[i] * challenge;
-    }
-    shifted_opening_poly[i] = 0;
-    for (const auto& [poly, challenge] : opened_polynomials_at_zeta_omega) {
-        shifted_opening_poly[i] += poly[i] * challenge;
-    }
-    ITERATE_OVER_DOMAIN_END;
+        // Add up things to get coefficients of opening polynomials.
+        (0..input_key.small_domain.size)
+            .into_par_iter()
+            .for_each(|i| {
+                opening_poly[i] = input_key.quotient_polynomial_parts[0][i];
+                for &(ref poly, challenge) in &opened_polynomials_at_zeta {
+                    opening_poly[i] += poly[i] * challenge;
+                }
+                shifted_opening_poly[i] = 0;
+                for &(ref poly, challenge) in &opened_polynomials_at_zeta_omega {
+                    shifted_opening_poly[i] += poly[i] * challenge;
+                }
+            });
 
-    // Adjust the (n + 1)th coefficient of t_{0,1,2}(X) or r(X) (Note: t_4 (Turbo/Ultra) has only n coefficients)
-    opening_poly[input_key->circuit_size] = 0;
-    const fr zeta_pow_n = zeta.pow(static_cast<uint64_t>(input_key->circuit_size));
+        // Adjust the (n + 1)th coefficient of t_{0,1,2}(X) or r(X) (Note: t_4 (Turbo/Ultra) has only n coefficients)
+        opening_poly[input_key.circuit_size] = 0;
+        let zeta_pow_n = zeta.pow(input_key.circuit_size as u64);
 
-    let num_deg_n_poly = if S::program_width() == 3{
-        S::program_width()
-    } else {
-        S::program_width() - 1
-    };
-    let scalar_mult = 1;
-    for i in 0..num_deg_n_poly {
-        opening_poly[input_key.circuit_size] +=
-            input_key.quotient_polynomial_parts[i][input_key.circuit_size] * scalar_mult;
-        scalar_mult *= zeta_pow_n;
-    }
+        let num_deg_n_poly = if S::program_width() == 3 {
+            S::program_width()
+        } else {
+            S::program_width() - 1
+        };
+        let mut scalar_mult = 1;
+        for i in 0..num_deg_n_poly {
+            opening_poly[input_key.circuit_size] +=
+                input_key.quotient_polynomial_parts[i][input_key.circuit_size] * scalar_mult;
+            scalar_mult *= zeta_pow_n;
+        }
 
-    // compute the shifted evaluation point \frak{z}*omega
-    let zeta_omega = zeta * input_key.small_domain.root;
+        // Compute the shifted evaluation point \frak{z}*omega
+        let zeta_omega = zeta * input_key.small_domain.root;
 
-    // Compute the W_{\zeta}(X) and W_{\zeta \omega}(X) polynomials
-    self.compute_opening_polynomial(&opening_poly[0], &opening_poly[0], zeta, input_key->circuit_size);
-    self.compute_opening_polynomial(
-        &shifted_opening_poly[0], &shifted_opening_poly[0], zeta_omega, input_key->circuit_size);
+        // Compute the W_{\zeta}(X) and W_{\zeta \omega}(X) polynomials
+        self.compute_opening_polynomial(
+            &[opening_poly[0]],
+            &mut [opening_poly[0]],
+            zeta,
+            input_key.circuit_size,
+        );
+        self.compute_opening_polynomial(
+            &shifted_opening_poly[0],
+            &shifted_opening_poly[0],
+            zeta_omega,
+            input_key.circuit_size,
+        );
 
-    input_key->polynomial_store.put("opening_poly", std::move(opening_poly));
-    input_key->polynomial_store.put("shifted_opening_poly", std::move(shifted_opening_poly));
+        input_key.polynomial_store.put("opening_poly", opening_poly);
+        input_key
+            .polynomial_store
+            .put("shifted_opening_poly", shifted_opening_poly);
 
-    // Commit to the opening and shifted opening polynomials
-    self.commit(
-        input_key->polynomial_store.get("opening_poly").get_coefficients(), "PI_Z", input_key->circuit_size, queue);
-    self.commit(input_key->polynomial_store.get("shifted_opening_poly").get_coefficients(),
-                                 "PI_Z_OMEGA",
-                                 input_key->circuit_size,
-                                 queue);
+        // Commit to the opening and shifted opening polynomials
+        self.commit(
+            input_key
+                .polynomial_store
+                .get("opening_poly")
+                .get_coefficients(),
+            "PI_Z".to_owned(),
+            input_key.circuit_size,
+            &queue,
+        );
+        self.commit(
+            input_key
+                .polynomial_store
+                .get("shifted_opening_poly")
+                .get_coefficients(),
+            "PI_Z_OMEGA".to_owned(),
+            input_key.circuit_size,
+            &queue,
+        );
     }
 
     fn batch_verify(
         &self,
-        _transcript: &Transcript<H>,
-        _kate_g1_elements: &mut HashMap<String, G1Affine>,
-        _kate_fr_elements: &mut HashMap<String, Fr>,
-        _input_key: Option<&VerificationKey<Fr>>,
+        transcript: &Transcript<H>,
+        kate_g1_elements: &mut HashMap<String, G1Affine>,
+        kate_fr_elements: &mut HashMap<String, Fr>,
+        input_key: Option<&VerificationKey<Fr>>,
     ) {
-            // Compute batch evaluation commitment [F]_1
-    // In this method, we accumulate scalars and corresponding group elements for the multi-scalar
-    // multiplication required in the steps 10 and 11 of the verifier in the PLONK paper.
-    //
-    // Step 10: Compute batch opening commitment [F]_1
-    //          [F]  :=  [t_{low}]_1 + \zeta^{n}.[tmid]1 + \zeta^{2n}.[t_{high}]_1
-    //                   + [D]_1 + \nu_{a}.[a]_1 + \nu_{b}.[b]_1 + \nu_{c}.[c]_1
-    //                   + \nu_{\sigma1}.[s_{\sigma_1}]1 + \nu_{\sigma2}.[s_{\sigma_2}]1
-    //
-    // We do not compute [D]_1 term in this method as the information required to compute [D]_1
-    // in inadequate as far as this KateCommitmentScheme class is concerned.
-    //
-    // Step 11: Compute batch evaluation commitment [E]_1
-    //          [E]_1  :=  (t_eval + \nu_{r}.r_eval + \nu_{a}.a_eval + \nu_{b}.b_eval
-    //                      \nu_{c}.c_eval + \nu_{\sigma1}.sigma1_eval + \nu_{\sigma2}.sigma2_eval +
-    //                      nu_z_omega.separator.z_eval_omega) . [1]_1
-    //
-    // Note that we do not actually compute the scalar multiplications but just accumulate the scalars
-    // and the group elements in different vectors.
-    //
-
-    fr batch_eval(0);
-    const auto& polynomial_manifest = input_key->polynomial_manifest;
-    for (size_t i = 0; i < input_key->polynomial_manifest.size(); ++i) {
-        const auto& item = polynomial_manifest[i];
-        const std::string label(item.commitment_label);
-        const std::string poly_label(item.polynomial_label);
-        switch (item.source) {
-        case PolynomialSource::WITNESS: {
-            // add [a]_1, [b]_1, [c]_1 to the group elements' vector
-            const auto element = transcript.get_group_element(label);
-            // rule out bad points and points at infinity (just to be on the safe side. all-zero witnesses won't be
-            // zero-knowledge!)
-            if (!element.on_curve() || element.is_point_at_infinity()) {
-                throw_or_abort("polynomial commitment to witness is not a valid point.");
+        let mut batch_eval = Fr::zero();
+        let polynomial_manifest = &input_key.as_ref().unwrap().polynomial_manifest;
+        for i in 0..polynomial_manifest.len() {
+            let item = &polynomial_manifest[i];
+            let label = item.commitment_label.clone();
+            let poly_label = item.polynomial_label.clone();
+            match item.source {
+                PolynomialSource::Witness => {
+                    let element = transcript.get_group_element(&label);
+                    if !element.on_curve() || element.is_point_at_infinity() {
+                        panic!("polynomial commitment to witness is not a valid point.");
+                    }
+                    kate_g1_elements.insert(label, element);
+                }
+                PolynomialSource::Selector | PolynomialSource::Permutation => {
+                    let element = input_key
+                        .as_ref()
+                        .unwrap()
+                        .commitments
+                        .get(&label)
+                        .unwrap()
+                        .clone();
+                    if !element.is_on_curve() {
+                        panic!("polynomial commitment to selector is not a valid point.");
+                    }
+                    kate_g1_elements.insert(label, element);
+                }
+                PolynomialSource::Other => {}
             }
-            kate_g1_elements.insert({ label, element });
-            break;
-        }
-        case PolynomialSource::SELECTOR:
-        case PolynomialSource::PERMUTATION: {
-            // add [qL]_1, [qR]_1, [qM]_1, [qC]_1, [qO]_1, [\sigma_1]_1, [\sigma_2]_1, [\sigma_3]_1 to the commitments
-            // map.
-            const auto element = input_key->commitments.at(label);
-            // selectors can be all zeros so infinity point is valid
-            if (!element.on_curve()) {
-                throw_or_abort("polynomial commitment to selector is not a valid point.");
+
+            let has_shifted_evaluation = item.requires_shifted_evaluation;
+            let mut kate_fr_scalar = Fr::zero();
+            if has_shifted_evaluation {
+                let challenge = transcript
+                    .get_challenge_field_element_from_map("nu", &format!("{}_omega", poly_label));
+                let separator_challenge = transcript.get_challenge_field_element("separator", 0);
+                kate_fr_scalar += separator_challenge * challenge;
+                let poly_at_zeta_omega =
+                    transcript.get_field_element(&format!("{}_omega", poly_label));
+                batch_eval += separator_challenge * challenge * poly_at_zeta_omega;
             }
-            kate_g1_elements.insert({ label, element });
-            break;
-        }
-        case PolynomialSource::OTHER: {
-            break;
-        }
-        }
 
-        // We iterate over the polynomials in polynomial_manifest to add their commitments,
-        // their scalar multiplicands and their evaluations in the respective vector maps.
-
-        bool has_shifted_evaluation = item.requires_shifted_evaluation;
-
-        fr kate_fr_scalar(0);
-        if (has_shifted_evaluation) {
-
-            // compute scalar additively for the batch opening commitment [F]_1
-            const auto challenge = transcript.get_challenge_field_element_from_map("nu", poly_label + "_omega");
-            const auto separator_challenge = transcript.get_challenge_field_element("separator", 0);
-            kate_fr_scalar += (separator_challenge * challenge);
-
-            // compute the batch evaluation scalar additively for the batch evaluation commitment [E]_1
-            const auto poly_at_zeta_omega = transcript.get_field_element(poly_label + "_omega");
-            batch_eval += separator_challenge * challenge * poly_at_zeta_omega;
+            let challenge = transcript.get_challenge_field_element_from_map("nu", &poly_label);
+            kate_fr_scalar += challenge;
+            let poly_at_zeta = transcript.get_field_element(&poly_label);
+            batch_eval += challenge * poly_at_zeta;
+            kate_fr_elements.insert(label, kate_fr_scalar);
         }
 
-        // compute scalar additively for the batch opening commitment [F]_1
-        const auto challenge = transcript.get_challenge_field_element_from_map("nu", poly_label);
-        kate_fr_scalar += challenge;
+        let zeta = transcript.get_challenge_field_element("z", None);
+        let quotient_challenge = transcript.get_challenge_field_element_from_map("nu", "t");
 
-        // compute the batch evaluation scalar additively for the batch evaluation commitment [E]_1
-        const auto poly_at_zeta = transcript.get_field_element(poly_label);
-        batch_eval += challenge * poly_at_zeta;
+        let z_pow_n = zeta.pow(input_key.as_ref().unwrap().circuit_size);
+        let mut z_power = Fr::one();
+        for i in 0..settings::program_width {
+            let quotient_label = format!("T_{}", i + 1);
+            let element = transcript.get_group_element(&quotient_label);
+            kate_g1_elements.insert(quotient_label, element);
+            kate_fr_elements.insert(quotient_label, quotient_challenge * z_power);
+            z_power *= z_pow_n;
+        }
 
-        kate_fr_elements.insert({ label, kate_fr_scalar });
-    }
+        let quotient_eval = transcript.get_field_element("t");
+        batch_eval += quotient_eval * quotient_challenge;
 
-    const auto zeta = transcript.get_challenge_field_element("z");
-    barretenberg::fr quotient_challenge = transcript.get_challenge_field_element_from_map("nu", "t");
-
-    // append the commitments to the parts of quotient polynomial and their scalar multiplicands
-    fr z_pow_n = zeta.pow(input_key->circuit_size);
-    fr z_power = 1;
-    for (size_t i = 0; i < settings::program_width; ++i) {
-        std::string quotient_label = "T_" + std::to_string(i + 1);
-        const auto element = transcript.get_group_element(quotient_label);
-
-        kate_g1_elements.insert({ quotient_label, element });
-        kate_fr_elements.insert({ quotient_label, quotient_challenge * z_power });
-        z_power *= z_pow_n;
-    }
-
-    // add the quotient eval t_eval term to batch evaluation
-    const auto quotient_eval = transcript.get_field_element("t");
-    batch_eval += (quotient_eval * quotient_challenge);
-
-    // append batch evaluation in the scalar element vector map
-    kate_g1_elements.insert({ "BATCH_EVALUATION", g1::affine_one });
-    kate_fr_elements.insert({ "BATCH_EVALUATION", -batch_eval });
+        kate_g1_elements.insert("BATCH_EVALUATION".to_string(), G1Affine::identity());
+        kate_fr_elements.insert("BATCH_EVALUATION".to_string(), -batch_eval);
     }
 }
 
