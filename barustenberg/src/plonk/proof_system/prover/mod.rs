@@ -7,7 +7,10 @@ use rand::RngCore;
 use super::{
     commitment_scheme::{CommitmentScheme, KateCommitmentScheme},
     proving_key::ProvingKey,
-    types::{prover_settings::Settings, Proof},
+    types::{
+        prover_settings::{Settings, StandardSettings},
+        Proof,
+    },
     widgets::{
         random_widgets::random_widget::ProverRandomWidget,
         transition_widgets::transition_widget::TransitionWidgetBase,
@@ -32,22 +35,18 @@ mod test;
 // todo https://doc.rust-lang.org/reference/const_eval.html
 /// Plonk prover.
 #[derive(Debug)]
-pub struct Prover<H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>> {
+pub struct Prover<H: BarretenHasher> {
     pub(crate) circuit_size: usize,
     pub(crate) transcript: Arc<RwLock<Transcript<H>>>,
     pub(crate) key: Arc<RwLock<ProvingKey<Fr>>>,
     pub(crate) queue: WorkQueue<H>,
     pub(crate) random_widgets: Vec<Box<dyn ProverRandomWidget<Fr = Fr, G1 = G1Affine, Hasher = H>>>,
     pub(crate) transition_widgets: Vec<Box<dyn TransitionWidgetBase<Hasher = H, Field = Fr>>>,
-    pub(crate) commitment_scheme: KateCommitmentScheme<H, Fq, Fr, G1Affine>,
-    pub(crate) settings: S,
+    pub(crate) commitment_scheme: KateCommitmentScheme<StandardSettings<H>, H, Fq, Fr, G1Affine>,
+    pub(crate) settings: StandardSettings<H>,
 }
 
-impl<
-        H: BarretenHasher + Default,
-        S: Settings<Hasher = H, Field = Fr, Group = G1Affine> + Default,
-    > Prover<H, S>
-{
+impl<H: BarretenHasher + Default> Prover<H> {
     /// Create a new prover.
     /// Parameters:
     /// - `input_key` Proving key.
@@ -58,7 +57,7 @@ impl<
     pub fn new(
         input_key: Option<Arc<RwLock<ProvingKey<Fr>>>>,
         input_manifest: Option<Manifest>,
-        input_settings: Option<S>,
+        input_settings: Option<StandardSettings<H>>,
     ) -> Self {
         let circuit_size = input_key
             .as_ref()
@@ -81,15 +80,16 @@ impl<
             queue,
             random_widgets: Vec::new(),
             transition_widgets: Vec::new(),
-            commitment_scheme: KateCommitmentScheme::<H, Fq, Fr, G1Affine>::default(),
+            commitment_scheme:
+                KateCommitmentScheme::<StandardSettings<H>, H, Fq, Fr, G1Affine>::new(
+                    settings.clone(),
+                ),
             settings,
         }
     }
 }
 
-impl<H: BarretenHasher + Default, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>>
-    Prover<H, S>
-{
+impl<H: BarretenHasher + Default> Prover<H> {
     fn _copy_placeholder(&self) {
         todo!("LOOK AT THE COMMENTS IN PROVERBASE");
     }

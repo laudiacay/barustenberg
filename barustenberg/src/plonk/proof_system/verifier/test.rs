@@ -26,7 +26,7 @@ use anyhow::Result;
 
 use super::*;
 
-impl<H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>> Verifier<H, S> {
+impl<H: BarretenHasher> Verifier<H> {
     pub fn generate_verifier<G: AffineRepr>(
         circuit_proving_key: Arc<RwLock<ProvingKey<Fr>>>,
     ) -> Result<Self> {
@@ -142,15 +142,19 @@ impl<H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>> V
             ComposerType::Standard.create_manifest(0),
         );
 
-        let kate_commitment_scheme = Box::new(KateCommitmentScheme::<H, Fq, Fr, G1Affine>::new());
+        let kate_commitment_scheme = Box::new(KateCommitmentScheme::<
+            StandardSettings<H>,
+            H,
+            Fq,
+            Fr,
+            G1Affine,
+        >::new(verifier.settings.clone()));
         verifier.commitment_scheme = kate_commitment_scheme;
         Ok(verifier)
     }
 }
 
-fn generate_test_data<'a, H: BarretenHasher + Default + 'static>(
-    n: usize,
-) -> Prover<H, StandardSettings<H>> {
+fn generate_test_data<'a, H: BarretenHasher + Default + 'static>(n: usize) -> Prover<H> {
     // create some constraints that satisfy our arithmetic circuit relation
     let crs = Arc::new(RwLock::new(
         FileReferenceString::new(n + 1, "./src/srs_db/ignition").unwrap(),
@@ -394,16 +398,13 @@ fn generate_test_data<'a, H: BarretenHasher + Default + 'static>(
     let widget: Box<ProverArithmeticWidget<H>> =
         Box::new(ProverArithmeticWidget::<H>::new(key.clone()));
 
-    let kate_commitment_scheme = KateCommitmentScheme::<H, Fq, Fr, G1Affine>::new();
-
-    let mut state: Prover<H, StandardSettings<H>> = Prover::new(
+    let mut state: Prover<H> = Prover::new(
         Some(key),
         Some(ComposerType::Standard.create_manifest(0)),
         None,
     );
     state.random_widgets.push(permutation_widget);
     state.transition_widgets.push(widget);
-    state.commitment_scheme = kate_commitment_scheme;
     state
 }
 
@@ -416,7 +417,7 @@ fn verify_arithmetic_proof_small() {
     // Construct proof
     let proof = state.construct_proof().unwrap();
 
-    let mut verifier: Verifier<Keccak256, StandardSettings<Keccak256>> =
+    let mut verifier: Verifier<Keccak256> =
         Verifier::generate_verifier::<G1Affine>(state.key).unwrap();
 
     // Verify proof
@@ -430,13 +431,13 @@ fn verify_arithmetic_proof() {
     let n = 1 << 14;
 
     let mut state = generate_test_data::<Keccak256>(n);
-    let _verifier: Verifier<Keccak256, StandardSettings<Keccak256>> =
+    let _verifier: Verifier<Keccak256> =
         Verifier::generate_verifier::<G1Affine>(state.key.clone()).unwrap();
 
     // Construct proof
     let proof = state.construct_proof().unwrap();
 
-    let mut verifier: Verifier<Keccak256, StandardSettings<Keccak256>> =
+    let mut verifier: Verifier<Keccak256> =
         Verifier::generate_verifier::<G1Affine>(state.key.clone()).unwrap();
 
     // Verify proof
@@ -451,7 +452,7 @@ fn verify_damaged_proof() {
     let n = 8;
 
     let state = generate_test_data::<Keccak256>(n);
-    let mut verifier: Verifier<Keccak256, StandardSettings<Keccak256>> =
+    let mut verifier: Verifier<Keccak256> =
         Verifier::generate_verifier::<G1Affine>(state.key).unwrap();
 
     // Create empty proof
