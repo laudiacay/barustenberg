@@ -360,14 +360,14 @@ impl<H: BarretenHasher> CommitmentScheme for KateCommitmentScheme<H, Fq, Fr, G1A
                 for &(ref poly, challenge) in &opened_polynomials_at_zeta {
                     opening_poly[i] += poly[i] * challenge;
                 }
-                shifted_opening_poly[i] = 0;
+                shifted_opening_poly[i] = Fr::zero();
                 for &(ref poly, challenge) in &opened_polynomials_at_zeta_omega {
                     shifted_opening_poly[i] += poly[i] * challenge;
                 }
             });
 
         // Adjust the (n + 1)th coefficient of t_{0,1,2}(X) or r(X) (Note: t_4 (Turbo/Ultra) has only n coefficients)
-        opening_poly[input_key.circuit_size] = 0;
+        opening_poly[input_key.circuit_size] = Fr::zero();
         let zeta_pow_n = zeta.pow(input_key.circuit_size as u64);
 
         let num_deg_n_poly = if S::program_width() == 3 {
@@ -393,22 +393,22 @@ impl<H: BarretenHasher> CommitmentScheme for KateCommitmentScheme<H, Fq, Fr, G1A
             input_key.circuit_size,
         );
         self.compute_opening_polynomial(
-            &shifted_opening_poly[0],
-            &shifted_opening_poly[0],
+            &[shifted_opening_poly[0]],
+            &mut [shifted_opening_poly[0]],
             zeta_omega,
             input_key.circuit_size,
         );
 
-        input_key.polynomial_store.put("opening_poly", opening_poly);
+        input_key.polynomial_store.put("opening_poly".to_string(), opening_poly);
         input_key
             .polynomial_store
-            .put("shifted_opening_poly", shifted_opening_poly);
+            .put("shifted_opening_poly".to_string(), shifted_opening_poly);
 
         // Commit to the opening and shifted opening polynomials
         self.commit(
             input_key
                 .polynomial_store
-                .get("opening_poly")
+                .get(&"opening_poly".to_string()).unwrap()
                 .get_coefficients(),
             "PI_Z".to_owned(),
             input_key.circuit_size,
@@ -417,7 +417,7 @@ impl<H: BarretenHasher> CommitmentScheme for KateCommitmentScheme<H, Fq, Fr, G1A
         self.commit(
             input_key
                 .polynomial_store
-                .get("shifted_opening_poly")
+                .get(&"shifted_opening_poly".to_string()).unwrap()
                 .get_coefficients(),
             "PI_Z_OMEGA".to_owned(),
             input_key.circuit_size,
@@ -440,8 +440,8 @@ impl<H: BarretenHasher> CommitmentScheme for KateCommitmentScheme<H, Fq, Fr, G1A
             let poly_label = item.polynomial_label.clone();
             match item.source {
                 PolynomialSource::Witness => {
-                    let element = transcript.get_group_element(&label);
-                    if !element.on_curve() || element.is_point_at_infinity() {
+                    let element : G1Affine = transcript.get_group_element(&label);
+                    if !element.is_on_curve() || element.is_point_at_infinity() {
                         panic!("polynomial commitment to witness is not a valid point.");
                     }
                     kate_g1_elements.insert(label, element);
