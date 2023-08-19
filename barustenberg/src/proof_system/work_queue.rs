@@ -1,5 +1,5 @@
 use ark_ff::{FftField, Field, Zero};
-use std::{cell::RefCell, rc::Rc};
+use std::sync::{Arc, RwLock};
 
 use anyhow::Result;
 
@@ -12,7 +12,7 @@ use crate::{
     transcript::{BarretenHasher, Transcript},
 };
 
-#[derive(PartialEq, Eq, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub(crate) enum Work {
     Fft {
         index: usize,
@@ -24,7 +24,7 @@ pub(crate) enum Work {
     Ifft,
     ScalarMultiplication {
         constant: Fr,
-        mul_scalars: Rc<RefCell<Polynomial<Fr>>>,
+        mul_scalars: Arc<RwLock<Polynomial<Fr>>>,
     },
 }
 
@@ -52,14 +52,14 @@ pub(crate) struct WorkItem {
 }
 
 pub(crate) struct QueuedFftInputs<Fr: Field + FftField> {
-    data: Rc<RefCell<Polynomial<Fr>>>,
+    data: Arc<RwLock<Polynomial<Fr>>>,
     shift_factor: Fr,
 }
 
 #[derive(Debug)]
 pub(crate) struct WorkQueue<H: BarretenHasher> {
-    key: Rc<RefCell<ProvingKey<Fr>>>,
-    transcript: Rc<RefCell<Transcript<H>>>,
+    key: Arc<RwLock<ProvingKey<Fr>>>,
+    transcript: Arc<RwLock<Transcript<H>>>,
     work_items: Vec<WorkItem>,
 }
 
@@ -73,8 +73,8 @@ unsafe fn field_element_to_usize<F: Field + FftField>(element: F) -> usize {
 
 impl<H: BarretenHasher> WorkQueue<H> {
     pub(crate) fn new(
-        prover_key: Option<Rc<RefCell<ProvingKey<Fr>>>>,
-        prover_transcript: Option<Rc<RefCell<Transcript<H>>>>,
+        prover_key: Option<Arc<RwLock<ProvingKey<Fr>>>>,
+        prover_transcript: Option<Arc<RwLock<Transcript<H>>>>,
     ) -> Self {
         WorkQueue {
             key: prover_key.unwrap_or_default(),
@@ -106,7 +106,7 @@ impl<H: BarretenHasher> WorkQueue<H> {
     pub(crate) fn get_scalar_multiplication_data(
         &self,
         work_item_number: usize,
-    ) -> Option<Rc<RefCell<Polynomial<Fr>>>> {
+    ) -> Option<Arc<RwLock<Polynomial<Fr>>>> {
         let mut count: usize = 0;
         for item in self.work_items.iter() {
             if let Work::ScalarMultiplication { mul_scalars, .. } = item.work.clone() {
@@ -135,7 +135,7 @@ impl<H: BarretenHasher> WorkQueue<H> {
     pub(crate) fn get_ifft_data(
         &self,
         work_item_number: usize,
-    ) -> Result<Option<Rc<RefCell<Polynomial<Fr>>>>> {
+    ) -> Result<Option<Arc<RwLock<Polynomial<Fr>>>>> {
         let mut count: usize = 0;
         for item in self.work_items.iter() {
             if let Work::Ifft = item.work {
@@ -143,7 +143,8 @@ impl<H: BarretenHasher> WorkQueue<H> {
                     //todo!("look at this code");
                     return Ok(Some(
                         self.key
-                            .borrow()
+                            .read()
+                            .unwrap()
                             .polynomial_store
                             .get(&format!("{}_lagrange", item.tag))
                             .unwrap(),
@@ -162,10 +163,11 @@ impl<H: BarretenHasher> WorkQueue<H> {
                     // barretenberg::polynomial wire(key->circuit_size);
                     // memcpy((void*)wire.get_coefficients(), result, key->circuit_size * sizeof(barretenberg::fr));
                     // key->polynomial_store.put(item.tag, std::move(wire));
-                    let wire = Polynomial::new(self.key.borrow().circuit_size);
+                    let wire = Polynomial::new(self.key.read().unwrap().circuit_size);
                     result.copy_from_slice(wire.coefficients.as_slice());
                     (*self.key)
-                        .borrow_mut()
+                        .write()
+                        .unwrap()
                         .polynomial_store
                         .put(item.tag.clone(), wire);
                     return;
@@ -179,10 +181,22 @@ impl<H: BarretenHasher> WorkQueue<H> {
         for item in &self.work_items {
             if let Work::SmallFft { index, .. } = item.work {
                 if count == work_item_number {
-                    let wire = self.key.borrow().polynomial_store.get(&item.tag).unwrap();
+                    let wire = self
+                        .key
+                        .read()
+                        .unwrap()
+                        .polynomial_store
+                        .get(&item.tag)
+                        .unwrap();
                     return Some(QueuedFftInputs {
                         data: wire,
-                        shift_factor: self.key.borrow().large_domain.root.pow([index as u64]),
+                        shift_factor: self
+                            .key
+                            .read()
+                            .unwrap()
+                            .large_domain
+                            .root
+                            .pow([index as u64]),
                     });
                 }
                 count += 1;
@@ -196,7 +210,7 @@ impl<H: BarretenHasher> WorkQueue<H> {
         for item in &self.work_items {
             if let Work::SmallFft { index, .. } = item.work {
                 if count == work_item_number {
-                    let n = self.key.borrow().circuit_size;
+                    let n = self.key.read().unwrap().circuit_size;
                     let mut wire_fft = Polynomial::new(4 * n + 4);
 
                     for i in 0..n {
@@ -205,7 +219,8 @@ impl<H: BarretenHasher> WorkQueue<H> {
                     wire_fft[4 * n + index] = result[0];
 
                     (*self.key)
-                        .borrow_mut()
+                        .write()
+                        .unwrap()
                         .polynomial_store
                         .insert(&format!("{}_fft", item.tag), wire_fft);
                     return;
@@ -224,7 +239,8 @@ impl<H: BarretenHasher> WorkQueue<H> {
             if let Work::ScalarMultiplication { .. } = &item.work {
                 if idx == work_item_number {
                     (*self.transcript)
-                        .borrow_mut()
+                        .write()
+                        .unwrap()
                         .add_group_element(&item.tag, &result);
                     return Ok(());
                 }
@@ -275,58 +291,72 @@ impl<H: BarretenHasher> WorkQueue<H> {
 
                     assert!(
                         msm_size
-                            <= (*(*self.key).borrow().reference_string)
-                                .borrow_mut()
+                            <= (*(*self.key).read().unwrap().reference_string)
+                                .write()
+                                .unwrap()
                                 .get_monomial_size()
                     );
 
-                    let srs_points: Rc<Vec<G1Affine>> = (*self.key.borrow().reference_string)
-                        .borrow_mut()
-                        .get_monomial_points();
+                    let srs_points: Arc<Vec<G1Affine>> =
+                        (*self.key.read().unwrap().reference_string)
+                            .write()
+                            .unwrap()
+                            .get_monomial_points();
 
                     let mut runtime_state: PippengerRuntimeState<Fr, G1Affine> =
                         PippengerRuntimeState::<Fr, G1Affine>::new(msm_size);
                     let result = G1Affine::from(runtime_state.pippenger_unsafe(
-                        (*mul_scalars).borrow_mut().coefficients.as_mut_slice(),
+                        (*mul_scalars).write().unwrap().coefficients.as_mut_slice(),
                         &(*srs_points)[..],
                         msm_size,
                     ));
 
                     (*self.transcript)
-                        .borrow_mut()
+                        .write()
+                        .unwrap()
                         .add_group_element(&item.tag, &result);
                 }
                 Work::SmallFft { index, constant } => {
-                    let n = self.key.borrow().circuit_size;
-                    let wire = self.key.borrow().polynomial_store.get(&item.tag).unwrap();
+                    let n = self.key.read().unwrap().circuit_size;
+                    let wire = self
+                        .key
+                        .read()
+                        .unwrap()
+                        .polynomial_store
+                        .get(&item.tag)
+                        .unwrap();
                     self.key
-                        .borrow()
+                        .read()
+                        .unwrap()
                         .small_domain
                         .coset_fft_with_generator_shift(
-                            (*wire).borrow_mut().coefficients.as_mut_slice(),
+                            (*wire).write().unwrap().coefficients.as_mut_slice(),
                             *constant,
                         );
 
                     if *index != 0 {
                         let old_wire_fft = self
                             .key
-                            .borrow()
+                            .read()
+                            .unwrap()
                             .polynomial_store
                             .get(&(item.tag.clone() + "_fft"))
                             .unwrap()
                             .clone();
                         for i in 0..n {
-                            (*old_wire_fft).borrow_mut()[4 * i + index] = wire.borrow()[i];
+                            (*old_wire_fft).write().unwrap()[4 * i + index] =
+                                wire.read().unwrap()[i];
                         }
-                        (*old_wire_fft).borrow_mut()[4 * n + index] = wire.borrow()[0];
+                        (*old_wire_fft).write().unwrap()[4 * n + index] = wire.read().unwrap()[0];
                     } else {
                         let mut wire_fft = Polynomial::new(4 * n + 4);
                         for i in 0..n {
-                            wire_fft[4 * i + index] = wire.borrow()[i];
+                            wire_fft[4 * i + index] = wire.read().unwrap()[i];
                         }
 
                         (*self.key)
-                            .borrow_mut()
+                            .write()
+                            .unwrap()
                             .polynomial_store
                             .insert(&format!("{}_fft", item.tag.clone()), wire_fft);
                     }
@@ -334,43 +364,49 @@ impl<H: BarretenHasher> WorkQueue<H> {
                 Work::Fft { .. } => {
                     let mut wire_fft = self
                         .key
-                        .borrow()
+                        .read()
+                        .unwrap()
                         .polynomial_store
                         .get(&item.tag)
                         .unwrap()
-                        .borrow()
+                        .read()
+                        .unwrap()
                         .clone();
 
-                    wire_fft.resize(4 * self.key.borrow().circuit_size + 4, Fr::zero());
+                    wire_fft.resize(4 * self.key.read().unwrap().circuit_size + 4, Fr::zero());
 
-                    self.key
-                        .borrow()
+                    (*self.key)
+                        .read()
+                        .unwrap()
                         .large_domain
                         .coset_fft_inplace(wire_fft.coefficients.as_mut_slice());
                     for i in 0..4 {
-                        wire_fft[4 * self.key.borrow().circuit_size + i] = wire_fft[i];
+                        wire_fft[4 * (*self.key).read().unwrap().circuit_size + i] = wire_fft[i];
                     }
 
                     (*self.key)
-                        .borrow_mut()
+                        .write()
+                        .unwrap()
                         .polynomial_store
                         .insert(&format!("{}_fft", item.tag.clone()), wire_fft);
                 }
                 Work::Ifft => {
-                    let wire_lagrange = self
-                        .key
-                        .borrow()
+                    let wire_lagrange = (*self.key)
+                        .read()
+                        .unwrap()
                         .polynomial_store
                         .get(&(format!("{}_lagrange", item.tag.clone())))
                         .unwrap();
 
-                    let mut wire_monomial = Polynomial::new(self.key.borrow().circuit_size);
-                    self.key.borrow().small_domain.ifft(
-                        wire_lagrange.borrow_mut().coefficients.as_mut_slice(),
+                    let mut wire_monomial =
+                        Polynomial::new((*self.key).read().unwrap().circuit_size);
+                    (*self.key).read().unwrap().small_domain.ifft(
+                        wire_lagrange.write().unwrap().coefficients.as_mut_slice(),
                         wire_monomial.coefficients.as_mut_slice(),
                     );
                     (*self.key)
-                        .borrow_mut()
+                        .write()
+                        .unwrap()
                         .polynomial_store
                         .insert(&item.tag, wire_monomial);
                 }

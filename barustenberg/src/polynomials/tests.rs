@@ -298,7 +298,9 @@ fn test_compute_lagrange_polynomial_fft() {
     let mut l_1_coefficients = Polynomial::new(2 * n);
     let mut scratch_memory = Polynomial::new(2 * n + 4);
 
-    small_domain.compute_lagrange_polynomial_fft(&mut l_1_coefficients, &mid_domain);
+    small_domain
+        .compute_lagrange_polynomial_fft(&mut l_1_coefficients, &mid_domain)
+        .unwrap();
 
     polynomial_arithmetic::copy_polynomial(&l_1_coefficients, &mut scratch_memory, 2 * n, 2 * n);
 
@@ -354,7 +356,9 @@ fn test_compute_lagrange_polynomial_fft_large_domain() {
     let mut scratch_memory = Polynomial::new(m * n + m * 2);
 
     // Compute FFT on target domain
-    small_domain.compute_lagrange_polynomial_fft(&mut l_1_coefficients, &large_domain);
+    small_domain
+        .compute_lagrange_polynomial_fft(&mut l_1_coefficients, &large_domain)
+        .unwrap();
 
     // Copy L_1 FFT into scratch space and shift it to get FFT of L_{n-1}
     polynomial_arithmetic::copy_polynomial(&l_1_coefficients, &mut scratch_memory, m * n, m * n);
@@ -440,11 +444,9 @@ fn test_divide_by_pseudo_vanishing_polynomial() {
         result[i] = a[i] * b[i] + c[i];
     }
 
-    small_domain.divide_by_pseudo_vanishing_polynomial(
-        &mut [result.as_mut_slice()],
-        &large_domain,
-        1,
-    );
+    small_domain
+        .divide_by_pseudo_vanishing_polynomial(&mut [result.as_mut_slice()], &large_domain, 1)
+        .unwrap();
 
     large_domain.coset_ifft_inplace(&mut result);
 
@@ -596,7 +598,9 @@ fn test_divide_by_vanishing_polynomial() {
 
     let mut r_copy = r.clone();
 
-    small_domain.divide_by_pseudo_vanishing_polynomial(&mut [r.as_mut_slice()], &large_domain, 3);
+    small_domain
+        .divide_by_pseudo_vanishing_polynomial(&mut [r.as_mut_slice()], &large_domain, 3)
+        .unwrap();
     large_domain.coset_ifft_inplace(&mut r);
 
     let r_eval = polynomial_arithmetic::evaluate(&r, &z, 2 * n);
@@ -610,11 +614,9 @@ fn test_divide_by_vanishing_polynomial() {
     let rhs = r_eval * z_h_eval;
     assert_eq!(lhs, rhs);
 
-    small_domain.divide_by_pseudo_vanishing_polynomial(
-        &mut [r_copy.as_mut_slice()],
-        &large_domain,
-        0,
-    );
+    small_domain
+        .divide_by_pseudo_vanishing_polynomial(&mut [r_copy.as_mut_slice()], &large_domain, 0)
+        .unwrap();
     large_domain.coset_ifft_inplace(&mut r_copy);
 
     let r_eval = polynomial_arithmetic::evaluate(&r_copy, &z, 2 * n);
@@ -688,10 +690,10 @@ fn test_partial_fft_parallel() {
     large_domain.partial_fft(poly_eval.as_mut_slice(), None, false);
 
     let mut inner_poly_eval;
-    let x_pow_4n = eval_point.pow(&[4 * n as u64]);
-    let x_pow_4 = eval_point.pow(&[4]);
-    let x_pow_3 = eval_point.pow(&[3]);
-    let x_pow_2 = eval_point.pow(&[2]);
+    let x_pow_4n = eval_point.pow([4 * n as u64]);
+    let x_pow_4 = eval_point.pow([4]);
+    let x_pow_3 = eval_point.pow([3]);
+    let x_pow_2 = eval_point.pow([2]);
     let root = large_domain.root;
     let mut root_pow;
     let mut result = Fr::zero();
@@ -952,7 +954,7 @@ fn test_compute_efficient_interpolation() {
     }
 
     let mut dest = vec![Fr::zero(); n];
-    polynomial_arithmetic::compute_efficient_interpolation(&src, &mut dest, &mut x, n);
+    polynomial_arithmetic::compute_efficient_interpolation(&src, &mut dest, &mut x, n).unwrap();
 
     for i in 0..n {
         assert_eq!(dest[i], poly[i]);

@@ -7,7 +7,9 @@ use crate::{
 };
 
 use ark_bn254::{Bn254, Fq, Fq12, Fr, G1Affine, G1Projective, G2Affine};
-use ark_ec::{pairing::Pairing, AffineRepr, CurveGroup};
+use ark_ec::pairing::Pairing;
+use ark_ec::AffineRepr;
+use ark_ec::CurveGroup;
 use ark_ff::{BigInteger, Field, One, Zero};
 
 use super::{
@@ -15,7 +17,8 @@ use super::{
     types::{prover_settings::Settings, Proof},
 };
 
-use std::{cell::RefCell, collections::HashMap, rc::Rc};
+use std::collections::HashMap;
+use std::sync::{Arc, RwLock};
 
 use super::verification_key::VerificationKey;
 
@@ -28,7 +31,7 @@ mod test;
 #[derive(Debug)]
 pub struct Verifier<H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>> {
     settings: S,
-    key: Rc<RefCell<VerificationKey<Fr>>>,
+    key: Arc<RwLock<VerificationKey<Fr>>>,
     manifest: Manifest,
     kate_g1_elements: HashMap<String, G1Affine>,
     kate_fr_elements: HashMap<String, Fr>,
@@ -39,7 +42,7 @@ pub struct Verifier<H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group
 impl<H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>> Verifier<H, S> {
     /// Constructor
     pub fn new(
-        _verifier_key: Option<Rc<RefCell<VerificationKey<Fr>>>>,
+        _verifier_key: Option<Arc<RwLock<VerificationKey<Fr>>>>,
         _manifest: Manifest,
     ) -> Self {
         // Implement constructor logic here.
@@ -67,7 +70,7 @@ impl<H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>> V
         //                  q_l_eval, q_r_eval, q_o_eval, q_m_eval, q_c_eval, z_eval_omega \in F }
         //
         // Proof π_SNARK must first be added to the transcript with the other program_settings.
-        (*self.key).borrow_mut().program_width = self.settings.program_width();
+        (*self.key).write().unwrap().program_width = self.settings.program_width();
 
         // Add the proof data to the transcript, according to the manifest. Also initialise the transcript's hash type and
         // challenge bytes.
@@ -80,12 +83,18 @@ impl<H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>> V
         // From the verification key, also add n & l (the circuit size and the number of public inputs) to the transcript.
         transcript.add_element(
             "circuit_size",
-            (*self.key).borrow().circuit_size.to_le_bytes().to_vec(),
+            (*self.key)
+                .read()
+                .unwrap()
+                .circuit_size
+                .to_le_bytes()
+                .to_vec(),
         );
         transcript.add_element(
             "public_input_size",
             (*self.key)
-                .borrow()
+                .read()
+                .unwrap()
                 .num_public_inputs
                 .to_le_bytes()
                 .to_vec(),
@@ -111,7 +120,8 @@ impl<H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>> V
         // TODO: can we add these lagrange evaluations to the transcript? They get recalcualted after this multiple times,
         // by each widget.
         let lagrange_evals = (*self.key)
-            .borrow()
+            .read()
+            .unwrap()
             .domain
             .get_lagrange_evaluations(&zeta, None);
 
@@ -124,16 +134,16 @@ impl<H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>> V
         // where Z_H*(X) is the modified vanishing polynomial.
 
         // Compute ʓ^n.
-        let z_pow_n = zeta.pow([(*self.key).borrow().domain.size as u64]);
-        (*self.key).borrow_mut().z_pow_n = z_pow_n;
+        let z_pow_n = zeta.pow([(*self.key).read().unwrap().domain.size as u64]);
+        (*self.key).write().unwrap().z_pow_n = z_pow_n;
 
         // compute the quotient polynomial numerator contribution
-        let mut t_numerator_eval = Fr::zero();
+        let t_numerator_eval = Fr::zero();
         S::compute_quotient_evaluation_contribution(
-            &(*self.key).borrow(),
+            &(*self.key).read().unwrap(),
             &alpha,
             &transcript,
-            &mut t_numerator_eval,
+            &t_numerator_eval,
         );
         let t_eval = t_numerator_eval * lagrange_evals.vanishing_poly.inverse().unwrap();
         transcript.add_field_element("t", &t_eval);
@@ -164,7 +174,7 @@ impl<H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>> V
             &transcript,
             &mut self.kate_g1_elements,
             &mut self.kate_fr_elements,
-            Some(&(*self.key).borrow()),
+            Some(&(*self.key).read().unwrap()),
         );
 
         // Step 9: Compute the partial opening batch commitment [D]_1:
@@ -179,7 +189,7 @@ impl<H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>> V
         // step.
         //
         S::append_scalar_multiplication_inputs(
-            &(*self.key).borrow(),
+            &(*self.key).read().unwrap(),
             &alpha,
             &transcript,
             &self.kate_fr_elements,
@@ -208,7 +218,7 @@ impl<H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>> V
             .insert("PI_Z_OMEGA".to_string(), pi_z_omega);
         self.kate_fr_elements.insert(
             "PI_Z_OMEGA".to_string(),
-            zeta * (*self.key).borrow().domain.root * separator_challenge,
+            zeta * (*self.key).read().unwrap().domain.root * separator_challenge,
         );
 
         self.kate_g1_elements.insert("PI_Z".to_owned(), pi_z);
@@ -234,14 +244,10 @@ impl<H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>> V
 
         // Generate Pippenger point table
         //     this was: barretenberg::scalar_multiplication::generate_pippenger_point_table(&elements[0], &elements[0], num_elements);
-        let mut elements_clone = elements.clone();
+        let elements_clone = elements.clone();
         let elements_len = elements.len();
-        generate_pippenger_point_table::<Fr, G1Affine>(
-            &mut elements_clone[..],
-            &mut elements[..],
-            elements_len,
-        );
-        let mut state = PippengerRuntimeState::<Fr, G1Affine>::new(n);
+        generate_pippenger_point_table(&elements_clone[..], &mut elements[..], elements_len);
+        let mut state: PippengerRuntimeState<Fr, G1Affine> = PippengerRuntimeState::new(n);
 
         let mut p: [G1Affine; 2] = [G1Affine::zero(); 2];
         p[0] = state.pippenger(&mut [scalars[0]], &[elements[0]], n, false);
@@ -250,7 +256,7 @@ impl<H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>> V
                 G1Affine,
             >>::into(-(G1Affine::identity() * separator_challenge + pi_z));
 
-        let key_borrowed = (*self.key).borrow();
+        let key_borrowed = (*self.key).read().unwrap();
         if key_borrowed.contains_recursive_proof {
             assert!(key_borrowed.recursive_proof_public_input_indices.len() == 16);
             let inputs: Vec<Fr> = transcript.get_field_element_vector("public_inputs");
@@ -305,13 +311,18 @@ impl<H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>> V
         }
 
         // The final pairing check of step 12.
-        // let result: Fq12 = reduced_ate_pairing_batch_precomputed(&p, &vec![MillerLines], 2);
         // TODO: Optimize by precomputing miller lines for G2
         let q: [G2Affine; 2] = [
             G2Affine::generator(),
-            (*self.key).borrow().reference_string.borrow().get_g2x(),
+            (*self.key)
+                .read()
+                .unwrap()
+                .reference_string
+                .read()
+                .unwrap()
+                .get_g2x(),
         ];
-        let result: Fq12 = Bn254::multi_pairing(&p, &q).0;
+        let result: Fq12 = Bn254::multi_pairing(p, q).0;
 
         Ok(result == Fq12::one())
     }

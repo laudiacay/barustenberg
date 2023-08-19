@@ -1,6 +1,8 @@
 use ark_ec::AffineRepr;
 use ark_ff::{FftField, Field};
 
+use anyhow::Result;
+
 use crate::{
     proof_system::work_queue::WorkQueue,
     transcript::{BarretenHasher, Transcript},
@@ -16,11 +18,11 @@ pub(crate) trait ProverRandomWidget: std::fmt::Debug {
         _transcript: &mut Transcript<Self::Hasher>,
         _size: usize,
         _work_queue: &mut WorkQueue<Self::Hasher>,
-    );
+    ) -> Result<()>;
 
     fn compute_quotient_contribution(
         &self,
         _alpha_base: Self::Fr,
         _transcript: &Transcript<Self::Hasher>,
-    ) -> Self::Fr;
+    ) -> Result<Self::Fr>;
 }

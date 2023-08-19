@@ -12,10 +12,9 @@ use crate::{
 };
 
 use std::{
-    cell::RefCell,
     collections::{HashMap, HashSet},
     marker::PhantomData,
-    rc::Rc,
+    sync::{Arc, RwLock},
 };
 
 use super::{
@@ -37,11 +36,6 @@ where
     // TODO see all these U1s they should be a named variable but they are not :( inherent associate type problem
     pub(crate) const QUOTIENT_REQUIRED_CHALLENGES: u8 = CHALLENGE_BIT_ALPHA as u8;
     pub(crate) const UPDATE_REQUIRED_CHALLENGES: u8 = CHALLENGE_BIT_ALPHA as u8;
-
-    pub(crate) fn get_required_polynomial_ids() -> &'static HashSet<PolynomialIndex> {
-        // ...
-        todo!("ArithmeticKernel::get_required_polynomial_ids")
-    }
 }
 
 impl<H: BarretenHasher, F: Field + FftField, G: AffineRepr> KernelBase
@@ -67,18 +61,18 @@ impl<H: BarretenHasher, F: Field + FftField, G: AffineRepr> KernelBase
     }
 
     fn quotient_required_challenges() -> u8 {
-        todo!()
+        CHALLENGE_BIT_ALPHA.try_into().unwrap()
     }
 
     fn update_required_challenges() -> u8 {
-        todo!()
+        CHALLENGE_BIT_ALPHA.try_into().unwrap()
     }
 
     #[inline]
     fn compute_linear_terms<Get: BaseGetter<Fr = Self::Field>>(
         polynomials: &Get::PC,
-        _challenges: &ChallengeArray<F, U1>,
-        linear_terms: &mut CoefficientArray<F>,
+        _challenges: &ChallengeArray<Self::Field, U1>,
+        linear_terms: &mut CoefficientArray<Self::Field>,
         index: Option<usize>,
     ) {
         let index = index.unwrap_or_default();
@@ -107,51 +101,66 @@ impl<H: BarretenHasher, F: Field + FftField, G: AffineRepr> KernelBase
         linear_terms[3.into()] = w_3;
     }
 
-    fn sum_linear_terms<Get: BaseGetter>(
-        _polynomials: &Get::PC,
-        _challenges: &ChallengeArray<F, U1>,
-        _linear_terms: &CoefficientArray<F>,
-        _index: usize,
-    ) -> F {
-        /*
-                /**
-         * @brief Scale and sum the linear terms for the final equation.
-         *
-         * @details Multiplies the linear terms by selector values and scale the whole sum by alpha before returning
-         *
-         * @param polynomials Container with polynomials or their simulation
-         * @param challenges A structure with various challenges
-         * @param linear_terms Precomuputed linear terms to be scaled and summed
-         * @param i The index at which selector/witness values are sampled
-         * @return FieldExt Scaled sum of values
-         */
-        inline static FieldExt sum_linear_terms(PolyContainer& polynomials,
-                                             const challenge_array& challenges,
-                                             coefficient_array& linear_terms,
-                                             const size_t i = 0)
-        {
-            const FieldExt& alpha = challenges.alpha_powers[0];
-            const FieldExt& q_1 =
-                Getters::template get_value<EvaluationType::NON_SHIFTED, PolynomialIndex::Q_1>(polynomials, i);
-            const FieldExt& q_2 =
-                Getters::template get_value<EvaluationType::NON_SHIFTED, PolynomialIndex::Q_2>(polynomials, i);
-            const FieldExt& q_3 =
-                Getters::template get_value<EvaluationType::NON_SHIFTED, PolynomialIndex::Q_3>(polynomials, i);
-            const FieldExt& q_m =
-                Getters::template get_value<EvaluationType::NON_SHIFTED, PolynomialIndex::Q_M>(polynomials, i);
-            const FieldExt& q_c =
-                Getters::template get_value<EvaluationType::NON_SHIFTED, PolynomialIndex::Q_C>(polynomials, i);
+    /// Scales and sums the linear terms for the final equation.
+    ///
+    /// Multiplies the linear terms by selector values and scale the whole sum by alpha before returning.
+    ///
+    /// # Arguments
+    ///
+    /// * `polynomials` - Container with polynomials or their simulation.
+    /// * `challenges` - A structure with various challenges.
+    /// * `linear_terms` - Precomputed linear terms to be scaled and summed.
+    /// * `i` - The index at which selector/witness values are sampled.
+    ///
+    /// # Returns
+    ///
+    /// * `FieldExt` - Scaled sum of values.
+    fn sum_linear_terms<Get: BaseGetter<Fr = Self::Field>>(
+        polynomials: &Get::PC,
+        challenges: &ChallengeArray<Self::Field, U1>,
+        linear_terms: &CoefficientArray<Self::Field>,
+        index: usize,
+    ) -> Self::Field {
+        let alpha = challenges.alpha_powers[0];
+        let q_1 = Get::get_value(
+            polynomials,
+            EvaluationType::NonShifted,
+            PolynomialIndex::Q1,
+            Some(index),
+        );
+        let q_2 = Get::get_value(
+            polynomials,
+            EvaluationType::NonShifted,
+            PolynomialIndex::Q2,
+            Some(index),
+        );
+        let q_3 = Get::get_value(
+            polynomials,
+            EvaluationType::NonShifted,
+            PolynomialIndex::Q3,
+            Some(index),
+        );
+        let q_m = Get::get_value(
+            polynomials,
+            EvaluationType::NonShifted,
+            PolynomialIndex::QM,
+            Some(index),
+        );
+        let q_c = Get::get_value(
+            polynomials,
+            EvaluationType::NonShifted,
+            PolynomialIndex::QC,
+            Some(index),
+        );
 
-            FieldExt result = linear_terms[0] * q_m;
-            result += (linear_terms[1] * q_1);
-            result += (linear_terms[2] * q_2);
-            result += (linear_terms[3] * q_3);
-            result += q_c;
-            result *= alpha;
-            return result;
-        }
-             */
-        todo!()
+        let mut result = linear_terms[0] * q_m;
+        result += linear_terms[1] * q_1;
+        result += linear_terms[2] * q_2;
+        result += linear_terms[3] * q_3;
+        result += q_c;
+        result *= alpha;
+
+        result
     }
 
     /// Not being used in arithmetic_widget because there are none
@@ -180,19 +189,19 @@ impl<H: BarretenHasher, F: Field + FftField, G: AffineRepr> KernelBase
         let alpha: F = challenges.alpha_powers[0];
         scalars.insert(
             "Q_M".to_string(),
-            *scalars.get("Q_M").unwrap() + linear_terms[0.into()] * alpha,
+            *scalars.get("Q_M").unwrap() + linear_terms[0] * alpha,
         );
         scalars.insert(
             "Q_1".to_string(),
-            *scalars.get("Q_1").unwrap() + linear_terms[1.into()] * alpha,
+            *scalars.get("Q_1").unwrap() + linear_terms[1] * alpha,
         );
         scalars.insert(
             "Q_2".to_string(),
-            *scalars.get("Q_2").unwrap() + linear_terms[2.into()] * alpha,
+            *scalars.get("Q_2").unwrap() + linear_terms[2] * alpha,
         );
         scalars.insert(
             "Q_3".to_string(),
-            *scalars.get("Q_3").unwrap() + linear_terms[3.into()] * alpha,
+            *scalars.get("Q_3").unwrap() + linear_terms[3] * alpha,
         );
         scalars.insert("Q_C".to_string(), *scalars.get("Q_C").unwrap() + alpha);
     }
@@ -219,7 +228,7 @@ impl<H: BarretenHasher> TransitionWidgetBase for ProverArithmeticWidget<H> {
 }
 
 impl<H: BarretenHasher> ProverArithmeticWidget<H> {
-    pub(crate) fn new(key: Rc<RefCell<ProvingKey<Fr>>>) -> Self {
+    pub(crate) fn new(key: Arc<RwLock<ProvingKey<Fr>>>) -> Self {
         Self(TransitionWidget::new(key))
     }
 }

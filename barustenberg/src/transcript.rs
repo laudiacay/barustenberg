@@ -9,7 +9,7 @@ use tracing::info;
 use typenum::{Unsigned, U16, U32};
 
 /// BarretenHasher is a trait that defines the hash function used for Fiat-Shamir.
-pub trait BarretenHasher: std::fmt::Debug {
+pub trait BarretenHasher: std::fmt::Debug + Send + Sync {
     /// The size of the security parameter in bytes.
     type SecurityParameterSize: ArrayLength<u8>;
     /// The size of the PRNG output in bytes.

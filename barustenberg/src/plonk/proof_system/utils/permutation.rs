@@ -61,22 +61,22 @@ pub(crate) fn compute_permutation_lagrange_base_single_helper<
 
     let log2_root_size = root_size.get_msb();
 
-    for i in 0..small_domain.size {
-        let raw_idx = permutation[i].subgroup_index as usize;
+    for (i, perm_i) in permutation.iter().enumerate().take(small_domain.size) {
+        let raw_idx = perm_i.subgroup_index as usize;
         let negative_idx = raw_idx >= root_size;
         let idx = raw_idx - ((negative_idx as usize) << log2_root_size);
 
         output.coefficients[i] =
             conditionally_subtract_from_double_modulus(&roots[idx], negative_idx as u64);
 
-        if permutation[i].is_public_input {
+        if perm_i.is_public_input {
             // TODO: Replace with correct external_coset_generator function
             output.coefficients[i] *= external_coset_generator::<Fr>();
-        } else if permutation[i].is_tag {
+        } else if perm_i.is_tag {
             // TODO: Replace with correct tag_coset_generator function
             output.coefficients[i] *= tag_coset_generator::<Fr>();
         } else {
-            let column_index = permutation[i].column_index;
+            let column_index = perm_i.column_index;
             if column_index > 0 {
                 // TODO: Replace with correct coset_generator function
                 output.coefficients[i] *= coset_generator::<Fr>(column_index - 1);

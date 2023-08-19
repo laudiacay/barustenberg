@@ -1,17 +1,29 @@
 use ark_bn254::G2Affine;
+use ark_serialize::CanonicalDeserialize;
 
 use super::VerifierReferenceString;
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub(crate) struct VerifierMemReferenceString {
     g2_x: G2Affine,
 }
 
 impl VerifierMemReferenceString {
     pub(crate) fn new(_g2x: &[u8]) -> Self {
-        // Add the necessary code to convert g2x bytes into g2::AffineElement
-        // and initialize precomputed_g2_lines
-        unimplemented!()
+        let g2_x = match G2Affine::deserialize_uncompressed(&*_g2x) {
+            Ok(g2_x) => g2_x,
+            Err(_) => panic!("Failed to deserialize g2_x"),
+        };
+
+        VerifierMemReferenceString { g2_x }
+    }
+
+    pub(crate) fn from_affline(_g2x: G2Affine) -> Self {
+        VerifierMemReferenceString { g2_x: _g2x }
+    }
+
+    pub(crate) fn default() -> Self {
+        VerifierMemReferenceString::from_affline(G2Affine::default())
     }
 }
 

@@ -1,4 +1,7 @@
-use std::{cell::RefCell, collections::HashMap, rc::Rc};
+use std::{
+    collections::HashMap,
+    sync::{Arc, RwLock},
+};
 
 use ark_bn254::Fr;
 use ark_ff::Zero;
@@ -71,13 +74,13 @@ impl CycleNode {
 #[derive(Default)]
 pub(crate) struct ComposerBaseData<RSF: ReferenceStringFactory> {
     pub(crate) num_gates: usize,
-    pub(crate) crs_factory: Rc<RSF>,
+    pub(crate) crs_factory: Arc<RSF>,
     pub(crate) num_selectors: usize,
     pub(crate) selectors: Vec<Vec<Fr>>,
     pub(crate) selector_properties: Vec<SelectorProperties>,
     pub(crate) rand_engine: Option<Box<dyn RngCore>>,
-    pub(crate) circuit_proving_key: Option<Rc<RefCell<ProvingKey<Fr>>>>,
-    pub(crate) circuit_verification_key: Option<Rc<RefCell<VerificationKey<Fr>>>>,
+    pub(crate) circuit_proving_key: Option<Arc<RwLock<ProvingKey<Fr>>>>,
+    pub(crate) circuit_verification_key: Option<Arc<RwLock<VerificationKey<Fr>>>>,
     pub(crate) w_l: Vec<u32>,
     pub(crate) w_r: Vec<u32>,
     pub(crate) w_o: Vec<u32>,
@@ -107,28 +110,28 @@ pub(crate) trait ComposerBase {
     type RSF: ReferenceStringFactory;
 
     fn with_crs_factory(
-        crs_factory: Rc<Self::RSF>,
+        crs_factory: Arc<Self::RSF>,
         num_selectors: usize,
         size_hint: usize,
         selector_properties: Vec<SelectorProperties>,
     ) -> Self;
 
     fn with_keys(
-        p_key: Rc<RefCell<ProvingKey<Fr>>>,
-        v_key: Rc<RefCell<VerificationKey<Fr>>>,
+        p_key: Arc<RwLock<ProvingKey<Fr>>>,
+        v_key: Arc<RwLock<VerificationKey<Fr>>>,
         num_selectors: usize,
         size_hint: usize,
         selector_properties: Vec<SelectorProperties>,
-        crs_factory: Rc<Self::RSF>,
+        crs_factory: Arc<Self::RSF>,
     ) -> Self;
 
     /// should be inlined in implementations
-    fn composer_base_data(&self) -> Rc<RefCell<ComposerBaseData<Self::RSF>>>;
+    fn composer_base_data(&self) -> Arc<RwLock<ComposerBaseData<Self::RSF>>>;
 
     fn get_first_variable_in_class(&self, index: usize) -> usize {
         let mut idx = index as u32;
         let cbd = self.composer_base_data();
-        let cbd = (*cbd).borrow();
+        let cbd = (*cbd).read().unwrap();
         while cbd.prev_var_index[idx as usize] != FIRST_VARIABLE_IN_CLASS {
             idx = cbd.prev_var_index[idx as usize];
         }
@@ -138,7 +141,7 @@ pub(crate) trait ComposerBase {
         let mut cur_index = index;
         loop {
             let cbd = self.composer_base_data();
-            let mut cbd = (*cbd).borrow_mut();
+            let mut cbd = (*cbd).write().unwrap();
             cbd.real_variable_index[cur_index as usize] = new_real_index;
 
             cbd.real_variable_index[cur_index as usize] = new_real_index;
@@ -162,14 +165,14 @@ pub(crate) trait ComposerBase {
     #[inline]
     fn get_variable(&self, index: u32) -> Fr {
         let cbd = self.composer_base_data();
-        let cbd = (*cbd).borrow();
+        let cbd = (*cbd).read().unwrap();
         assert!(cbd.variables.len() > index as usize);
         cbd.variables[cbd.real_variable_index[index as usize] as usize]
     }
 
     fn get_public_input(&self, index: u32) -> Fr {
         let cbd = self.composer_base_data();
-        let cbd = (*cbd).borrow();
+        let cbd = (*cbd).read().unwrap();
         self.get_variable(cbd.public_inputs[index as usize])
     }
 
@@ -191,7 +194,7 @@ pub(crate) trait ComposerBase {
     /// * The index of the new variable in the variables vector
     fn add_variable(&mut self, in_value: Fr) -> u32 {
         let cbd = self.composer_base_data();
-        let mut cbd = (*cbd).borrow_mut();
+        let mut cbd = (*cbd).write().unwrap();
 
         cbd.variables.push(in_value);
 
@@ -226,7 +229,8 @@ pub(crate) trait ComposerBase {
     fn add_public_variable(&mut self, in_value: Fr) -> u32 {
         let index = self.add_variable(in_value);
         (*self.composer_base_data())
-            .borrow_mut()
+            .write()
+            .unwrap()
             .public_inputs
             .push(index);
         index
@@ -239,7 +243,7 @@ pub(crate) trait ComposerBase {
     /// * `witness_index` - The index of the witness.
     fn set_public_input(&mut self, witness_index: u32) {
         let cbd = self.composer_base_data();
-        let mut cbd = (*cbd).borrow_mut();
+        let mut cbd = (*cbd).write().unwrap();
         let does_not_exist = cbd
             .public_inputs
             .iter()
@@ -255,7 +259,7 @@ pub(crate) trait ComposerBase {
 
     fn assert_equal(&mut self, a_idx: u32, b_idx: u32, msg: String) {
         let cbd = self.composer_base_data();
-        let mut cbd = (*cbd).borrow_mut();
+        let mut cbd = (*cbd).write().unwrap();
         self.assert_valid_variables(&[a_idx, b_idx]);
         let values_equal = self.get_variable(a_idx) == self.get_variable(b_idx);
         if !values_equal && !self.failed() {
@@ -270,7 +274,7 @@ pub(crate) trait ComposerBase {
         self.update_real_variable_indices(b_start_idx as u32, a_real_idx);
         let a_start_idx = self.get_first_variable_in_class(a_idx as usize);
         cbd.next_var_index[b_real_idx as usize] = a_start_idx as u32;
-        cbd.prev_var_index[a_start_idx as usize] = b_real_idx;
+        cbd.prev_var_index[a_start_idx] = b_real_idx;
         let no_tag_clash = cbd.real_variable_tags[a_real_idx as usize] == DUMMY_TAG
             || cbd.real_variable_tags[b_real_idx as usize] == DUMMY_TAG
             || cbd.real_variable_tags[a_real_idx as usize]
@@ -356,7 +360,7 @@ pub(crate) trait ComposerBase {
     ///                 permutation polynomials are circuit-specific and stored in the proving/verification key (id_poly = true).
     fn compute_sigma_permutations(
         &mut self,
-        _key: Rc<RefCell<ProvingKey<Fr>>>,
+        _key: Arc<RwLock<ProvingKey<Fr>>>,
         _program_width: usize,
         _with_tags: bool,
     ) {
@@ -400,7 +404,7 @@ pub(crate) trait ComposerBase {
         let minimum_circuit_size = minimum_circuit_size.unwrap_or(0);
 
         let cbd = self.composer_base_data().clone();
-        let mut cbd = (*cbd).borrow_mut();
+        let mut cbd = (*cbd).write().unwrap();
 
         if cbd.computed_witness {
             return;
@@ -451,7 +455,7 @@ pub(crate) trait ComposerBase {
         }
 
         let cpk = cbd.circuit_proving_key.clone().unwrap();
-        let mut pkey = cpk.as_ref().borrow_mut();
+        let mut pkey = cpk.as_ref().write().unwrap();
 
         pkey.polynomial_store
             .insert(&"w_1_lagrange".to_string(), w_1_lagrange);
@@ -474,7 +478,7 @@ pub(crate) trait ComposerBase {
 
     fn get_num_public_inputs(&self) -> usize {
         let cbd = self.composer_base_data();
-        let cbd = cbd.borrow();
+        let cbd = cbd.read().unwrap();
         cbd.public_inputs.len()
     }
 
@@ -486,26 +490,26 @@ pub(crate) trait ComposerBase {
 
     fn is_valid_variable(&self, variable_index: u32) -> bool {
         let cbd = self.composer_base_data();
-        let cbd = cbd.borrow();
+        let cbd = cbd.read().unwrap();
         (cbd.variables.len() as u32) > variable_index
     }
 
     fn set_err(&mut self, err: String) {
         let cbd = self.composer_base_data();
-        let mut cbd = (*cbd).borrow_mut();
+        let mut cbd = (*cbd).write().unwrap();
         cbd._err = Some(err);
     }
 
     fn failure(&mut self, err: String) {
         let cbd = self.composer_base_data();
-        let mut cbd = (*cbd).borrow_mut();
+        let mut cbd = (*cbd).write().unwrap();
         cbd.failed = true;
         self.set_err(err)
     }
 
     fn failed(&self) -> bool {
         let cbd = self.composer_base_data();
-        let cbd = cbd.borrow();
+        let cbd = cbd.read().unwrap();
         cbd.failed
     }
 
@@ -528,9 +532,9 @@ pub(crate) trait ComposerBase {
         composer_type: ComposerType,
         minimum_circuit_size: usize,
         num_reserved_gates: usize,
-    ) -> Rc<RefCell<ProvingKey<Fr>>> {
+    ) -> Arc<RwLock<ProvingKey<Fr>>> {
         let cbd = self.composer_base_data().clone();
-        let mut cbd = (*cbd).borrow_mut();
+        let mut cbd = (*cbd).write().unwrap();
         let num_filled_gates = cbd.num_gates + cbd.public_inputs.len();
         let total_num_gates = if minimum_circuit_size > num_filled_gates {
             minimum_circuit_size
@@ -550,10 +554,11 @@ pub(crate) trait ComposerBase {
         let crs = cbd
             .crs_factory
             .get_prover_crs(subgroup_size + 1)
-            .unwrap().clone()
+            .unwrap()
+            .clone()
             .unwrap();
         // initialize proving key
-        cbd.circuit_proving_key = Some(Rc::new(RefCell::new(ProvingKey::new(
+        cbd.circuit_proving_key = Some(Arc::new(RwLock::new(ProvingKey::new(
             subgroup_size,
             cbd.public_inputs.len(),
             crs,
@@ -599,7 +604,7 @@ pub(crate) trait ComposerBase {
             let mut selector_poly: Polynomial<Fr> = Polynomial::new(subgroup_size);
 
             let pkey = cbd.circuit_proving_key.clone().unwrap();
-            let mut pkey = (*pkey).borrow_mut();
+            let mut pkey = (*pkey).write().unwrap();
 
             pkey.small_domain.ifft(
                 &mut selector_poly_lagrange.coefficients[..],
@@ -633,12 +638,12 @@ pub(crate) trait ComposerBase {
      */
     fn compute_verification_key_base(
         &mut self,
-        proving_key: Rc<RefCell<ProvingKey<Fr>>>,
-        vrs: Rc<RefCell<<<Self as ComposerBase>::RSF as ReferenceStringFactory>::Ver>>,
-    ) -> Result<Rc<RefCell<VerificationKey<Fr>>>> {
-        let proving_key = proving_key.as_ref().borrow();
+        proving_key: Arc<RwLock<ProvingKey<Fr>>>,
+        vrs: Arc<RwLock<<<Self as ComposerBase>::RSF as ReferenceStringFactory>::Ver>>,
+    ) -> Result<Arc<RwLock<VerificationKey<Fr>>>> {
+        let proving_key = proving_key.read().unwrap();
 
-        let circuit_verification_key = Rc::new(RefCell::new(VerificationKey::new(
+        let circuit_verification_key = Arc::new(RwLock::new(VerificationKey::new(
             proving_key.circuit_size,
             proving_key.num_public_inputs,
             vrs.clone(),
@@ -656,10 +661,10 @@ pub(crate) trait ComposerBase {
             {
                 // Fetch the constraint selector polynomial in its coefficient form.
                 let selector_poly = proving_key.polynomial_store.get(&selector_poly_label)?;
-                let mut selector_poly = (*selector_poly).borrow_mut();
+                let mut selector_poly = (*selector_poly).write().unwrap();
                 let selector_poly_coefficients = &mut selector_poly.coefficients;
 
-                let reference_string = (*proving_key.reference_string).borrow_mut();
+                let reference_string = (*proving_key.reference_string).write().unwrap();
                 let mut pippenger_runtime_state = proving_key.pippenger_runtime_state.clone();
 
                 // Commit to the constraint selector polynomial and insert the commitment in the verification key.
@@ -671,15 +676,18 @@ pub(crate) trait ComposerBase {
                 );
 
                 (*circuit_verification_key)
-                    .borrow_mut()
+                    .write()
+                    .unwrap()
                     .commitments
                     .insert(selector_commitment_label, selector_poly_commitment);
             }
         }
 
         // Set the polynomial manifest in verification key.
-        (*circuit_verification_key).borrow_mut().polynomial_manifest =
-            PolynomialManifest::new_from_type(proving_key.composer_type);
+        (*circuit_verification_key)
+            .write()
+            .unwrap()
+            .polynomial_manifest = PolynomialManifest::new_from_type(proving_key.composer_type);
 
         Ok(circuit_verification_key)
     }
