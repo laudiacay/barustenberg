@@ -1,8 +1,10 @@
 pub(crate) mod process_buckets;
 pub(crate) mod runtime_states;
 pub(crate) mod scalar_multiplication;
-pub(crate) mod tests;
 pub(crate) mod wnaf;
+
+#[cfg(test)]
+mod tests;
 
 use ark_ff::Field;
 

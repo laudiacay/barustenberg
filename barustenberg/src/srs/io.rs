@@ -1,18 +1,14 @@
 use anyhow::{anyhow, Result};
-use ark_bn254::Fq;
-use ark_bn254::Fq2;
-use ark_bn254::{G1Affine, G2Affine};
+use ark_bn254::{Fq, Fq2, G1Affine, G2Affine};
 use ark_ec::AffineRepr;
 use ark_serialize::CanonicalDeserialize;
-use byteorder::BigEndian;
-use byteorder::ReadBytesExt;
-use byteorder::WriteBytesExt;
-use std::cmp::min;
-use std::fs::File;
-use std::io::Read;
-use std::io::Seek;
-use std::io::SeekFrom;
-use std::path::Path;
+use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
+use std::{
+    cmp::min,
+    fs::File,
+    io::{Read, Seek, SeekFrom},
+    path::Path,
+};
 
 const BLAKE2B_CHECKSUM_LENGTH: usize = 64;
 
@@ -195,7 +191,7 @@ pub(crate) fn read_transcript_g2(g2_x: &mut G2Affine, dir: &str) -> Result<()> {
     Ok(())
 }
 
-fn read_transcript(
+pub fn read_transcript(
     monomials: &mut Vec<G1Affine>,
     g2_x: &mut G2Affine,
     degree: usize,

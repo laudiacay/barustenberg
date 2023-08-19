@@ -47,7 +47,7 @@ pub(crate) fn generate_pippenger_point_table<F: Field, G: AffineRepr<BaseField =
     }
 }
 
-fn compute_wnaf_states<F: Field>(
+pub fn compute_wnaf_states<F: Field>(
     point_schedule: &mut Vec<u64>,
     skew_table: &mut Vec<bool>,
     round_counts: &mut Vec<u64>,
@@ -57,7 +57,7 @@ fn compute_wnaf_states<F: Field>(
     todo!("implement");
 }
 
-fn organise_buckets(point_schedule: &mut Vec<u64>, num_points: usize) {
+pub fn organise_buckets(point_schedule: &mut Vec<u64>, num_points: usize) {
     let num_rounds: usize = get_num_rounds(num_points);
 
     for i in 0..num_rounds {
@@ -74,7 +74,7 @@ fn organise_buckets(point_schedule: &mut Vec<u64>, num_points: usize) {
 // 1.) the output of arkworks implementation returns a (sign, field) instead of just the field element
 // 2.) glv decomposition exists as a trait we would need to implement for each curve and requires the same amount of thought and code as just doing this
 // In the future i do think these implementations should live as a trait. But not a trait defined by arkworks #fuck_arkworks
-fn split_into_endomorphism_scalars<F: Field>(scalar: F) -> Vec<F> {
+pub fn split_into_endomorphism_scalars<F: Field>(scalar: F) -> Vec<F> {
     todo!();
 }
 
@@ -100,7 +100,7 @@ fn conditionally_negate_affine<G: AffineRepr>(src: &G, dest: &G, predicate: u64)
 }
 
 //Note u32 chosen to be in line with c++ implementation
-fn construct_addition_chains<F: Field, G: AffineRepr<BaseField = F>>(
+pub fn construct_addition_chains<F: Field, G: AffineRepr<BaseField = F>>(
     state: &mut AffinePippengerRuntimeState<F, G>,
     empty_bucket_counts: bool,
 ) -> usize {
@@ -427,7 +427,7 @@ fn add_affine_point_with_edge_cases<F: Field, G: AffineRepr<BaseField = F>>(
  *
  * We can re-arrange the Pippenger algorithm to get this property, but it's...complicated
  **/
-fn add_affine_points<F: Field, G: AffineRepr<BaseField = F>>(
+pub fn add_affine_points<F: Field, G: AffineRepr<BaseField = F>>(
     points: &mut [G],
     num_points: usize,
     scratch_space: &mut [F],
@@ -501,7 +501,7 @@ fn evaluate_addition_chains<F: Field, G: AffineRepr<BaseField = F>>(
     }
 }
 
-fn reduce_buckets<F: Field, G: AffineRepr<BaseField = F>>(
+pub fn reduce_buckets<F: Field, G: AffineRepr<BaseField = F>>(
     state: &mut AffinePippengerRuntimeState<F, G>,
     first_round: bool,
     handle_edge_cases: bool,

@@ -69,7 +69,7 @@ pub(crate) const fn get_num_rounds(num_points: usize) -> usize {
 }
 
 #[derive(Clone, Default, Debug)]
-pub(crate) struct PippengerRuntimeState<F: Field, G: AffineRepr<BaseField = F>> {
+pub(crate) struct PippengerRuntimeState<F: Field, G: AffineRepr> {
     // TODO: maybe arc should be used here for threads. think later.
     pub point_schedule: Vec<u64>,
     pub point_pairs_1: Vec<G>,
@@ -84,7 +84,7 @@ pub(crate) struct PippengerRuntimeState<F: Field, G: AffineRepr<BaseField = F>> 
 }
 
 #[derive(Default, Clone, Debug)]
-pub(crate) struct AffinePippengerRuntimeState<F: Field, G: AffineRepr<BaseField = F>> {
+pub(crate) struct AffinePippengerRuntimeState<F: Field, G: AffineRepr> {
     pub points: Vec<G>,
     pub point_pairs_1: Vec<G>,
     pub point_pairs_2: Vec<G>,
@@ -97,7 +97,7 @@ pub(crate) struct AffinePippengerRuntimeState<F: Field, G: AffineRepr<BaseField 
     pub num_buckets: usize,
 }
 
-impl<F: Field, G: AffineRepr<BaseField = F>> PippengerRuntimeState<F, G> {
+impl<F: Field, G: AffineRepr> PippengerRuntimeState<F, G> {
     pub(crate) fn new(num_initial_points: usize) -> Self {
         const MAX_NUM_ROUNDS: u32 = 256;
         let num_points = num_initial_points * 2;
