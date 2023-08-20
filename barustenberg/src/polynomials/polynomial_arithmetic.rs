@@ -33,6 +33,8 @@ use ark_ff::batch_inversion;
 use ark_ff::{FftField, Field};
 
 use anyhow::Result;
+use rayon::iter::ParallelIterator;
+use rayon::prelude::IntoParallelIterator;
 
 use crate::{common::max_threads::compute_num_threads, numeric::bitop::Msb};
 
@@ -152,19 +154,16 @@ pub(crate) fn copy_polynomial<Fr: Field + FftField + Copy + Default>(
         .copy_from_slice(&src.coefficients[..num_src_coefficients]);
 
     if num_target_coefficients > num_src_coefficients {
-        // fill out the polynomial coefficients with zeroes
-        for item in dest
-            .coefficients
-            .iter_mut()
-            .take(num_target_coefficients)
-            .skip(num_src_coefficients)
-        {
-            *item = Fr::default();
+        for j in num_src_coefficients..num_target_coefficients {
+            unsafe {
+                *(dest.coefficients.as_ptr() as *mut Fr).add(j) = Fr::zero();
+            }
         }
     }
 }
 
 use std::ops::{Add, Mul, Sub};
+use std::sync::RwLock;
 
 use super::{evaluation_domain::EvaluationDomain, Polynomial};
 
@@ -272,18 +271,20 @@ impl<Fr: Field + FftField> EvaluationDomain<Fr> {
         generator_shift: Fr,
         generator_size: usize,
     ) {
-        // TODO: parallelize
-        for j in 0..self.num_threads {
+        (0..self.num_threads).into_par_iter().for_each(|j| {
             let thread_shift =
                 generator_shift.pow([(j * (generator_size / self.num_threads)) as u64]);
             let mut work_generator = generator_start * thread_shift;
             let offset = j * (generator_size / self.num_threads);
             let end = offset + (generator_size / self.num_threads);
-            for coeff_i in coeffs.iter_mut().take(end).skip(offset) {
-                *coeff_i *= work_generator;
+
+            for i in offset..end {
+                unsafe {
+                    *(coeffs.as_ptr() as *mut Fr).add(i) *= work_generator;
+                }
                 work_generator *= generator_shift;
             }
-        }
+        });
     }
 
     /// modifies target[..generator_size]
@@ -295,18 +296,20 @@ impl<Fr: Field + FftField> EvaluationDomain<Fr> {
         generator_shift: Fr,
         generator_size: usize,
     ) {
-        // TODO: parallelize
-        for j in 0..self.num_threads {
+        (0..self.num_threads).into_par_iter().for_each(|j| {
             let thread_shift =
                 generator_shift.pow([(j * (generator_size / self.num_threads)) as u64]);
             let mut work_generator = generator_start * thread_shift;
             let offset = j * (generator_size / self.num_threads);
             let end = offset + (generator_size / self.num_threads);
+            #[allow(clippy::needless_range_loop)]
             for i in offset..end {
-                target[i] = coeffs[i] * work_generator;
+                unsafe {
+                    *(target.as_ptr() as *mut Fr).add(i) = coeffs[i] * work_generator;
+                }
                 work_generator *= generator_shift;
             }
-        }
+        })
     }
 
     /// Compute multiplicative subgroup (g.X)^n.
@@ -341,16 +344,13 @@ impl<Fr: Field + FftField> EvaluationDomain<Fr> {
         Ok(())
     }
 
-    // TODO readd pragma omp parallel
     pub(crate) fn fft_inner_parallel_vec_inplace(
         &self,
         coeffs: &mut [&mut [Fr]],
         _fr: &Fr,
         root_table: &[&[Fr]],
     ) {
-        //let scratch_space = Self::get_scratch_space(self.size); // Implement the get_scratch_space function
-
-        let mut scratch_space = vec![Fr::zero(); self.size];
+        let scratch_space = vec![Fr::zero(); self.size];
 
         let num_polys = coeffs.len();
         assert!(num_polys.is_power_of_two());
@@ -361,7 +361,7 @@ impl<Fr: Field + FftField> EvaluationDomain<Fr> {
 
         // First FFT round is a special case - no need to multiply by root table, because all entries are 1.
         // We also combine the bit reversal step into the first round, to avoid a redundant round of copying data
-        for j in 0..self.num_threads {
+        (0..self.num_threads).into_par_iter().for_each(|j| {
             let mut temp_1;
             let mut temp_2;
             for i in (j * self.thread_size..(j + 1) * self.thread_size).step_by(2) {
@@ -378,10 +378,12 @@ impl<Fr: Field + FftField> EvaluationDomain<Fr> {
 
                 temp_1 = coeffs[poly_idx_1][elem_idx_1];
                 temp_2 = coeffs[poly_idx_2][elem_idx_2];
-                scratch_space[i + 1] = temp_1 - temp_2;
-                scratch_space[i] = temp_1 + temp_2;
+                unsafe {
+                    *(scratch_space.as_ptr() as *mut Fr).add(i + 1) = temp_1 - temp_2;
+                    *(scratch_space.as_ptr() as *mut Fr).add(i) = temp_1 + temp_2;
+                }
             }
-        }
+        });
 
         // hard code exception for when the domain size is tiny - we won't execute the next loop, so need to manually
         // reduce + copy
@@ -392,7 +394,7 @@ impl<Fr: Field + FftField> EvaluationDomain<Fr> {
         // Outer FFT loop - iterates over the FFT rounds
         let mut m = 2;
         while m < self.size {
-            for j in 0..self.num_threads {
+            (0..self.num_threads).into_par_iter().for_each(|j| {
                 let mut temp: Fr;
 
                 // Ok! So, what's going on here? This is the inner loop of the FFT algorithm, and we want to break it
@@ -452,8 +454,12 @@ impl<Fr: Field + FftField> EvaluationDomain<Fr> {
                         let k1 = (i & index_mask) << 1;
                         let j1 = i & block_mask;
                         temp = round_roots[j1] * scratch_space[k1 + j1 + m];
-                        scratch_space[k1 + j1 + m] = scratch_space[k1 + j1] - temp;
-                        scratch_space[k1 + j1] += temp;
+                        unsafe {
+                            *(scratch_space.as_ptr() as *mut Fr).add(k1 + j1 + m) =
+                                scratch_space[k1 + j1] - temp;
+                            *(scratch_space.as_ptr() as *mut Fr).add(k1 + j1) =
+                                scratch_space[k1 + j1] + temp;
+                        }
                     }
                 } else {
                     for i in start..end {
@@ -466,16 +472,19 @@ impl<Fr: Field + FftField> EvaluationDomain<Fr> {
                         let elem_idx_2 = (k1 + j1 + m) & poly_mask;
 
                         temp = round_roots[j1] * scratch_space[k1 + j1 + m];
-                        coeffs[poly_idx_2][elem_idx_2] = scratch_space[k1 + j1] - temp;
-                        coeffs[poly_idx_1][elem_idx_1] = scratch_space[k1 + j1] + temp;
+                        unsafe {
+                            *(coeffs[poly_idx_2].as_ptr() as *mut Fr).add(elem_idx_2) =
+                                scratch_space[k1 + j1] - temp;
+                            *(coeffs[poly_idx_1].as_ptr() as *mut Fr).add(elem_idx_1) =
+                                scratch_space[k1 + j1] + temp;
+                        }
                     }
                 }
-            }
+            });
             m <<= 1;
         }
     }
 
-    // TODO readd pragma omp parallel
     pub(crate) fn fft_inner_parallel(
         &self,
         coeffs: &mut [Fr],
@@ -483,10 +492,9 @@ impl<Fr: Field + FftField> EvaluationDomain<Fr> {
         _fr: &Fr,
         root_table: &[&[Fr]],
     ) {
-        // TODO parallelize
         // First FFT round is a special case - no need to multiply by root table, because all entries are 1.
         // We also combine the bit reversal step into the first round, to avoid a redundant round of copying data
-        (0..self.num_threads).for_each(|j| {
+        (0..self.num_threads).into_par_iter().for_each(|j| {
             let mut temp_1;
             let mut temp_2;
             let thread_start = j * self.thread_size;
@@ -502,8 +510,10 @@ impl<Fr: Field + FftField> EvaluationDomain<Fr> {
 
                 temp_1 = coeffs[swap_index_1];
                 temp_2 = coeffs[swap_index_2];
-                target[i + 1] = temp_1 - temp_2;
-                target[i] = temp_1 + temp_2;
+                unsafe {
+                    *(target.as_ptr() as *mut Fr).add(i + 1) = temp_1 - temp_2;
+                    *(target.as_ptr() as *mut Fr).add(i) = temp_1 + temp_2;
+                }
             }
         });
 
@@ -517,7 +527,7 @@ impl<Fr: Field + FftField> EvaluationDomain<Fr> {
         // outer FFT loop
         // TODO this is super incorrect
         for m in (2..self.size).step_by(2) {
-            (0..self.num_threads).for_each(|j| {
+            (0..self.num_threads).into_par_iter().for_each(|j| {
                 let mut temp;
 
                 let start = j * (self.thread_size >> 1);
@@ -532,8 +542,10 @@ impl<Fr: Field + FftField> EvaluationDomain<Fr> {
                     let k1 = (i & index_mask) << 1;
                     let j1 = i & block_mask;
                     temp = round_roots[j1] * target[k1 + j1 + m];
-                    target[k1 + j1 + m] = target[k1 + j1] - temp;
-                    target[k1 + j1] += temp;
+                    unsafe {
+                        *(target.as_ptr() as *mut Fr).add(k1 + j1 + m) = target[k1 + j1] - temp;
+                        *(target.as_ptr() as *mut Fr).add(k1 + j1) = target[k1 + j1] + temp;
+                    }
                 }
             });
         }
@@ -601,7 +613,7 @@ impl<Fr: Field + FftField> EvaluationDomain<Fr> {
         let small_domain = EvaluationDomain::<Fr>::new(n, None);
 
         // iterate for s = 0, 1, 2, 3 to compute R_{i,s}
-        for j in 0..small_domain.num_threads {
+        (0..small_domain.num_threads).into_par_iter().for_each(|j| {
             let internal_bound_start = j * small_domain.thread_size;
             let internal_bound_end = (j + 1) * small_domain.thread_size;
             for i in internal_bound_start..internal_bound_end {
@@ -611,10 +623,13 @@ impl<Fr: Field + FftField> EvaluationDomain<Fr> {
                     coeffs[i + 2 * n],
                     coeffs[i + 3 * n],
                 ];
-                coeffs[i] = Fr::zero();
-                coeffs[i + n] = Fr::zero();
-                coeffs[i + 2 * n] = Fr::zero();
-                coeffs[i + 3 * n] = Fr::zero();
+
+                unsafe {
+                    *(coeffs.as_ptr() as *mut Fr).add(i) = Fr::zero();
+                    *(coeffs.as_ptr() as *mut Fr).add(i + n) = Fr::zero();
+                    *(coeffs.as_ptr() as *mut Fr).add(i + 2 * n) = Fr::zero();
+                    *(coeffs.as_ptr() as *mut Fr).add(i + 3 * n) = Fr::zero();
+                }
 
                 let mut index;
                 let mut root_index;
@@ -633,15 +648,20 @@ impl<Fr: Field + FftField> EvaluationDomain<Fr> {
                         if root_index >= m {
                             root_multiplier = -round_roots[root_index & half_mask];
                         }
-                        coeffs[(3 - s) * n + i] += root_multiplier * t_j;
+                        unsafe {
+                            *(coeffs.as_ptr() as *mut Fr).add((3 - s) * n + i) +=
+                                root_multiplier * t_j;
+                        }
                     }
                     if is_coset {
                         temp_constant *= self.generator;
-                        coeffs[(3 - s) * n + i] *= temp_constant;
+                        unsafe {
+                            *(coeffs.as_ptr() as *mut Fr).add((3 - s) * n + i) *= temp_constant;
+                        }
                     }
                 }
             }
-        }
+        });
     }
 
     pub(crate) fn partial_fft_serial(&self, coeffs: &mut [Fr], target: &mut [Fr]) {
@@ -677,16 +697,13 @@ impl<Fr: Field + FftField> EvaluationDomain<Fr> {
             &self.root_inverse,
             &self.get_inverse_round_roots()[..],
         );
-        // todo parallelize
-        for j in 0..self.num_threads {
-            for coeffs_i in coeffs
-                .iter_mut()
-                .take((j + 1) * self.thread_size)
-                .skip(j * self.thread_size)
-            {
-                *coeffs_i *= self.domain_inverse;
+        (0..self.num_threads).into_par_iter().for_each(|j| {
+            for i in (j * self.thread_size)..((j + 1) * self.thread_size) {
+                unsafe {
+                    *(coeffs.as_ptr() as *mut Fr).add(i) *= self.domain_inverse;
+                }
             }
-        }
+        })
     }
 
     pub(crate) fn ifft(&self, coeffs: &mut [Fr], target: &mut [Fr]) {
@@ -696,11 +713,10 @@ impl<Fr: Field + FftField> EvaluationDomain<Fr> {
             &self.root_inverse,
             &self.get_round_roots()[..],
         );
-        // TODO parallelize me
-        todo!("parallelize here")
-        // for i in 0..self.size {
-        //     target[i] *= self.domain_inverse;
-        // }
+
+        (0..self.size).into_par_iter().for_each(|i| unsafe {
+            *(target.as_ptr() as *mut Fr).add(i) *= self.domain_inverse;
+        });
     }
 
     pub(crate) fn ifft_vec_inplace(&self, coeffs: &mut [&mut [Fr]]) {
@@ -717,12 +733,14 @@ impl<Fr: Field + FftField> EvaluationDomain<Fr> {
         let poly_mask = poly_size - 1;
         let log2_poly_size = poly_size.get_msb();
 
-        // todo!("parallelize")
-        for j in 0..self.num_threads {
+        (0..self.num_threads).into_par_iter().for_each(|j| {
             for i in j * self.thread_size..(j + 1) * self.thread_size {
-                coeffs[i >> log2_poly_size][i & poly_mask] *= self.domain_inverse;
+                unsafe {
+                    *(coeffs[i >> log2_poly_size].as_ptr() as *mut Fr).add(i & poly_mask) *=
+                        self.domain_inverse;
+                }
             }
-        }
+        });
     }
     fn ifft_with_constant(&self, _coeffs: &mut [Fr], _value: Fr) {
         todo!();
@@ -817,17 +835,21 @@ impl<Fr: Field + FftField> EvaluationDomain<Fr> {
         }
 
         if domain_extension == 4 {
-            // TODO parallelism
-            for j in 0..small_domain.num_threads {
+            (0..small_domain.num_threads).into_par_iter().for_each(|j| {
                 let start = j * small_domain.thread_size;
                 let end = (j + 1) * small_domain.thread_size;
                 for i in start..end {
-                    scratch_space[i] = coeffs[i << 2];
-                    scratch_space[i + (1 << small_domain.log2_size)] = coeffs[(i << 2) + 1];
-                    scratch_space[i + (2 << small_domain.log2_size)] = coeffs[(i << 2) + 2];
-                    scratch_space[i + (3 << small_domain.log2_size)] = coeffs[(i << 2) + 3];
+                    unsafe {
+                        *(scratch_space.as_ptr() as *mut Fr).add(i) = coeffs[i << 2];
+                        *(scratch_space.as_ptr() as *mut Fr)
+                            .add(i + (1 << small_domain.log2_size)) = coeffs[(i << 2) + 1];
+                        *(scratch_space.as_ptr() as *mut Fr)
+                            .add(i + (2 << small_domain.log2_size)) = coeffs[(i << 2) + 2];
+                        *(scratch_space.as_ptr() as *mut Fr)
+                            .add(i + (3 << small_domain.log2_size)) = coeffs[(i << 2) + 3];
+                    }
                 }
-            }
+            });
             for i in 0..small_domain.size {
                 for j in 0..domain_extension {
                     scratch_space[i + (j << small_domain.log2_size)] =
@@ -1001,29 +1023,37 @@ impl<Fr: Field + FftField> EvaluationDomain<Fr> {
                 }
             }
         } else {
-            // TODO: Parallelize
-            for k in 0..target_domain.num_threads {
-                let offset = k * target_domain.thread_size;
-                let root_shift = target_domain.root.pow([offset as u64]);
-                let mut work_root = self.generator * root_shift;
-                for i in (offset..offset + target_domain.thread_size).step_by(subgroup_size) {
-                    for (j, subgroup_root) in subgroup_roots.iter().enumerate().take(subgroup_size)
-                    {
-                        let poly_idx = (i + j) >> log2_poly_size;
-                        let elem_idx = (i + j) & poly_mask;
-                        coeffs[poly_idx][elem_idx] *= subgroup_root;
-
-                        for num_const in numerator_constants
-                            .iter()
-                            .take(num_roots_cut_out_of_vanishing_polynomial)
+            (0..target_domain.num_threads)
+                .into_par_iter()
+                .for_each(|k| {
+                    let offset = k * target_domain.thread_size;
+                    let root_shift = target_domain.root.pow([offset as u64]);
+                    let mut work_root = self.generator * root_shift;
+                    for i in (offset..offset + target_domain.thread_size).step_by(subgroup_size) {
+                        for (j, subgroup_root) in
+                            subgroup_roots.iter().enumerate().take(subgroup_size)
                         {
-                            coeffs[poly_idx][elem_idx] *= work_root + num_const;
-                        }
+                            let poly_idx = (i + j) >> log2_poly_size;
+                            let elem_idx = (i + j) & poly_mask;
+                            unsafe {
+                                *(coeffs[poly_idx].as_ptr() as *mut Fr).add(elem_idx) *=
+                                    subgroup_root;
+                            }
 
-                        work_root *= target_domain.root;
+                            for num_const in numerator_constants
+                                .iter()
+                                .take(num_roots_cut_out_of_vanishing_polynomial)
+                            {
+                                unsafe {
+                                    *(coeffs[poly_idx].as_ptr() as *mut Fr).add(elem_idx) *=
+                                        work_root + num_const;
+                                }
+                            }
+
+                            work_root *= target_domain.root;
+                        }
                     }
-                }
-            }
+                });
         };
         Ok(())
     }
@@ -1154,15 +1184,20 @@ impl<Fr: Field + FftField> EvaluationDomain<Fr> {
         let multiplicand = target_domain.root; // kn'th root of unity w'
 
         // First compute X_i - 1, i = 0,...,kn-1
-        for j in 0..target_domain.num_threads {
-            let root_shift = multiplicand.pow([(j * target_domain.thread_size) as u64]);
-            let mut work_root = self.generator * root_shift; // g.(w')^{j*thread_size}
-            let offset = j * target_domain.thread_size;
-            for i in offset..offset + target_domain.thread_size {
-                l_1_coefficients[i] = work_root - Fr::one(); // (w')^{j*thread_size + i}.g - 1
-                work_root *= multiplicand; // (w')^{j*thread_size + i + 1}
-            }
-        }
+        (0..target_domain.num_threads)
+            .into_par_iter()
+            .for_each(|j| {
+                let root_shift = multiplicand.pow([(j * target_domain.thread_size) as u64]);
+                let mut work_root = self.generator * root_shift; // g.(w')^{j*thread_size}
+                let offset = j * target_domain.thread_size;
+                for i in offset..offset + target_domain.thread_size {
+                    unsafe {
+                        *(l_1_coefficients.coefficients.as_ptr() as *mut Fr).add(i) =
+                            work_root - Fr::one(); // (w')^{j*thread_size + i}.g - 1
+                    }
+                    work_root *= multiplicand; // (w')^{j*thread_size + i + 1}
+                }
+            });
 
         // Compute 1/(X_i - 1) using Montgomery batch inversion
         batch_inversion(l_1_coefficients.coefficients.as_mut_slice());
@@ -1177,19 +1212,24 @@ impl<Fr: Field + FftField> EvaluationDomain<Fr> {
         self.compute_multiplicative_subgroup(log2_subgroup_size, &mut subgroup_roots)?;
 
         // Subtract 1 and divide by n to get the k elements (1/n)*(X_i^n - 1)
-        for root in &mut subgroup_roots {
+        for root in subgroup_roots.iter_mut() {
             *root -= Fr::one();
             *root *= self.domain_inverse;
         }
         // Step 3: Construct L_1(X_i) by multiplying the 1/denominator evaluations in
         // l_1_coefficients by the numerator evaluations in subgroup_roots
         let subgroup_mask = subgroup_size - 1;
-        for i in 0..target_domain.num_threads {
-            for j in 0..target_domain.thread_size {
-                let eval_idx = i * target_domain.thread_size + j;
-                l_1_coefficients[eval_idx] *= subgroup_roots[eval_idx & subgroup_mask];
-            }
-        }
+        (0..target_domain.num_threads)
+            .into_par_iter()
+            .for_each(|i| {
+                for j in 0..target_domain.thread_size {
+                    let eval_idx = i * target_domain.thread_size + j;
+                    unsafe {
+                        *(l_1_coefficients.coefficients.as_ptr() as *mut Fr).add(eval_idx) *=
+                            subgroup_roots[eval_idx & subgroup_mask];
+                    }
+                }
+            });
         Ok(())
     }
 
@@ -1622,11 +1662,11 @@ pub(crate) fn evaluate<F: Field>(coeffs: &[F], z: &F, n: usize) -> F {
     let num_threads = compute_num_threads();
     let range_per_thread = n / num_threads;
     let leftovers = n - (range_per_thread * num_threads);
-    let mut evaluations = vec![F::default(); num_threads];
-    for (j, eval_j) in evaluations.iter_mut().enumerate().take(num_threads) {
+    let evaluations = RwLock::new(vec![F::default(); num_threads]);
+    (0..num_threads).into_par_iter().for_each(|j| {
         let mut z_acc = z.pow([(j * range_per_thread) as u64]);
         let offset = j * range_per_thread;
-        *eval_j = F::default();
+        evaluations.write().unwrap()[j] = F::default();
         let end = if j == num_threads - 1 {
             offset + range_per_thread + leftovers
         } else {
@@ -1634,12 +1674,12 @@ pub(crate) fn evaluate<F: Field>(coeffs: &[F], z: &F, n: usize) -> F {
         };
         for coeffs_i in coeffs.iter().take(end).skip(offset) {
             let work_var = z_acc * coeffs_i;
-            *eval_j += work_var;
+            evaluations.write().unwrap()[j] += work_var;
             z_acc *= z;
         }
-    }
+    });
     let mut r = F::default();
-    for evaluation in evaluations {
+    for evaluation in evaluations.read().unwrap().iter() {
         r += evaluation;
     }
     r

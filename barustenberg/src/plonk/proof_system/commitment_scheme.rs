@@ -5,13 +5,16 @@ use std::sync::{Arc, RwLock};
 use ark_bn254::{Fq, Fr, G1Affine};
 use ark_ec::AffineRepr;
 use ark_ff::{FftField, Field, One, Zero};
+use rayon::prelude::{IntoParallelIterator, ParallelIterator};
 
 use crate::polynomials::{polynomial_arithmetic, Polynomial};
 use crate::proof_system::work_queue::{Work, WorkItem, WorkQueue};
 use crate::transcript::{BarretenHasher, Transcript};
 
 use super::proving_key::ProvingKey;
+use super::types::polynomial_manifest::PolynomialSource;
 use super::types::proof::CommitmentOpenProof;
+use super::types::prover_settings::Settings;
 use super::verification_key::VerificationKey;
 
 /// A polynomial commitment scheme defined over two FieldExts, a group, a hash function.
@@ -77,27 +80,37 @@ pub(crate) trait CommitmentScheme {
 
 #[derive(Default, Debug)]
 pub(crate) struct KateCommitmentScheme<
+    S: Settings<Hasher = H, Field = Fr, Group = G>,
     H: BarretenHasher,
     Fq: Field + FftField,
     Fr: Field + FftField,
     G: AffineRepr,
 > {
     _kate_open_proof: CommitmentOpenProof,
+    settings: S,
     phantom: PhantomData<(H, Fr, G, Fq)>,
 }
 
-impl<H: BarretenHasher, Fq: Field + FftField, Fr: Field + FftField, G: AffineRepr>
-    KateCommitmentScheme<H, Fq, Fr, G>
+impl<
+        S: Settings<Hasher = H, Field = Fr, Group = G>,
+        H: BarretenHasher,
+        Fq: Field + FftField,
+        Fr: Field + FftField,
+        G: AffineRepr,
+    > KateCommitmentScheme<S, H, Fq, Fr, G>
 {
-    pub(crate) fn new() -> Self {
+    pub(crate) fn new(settings: S) -> Self {
         Self {
             _kate_open_proof: CommitmentOpenProof::default(),
+            settings,
             phantom: PhantomData,
         }
     }
 }
 
-impl<H: BarretenHasher> CommitmentScheme for KateCommitmentScheme<H, Fq, Fr, G1Affine> {
+impl<S: Settings<Hasher = H, Field = Fr, Group = G1Affine>, H: BarretenHasher> CommitmentScheme
+    for KateCommitmentScheme<S, H, Fq, Fr, G1Affine>
+{
     type Fq = Fq;
     type Fr = Fr;
     type Group = G1Affine;
@@ -121,15 +134,82 @@ impl<H: BarretenHasher> CommitmentScheme for KateCommitmentScheme<H, Fq, Fr, G1A
 
     fn add_opening_evaluations_to_transcript(
         &self,
-        _transcript: &mut Transcript<H>,
-        _input_key: Option<Arc<RwLock<ProvingKey<Self::Fr>>>>,
-        _in_lagrange_form: bool,
+        transcript: &mut Transcript<H>,
+        input_key: Option<Arc<RwLock<ProvingKey<Self::Fr>>>>,
+        in_lagrange_form: bool,
     ) {
-        todo!()
+        // In this function, we compute the evaluations of all polynomials in the polynomial manifest at the
+        // evaluation challenge "zeta", as well as the needed evaluations at shifts.
+        //
+        // We also allow this evaluation computation for lagrange (evaluation) forms of polynomials instead of
+        // the usual coefficient forms.
+
+        //
+        let input_key = input_key.unwrap();
+        let input_key = input_key.read().unwrap();
+
+        let zeta: Self::Fr = transcript.get_challenge_field_element("z", None);
+        let shifted_z = zeta * input_key.small_domain.root;
+        let n = input_key.small_domain.size;
+
+        for i in 0..input_key.polynomial_manifest.len() {
+            let info = input_key.polynomial_manifest[i.into()].clone();
+            let poly = input_key
+                .polynomial_store
+                .get(&info.polynomial_label)
+                .unwrap();
+            let poly = &poly.read().unwrap().coefficients;
+            let poly_evaluation = if in_lagrange_form {
+                input_key
+                    .small_domain
+                    .compute_barycentric_evaluation(poly, n, &zeta)
+            } else {
+                polynomial_arithmetic::evaluate(poly, &zeta, n)
+            };
+
+            transcript.add_field_element("poly_eval", &poly_evaluation);
+
+            if info.requires_shifted_evaluation {
+                let poly_evaluation = if in_lagrange_form {
+                    // TODO is this a bug? Shouldn't we be using shifted_z instead of zeta?
+                    input_key
+                        .small_domain
+                        .compute_barycentric_evaluation(poly, n, &zeta)
+                } else {
+                    polynomial_arithmetic::evaluate(poly, &shifted_z, n)
+                };
+                transcript.add_field_element(
+                    format!("{}_omega", info.polynomial_label).as_str(),
+                    &poly_evaluation,
+                );
+            }
+        }
     }
 
-    fn compute_opening_polynomial(&self, _src: &[Fr], _dest: &mut [Fr], _z: &Fr, _n: usize) {
-        todo!()
+    fn compute_opening_polynomial(&self, src: &[Fr], dest: &mut [Fr], z_point: &Fr, n: usize) {
+        // open({cm_i}, {cm'_i}, {z, z'}, {s_i, s'_i})
+
+        // if `coeffs` represents F(X), we want to compute W(X)
+        // where W(X) = F(X) - F(z) / (X - z)
+        // i.e. divide by the degree-1 polynomial [-z, 1]
+
+        // We assume that the commitment is well-formed and that there is no remainder term.
+        // Under these conditions we can perform this polynomial division in linear time with good constants.
+        // Note that the opening polynomial always has (n+1) coefficients for Standard/Turbo/Ultra due to
+        // the blinding of the quotient polynomial parts.
+        let f = polynomial_arithmetic::evaluate(src, z_point, n + 1);
+
+        // compute (1 / -z)
+        let divisor = -z_point.inverse().unwrap();
+
+        // we're about to shove these coefficients into a pippenger multi-exponentiation routine, where we need
+        // to convert out of montgomery form. So, we can use lazy reduction techniques here without triggering overflows
+        dest[0] = src[0] - f;
+        dest[0] *= divisor;
+        for i in 1..n {
+            dest[i] = src[i] - dest[i - 1];
+            dest[i] *= divisor;
+        }
     }
 
     fn generic_batch_open(
@@ -224,21 +304,225 @@ impl<H: BarretenHasher> CommitmentScheme for KateCommitmentScheme<H, Fq, Fr, G1A
 
     fn batch_open(
         &mut self,
-        _transcript: &Transcript<H>,
-        _queue: &mut WorkQueue<H>,
-        _input_key: Option<Arc<RwLock<ProvingKey<Self::Fr>>>>,
+        transcript: &Transcript<H>,
+        queue: &mut WorkQueue<H>,
+        input_key: Option<Arc<RwLock<ProvingKey<Self::Fr>>>>,
     ) {
-        todo!()
+        let input_key = input_key.unwrap();
+        let mut input_key = input_key.write().unwrap();
+        /*
+        Compute batch opening polynomials according to the Kate commitment scheme.
+
+        Step 1: Compute the polynomial F(X) s.t. W_{\zeta}(X) = (F(X) - F(\zeta))/(X - \zeta) defined in round 5 of the
+        PLONK paper. Step 2: Compute the polynomial z(X) s.t. W_{\zeta \omega}(X) = (z(X) - z(\zeta \omega))/(X -
+        \zeta.\omega). Step 3: Compute coefficient form of W_{\zeta}(X) and W_{\zeta \omega}(X). Step 4: Commit to
+        W_{\zeta}(X) and W_{\zeta \omega}(X).
+        */
+        let mut opened_polynomials_at_zeta: Vec<(Arc<RwLock<Polynomial<Fr>>>, Fr)> = Vec::new();
+        let mut opened_polynomials_at_zeta_omega: Vec<(Arc<RwLock<Polynomial<Fr>>>, Fr)> =
+            Vec::new();
+
+        // Add the following tuples to the above data structures:
+        //
+        // [a(X), nu_1], [b(X), nu_2], [c(X), nu_3],
+        // [S_{\sigma_1}(X), nu_4], [S_{\sigma_2}(X), nu_5],
+        // [z(X), nu_6]
+        //
+        // Note that the challenges nu_1, ..., nu_6 depend on the label of the respective polynomial.
+
+        // Add challenge-poly tuples for all polynomials in the manifest
+        for i in 0..input_key.polynomial_manifest.len() {
+            let info = &input_key.polynomial_manifest[i.into()];
+            let poly_label = &info.polynomial_label;
+
+            let poly = input_key.polynomial_store.get(poly_label).unwrap();
+
+            let nu_challenge = transcript.get_challenge_field_element_from_map("nu", poly_label);
+            opened_polynomials_at_zeta.push((poly.clone(), nu_challenge));
+
+            if info.requires_shifted_evaluation {
+                let nu_challenge = transcript
+                    .get_challenge_field_element_from_map("nu", &format!("{}_omega", poly_label));
+                opened_polynomials_at_zeta_omega.push((poly, nu_challenge));
+            }
+        }
+
+        let zeta: Fr = transcript.get_challenge_field_element("z", None);
+
+        // Note: the opening poly W_\frak{z} is always size (n + 1) due to blinding
+        // of the quotient polynomial
+        let opening_poly: Arc<RwLock<Polynomial<Fr>>> =
+            Arc::new(RwLock::new(Polynomial::new(input_key.circuit_size + 1)));
+        let shifted_opening_poly: Arc<RwLock<Polynomial<Fr>>> =
+            Arc::new(RwLock::new(Polynomial::new(input_key.circuit_size)));
+
+        // Add the tuples [t_{mid}(X), \zeta^{n}], [t_{high}(X), \zeta^{2n}]
+        // Note: We don't need to include the t_{low}(X) since it is multiplied by 1 for combining with other witness
+        // polynomials.
+        //
+        for i in 1..self.settings.program_width() {
+            let offset = i * input_key.small_domain.size;
+            let scalar = zeta.pow([offset as u64]);
+            opened_polynomials_at_zeta
+                .push((input_key.quotient_polynomial_parts[i].clone(), scalar));
+        }
+
+        // Add up things to get coefficients of opening polynomials.
+        // TODO THESE LOCKS ARE FUCKED. UP. THEY WILL BE UNDER HEAVY CONTENTION. FIX THEM
+        (0..input_key.small_domain.size)
+            .into_par_iter()
+            .for_each(|i| {
+                let mut opening_poly = opening_poly.write().unwrap();
+                opening_poly[i] = input_key.quotient_polynomial_parts[0].read().unwrap()[i];
+                for &(ref poly, challenge) in &opened_polynomials_at_zeta {
+                    opening_poly[i] += (*poly).read().unwrap()[i] * challenge;
+                }
+                let mut shifted_opening_poly = shifted_opening_poly.write().unwrap();
+                shifted_opening_poly[i] = Fr::zero();
+                for &(ref poly, challenge) in &opened_polynomials_at_zeta_omega {
+                    shifted_opening_poly[i] += (*poly).read().unwrap()[i] * challenge;
+                }
+            });
+
+        let opening_poly = Arc::try_unwrap(opening_poly).unwrap();
+        let opening_poly = opening_poly.into_inner();
+        let mut opening_poly = opening_poly.unwrap();
+        let shifted_opening_poly = Arc::try_unwrap(shifted_opening_poly).unwrap();
+        let shifted_opening_poly = shifted_opening_poly.into_inner();
+        let shifted_opening_poly = shifted_opening_poly.unwrap();
+
+        // Adjust the (n + 1)th coefficient of t_{0,1,2}(X) or r(X) (Note: t_4 (Turbo/Ultra) has only n coefficients)
+        opening_poly[input_key.circuit_size] = Fr::zero();
+        let zeta_pow_n = zeta.pow([input_key.circuit_size as u64]);
+
+        let num_deg_n_poly = if self.settings.program_width() == 3 {
+            self.settings.program_width()
+        } else {
+            self.settings.program_width() - 1
+        };
+        let mut scalar_mult = Fr::one();
+        for i in 0..num_deg_n_poly {
+            opening_poly[input_key.circuit_size] +=
+                input_key.quotient_polynomial_parts[i].read().unwrap()[input_key.circuit_size]
+                    * scalar_mult;
+            scalar_mult *= zeta_pow_n;
+        }
+
+        // Compute the shifted evaluation point \frak{z}*omega
+        let zeta_omega = zeta * input_key.small_domain.root;
+
+        // Compute the W_{\zeta}(X) and W_{\zeta \omega}(X) polynomials
+        self.compute_opening_polynomial(
+            &[opening_poly[0]],
+            &mut [opening_poly[0]],
+            &zeta,
+            input_key.circuit_size,
+        );
+        self.compute_opening_polynomial(
+            &[shifted_opening_poly[0]],
+            &mut [shifted_opening_poly[0]],
+            &zeta_omega,
+            input_key.circuit_size,
+        );
+
+        input_key
+            .polynomial_store
+            .put("opening_poly".to_string(), opening_poly);
+        input_key
+            .polynomial_store
+            .put("shifted_opening_poly".to_string(), shifted_opening_poly);
+
+        // Commit to the opening and shifted opening polynomials
+        self.commit(
+            input_key
+                .polynomial_store
+                .get(&"opening_poly".to_string())
+                .unwrap(),
+            "PI_Z".to_owned(),
+            Fr::from(input_key.circuit_size as u64),
+            queue,
+        );
+        self.commit(
+            input_key
+                .polynomial_store
+                .get(&"shifted_opening_poly".to_string())
+                .unwrap(),
+            "PI_Z_OMEGA".to_owned(),
+            Fr::from(input_key.circuit_size as u64),
+            queue,
+        );
     }
 
     fn batch_verify(
         &self,
-        _transcript: &Transcript<H>,
-        _kate_g1_elements: &mut HashMap<String, G1Affine>,
-        _kate_fr_elements: &mut HashMap<String, Fr>,
-        _input_key: Option<&VerificationKey<Fr>>,
+        transcript: &Transcript<H>,
+        kate_g1_elements: &mut HashMap<String, G1Affine>,
+        kate_fr_elements: &mut HashMap<String, Fr>,
+        input_key: Option<&VerificationKey<Fr>>,
     ) {
-        todo!()
+        let mut batch_eval = Fr::zero();
+        let polynomial_manifest = &input_key.as_ref().unwrap().polynomial_manifest;
+        for i in 0..polynomial_manifest.len() {
+            let item = &polynomial_manifest[i.into()];
+            let label = item.commitment_label.clone();
+            let poly_label = item.polynomial_label.clone();
+            match item.source {
+                PolynomialSource::Witness => {
+                    let element: G1Affine = transcript.get_group_element(&label);
+                    // removed || element.is_point_at_infinity()
+                    if !element.is_on_curve() {
+                        panic!("polynomial commitment to witness is not a valid point.");
+                    }
+                    kate_g1_elements.insert(label.clone(), element);
+                }
+                PolynomialSource::Selector | PolynomialSource::Permutation => {
+                    let element = input_key.as_ref().unwrap().commitments.get(&label).unwrap();
+                    if !element.is_on_curve() {
+                        panic!("polynomial commitment to selector is not a valid point.");
+                    }
+                    kate_g1_elements.insert(label.clone(), *element);
+                }
+                PolynomialSource::Other => {}
+            }
+
+            let has_shifted_evaluation = item.requires_shifted_evaluation;
+            let mut kate_fr_scalar = Fr::zero();
+            if has_shifted_evaluation {
+                let challenge: Fr = transcript
+                    .get_challenge_field_element_from_map("nu", &format!("{}_omega", poly_label));
+                let separator_challenge: Fr =
+                    transcript.get_challenge_field_element("separator", Some(0));
+                kate_fr_scalar += separator_challenge * challenge;
+                let poly_at_zeta_omega: Fr =
+                    transcript.get_field_element(&format!("{}_omega", poly_label));
+                batch_eval += separator_challenge * challenge * poly_at_zeta_omega;
+            }
+
+            let challenge: Fr = transcript.get_challenge_field_element_from_map("nu", &poly_label);
+            kate_fr_scalar += challenge;
+            let poly_at_zeta: Fr = transcript.get_field_element(&poly_label);
+            batch_eval += challenge * poly_at_zeta;
+            kate_fr_elements.insert(label, kate_fr_scalar);
+        }
+
+        let zeta: Fr = transcript.get_challenge_field_element("z", None);
+        let quotient_challenge: Fr = transcript.get_challenge_field_element_from_map("nu", "t");
+
+        let z_pow_n = zeta.pow([input_key.as_ref().unwrap().circuit_size as u64]);
+        let mut z_power = Fr::one();
+        for i in 0..self.settings.program_width() {
+            let quotient_label = format!("T_{}", i + 1);
+            let element = transcript.get_group_element(&quotient_label);
+            kate_g1_elements.insert(quotient_label.clone(), element);
+            kate_fr_elements.insert(quotient_label, quotient_challenge * z_power);
+            z_power *= z_pow_n;
+        }
+
+        let quotient_eval: Fr = transcript.get_field_element("t");
+        batch_eval += quotient_eval * quotient_challenge;
+
+        kate_g1_elements.insert("BATCH_EVALUATION".to_string(), G1Affine::identity());
+        kate_fr_elements.insert("BATCH_EVALUATION".to_string(), -batch_eval);
     }
 }
 

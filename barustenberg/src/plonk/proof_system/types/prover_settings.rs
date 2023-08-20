@@ -12,7 +12,7 @@ use crate::{
 
 // TODO bevy_reflect? or what
 // or inline everything!
-pub trait Settings: Sized {
+pub(crate) trait Settings: Sized {
     type Hasher: BarretenHasher;
     type Field: Field + FftField;
     type Group: AffineRepr;
@@ -48,8 +48,8 @@ pub trait Settings: Sized {
     fn hasher(&self) -> &Self::Hasher;
 }
 
-#[derive(Default, Debug)]
-pub(crate) struct StandardSettings<H: BarretenHasher> {
+#[derive(Default, Debug, Clone, Copy)]
+pub struct StandardSettings<H: BarretenHasher> {
     hasher: H,
 }
 
