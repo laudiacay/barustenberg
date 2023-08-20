@@ -203,14 +203,14 @@ impl PolynomialManifest {
     pub(crate) fn new_from_type(type_: ComposerType) -> Self {
         match type_ {
             ComposerType::Standard => STANDARD_POLYNOMIAL_MANIFEST.clone(),
-            ComposerType::Turbo => TURBO_POLYNOMIAL_MANIFEST.clone(),
-            ComposerType::Plookup => ULTRA_POLYNOMIAL_MANIFEST.clone(),
+            ComposerType::_Turbo => TURBO_POLYNOMIAL_MANIFEST.clone(),
+            ComposerType::_Plookup => ULTRA_POLYNOMIAL_MANIFEST.clone(),
             _ => unimplemented!("no standardhonk..."),
         }
     }
 
     pub(crate) fn len(&self) -> usize {
-        todo!()
+        self.manifest.len()
     }
     pub(crate) fn get(&self, index: PolynomialIndex) -> &PolynomialDescriptor {
         &self.manifest[index as usize]

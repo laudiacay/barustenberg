@@ -14,7 +14,10 @@ use ark_ff::{BigInteger, Field, One, Zero};
 
 use super::{
     commitment_scheme::{CommitmentScheme, KateCommitmentScheme},
-    types::{prover_settings::Settings, Proof},
+    types::{
+        prover_settings::{Settings, StandardSettings},
+        Proof,
+    },
 };
 
 use std::collections::HashMap;
@@ -29,35 +32,31 @@ mod test;
 
 /// Verifier struct
 #[derive(Debug)]
-pub struct Verifier<H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>> {
-    settings: S,
+pub struct Verifier<H: BarretenHasher> {
+    pub(crate) settings: StandardSettings<H>,
     key: Arc<RwLock<VerificationKey<Fr>>>,
     manifest: Manifest,
     kate_g1_elements: HashMap<String, G1Affine>,
     kate_fr_elements: HashMap<String, Fr>,
-    pub(crate) commitment_scheme: Box<KateCommitmentScheme<H, Fq, Fr, G1Affine>>,
+    pub(crate) commitment_scheme:
+        Box<KateCommitmentScheme<StandardSettings<H>, H, Fq, Fr, G1Affine>>,
 }
 
 /// verifier interface
-impl<H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>> Verifier<H, S> {
+impl<H: BarretenHasher> Verifier<H> {
     /// Constructor
-    pub fn new(
-        _verifier_key: Option<Arc<RwLock<VerificationKey<Fr>>>>,
-        _manifest: Manifest,
-    ) -> Self {
-        // Implement constructor logic here.
-        todo!("Verifier::new")
-    }
-
-    /// Validate commitements
-    fn validate_commitments(&self) -> bool {
-        // Implement validate_commitments logic here.
-        todo!("Verifier::validate_commitments")
-    }
-
-    fn validate_scalars(&self) -> bool {
-        // Implement validate_scalars logic here.
-        todo!("Verifier::validate_scalars")
+    pub fn new(verifier_key: Option<Arc<RwLock<VerificationKey<Fr>>>>, manifest: Manifest) -> Self {
+        let h = H::default();
+        let s = StandardSettings::new(h);
+        let c = KateCommitmentScheme::<StandardSettings<H>, H, Fq, Fr, G1Affine>::new(s.clone());
+        Verifier {
+            settings: s,
+            key: verifier_key.unwrap(), // todo is this a problem?
+            manifest,
+            kate_g1_elements: HashMap::new(),
+            kate_fr_elements: HashMap::new(),
+            commitment_scheme: Box::new(c),
+        }
     }
 
     /// Verify Proof
@@ -138,12 +137,12 @@ impl<H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>> V
         (*self.key).write().unwrap().z_pow_n = z_pow_n;
 
         // compute the quotient polynomial numerator contribution
-        let t_numerator_eval = Fr::zero();
-        S::compute_quotient_evaluation_contribution(
-            &(*self.key).read().unwrap(),
+        let mut t_numerator_eval = Fr::zero();
+        StandardSettings::<H>::compute_quotient_evaluation_contribution(
+            self.key.clone(),
             &alpha,
             &transcript,
-            &t_numerator_eval,
+            &mut t_numerator_eval,
         );
         let t_eval = t_numerator_eval * lagrange_evals.vanishing_poly.inverse().unwrap();
         transcript.add_field_element("t", &t_eval);
@@ -188,11 +187,11 @@ impl<H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>> V
         // Again, we dont actually compute the MSMs and just accumulate scalars and group elements and postpone MSM to last
         // step.
         //
-        S::append_scalar_multiplication_inputs(
-            &(*self.key).read().unwrap(),
+        StandardSettings::<H>::append_scalar_multiplication_inputs(
+            self.key.clone(),
             &alpha,
             &transcript,
-            &self.kate_fr_elements,
+            &mut self.kate_fr_elements,
         );
 
         // Fetch the group elements [W_z]_1,[W_zω]_1 from the transcript

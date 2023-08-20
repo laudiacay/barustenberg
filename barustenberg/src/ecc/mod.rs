@@ -4,8 +4,6 @@ use ark_ff::{FftField, Field};
 pub(crate) mod curves;
 pub(crate) mod scalar_multiplication;
 
-pub(crate) struct MillerLines;
-
 #[inline]
 pub(crate) fn conditionally_subtract_from_double_modulus<Fr: Field + FftField>(
     _this: &Fr,

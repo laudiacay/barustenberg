@@ -4,9 +4,7 @@ use crate::{
     plonk::{
         composer::composer_base::ComposerType,
         proof_system::{
-            commitment_scheme::KateCommitmentScheme,
             proving_key::ProvingKey,
-            types::prover_settings::StandardSettings,
             utils::permutation::compute_permutation_lagrange_base_single,
             widgets::{
                 random_widgets::permutation_widget::ProverPermutationWidget,
@@ -18,7 +16,7 @@ use crate::{
     srs::reference_string::file_reference_string::FileReferenceString,
     transcript::{BarretenHasher, Keccak256, Manifest, ManifestEntry, RoundManifest},
 };
-use ark_bn254::{Fq, Fr, G1Affine};
+use ark_bn254::Fr;
 use ark_ff::{One, UniformRand, Zero};
 
 use super::Prover;
@@ -252,14 +250,11 @@ fn create_manifest(num_public_inputs: usize) -> Manifest {
     ])
 }
 
-fn generate_test_data<H: BarretenHasher + Default + 'static>(
-    n: usize,
-) -> Prover<H, StandardSettings<H>> {
+fn generate_test_data<H: BarretenHasher + Default + 'static>(n: usize) -> Prover<H> {
     // create some constraints that satisfy our arithmetic circuit relation
-    let reference_string = Arc::new(RwLock::new(FileReferenceString::new(
-        n + 1,
-        "./src/srs_db/ignition",
-    ).unwrap()));
+    let reference_string = Arc::new(RwLock::new(
+        FileReferenceString::new(n + 1, "./src/srs_db/ignition").unwrap(),
+    ));
     let key = Arc::new(RwLock::new(ProvingKey::new(
         n,
         0,
@@ -514,13 +509,9 @@ fn generate_test_data<H: BarretenHasher + Default + 'static>(
     let widget: Box<ProverArithmeticWidget<H>> =
         Box::new(ProverArithmeticWidget::<H>::new(key.clone()));
 
-    let kate_commitment_scheme = KateCommitmentScheme::<H, Fq, Fr, G1Affine>::new();
-
-    let mut state: Prover<H, StandardSettings<H>> =
-        Prover::new(Some(key), Some(create_manifest(0)), None);
+    let mut state: Prover<H> = Prover::new(Some(key), Some(create_manifest(0)), None);
     state.random_widgets.push(permutation_widget);
     state.transition_widgets.push(widget);
-    state.commitment_scheme = kate_commitment_scheme;
     state
 }
 

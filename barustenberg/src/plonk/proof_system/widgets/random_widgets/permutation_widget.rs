@@ -44,12 +44,13 @@ where
     }
 
     pub(crate) fn compute_quotient_evaluation_contribution(
-        key: &Arc<VerificationKey<F>>,
+        key: &VerificationKey<F>,
         alpha: F,
         transcript: &Transcript<H>,
         quotient_numerator_eval: &mut F,
-        idpolys: bool,
+        idpolys: Option<bool>,
     ) -> F {
+        let idpolys = idpolys.unwrap_or(false);
         let alpha_squared: F = alpha.square();
         let alpha_cubed = alpha_squared * alpha;
         // a.k.a. zeta or ʓ

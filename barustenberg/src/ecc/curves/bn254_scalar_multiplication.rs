@@ -6,10 +6,6 @@ use ark_ff::{Field, Zero};
 
 use crate::srs::io::read_transcript_g1;
 
-pub(crate) type G1AffineGroup = <ark_ec::short_weierstrass::Affine<
-    <ark_bn254::Config as ark_ec::bn::BnConfig>::G1Config,
-> as ark_ec::AffineRepr>::Group;
-
 use anyhow::Result;
 
 #[inline]
