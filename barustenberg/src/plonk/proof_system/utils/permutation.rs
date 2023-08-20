@@ -70,15 +70,12 @@ pub(crate) fn compute_permutation_lagrange_base_single_helper<
             conditionally_subtract_from_double_modulus(&roots[idx], negative_idx as u64);
 
         if perm_i.is_public_input {
-            // TODO: Replace with correct external_coset_generator function
             output.coefficients[i] *= external_coset_generator::<Fr>();
         } else if perm_i.is_tag {
-            // TODO: Replace with correct tag_coset_generator function
             output.coefficients[i] *= tag_coset_generator::<Fr>();
         } else {
             let column_index = perm_i.column_index;
             if column_index > 0 {
-                // TODO: Replace with correct coset_generator function
                 output.coefficients[i] *= coset_generator::<Fr>(column_index - 1);
             }
         }

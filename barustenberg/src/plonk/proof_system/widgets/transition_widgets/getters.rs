@@ -11,7 +11,7 @@ use std::{collections::HashSet, marker::PhantomData};
 use typenum::Unsigned;
 
 use ark_ec::AffineRepr;
-use ark_ff::{FftField, Field, Zero};
+use ark_ff::{FftField, Field};
 
 use crate::{
     plonk::proof_system::{
@@ -128,7 +128,7 @@ pub(crate) trait BaseGetter {
     ) -> Self::Fr;
 }
 
-pub(crate) struct EvaluationGetterImpl<H, F, G, NWidgetRelations>
+pub(crate) struct EvaluationGetter<H, F, G, NWidgetRelations>
 where
     F: Field + FftField,
     G: AffineRepr,
@@ -138,8 +138,72 @@ where
     phantom: PhantomData<(F, H, G, NWidgetRelations)>,
 }
 
+impl<H, F, G, NWidgetRelations> EvaluationGetter<H, F, G, NWidgetRelations>
+where
+    F: Field + FftField,
+    G: AffineRepr,
+    H: BarretenHasher,
+    NWidgetRelations: generic_array::ArrayLength<F>,
+{
+    /// Get a polynomial at offset `id`
+    ///
+    /// # Arguments
+    ///
+    /// * `polynomials` - An array of polynomials
+    ///
+    /// # Type Parameters
+    ///
+    /// * `use_shifted_evaluation` - Whether to pick first or second
+    /// * `id` - Polynomial index.
+    ///
+    /// # Returns
+    ///
+    /// The chosen polynomial
+    pub(crate) fn get_evaluation_value(
+        polynomials: &PolyArray<F>,
+        evaluation_type: EvaluationType,
+        id: PolynomialIndex,
+        index: Option<usize>,
+    ) -> &F {
+        assert!(index.is_none());
+        match evaluation_type {
+            EvaluationType::Shifted => &polynomials[id].1,
+            EvaluationType::NonShifted => &polynomials[id].0,
+        }
+    }
+
+    /// Return an array with poly
+    ///
+    /// # Arguments
+    ///
+    /// * `polynomial_manifest`
+    /// * `transcript`
+    ///
+    /// # Returns
+    ///
+    /// `PolyArray`
+    pub(crate) fn get_polynomial_evaluations(
+        polynomial_manifest: &PolynomialManifest,
+        transcript: &Transcript<H>,
+    ) -> PolyArray<F> {
+        let mut result: PolyArray<F> = Default::default();
+        for i in 0..polynomial_manifest.len() {
+            let info = &polynomial_manifest[i.into()];
+            let label = info.polynomial_label.clone();
+            result[i.into()].0 = transcript.get_field_element(&label);
+
+            if info.requires_shifted_evaluation {
+                result[info.index].1 = transcript.get_field_element(&(label + "_omega"));
+            } else {
+                result[info.index].1 = F::zero();
+            }
+        }
+        result
+    }
+}
+
 impl<H, F: Field + FftField, G: AffineRepr, NWidgetRelations> BaseGetter
-    for EvaluationGetterImpl<H, F, G, NWidgetRelations>
+    for EvaluationGetter<H, F, G, NWidgetRelations>
 where
     H: BarretenHasher,
     NWidgetRelations: generic_array::ArrayLength<F>,
@@ -164,84 +228,7 @@ where
     }
 }
 
-/// Implements loading polynomial openings from transcript in addition to BaseGetter's
-/// loading challenges from the transcript and computing powers of α
-pub(crate) trait EvaluationGetter {
-    type Hasher: BarretenHasher;
-    type Fr: Field + FftField;
-    type G1: AffineRepr;
-    type NWidgetRelations: generic_array::ArrayLength<Self::Fr>;
-
-    /// Get a polynomial at offset `id`
-    ///
-    /// # Arguments
-    ///
-    /// * `polynomials` - An array of polynomials
-    ///
-    /// # Type Parameters
-    ///
-    /// * `use_shifted_evaluation` - Whether to pick first or second
-    /// * `id` - Polynomial index.
-    ///
-    /// # Returns
-    ///
-    /// The chosen polynomial
-    fn get_evaluation_value(
-        polynomials: &PolyArray<Self::Fr>,
-        evaluation_type: EvaluationType,
-        id: PolynomialIndex,
-        index: Option<usize>,
-    ) -> &Self::Fr {
-        assert!(index.is_none());
-        match evaluation_type {
-            EvaluationType::Shifted => &polynomials[id].1,
-            EvaluationType::NonShifted => &polynomials[id].0,
-        }
-    }
-
-    /// Return an array with poly
-    ///
-    /// # Arguments
-    ///
-    /// * `polynomial_manifest`
-    /// * `transcript`
-    ///
-    /// # Returns
-    ///
-    /// `PolyArray`
-    fn get_polynomial_evaluations(
-        polynomial_manifest: &PolynomialManifest,
-        transcript: &Transcript<Self::Hasher>,
-    ) -> PolyArray<Self::Fr> {
-        let mut result: PolyArray<Self::Fr> = Default::default();
-        for i in 0..polynomial_manifest.len() {
-            let info = &polynomial_manifest[i.into()];
-            let label = info.polynomial_label.clone();
-            result[i.into()].0 = transcript.get_field_element(&label);
-
-            if info.requires_shifted_evaluation {
-                result[info.index].1 = transcript.get_field_element(&(label + "_omega"));
-            } else {
-                result[info.index].1 = Self::Fr::zero();
-            }
-        }
-        result
-    }
-}
-
-impl<H, F: Field + FftField, G: AffineRepr, NWidgetRelations> EvaluationGetter
-    for EvaluationGetterImpl<H, F, G, NWidgetRelations>
-where
-    H: BarretenHasher,
-    NWidgetRelations: generic_array::ArrayLength<F>,
-{
-    type Hasher = H;
-    type Fr = F;
-    type G1 = G;
-    type NWidgetRelations = NWidgetRelations;
-}
-
-pub(crate) struct FFTGetterImpl<H, F, G, NWidgetRelations>
+pub(crate) struct FFTGetter<H, F, G, NWidgetRelations>
 where
     F: Field + FftField,
     H: BarretenHasher,
@@ -251,7 +238,7 @@ where
     phantom: PhantomData<(F, H, G, NWidgetRelations)>,
 }
 
-impl<H, F, G, NWidgetRelations> BaseGetter for FFTGetterImpl<H, F, G, NWidgetRelations>
+impl<H, F, G, NWidgetRelations> BaseGetter for FFTGetter<H, F, G, NWidgetRelations>
 where
     F: Field + FftField,
     H: BarretenHasher,
@@ -282,31 +269,19 @@ where
     }
 }
 
-impl<H, F, G: AffineRepr, NWidgetRelations> FFTGetter for FFTGetterImpl<H, F, G, NWidgetRelations>
-where
-    F: Field + FftField,
-    H: BarretenHasher,
-    G: AffineRepr,
-    NWidgetRelations: generic_array::ArrayLength<F>,
-{
-    type Hasher = H;
-    type Fr = F;
-    type G1 = G;
-    type NWidgetRelations = NWidgetRelations;
-}
-
 /// Provides access to polynomials (monomial or coset FFT) for use in widgets
 /// Coset FFT access is needed in quotient construction.
-pub(crate) trait FFTGetter {
-    type Hasher: BarretenHasher;
-    type Fr: Field + FftField;
-    type G1: AffineRepr;
-    type NWidgetRelations: generic_array::ArrayLength<Self::Fr>;
-
-    fn get_polynomials(
-        key: &ProvingKey<Self::Fr>,
+impl<H, Fr, G1, NWidgetRelations> FFTGetter<H, Fr, G1, NWidgetRelations>
+where
+    Fr: Field + FftField,
+    H: BarretenHasher,
+    G1: AffineRepr,
+    NWidgetRelations: generic_array::ArrayLength<Fr>,
+{
+    pub(crate) fn get_polynomials(
+        key: &ProvingKey<Fr>,
         required_polynomial_ids: &HashSet<PolynomialIndex>,
-    ) -> PolyPtrMap<Self::Fr>
+    ) -> PolyPtrMap<Fr>
     where
         Self: Sized,
     {

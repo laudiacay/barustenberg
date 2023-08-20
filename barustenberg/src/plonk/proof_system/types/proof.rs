@@ -8,7 +8,7 @@ pub struct Proof {
 
 #[derive(Default, Debug)]
 pub(crate) struct CommitmentOpenProof {
-    pub(crate) proof_data: Vec<u8>,
+    pub(crate) _proof_data: Vec<u8>,
 }
 
 impl fmt::Display for Proof {

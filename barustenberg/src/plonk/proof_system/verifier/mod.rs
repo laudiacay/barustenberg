@@ -45,19 +45,17 @@ pub struct Verifier<H: BarretenHasher> {
 /// verifier interface
 impl<H: BarretenHasher> Verifier<H> {
     /// Constructor
-    pub fn new(
-        verifier_key: Option<Arc<RwLock<VerificationKey<Fr>>>>,
-        manifest: Manifest,
-    ) -> Self {
+    pub fn new(verifier_key: Option<Arc<RwLock<VerificationKey<Fr>>>>, manifest: Manifest) -> Self {
         let h = H::default();
         let s = StandardSettings::new(h);
         let c = KateCommitmentScheme::<StandardSettings<H>, H, Fq, Fr, G1Affine>::new(s.clone());
-        Verifier { settings: s, 
+        Verifier {
+            settings: s,
             key: verifier_key.unwrap(), // todo is this a problem?
-            manifest, 
-            kate_g1_elements: HashMap::new(), 
-            kate_fr_elements: HashMap::new(), 
-            commitment_scheme: Box::new(c), 
+            manifest,
+            kate_g1_elements: HashMap::new(),
+            kate_fr_elements: HashMap::new(),
+            commitment_scheme: Box::new(c),
         }
     }
 
@@ -139,12 +137,12 @@ impl<H: BarretenHasher> Verifier<H> {
         (*self.key).write().unwrap().z_pow_n = z_pow_n;
 
         // compute the quotient polynomial numerator contribution
-        let t_numerator_eval = Fr::zero();
+        let mut t_numerator_eval = Fr::zero();
         StandardSettings::<H>::compute_quotient_evaluation_contribution(
-            &(*self.key).read().unwrap(),
+            self.key.clone(),
             &alpha,
             &transcript,
-            &t_numerator_eval,
+            &mut t_numerator_eval,
         );
         let t_eval = t_numerator_eval * lagrange_evals.vanishing_poly.inverse().unwrap();
         transcript.add_field_element("t", &t_eval);
@@ -190,10 +188,10 @@ impl<H: BarretenHasher> Verifier<H> {
         // step.
         //
         StandardSettings::<H>::append_scalar_multiplication_inputs(
-            &(*self.key).read().unwrap(),
+            self.key.clone(),
             &alpha,
             &transcript,
-            &self.kate_fr_elements,
+            &mut self.kate_fr_elements,
         );
 
         // Fetch the group elements [W_z]_1,[W_zω]_1 from the transcript
