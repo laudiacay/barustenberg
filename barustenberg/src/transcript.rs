@@ -8,6 +8,8 @@ use std::fmt::Debug;
 use tracing::info;
 use typenum::{Unsigned, U16, U32};
 
+use crate::crypto::pedersen;
+
 /// BarretenHasher is a trait that defines the hash function used for Fiat-Shamir.
 pub trait BarretenHasher: std::fmt::Debug + Send + Sync + Clone + Default {
     /// The size of the security parameter in bytes.
@@ -17,6 +19,9 @@ pub trait BarretenHasher: std::fmt::Debug + Send + Sync + Clone + Default {
 
     /// Hashes the given buffer.
     fn hash(buffer: &[u8]) -> GenericArray<u8, Self::PrngOutputSize>;
+
+    /// Hashes the given buffer for a transcript in the fiat-shamir. uses the same hash function as hash() but may do a pederson compression first
+    fn hash_for_transcript(buffer: &[u8]) -> GenericArray<u8, Self::PrngOutputSize>;
 }
 
 /// Keccak256 hasher.
@@ -29,6 +34,10 @@ impl BarretenHasher for Keccak256 {
 
     fn hash(buffer: &[u8]) -> GenericArray<u8, Self::PrngOutputSize> {
         Sha3_256::digest(buffer)
+    }
+
+    fn hash_for_transcript(buffer: &[u8]) -> GenericArray<u8, Self::PrngOutputSize> {
+        Self::hash(buffer)
     }
 }
 
@@ -63,6 +72,12 @@ impl BarretenHasher for PedersenBlake3s {
         // result
         todo!("check comment to see what gpt told us to do")
     }
+
+    fn hash_for_transcript(_buffer: &[u8]) -> GenericArray<u8, Self::PrngOutputSize> {
+        //let compressed_buffer = pedersen::compress_native(buffer);
+        //Self::hash(compressed_buffer.to_bytes())
+        todo!("figure out how to turn it into bytes in the same representation")
+    }
 }
 
 /// PlookupPedersenBlake3s
@@ -85,6 +100,11 @@ impl BarretenHasher for PlookupPedersenBlake3s {
         // let input = pedersen_hash::hash_single(_buffer, CryptoRng);
 
         todo!("check comment to see what gpt told us to do")
+    }
+
+    fn hash_for_transcript(buffer: &[u8]) -> GenericArray<u8, Self::PrngOutputSize> {
+        let compressed_buffer = pedersen::lookup::compress_native(buffer);
+        Self::hash(&compressed_buffer)
     }
 }
 
@@ -274,12 +294,50 @@ impl<H: BarretenHasher> Transcript<H> {
         transcript
     }
 
-    fn from_serialized(
-        _input_transcript: Vec<u8>,
-        _manifest: Manifest,
-        _challenge_bytes: usize,
+    pub(crate) fn from_serialized(
+        input_transcript: Vec<u8>,
+        input_manifest: Manifest,
+        num_challenge_bytes: usize,
     ) -> Self {
-        todo!()
+        let num_rounds = input_manifest.get_num_rounds();
+        let mut count = 0;
+        let mut total_required_size = 0;
+        for i in 0..num_rounds {
+            for manifest_element in &input_manifest.get_round_manifest(i).elements {
+                if !manifest_element.derived_by_verifier {
+                    total_required_size += manifest_element.num_bytes;
+                }
+            }
+        }
+        if total_required_size != input_transcript.len() {
+            panic!("Serialized transcript does not contain the required number of bytes");
+        }
+
+        let mut elements = HashMap::new();
+        for i in 0..num_rounds {
+            for manifest_element in &input_manifest.get_round_manifest(i).elements {
+                if !manifest_element.derived_by_verifier {
+                    let end = count + manifest_element.num_bytes;
+                    let element_data = input_transcript[count..end].to_vec();
+                    elements.insert(manifest_element.name.clone(), element_data);
+                    count += manifest_element.num_bytes;
+                }
+            }
+        }
+
+        let mut transcript = Self {
+            num_challenge_bytes,
+            manifest: input_manifest,
+            elements,
+            challenges: HashMap::new(),
+            current_round: 0,
+            current_challenge: Challenge {
+                data: GenericArray::default(),
+            },
+            challenge_map: HashMap::new(),
+        };
+        transcript.compute_challenge_map();
+        transcript
     }
 
     pub(crate) fn get_manifest(&self) -> Manifest {
@@ -293,141 +351,110 @@ impl<H: BarretenHasher> Transcript<H> {
     ///
     /// * `challenge_name` - Challenge name (needed to check if the challenge fits the current round).
     ///
-    pub(crate) fn apply_fiat_shamir(&mut self, _challenge_name: &str) {
-        // implementation
+    pub(crate) fn apply_fiat_shamir(&mut self, challenge_name: &str) {
+        assert!(self.current_round <= self.manifest.get_num_rounds());
+        info!("apply_fiat_shamir(): challenge name match:");
+        info!("\t challenge_name in: {}", challenge_name);
+        info!(
+            "\t challenge_name expected: {}",
+            self.manifest
+                .get_round_manifest(self.current_round)
+                .challenge
+        );
 
-        // TODO
-        /*
-            // For reference, see the relevant manifest, which is defined in
-        // plonk/composer/[standard/turbo/ultra]_composer.hpp
-        ASSERT(current_round <= manifest.get_num_rounds());
-        // TODO(Cody): Coupling: this line insists that the challenges in the manifest
-        // are encountered in the order that matches the order of the proof construction functions.
-        // Future architecture should specify this data in a single place (?).
-        info_togglable("apply_fiat_shamir(): challenge name match:");
-        info_togglable("\t challenge_name in: ", challenge_name);
-        info_togglable("\t challenge_name expected: ", manifest.get_round_manifest(current_round).challenge, "\n");
-        ASSERT(challenge_name == manifest.get_round_manifest(current_round).challenge);
+        assert_eq!(
+            challenge_name,
+            self.manifest
+                .get_round_manifest(self.current_round)
+                .challenge
+        );
 
-        const size_t num_challenges = manifest.get_round_manifest(current_round).num_challenges;
-        if (num_challenges == 0) {
-            ++current_round;
+        let num_challenges = self
+            .manifest
+            .get_round_manifest(self.current_round)
+            .num_challenges;
+        if num_challenges == 0 {
+            self.current_round += 1;
             return;
         }
 
-        // Combine the very last challenge from the previous fiat-shamir round (which is, inductively, a hash containing the
-        // manifest data of all previous rounds), plus the manifest data for this round, into a buffer. This buffer will
-        // ultimately be hashed, to form this round's fiat-shamir challenge(s).
-        std::vector<uint8_t> buffer;
-        if (current_round > 0) {
-            buffer.insert(buffer.end(), current_challenge.data.begin(), current_challenge.data.end());
+        let mut buffer = Vec::new();
+        if self.current_round > 0 {
+            buffer.extend_from_slice(&self.current_challenge.data);
         }
-        for (auto manifest_element : manifest.get_round_manifest(current_round).elements) {
-            info_togglable("apply_fiat_shamir(): manifest element name match:");
-            info_togglable("\t element name: ", manifest_element.name);
-            info_togglable(
-                "\t element exists and is unique: ", (elements.count(manifest_element.name) == 1) ? "true" : "false", "\n");
-            ASSERT(elements.count(manifest_element.name) == 1);
+        for manifest_element in &self
+            .manifest
+            .get_round_manifest(self.current_round)
+            .elements
+        {
+            info!("apply_fiat_shamir(): manifest element name match:");
+            info!("\t element name: {}", manifest_element.name);
+            info!(
+                "\t element exists and is unique: {}",
+                self.elements.contains_key(&manifest_element.name)
+            );
+            assert!(self.elements.contains_key(&manifest_element.name));
 
-            std::vector<uint8_t>& element_data = elements.at(manifest_element.name);
-            if (!manifest_element.derived_by_verifier) {
-                ASSERT(manifest_element.num_bytes == element_data.size());
+            let element_data = &self.elements[&manifest_element.name];
+            if !manifest_element.derived_by_verifier {
+                assert_eq!(manifest_element.num_bytes, element_data.len());
             }
-            buffer.insert(buffer.end(), element_data.begin(), element_data.end());
+            buffer.extend_from_slice(element_data);
         }
 
-        std::vector<challenge> round_challenges;
-        std::array<uint8_t, PRNG_OUTPUT_SIZE> base_hash{};
-
-        switch (hasher) {
-        case HashType::Keccak256: {
-            base_hash = Keccak256Hasher::hash(buffer);
-            break;
-        }
-        case HashType::PedersenBlake3s: {
-            std::vector<uint8_t> compressed_buffer = to_buffer(crypto::pedersen_commitment::compress_native(buffer));
-            base_hash = Blake3sHasher::hash(compressed_buffer);
-            break;
-        }
-        case HashType::PlookupPedersenBlake3s: {
-            std::vector<uint8_t> compressed_buffer = crypto::pedersen_commitment::lookup::compress_native(buffer);
-            base_hash = Blake3sHasher::hash_plookup(compressed_buffer);
-            break;
-        }
-        default: {
-            throw_or_abort("no hasher was selected for the transcript");
-        }
-        }
-
+        let mut round_challenges: Vec<Challenge<H>> = Vec::new();
+        let base_hash: GenericArray<u8, H::PrngOutputSize> = H::hash_for_transcript(&buffer);
         // Depending on the settings, we might be able to chunk the bytes of a single hash across multiple challenges:
-        const size_t challenges_per_hash = PRNG_OUTPUT_SIZE / num_challenge_bytes;
+        let challenges_per_hash = H::PrngOutputSize::to_usize() / self.num_challenge_bytes;
 
-        for (size_t j = 0; j < challenges_per_hash; ++j) {
-            if (j < num_challenges) {
-                // Each challenge still occupies PRNG_OUTPUT_SIZE number of bytes, but only num_challenge_bytes rhs bytes
-                // are nonzero.
-                std::array<uint8_t, PRNG_OUTPUT_SIZE> challenge{};
-                std::copy(base_hash.begin() + (j * num_challenge_bytes),
-                          base_hash.begin() + (j + 1) * num_challenge_bytes,
-                          challenge.begin() +
-                              (PRNG_OUTPUT_SIZE -
-                               num_challenge_bytes)); // Left-pad the challenge with zeros, and then copy the next
-                                                      // num_challange_bytes slice of the hash to the rhs of the challenge.
-                round_challenges.push_back({ challenge });
+        for j in 0..challenges_per_hash {
+            if j < num_challenges {
+                let mut challenge = vec![0u8; H::PrngOutputSize::to_usize()];
+                let start = j * self.num_challenge_bytes;
+                let end = (j + 1) * self.num_challenge_bytes;
+                challenge[H::PrngOutputSize::to_usize() - self.num_challenge_bytes..]
+                    .copy_from_slice(&base_hash[start..end]);
+                round_challenges.push(Challenge {
+                    data: GenericArray::clone_from_slice(&challenge),
+                });
             }
         }
 
-        std::vector<uint8_t> rolling_buffer(base_hash.begin(), base_hash.end());
-        rolling_buffer.push_back(0);
+        let mut rolling_buffer = base_hash.to_vec();
+        rolling_buffer.push(0);
 
-        // Compute how many hashes we need so that we have enough distinct chunks of 'random' bytes to distribute
-        // across the num_challenges.
-        size_t num_hashes = (num_challenges / challenges_per_hash);
-        if (num_hashes * challenges_per_hash != num_challenges) {
-            ++num_hashes;
-        }
+        let num_hashes = (num_challenges / challenges_per_hash)
+            + if num_challenges % challenges_per_hash != 0 {
+                1
+            } else {
+                0
+            };
 
-        for (size_t i = 1; i < num_hashes; ++i) {
-            // Compute hash_output = hash(base_hash, i);
-            rolling_buffer[rolling_buffer.size() - 1] = static_cast<uint8_t>(i);
-            std::array<uint8_t, PRNG_OUTPUT_SIZE> hash_output{};
-            switch (hasher) {
-            case HashType::Keccak256: {
-                hash_output = Keccak256Hasher::hash(rolling_buffer);
-                break;
-            }
-            case HashType::PedersenBlake3s: {
-                hash_output = Blake3sHasher::hash(rolling_buffer);
-                break;
-            }
-            case HashType::PlookupPedersenBlake3s: {
-                hash_output = Blake3sHasher::hash_plookup(rolling_buffer);
-                break;
-            }
-            default: {
-                throw_or_abort("no hasher was selected for the transcript");
-            }
-            }
-            for (size_t j = 0; j < challenges_per_hash; ++j) {
-                // Only produce as many challenges as we need.
-                if (challenges_per_hash * i + j < num_challenges) {
-                    std::array<uint8_t, PRNG_OUTPUT_SIZE> challenge{};
-                    std::copy(hash_output.begin() + (j * num_challenge_bytes),
-                              hash_output.begin() + (j + 1) * num_challenge_bytes,
-                              challenge.begin() + (PRNG_OUTPUT_SIZE - num_challenge_bytes));
-                    round_challenges.push_back({ challenge });
+        for i in 1..num_hashes {
+            let roll_buf_len = rolling_buffer.len();
+            rolling_buffer[roll_buf_len - 1] = i as u8;
+            let hash_output = H::hash(&rolling_buffer);
+
+            for j in 0..challenges_per_hash {
+                if challenges_per_hash * i + j < num_challenges {
+                    let mut challenge = vec![0u8; H::PrngOutputSize::to_usize()];
+                    let start = j * self.num_challenge_bytes;
+                    let end = (j + 1) * self.num_challenge_bytes;
+                    challenge[H::PrngOutputSize::to_usize() - self.num_challenge_bytes..]
+                        .copy_from_slice(&hash_output[start..end]);
+                    round_challenges.push(Challenge {
+                        data: GenericArray::clone_from_slice(&challenge),
+                    });
                 }
             }
         }
-
         // Remember the very last challenge, as it will be included in the buffer of the next fiat-shamir round (since this
         // challenge is effectively a hash of _all_ previous rounds' manifest data).
-        current_challenge = round_challenges[round_challenges.size() - 1];
+        self.current_challenge = round_challenges[round_challenges.len() - 1].clone();
 
-        challenges.insert({ challenge_name, round_challenges });
-        ++current_round;
-             */
-        todo!("see comment...")
+        self.challenges
+            .insert(challenge_name.to_string(), round_challenges);
+        self.current_round += 1;
     }
 
     /// Get the challenge with the given name at index.

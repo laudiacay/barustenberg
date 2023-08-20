@@ -5,6 +5,8 @@
 //! barustenberg
 /// random utilities
 pub(crate) mod common;
+/// crypto stuff
+pub(crate) mod crypto;
 /// elliptic curves stuff (currently a thin wrapper on other people's grumpkin and bn254)
 pub(crate) mod ecc;
 /// bitops mostly
