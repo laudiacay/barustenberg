@@ -1,5 +1,4 @@
 pub(crate) mod polynomial_manifest;
-pub(crate) mod program_settings;
 pub(crate) mod proof;
 pub(crate) mod prover_settings;
 
