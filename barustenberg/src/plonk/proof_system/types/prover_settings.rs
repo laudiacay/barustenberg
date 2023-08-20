@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::{Arc, RwLock}};
 
 use ark_ec::AffineRepr;
 use ark_ff::{FftField, Field};
@@ -6,7 +6,7 @@ use ark_ff::{FftField, Field};
 use ark_bn254::{Fr, G1Affine};
 
 use crate::{
-    plonk::proof_system::verification_key::VerificationKey,
+    plonk::proof_system::{verification_key::VerificationKey, widgets::{random_widgets::permutation_widget::VerifierPermutationWidget, transition_widgets::{arithmetic_widget::VerifierArithmeticWidget, transition_widget::GenericVerifierWidgetBase}}},
     transcript::{BarretenHasher, Keccak256, PedersenBlake3s, PlookupPedersenBlake3s, Transcript},
 };
 
@@ -29,18 +29,20 @@ pub(crate) trait Settings: Sized {
     fn permutation_mask(&self) -> u32;
     fn num_roots_cut_out_of_vanishing_polynomial(&self) -> usize;
     fn compute_quotient_evaluation_contribution(
-        verification_key: &VerificationKey<Self::Field>,
+        verification_key: Arc<RwLock<VerificationKey<Self::Field>>>,
         alpha_base: &Self::Field,
         transcript: &Transcript<Self::Hasher>,
-        quotient_numerator_eval: &Self::Field,
+        quotient_numerator_eval: &mut Self::Field,
+        rng: &mut Box<dyn rand::RngCore>,
     ) -> Self::Field
     where
         Self: Sized;
     fn append_scalar_multiplication_inputs(
-        verification_key: &VerificationKey<Self::Field>,
+        verification_key: Arc<RwLock<VerificationKey<Self::Field>>>,
         alpha_base: &Self::Field,
         transcript: &Transcript<Self::Hasher>,
-        scalars: &HashMap<String, Self::Field>,
+        scalars: &mut HashMap<String, Self::Field>,
+        rng: &mut Box<dyn rand::RngCore>,
     ) -> Self::Field
     where
         Self: Sized;
@@ -107,34 +109,35 @@ impl<H: BarretenHasher> Settings for StandardSettings<H> {
 
     #[inline]
     fn compute_quotient_evaluation_contribution(
-        _verification_key: &VerificationKey<Fr>,
-        _alpha_base: &Fr,
-        _transcript: &Transcript<H>,
-        _quotient_numerator_eval: &Fr,
+        verification_key: Arc<RwLock<VerificationKey<Fr>>>,
+        alpha_base: &Fr,
+        transcript: &Transcript<H>,
+        quotient_numerator_eval: &mut Fr,
+        rng: &mut Box<dyn rand::RngCore>,
     ) -> Fr {
-        unimplemented!("todo");
-        /*
-                auto updated_alpha_base = VerifierPermutationWidget<
-            barretenberg::fr,
-            barretenberg::g1::affine_element,
-            transcript::StandardTranscript>::compute_quotient_evaluation_contribution(key,
-                                                                                      alpha_base,
-                                                                                      transcript,
-                                                                                      quotient_numerator_eval);
+        let updated_alpha_base = VerifierPermutationWidget::<H, Fr, G1Affine, 4>::compute_quotient_evaluation_contribution(
+            &verification_key.read().unwrap(),
+            *alpha_base,
+            transcript,
+            quotient_numerator_eval, 
+        None);
 
-        return ArithmeticWidget::compute_quotient_evaluation_contribution(
-            key, updated_alpha_base, transcript, quotient_numerator_eval);
-         */
+        return VerifierArithmeticWidget::<H, Fr, G1Affine>::compute_quotient_evaluation_contribution(
+            verification_key, updated_alpha_base, transcript, quotient_numerator_eval, rng);
     }
 
     #[inline]
     fn append_scalar_multiplication_inputs(
-        _verification_key: &VerificationKey<Fr>,
-        _alpha_base: &Fr,
-        _transcript: &Transcript<H>,
-        _scalars: &HashMap<String, Fr>,
+        verification_key: Arc<RwLock<VerificationKey<Fr>>>,
+        alpha_base: &Fr,
+        transcript: &Transcript<H>,
+        scalars: &mut HashMap<String, Fr>,
+        rng: &mut Box<dyn rand::RngCore>,
     ) -> Fr {
-        unimplemented!("todo");
+
+        let updated_alpha = VerifierPermutationWidget::<H, Fr, G1Affine, 4>::append_scalar_multiplication_inputs(*alpha_base, transcript);
+
+        return VerifierArithmeticWidget::<H, Fr, G1Affine>::append_scalar_multiplication_inputs(verification_key, updated_alpha, transcript, scalars, rng);
     }
 }
 
@@ -189,10 +192,11 @@ impl Settings for TurboSettings {
     }
     #[inline]
     fn compute_quotient_evaluation_contribution(
-        _verification_key: &VerificationKey<Fr>,
+        _verification_key: Arc<RwLock<VerificationKey<Fr>>>,
         _alpha_base: &Fr,
         _transcript: &Transcript<PedersenBlake3s>,
-        _quotient_numerator_eval: &Fr,
+        _quotient_numerator_eval: &mut Fr,
+        rng: &mut Box<dyn rand::RngCore>,
     ) -> Fr {
         unimplemented!();
         /*
@@ -212,11 +216,12 @@ impl Settings for TurboSettings {
          */
     }
     fn append_scalar_multiplication_inputs(
-        _verification_key: &VerificationKey<Fr>,
-        _alpha_base: &Fr,
-        _transcript: &Transcript<PedersenBlake3s>,
-        _scalars: &HashMap<String, Fr>,
-    ) -> Fr {
+        verification_key: Arc<RwLock<VerificationKey<Self::Field>>>,
+        alpha_base: &Self::Field,
+        transcript: &Transcript<Self::Hasher>,
+        scalars: &mut HashMap<String, Self::Field>,
+        rng: &mut Box<dyn rand::RngCore>,
+    ) -> Self::Field {
         unimplemented!("todo");
     }
 }
@@ -267,10 +272,11 @@ impl Settings for UltraSettings {
 
     #[inline]
     fn compute_quotient_evaluation_contribution(
-        _verification_key: &VerificationKey<Fr>,
+        _verification_key: Arc<RwLock<VerificationKey<Fr>>>,
         _alpha_base: &Fr,
-        _transcript: &Transcript<PlookupPedersenBlake3s>,
-        _quotient_numerator_eval: &Fr,
+        _transcript: &Transcript<Self::Hasher>,
+        _quotient_numerator_eval: &mut Fr,
+        rng: &mut Box<dyn rand::RngCore>,
     ) -> Fr {
         /*
                 auto updated_alpha_base = PermutationWidget::compute_quotient_evaluation_contribution(
@@ -292,11 +298,12 @@ impl Settings for UltraSettings {
     }
 
     fn append_scalar_multiplication_inputs(
-        _verification_key: &VerificationKey<Fr>,
-        _alpha_base: &Fr,
-        _transcript: &Transcript<PlookupPedersenBlake3s>,
-        _scalars: &HashMap<String, Fr>,
-    ) -> Fr {
+        verification_key: Arc<RwLock<VerificationKey<Self::Field>>>,
+        alpha_base: &Self::Field,
+        transcript: &Transcript<Self::Hasher>,
+        scalars: &mut HashMap<String, Self::Field>,
+        rng: &mut Box<dyn rand::RngCore>,
+    ) -> Self::Field {
         unimplemented!("todo");
     }
 }
@@ -346,21 +353,23 @@ impl Settings for UltraToStandardSettings {
     }
     #[inline]
     fn compute_quotient_evaluation_contribution(
-        _verification_key: &VerificationKey<Fr>,
+        _verification_key: Arc<RwLock<VerificationKey<Fr>>>,
         _alpha_base: &Fr,
         _transcript: &Transcript<PedersenBlake3s>,
-        _quotient_numerator_eval: &Fr,
+        _quotient_numerator_eval: &mut Fr,
+        rng: &mut Box<dyn rand::RngCore>,
     ) -> Fr {
         // UltraSettings::compute_quotient_evaluation_contribution(verification_key, alpha_base, transcript, quotient_numerator_eval)
         todo!()
     }
 
     fn append_scalar_multiplication_inputs(
-        _verification_key: &VerificationKey<Fr>,
-        _alpha_base: &Fr,
-        _transcript: &Transcript<PedersenBlake3s>,
-        _scalars: &HashMap<String, Fr>,
-    ) -> Fr {
+        verification_key: Arc<RwLock<VerificationKey<Self::Field>>>,
+        alpha_base: &Self::Field,
+        transcript: &Transcript<Self::Hasher>,
+        scalars: &mut HashMap<String, Self::Field>,
+        rng: &mut Box<dyn rand::RngCore>,
+    ) -> Self::Field{
         unimplemented!("todo");
     }
 }
@@ -410,20 +419,22 @@ impl Settings for UltraWithKeccakSettings {
     }
     #[inline]
     fn compute_quotient_evaluation_contribution(
-        _verification_key: &VerificationKey<Fr>,
+        _verification_key: Arc<RwLock<VerificationKey<Fr>>>,
         _alpha_base: &Fr,
-        _transcript: &Transcript<Keccak256>,
-        _quotient_numerator_eval: &Fr,
+        _transcript: &Transcript<Self::Hasher>,
+        _quotient_numerator_eval: &mut Fr,
+        rng: &mut Box<dyn rand::RngCore>,
     ) -> Fr {
         //UltraSettings::compute_quotient_evaluation_contribution(verification_key, alpha_base, transcript, quotient_numerator_eval)
         todo!()
     }
     fn append_scalar_multiplication_inputs(
-        _verification_key: &VerificationKey<Fr>,
-        _alpha_base: &Fr,
-        _transcript: &Transcript<Keccak256>,
-        _scalars: &HashMap<String, Fr>,
-    ) -> Fr {
+        verification_key: Arc<RwLock<VerificationKey<Self::Field>>>,
+        alpha_base: &Self::Field,
+        transcript: &Transcript<Self::Hasher>,
+        scalars: &mut HashMap<String, Self::Field>,
+        rng: &mut Box<dyn rand::RngCore>,
+    ) -> Self::Field {
         unimplemented!("todo");
     }
 }

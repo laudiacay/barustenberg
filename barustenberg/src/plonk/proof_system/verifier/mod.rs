@@ -62,7 +62,7 @@ impl<H: BarretenHasher> Verifier<H> {
     }
 
     /// Verify Proof
-    pub fn verify_proof(&mut self, proof: &Proof) -> Result<bool> {
+    pub fn verify_proof(&mut self, proof: &Proof, rng: &mut Box<dyn rand::RngCore>) -> Result<bool> {
         // This function verifies a PLONK proof for given program settings.
         // A PLONK proof for standard PLONK is of the form:
         //
@@ -139,12 +139,13 @@ impl<H: BarretenHasher> Verifier<H> {
         (*self.key).write().unwrap().z_pow_n = z_pow_n;
 
         // compute the quotient polynomial numerator contribution
-        let t_numerator_eval = Fr::zero();
+        let mut t_numerator_eval = Fr::zero();
         StandardSettings::<H>::compute_quotient_evaluation_contribution(
-            &(*self.key).read().unwrap(),
+            self.key.clone(),
             &alpha,
             &transcript,
-            &t_numerator_eval,
+            &mut t_numerator_eval,
+            rng,
         );
         let t_eval = t_numerator_eval * lagrange_evals.vanishing_poly.inverse().unwrap();
         transcript.add_field_element("t", &t_eval);
@@ -190,10 +191,11 @@ impl<H: BarretenHasher> Verifier<H> {
         // step.
         //
         StandardSettings::<H>::append_scalar_multiplication_inputs(
-            &(*self.key).read().unwrap(),
+            self.key.clone(),
             &alpha,
             &transcript,
-            &self.kate_fr_elements,
+            &mut self.kate_fr_elements,
+            rng
         );
 
         // Fetch the group elements [W_z]_1,[W_zω]_1 from the transcript

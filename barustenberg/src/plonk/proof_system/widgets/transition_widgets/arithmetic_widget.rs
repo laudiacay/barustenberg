@@ -20,7 +20,7 @@ use std::{
 use super::{
     containers::{ChallengeArray, CoefficientArray, CHALLENGE_BIT_ALPHA},
     getters::BaseGetter,
-    transition_widget::{KernelBase, TransitionWidget, TransitionWidgetBase},
+    transition_widget::{KernelBase, TransitionWidget, TransitionWidgetBase, GenericVerifierWidget, GenericVerifierWidgetBase},
 };
 
 #[derive(Debug)]
@@ -231,4 +231,22 @@ impl<H: BarretenHasher> ProverArithmeticWidget<H> {
     pub(crate) fn new(key: Arc<RwLock<ProvingKey<Fr>>>) -> Self {
         Self(TransitionWidget::new(key))
     }
+}
+
+#[derive(Debug)]
+pub(crate) struct VerifierArithmeticWidget<H: BarretenHasher, F: Field + FftField, G: AffineRepr> {
+    widget: GenericVerifierWidget<H, F, G, ArithmeticKernel<H, F, G>>,
+}
+
+impl <
+    'a,
+    H: BarretenHasher,
+    F: Field + FftField,
+    G: AffineRepr,
+    > GenericVerifierWidgetBase<'a> for VerifierArithmeticWidget<H, F, G> {
+    type Hasher = H;
+    type Field = F;
+    type Group = G;
+    type NumIndependentRelations = typenum::U1;
+    type KB = ArithmeticKernel<H, F, G>;
 }
