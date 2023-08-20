@@ -210,7 +210,7 @@ impl PolynomialManifest {
     }
 
     pub(crate) fn len(&self) -> usize {
-        todo!()
+        self.manifest.len()
     }
     pub(crate) fn get(&self, index: PolynomialIndex) -> &PolynomialDescriptor {
         &self.manifest[index as usize]
