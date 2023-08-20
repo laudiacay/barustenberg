@@ -9,7 +9,7 @@ use tracing::info;
 use typenum::{Unsigned, U16, U32};
 
 /// BarretenHasher is a trait that defines the hash function used for Fiat-Shamir.
-pub trait BarretenHasher: std::fmt::Debug + Send + Sync + Clone {
+pub trait BarretenHasher: std::fmt::Debug + Send + Sync + Clone + Default {
     /// The size of the security parameter in bytes.
     type SecurityParameterSize: ArrayLength<u8>;
     /// The size of the PRNG output in bytes.
@@ -33,7 +33,7 @@ impl BarretenHasher for Keccak256 {
 }
 
 /// Pedersen with blake3s.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub(crate) struct PedersenBlake3s {}
 
 impl BarretenHasher for PedersenBlake3s {
@@ -66,7 +66,7 @@ impl BarretenHasher for PedersenBlake3s {
 }
 
 /// PlookupPedersenBlake3s
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub(crate) struct PlookupPedersenBlake3s {}
 
 impl BarretenHasher for PlookupPedersenBlake3s {
