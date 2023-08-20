@@ -152,7 +152,7 @@ where
                 Some(i),
             );
             let sum_of_linear_terms = KB::sum_linear_terms::<
-            FFTGetter<H, F, G, NIndependentRelations>,
+                FFTGetter<H, F, G, NIndependentRelations>,
             >(&polynomials, &challenges, &linear_terms, i);
 
             quotient_term = borrowed_key.quotient_polynomial_parts
@@ -189,31 +189,44 @@ pub(crate) trait GenericVerifierWidgetBase<'a> {
         alpha_base: Self::Field,
         transcript: &Transcript<Self::Hasher>,
         quotient_numerator_eval: &mut Self::Field,
-        rng: &mut Box<dyn rand::RngCore>,
     ) -> Self::Field {
-        let polynomial_evaluations =
-        EvaluationGetter::<Self::Hasher, Self::Field,Self::Group,Self::NumIndependentRelations>::get_polynomial_evaluations(&key.read().unwrap().polynomial_manifest, transcript);
-        let challenges = EvaluationGetter::<Self::Hasher, Self::Field,Self::Group,Self::NumIndependentRelations>::get_challenges(
+        let polynomial_evaluations = EvaluationGetter::<
+            Self::Hasher,
+            Self::Field,
+            Self::Group,
+            Self::NumIndependentRelations,
+        >::get_polynomial_evaluations(
+            &key.read().unwrap().polynomial_manifest, transcript
+        );
+        let challenges = EvaluationGetter::<
+            Self::Hasher,
+            Self::Field,
+            Self::Group,
+            Self::NumIndependentRelations,
+        >::get_challenges(
             transcript,
             alpha_base,
             Self::KB::quotient_required_challenges(),
-            rng,
+            &mut Box::new(rand::thread_rng()),
         );
 
         let mut linear_terms = CoefficientArray::default();
-        Self::KB::compute_linear_terms::<EvaluationGetter<Self::Hasher, Self::Field,Self::Group,Self::NumIndependentRelations>>(
+        Self::KB::compute_linear_terms::<
+            EvaluationGetter<Self::Hasher, Self::Field, Self::Group, Self::NumIndependentRelations>,
+        >(
             &polynomial_evaluations,
             &challenges,
             &mut linear_terms,
             Some(0),
         );
-        *quotient_numerator_eval += Self::KB::sum_linear_terms::<EvaluationGetter<Self::Hasher, Self::Field,Self::Group,Self::NumIndependentRelations>>(
-            &polynomial_evaluations,
-            &challenges,
-            &linear_terms,
-            0,
+        *quotient_numerator_eval += Self::KB::sum_linear_terms::<
+            EvaluationGetter<Self::Hasher, Self::Field, Self::Group, Self::NumIndependentRelations>,
+        >(
+            &polynomial_evaluations, &challenges, &linear_terms, 0
         );
-        Self::KB::compute_non_linear_terms::<EvaluationGetter<Self::Hasher, Self::Field,Self::Group,Self::NumIndependentRelations>>(
+        Self::KB::compute_non_linear_terms::<
+            EvaluationGetter<Self::Hasher, Self::Field, Self::Group, Self::NumIndependentRelations>,
+        >(
             &polynomial_evaluations,
             &challenges,
             quotient_numerator_eval,
@@ -228,13 +241,18 @@ pub(crate) trait GenericVerifierWidgetBase<'a> {
         alpha_base: Self::Field,
         transcript: &Transcript<Self::Hasher>,
         _scalar_mult_inputs: &mut HashMap<String, Self::Field>,
-        rng: &mut Box<dyn rand::RngCore>,
     ) -> Self::Field {
-        let challenges = EvaluationGetter::<Self::Hasher, Self::Field,Self::Group,Self::NumIndependentRelations>::get_challenges(
+        let mut rng = Box::new(rand::thread_rng());
+        let challenges = EvaluationGetter::<
+            Self::Hasher,
+            Self::Field,
+            Self::Group,
+            Self::NumIndependentRelations,
+        >::get_challenges(
             transcript,
             alpha_base,
             Self::KB::quotient_required_challenges() | Self::KB::update_required_challenges(),
-            rng,
+            &mut rng,
         );
 
         EvaluationGetter::<Self::Hasher, Self::Field,Self::Group,Self::NumIndependentRelations>::update_alpha(&challenges)
@@ -246,22 +264,20 @@ pub(crate) struct GenericVerifierWidget<
     H: BarretenHasher,
     F: Field + FftField,
     G: AffineRepr,
-    KB: KernelBase> {
+    KB: KernelBase,
+> {
     key: Arc<VerificationKey<F>>,
     phantom: PhantomData<(H, G, KB)>,
-    }
+}
 
-impl <
-    'a,
-    H: BarretenHasher,
-    F: Field + FftField,
-    G: AffineRepr,
-    KB: KernelBase<
-        Field = F,
-        Hasher = H,
-        Group = G,
-    >,
-    > GenericVerifierWidgetBase<'a> for GenericVerifierWidget<H, F, G, KB> {
+impl<
+        'a,
+        H: BarretenHasher,
+        F: Field + FftField,
+        G: AffineRepr,
+        KB: KernelBase<Field = F, Hasher = H, Group = G>,
+    > GenericVerifierWidgetBase<'a> for GenericVerifierWidget<H, F, G, KB>
+{
     type Hasher = H;
     type Field = F;
     type Group = G;

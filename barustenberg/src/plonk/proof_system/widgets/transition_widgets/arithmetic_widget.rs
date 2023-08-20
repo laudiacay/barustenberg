@@ -20,7 +20,10 @@ use std::{
 use super::{
     containers::{ChallengeArray, CoefficientArray, CHALLENGE_BIT_ALPHA},
     getters::BaseGetter,
-    transition_widget::{KernelBase, TransitionWidget, TransitionWidgetBase, GenericVerifierWidget, GenericVerifierWidgetBase},
+    transition_widget::{
+        GenericVerifierWidget, GenericVerifierWidgetBase, KernelBase, TransitionWidget,
+        TransitionWidgetBase,
+    },
 };
 
 #[derive(Debug)]
@@ -238,12 +241,9 @@ pub(crate) struct VerifierArithmeticWidget<H: BarretenHasher, F: Field + FftFiel
     widget: GenericVerifierWidget<H, F, G, ArithmeticKernel<H, F, G>>,
 }
 
-impl <
-    'a,
-    H: BarretenHasher,
-    F: Field + FftField,
-    G: AffineRepr,
-    > GenericVerifierWidgetBase<'a> for VerifierArithmeticWidget<H, F, G> {
+impl<'a, H: BarretenHasher, F: Field + FftField, G: AffineRepr> GenericVerifierWidgetBase<'a>
+    for VerifierArithmeticWidget<H, F, G>
+{
     type Hasher = H;
     type Field = F;
     type Group = G;

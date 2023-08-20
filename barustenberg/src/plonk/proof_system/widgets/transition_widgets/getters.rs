@@ -145,7 +145,6 @@ where
     H: BarretenHasher,
     NWidgetRelations: generic_array::ArrayLength<F>,
 {
-
     /// Get a polynomial at offset `id`
     ///
     /// # Arguments
@@ -279,7 +278,6 @@ where
     G1: AffineRepr,
     NWidgetRelations: generic_array::ArrayLength<Fr>,
 {
-
     pub(crate) fn get_polynomials(
         key: &ProvingKey<Fr>,
         required_polynomial_ids: &HashSet<PolynomialIndex>,

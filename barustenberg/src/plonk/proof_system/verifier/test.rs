@@ -23,7 +23,6 @@ use crate::{
 use ark_ff::UniformRand;
 
 use anyhow::Result;
-use rand::rngs::{StdRng, ThreadRng};
 
 use super::*;
 
@@ -421,10 +420,8 @@ fn verify_arithmetic_proof_small() {
     let mut verifier: Verifier<Keccak256> =
         Verifier::generate_verifier::<G1Affine>(state.key).unwrap();
 
-    let mut rng = Box::new(ThreadRng::default());
-
     // Verify proof
-    let result = verifier.verify_proof(&proof, &mut rng).unwrap();
+    let result = verifier.verify_proof(&proof).unwrap();
 
     assert!(result);
 }
@@ -443,11 +440,8 @@ fn verify_arithmetic_proof() {
     let mut verifier: Verifier<Keccak256> =
         Verifier::generate_verifier::<G1Affine>(state.key.clone()).unwrap();
 
-
-    let mut rng = Box::new(ThreadRng::default());
-
     // Verify proof
-    let result = verifier.verify_proof(&proof, &mut rng).unwrap();
+    let result = verifier.verify_proof(&proof).unwrap();
 
     assert!(result);
 }
@@ -464,8 +458,6 @@ fn verify_damaged_proof() {
     // Create empty proof
     let proof = Proof::default();
 
-    let rng = Box::new(ThreadRng::default());
-
     // Verify proof
-    verifier.verify_proof(&proof, &mut rng).unwrap();
+    verifier.verify_proof(&proof).unwrap();
 }

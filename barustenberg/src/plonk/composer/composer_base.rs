@@ -39,9 +39,9 @@ pub(crate) enum WireType {
 pub(crate) enum ComposerType {
     #[default]
     Standard,
-    Turbo,
-    Plookup,
-    StandardHonk,
+    _Turbo,
+    _Plookup,
+    _StandardHonk,
 }
 
 impl ComposerType {

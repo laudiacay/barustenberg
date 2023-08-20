@@ -45,24 +45,22 @@ pub struct Verifier<H: BarretenHasher> {
 /// verifier interface
 impl<H: BarretenHasher> Verifier<H> {
     /// Constructor
-    pub fn new(
-        verifier_key: Option<Arc<RwLock<VerificationKey<Fr>>>>,
-        manifest: Manifest,
-    ) -> Self {
+    pub fn new(verifier_key: Option<Arc<RwLock<VerificationKey<Fr>>>>, manifest: Manifest) -> Self {
         let h = H::default();
         let s = StandardSettings::new(h);
         let c = KateCommitmentScheme::<StandardSettings<H>, H, Fq, Fr, G1Affine>::new(s.clone());
-        Verifier { settings: s, 
+        Verifier {
+            settings: s,
             key: verifier_key.unwrap(), // todo is this a problem?
-            manifest, 
-            kate_g1_elements: HashMap::new(), 
-            kate_fr_elements: HashMap::new(), 
-            commitment_scheme: Box::new(c), 
+            manifest,
+            kate_g1_elements: HashMap::new(),
+            kate_fr_elements: HashMap::new(),
+            commitment_scheme: Box::new(c),
         }
     }
 
     /// Verify Proof
-    pub fn verify_proof(&mut self, proof: &Proof, rng: &mut Box<dyn rand::RngCore>) -> Result<bool> {
+    pub fn verify_proof(&mut self, proof: &Proof) -> Result<bool> {
         // This function verifies a PLONK proof for given program settings.
         // A PLONK proof for standard PLONK is of the form:
         //
@@ -145,7 +143,6 @@ impl<H: BarretenHasher> Verifier<H> {
             &alpha,
             &transcript,
             &mut t_numerator_eval,
-            rng,
         );
         let t_eval = t_numerator_eval * lagrange_evals.vanishing_poly.inverse().unwrap();
         transcript.add_field_element("t", &t_eval);
@@ -195,7 +192,6 @@ impl<H: BarretenHasher> Verifier<H> {
             &alpha,
             &transcript,
             &mut self.kate_fr_elements,
-            rng
         );
 
         // Fetch the group elements [W_z]_1,[W_zω]_1 from the transcript
