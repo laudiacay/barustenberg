@@ -46,22 +46,19 @@ pub struct Verifier<H: BarretenHasher> {
 impl<H: BarretenHasher> Verifier<H> {
     /// Constructor
     pub fn new(
-        _verifier_key: Option<Arc<RwLock<VerificationKey<Fr>>>>,
-        _manifest: Manifest,
+        verifier_key: Option<Arc<RwLock<VerificationKey<Fr>>>>,
+        manifest: Manifest,
     ) -> Self {
-        // Implement constructor logic here.
-        todo!("Verifier::new")
-    }
-
-    /// Validate commitements
-    fn validate_commitments(&self) -> bool {
-        // Implement validate_commitments logic here.
-        todo!("Verifier::validate_commitments")
-    }
-
-    fn validate_scalars(&self) -> bool {
-        // Implement validate_scalars logic here.
-        todo!("Verifier::validate_scalars")
+        let h = H::default();
+        let s = StandardSettings::new(h);
+        let c = KateCommitmentScheme::<StandardSettings<H>, H, Fq, Fr, G1Affine>::new(s.clone());
+        Verifier { settings: s, 
+            key: verifier_key.unwrap(), // todo is this a problem?
+            manifest, 
+            kate_g1_elements: HashMap::new(), 
+            kate_fr_elements: HashMap::new(), 
+            commitment_scheme: Box::new(c), 
+        }
     }
 
     /// Verify Proof
