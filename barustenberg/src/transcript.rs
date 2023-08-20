@@ -9,7 +9,7 @@ use tracing::info;
 use typenum::{Unsigned, U16, U32};
 
 /// BarretenHasher is a trait that defines the hash function used for Fiat-Shamir.
-pub trait BarretenHasher: std::fmt::Debug + Send + Sync {
+pub trait BarretenHasher: std::fmt::Debug + Send + Sync + Clone {
     /// The size of the security parameter in bytes.
     type SecurityParameterSize: ArrayLength<u8>;
     /// The size of the PRNG output in bytes.
@@ -20,7 +20,7 @@ pub trait BarretenHasher: std::fmt::Debug + Send + Sync {
 }
 
 /// Keccak256 hasher.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub(crate) struct Keccak256 {}
 
 impl BarretenHasher for Keccak256 {
@@ -33,7 +33,7 @@ impl BarretenHasher for Keccak256 {
 }
 
 /// Pedersen with blake3s.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct PedersenBlake3s {}
 
 impl BarretenHasher for PedersenBlake3s {
@@ -66,7 +66,7 @@ impl BarretenHasher for PedersenBlake3s {
 }
 
 /// PlookupPedersenBlake3s
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct PlookupPedersenBlake3s {}
 
 impl BarretenHasher for PlookupPedersenBlake3s {
@@ -166,7 +166,7 @@ struct Challenge<H: BarretenHasher> {
 }
 
 #[derive(Debug)]
-pub struct Transcript<H: BarretenHasher> {
+pub(crate) struct Transcript<H: BarretenHasher> {
     current_round: usize,
     pub(crate) num_challenge_bytes: usize,
     elements: HashMap<String, Vec<u8>>,
@@ -705,7 +705,7 @@ impl<H: BarretenHasher> Transcript<H> {
         let buf = self.get_challenge(challenge_name, idx);
         Fr::deserialize_uncompressed(buf.unwrap().as_slice()).unwrap()
     }
-    fn get_challenge_field_element_from_map<Fr: ark_ff::Field>(
+    pub(crate) fn get_challenge_field_element_from_map<Fr: ark_ff::Field>(
         &self,
         challenge_name: &str,
         challenge_map_name: &str,

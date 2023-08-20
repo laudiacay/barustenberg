@@ -302,6 +302,7 @@ impl<Fr: Field + FftField> EvaluationDomain<Fr> {
             let mut work_generator = generator_start * thread_shift;
             let offset = j * (generator_size / self.num_threads);
             let end = offset + (generator_size / self.num_threads);
+            #[allow(clippy::needless_range_loop)]
             for i in offset..end {
                 unsafe {
                     *(target.as_ptr() as *mut Fr).add(i) = coeffs[i] * work_generator;

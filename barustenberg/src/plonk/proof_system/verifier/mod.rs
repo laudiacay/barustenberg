@@ -14,7 +14,10 @@ use ark_ff::{BigInteger, Field, One, Zero};
 
 use super::{
     commitment_scheme::{CommitmentScheme, KateCommitmentScheme},
-    types::{prover_settings::Settings, Proof},
+    types::{
+        prover_settings::{Settings, StandardSettings},
+        Proof,
+    },
 };
 
 use std::collections::HashMap;
@@ -29,17 +32,18 @@ mod test;
 
 /// Verifier struct
 #[derive(Debug)]
-pub struct Verifier<H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>> {
-    settings: S,
+pub struct Verifier<H: BarretenHasher> {
+    pub(crate) settings: StandardSettings<H>,
     key: Arc<RwLock<VerificationKey<Fr>>>,
     manifest: Manifest,
     kate_g1_elements: HashMap<String, G1Affine>,
     kate_fr_elements: HashMap<String, Fr>,
-    pub(crate) commitment_scheme: Box<KateCommitmentScheme<H, Fq, Fr, G1Affine>>,
+    pub(crate) commitment_scheme:
+        Box<KateCommitmentScheme<StandardSettings<H>, H, Fq, Fr, G1Affine>>,
 }
 
 /// verifier interface
-impl<H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>> Verifier<H, S> {
+impl<H: BarretenHasher> Verifier<H> {
     /// Constructor
     pub fn new(
         _verifier_key: Option<Arc<RwLock<VerificationKey<Fr>>>>,
@@ -139,7 +143,7 @@ impl<H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>> V
 
         // compute the quotient polynomial numerator contribution
         let t_numerator_eval = Fr::zero();
-        S::compute_quotient_evaluation_contribution(
+        StandardSettings::<H>::compute_quotient_evaluation_contribution(
             &(*self.key).read().unwrap(),
             &alpha,
             &transcript,
@@ -188,7 +192,7 @@ impl<H: BarretenHasher, S: Settings<Hasher = H, Field = Fr, Group = G1Affine>> V
         // Again, we dont actually compute the MSMs and just accumulate scalars and group elements and postpone MSM to last
         // step.
         //
-        S::append_scalar_multiplication_inputs(
+        StandardSettings::<H>::append_scalar_multiplication_inputs(
             &(*self.key).read().unwrap(),
             &alpha,
             &transcript,
