@@ -110,7 +110,100 @@ impl<Fr: Field + FftField> Display for PolynomialStore<Fr> {
 #[cfg(test)]
 mod test {
     #[test]
-    fn test_todo() {
-        todo!("check out polynomial_store.test.cpp")
+    fn test_put_then_get() {
+
+        /*
+        // Test basic put and get functionality
+TEST(PolynomialStore, PutThenGet)
+{
+    PolynomialStore<Fr> polynomial_store;
+
+    // Instantiate a polynomial with random coefficients
+    Polynomial poly(1024);
+    for (auto& coeff : poly) {
+        coeff = Fr::random_element();
+    }
+
+    // Make a copy for comparison after original is moved into container
+    Polynomial poly_copy(poly);
+
+    // Move the poly into the container
+    polynomial_store.put("id", std::move(poly));
+
+    // Confirm equality of the copy and the original poly that now resides in the container
+    EXPECT_EQ(poly_copy, polynomial_store.get("id"));
+}
+         */
+        todo!("PutThenGet")
+    }
+
+    #[test]
+    fn test_nonexistent_key () {
+        /*
+        
+            PolynomialStore<Fr> polynomial_store;
+
+    polynomial_store.put("id_1", Polynomial(100));
+
+    polynomial_store.get("id_1"); // no problem!
+
+    EXPECT_THROW(polynomial_store.get("id_2"), std::out_of_range);
+     */
+        todo!("test_nonexistent_key")
+    }
+
+    #[test]
+    fn test_volume() {
+        /*
+        // Ensure correct calculation of volume in bytes
+TEST(PolynomialStore, Volume)
+{
+    PolynomialStore<Fr> polynomial_store;
+    size_t size1 = 100;
+    size_t size2 = 10;
+    size_t size3 = 5000;
+
+    Polynomial poly1(size1);
+    Polynomial poly2(size2);
+    Polynomial poly3(size3);
+
+    polynomial_store.put("id_1", std::move(poly1));
+    polynomial_store.put("id_2", std::move(poly2));
+    polynomial_store.put("id_3", std::move(poly3));
+
+    // polynomial_store.print();
+
+    size_t bytes_expected = sizeof(Fr) * (size1 + size2 + size3);
+
+    EXPECT_EQ(polynomial_store.get_size_in_bytes(), bytes_expected);
+         */
+
+        todo!("test_volume")
+    }
+
+    #[test]
+    fn test_remove () {
+        /*
+            PolynomialStore<Fr> polynomial_store;
+    size_t size1 = 100;
+    size_t size2 = 500;
+    Polynomial poly1(size1);
+    Polynomial poly2(size2);
+
+    polynomial_store.put("id_1", std::move(poly1));
+    polynomial_store.put("id_2", std::move(poly2));
+
+    size_t bytes_expected = sizeof(Fr) * (size1 + size2);
+
+    EXPECT_EQ(polynomial_store.get_size_in_bytes(), bytes_expected);
+
+    polynomial_store.remove("id_1");
+
+    bytes_expected -= sizeof(Fr) * size1;
+
+    EXPECT_THROW(polynomial_store.get("id_1"), std::out_of_range);
+    EXPECT_EQ(polynomial_store.get_size_in_bytes(), bytes_expected);
+     */
+        todo!("test_remove")
     }
 }
