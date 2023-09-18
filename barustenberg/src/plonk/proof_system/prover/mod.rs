@@ -725,11 +725,3 @@ impl<H: BarretenHasher + Default> Prover<H> {
         );
     }
 }
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn test_prover() {
-        todo!("get it from prover.test.cpp. there is like 300 lines in there.")
-    }
-}

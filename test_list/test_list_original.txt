@@ -1,0 +1,2023 @@
+Listing tests from ./build/bin/acir_format_tests
+acir_format.
+  msgpack_logic_constraint
+  test_logic_gate_from_noir_circuit
+  test_schnorr_verify_pass
+  test_schnorr_verify_small_range
+up_ram.
+  TestBlockConstraint
+ECDSASecp256k1.
+  TestECDSAConstraintSucceed
+  TestECDSACompilesForVerifier
+  TestECDSAConstraintFail
+Listing tests from ./build/bin/crypto_aes128_tests
+aes128.
+  verify_cipher
+  encrypt_buffer_cbc
+  decrypt_buffer_cbc
+Listing tests from ./build/bin/crypto_blake2s_tests
+misc_blake2s.
+  test_vectors
+Listing tests from ./build/bin/crypto_blake3s_full_tests
+misc_blake3s_full.
+  test_vectors
+  test_full_vectors
+Listing tests from ./build/bin/crypto_blake3s_tests
+misc_blake3s.
+  test_vectors
+Listing tests from ./build/bin/crypto_ecdsa_tests
+ecdsa.
+  msgpack
+  verify_signature_grumpkin_sha256
+  verify_signature_secp256r1_sha256
+  recover_public_key_secp256k1_sha256
+  recover_public_key_secp256r1_sha256
+  check_overflowing_r_and_s_are_rejected
+  verify_signature_secp256r1_sha256_NIST_1
+Listing tests from ./build/bin/crypto_generators_tests
+generators.
+  hash_ladder_structure
+  fixed_base_scalar_mul
+Listing tests from ./build/bin/crypto_hmac_tests
+hmac.
+  ValidateHMAC
+Listing tests from ./build/bin/crypto_pedersen_commitment_tests
+pedersen_lookup.
+  endomorphism_test
+  hash_single
+  hash_pair
+  merkle_damgard_compress
+  merkle_damgard_compress_multiple_iv
+  merkle_damgard_tree_compress
+sidon.
+  compute_nearest_safe_prime
+  compute_prime_factors
+  compute_generator
+  compute_sidon_set
+Listing tests from ./build/bin/crypto_schnorr_tests
+MultisigTest/0.  # TypeParam = KeccakHasher
+  verify_multi_signature_blake2s
+  multi_signature_fails_if_proof_of_possession_invalid
+  multi_signature_fails_if_duplicates
+MultisigTest/1.  # TypeParam = Sha256Hasher
+  verify_multi_signature_blake2s
+  multi_signature_fails_if_proof_of_possession_invalid
+  multi_signature_fails_if_duplicates
+ProofOfPossessionTest/0.  # TypeParam = KeccakHasher
+  valid_proof
+  invalid_empty_proof
+  fail_with_different_account
+  fail_zero_challenge
+  fail_zero_response
+  serialize
+ProofOfPossessionTest/1.  # TypeParam = Sha256Hasher
+  valid_proof
+  invalid_empty_proof
+  fail_with_different_account
+  fail_zero_challenge
+  fail_zero_response
+  serialize
+ProofOfPossessionTest/2.  # TypeParam = Blake2sHasher
+  valid_proof
+  invalid_empty_proof
+  fail_with_different_account
+  fail_zero_challenge
+  fail_zero_response
+  serialize
+schnorr.
+  verify_signature_keccak256
+  verify_signature_sha256
+  verify_signature_blake2s
+  hmac_signature_consistency
+Listing tests from ./build/bin/crypto_sha256_tests
+misc_sha256.
+  test_NIST_vector_one
+  test_NIST_vector_two
+  test_NIST_vector_three
+  test_NIST_vector_four
+  test_NIST_vector_five
+Listing tests from ./build/bin/ecc_tests
+fq.
+  msgpack
+  eq
+  is_zero
+  random_element
+  mul_check_against_constants
+  mul_short_integers
+  mul_sqr_consistency
+  sqr_check_against_constants
+  add_check_against_constants
+  sub_check_against_constants
+  coarse_equivalence_checks
+  to_montgomery_form
+  from_montgomery_form
+  montgomery_consistency_check
+  add_mul_consistency
+  sub_mul_consistency
+  beta
+  invert
+  invert_one_is_one
+  sqrt
+  sqrt_random
+  one_and_zero
+  copy
+  neg
+  split_into_endomorphism_scalars
+  split_into_endomorphism_scalars_simple
+  serialize_to_buffer
+  serialize_from_buffer
+  multiplicative_generator
+  r_inv
+  pow_regression_check
+  sqr_regression
+  neg_and_self_neg_0_cmp_regression
+fq12.
+  eq
+  is_zero
+  random_element
+  add_check_against_constants
+  sub_check_against_constants
+  mul_check_against_constants
+  sparse_mul_check_against_constants
+  sqr_check_against_constants
+  inverse
+  unitary_inverse
+  frobenius_map_three
+  frobenius_map_two
+  frobenius_map_one
+  to_montgomery_form
+  from_montgomery_form
+  mul_sqr_consistency
+  add_mul_consistency
+  sub_mul_consistency
+fq2.
+  eq
+  is_zero
+  random_element
+  mul_check_against_constants
+  sqr_check_against_constants
+  add_check_against_constants
+  sub_check_against_constants
+  to_montgomery_form
+  from_montgomery_form
+  mul_sqr_consistency
+  add_mul_consistency
+  sub_mul_consistency
+  invert
+  serialize
+fq6.
+  eq
+  is_zero
+  random_element
+  add_check_against_constants
+  sub_check_against_constants
+  mul_check_against_constants
+  sqr_check_against_constants
+  to_montgomery_form
+  from_montgomery_form
+  mul_sqr_consistency
+  add_mul_consistency
+  sub_mul_consistency
+  invert
+  copy
+fr.
+  msgpack
+  eq
+  is_zero
+  random_element
+  mul
+  sqr
+  add
+  sub
+  plus_equals
+  prefix_increment
+  postfix_increment
+  to_montgomery_form
+  from_montgomery_form
+  montgomery_consistency_check
+  add_mul_consistency
+  sub_mul_consistency
+  lambda
+  invert
+  invert_one_is_one
+  sqrt
+  sqrt_random
+  one_and_zero
+  copy
+  neg
+  split_into_endomorphism_scalars
+  split_into_endomorphism_scalars_simple
+  batch_invert
+  multiplicative_generator
+  uint256_conversions
+g1.
+  random_element
+  random_affine_element
+  eq
+  mixed_add_check_against_constants
+  dbl_check_against_constants
+  add_check_against_constants
+  add_exception_test_infinity
+  test_infinity
+  add_exception_test_dbl
+  add_affine_test
+  add_dbl_consistency
+  add_dbl_consistency_repeated
+  mixed_add_exception_test_infinity
+  mixed_add_exception_test_dbl
+  add_mixed_add_consistency_check
+  batch_normalize
+  group_exponentiation_check_against_constants
+  operator_ordering
+  group_exponentiation_zero_and_one
+  group_exponentiation_consistency_check
+  derive_generators
+  serialize
+  initialization_check
+g2.
+  random_element
+  random_affine_element
+  eq
+  dbl_check_against_constants
+  mixed_add_check_against_constants
+  add_check_against_constants
+  add_exception_test_infinity
+  add_exception_test_dbl
+  add_dbl_consistency
+  add_dbl_consistency_repeated
+  mixed_add_exception_test_infinity
+  mixed_add_exception_test_dbl
+  add_mixed_add_consistency_check
+  batch_normalize
+  group_exponentiation_check_against_constants
+  group_exponentiation_zero_and_one
+  group_exponentiation_consistency_check
+  serialize
+  initialization_check
+pairing.
+  reduced_ate_pairing_check_against_constants
+  reduced_ate_pairing_consistency_check
+  reduced_ate_pairing_consistency_check_batch
+  reduced_ate_pairing_precompute_consistency_check_batch
+scalar_multiplication.
+  reduce_buckets_simple
+  reduce_buckets
+  DISABLED_reduce_buckets_basic
+  add_affine_points
+  construct_addition_chains
+  endomorphism_split
+  radix_sort
+  oversized_inputs
+  undersized_inputs
+  pippenger
+  pippenger_edge_case_dbl
+  pippenger_short_inputs
+  pippenger_unsafe
+  pippenger_unsafe_short_inputs
+  pippenger_one
+  pippenger_zero_points
+  pippenger_mul_by_zero
+grumpkin.
+  check_b
+  random_element
+  random_affine_element
+  eq
+  check_group_modulus
+  add_exception_test_infinity
+  add_exception_test_dbl
+  add_dbl_consistency
+  add_dbl_consistency_repeated
+  mixed_add_exception_test_infinity
+  mixed_add_exception_test_dbl
+  add_mixed_add_consistency_check
+  on_curve
+  batch_normalize
+  group_exponentiation_zero_and_one
+  group_exponentiation_consistency_check
+  derive_generators
+  batch_mul
+  bad_points
+secp256k1.
+  test_add
+  test_sub
+  test_to_montgomery_form
+  test_from_montgomery_form
+  test_mul
+  test_sqr
+  test_arithmetic
+  generator_on_curve
+  random_element
+  random_affine_element
+  eq
+  check_group_modulus
+  add_exception_test_infinity
+  add_exception_test_dbl
+  add_dbl_consistency
+  add_dbl_consistency_repeated
+  mixed_add_exception_test_infinity
+  mixed_add_exception_test_dbl
+  add_mixed_add_consistency_check
+  on_curve
+  batch_normalize
+  group_exponentiation_zero_and_one
+  group_exponentiation_consistency_check
+  derive_generators
+  get_endomorphism_scalars
+  test_endomorphism_scalars
+  neg_and_self_neg_0_cmp_regression
+  montgomery_mul_big_bug
+secp256r1.
+  test_add
+  test_sub
+  test_to_montgomery_form
+  test_from_montgomery_form
+  test_mul
+  test_sqr
+  test_arithmetic
+  generator_on_curve
+  random_element
+  random_affine_element
+  eq
+  check_group_modulus
+  add_exception_test_infinity
+  add_exception_test_dbl
+  add_dbl_consistency
+  add_dbl_consistency_repeated
+  mixed_add_exception_test_infinity
+  mixed_add_exception_test_dbl
+  add_mixed_add_consistency_check
+  on_curve
+  batch_normalize
+  group_exponentiation_zero_and_one
+  group_exponentiation_consistency_check
+  msb_bug_regression_check
+  addition_subtraction_regression_check
+  montgomery_mul_big_bug
+test_affine_element/0.  # TypeParam = barretenberg::group<barretenberg::field<barretenberg::Bn254FqParams>, barretenberg::field<barretenberg::Bn254FrParams>, barretenberg::Bn254G1Params>
+  read_write_buffer
+  point_compression
+  point_compression_unsafe
+test_affine_element/1.  # TypeParam = barretenberg::group<barretenberg::field<barretenberg::Bn254FrParams>, barretenberg::field<barretenberg::Bn254FqParams>, grumpkin::GrumpkinG1Params>
+  read_write_buffer
+  point_compression
+  point_compression_unsafe
+test_affine_element/2.  # TypeParam = barretenberg::group<barretenberg::field<secp256k1::Secp256k1FqParams>, barretenberg::field<secp256k1::Secp256k1FrParams>, secp256k1::Secp256k1G1Params>
+  read_write_buffer
+  point_compression
+  point_compression_unsafe
+test_affine_element/3.  # TypeParam = barretenberg::group<barretenberg::field<secp256r1::Secp256r1FqParams>, barretenberg::field<secp256r1::Secp256r1FrParams>, secp256r1::Secp256r1G1Params>
+  read_write_buffer
+  point_compression
+  point_compression_unsafe
+affine_element.
+  infinity_ordering_regression
+  msgpack
+wnaf.
+  wnaf_zero
+  wnaf_two_bit_window
+  wnaf_fixed
+  wnaf_fixed_simple_lo
+  wnaf_fixed_simple_hi
+  wnaf_fixed_with_endo_split
+msgpack_tests.
+  msgpack_field
+Listing tests from ./build/bin/honk_tests
+StandardHonkComposer.
+  SigmaIDCorrectness
+  LagrangeCorrectness
+  AssertEquals
+  VerificationKeyCreation
+  BaseCase
+  TwoGates
+  SumcheckEvaluations
+UltraHonkComposer.
+  ANonZeroPolynomialIsAGoodPolynomial
+  XorConstraint
+  create_gates_from_plookup_accumulators
+  test_no_lookup_proof
+  test_elliptic_gate
+  non_trivial_tag_permutation
+  non_trivial_tag_permutation_and_cycles
+  bad_tag_permutation
+  bad_tag_turbo_permutation
+  sort_widget
+  sort_with_edges_gate
+  range_constraint
+  range_with_gates
+  range_with_gates_where_range_is_not_a_power_of_two
+  sort_widget_complex
+  sort_widget_neg
+  composed_range_constraint
+  non_native_field_multiplication
+  rom
+  ram
+Flavor.
+  StandardGetters
+  AllEntitiesSpecialMemberFunctions
+GeminiTest/0.  # TypeParam = proof_system::honk::pcs::kzg::Params
+  Single
+  SingleShift
+  Double
+  DoubleWithShift
+IPATests.
+  Commit
+  Open
+BilinearAccumulationTest/0.  # TypeParam = proof_system::honk::pcs::kzg::Params
+  single
+  GeminiShplonkKzgWithShift
+ShplonkTest/0.  # TypeParam = proof_system::honk::pcs::kzg::Params
+  ShplonkSimple
+ProverLibraryTests/0.  # TypeParam = barretenberg::field<barretenberg::Bn254FrParams>
+  PermutationGrandProduct
+  LookupGrandProduct
+  SortedListAccumulator
+BarycentricDataTests/0.  # TypeParam = barretenberg::field<barretenberg::Bn254FrParams>
+  Extend
+  Evaluate
+  BarycentricData2to3
+  BarycentricData5to6
+MultivariatesTests/0.  # TypeParam = proof_system::honk::flavor::Standard
+  FoldTwoRoundsSpecial
+  FoldTwoRoundsGeneric
+  FoldThreeRoundsSpecial
+  FoldThreeRoundsGeneric
+  FoldThreeRoundsGenericMultiplePolys
+SumcheckPow.
+  FullPowConsistency
+UnivariateTest/0.  # TypeParam = barretenberg::field<barretenberg::Bn254FrParams>
+  Constructors
+  Addition
+  Multiplication
+  ConstructUnivariateViewFromUnivariate
+  ConstructUnivariateFromUnivariateView
+  UnivariateViewAddition
+  UnivariateViewSubtraction
+  UnivariateViewMultiplication
+  Serialization
+StandardRelationConsistency.
+  ArithmeticRelation
+  GrandProductComputationRelation
+  GrandProductInitializationRelation
+RelationCorrectness.
+  StandardRelationCorrectness
+  UltraRelationCorrectness
+UltraRelationConsistency.
+  UltraArithmeticRelation
+  UltraArithmeticRelationSecondary
+  UltraGrandProductInitializationRelation
+  UltraGrandProductComputationRelation
+  LookupGrandProductComputationRelation
+  LookupGrandProductInitializationRelation
+  GenPermSortRelation
+  EllipticRelation
+  AuxiliaryRelation
+Sumcheck.
+  PolynomialNormalization
+  Prover
+  ProverAndVerifier
+  ProverAndVerifierLonger
+SumcheckRound.
+  ComputeUnivariateProver
+  ComputeUnivariateVerifier
+TranscriptTest/0.  # TypeParam = barretenberg::field<barretenberg::Bn254FrParams>
+  ProverManifestConsistency
+  VerifierManifestConsistency
+  ProverAndVerifierBasic
+  VerifierMistake
+  UltraVerifierManifestConsistency
+power_polynomial.
+  test_full_polynomial_correctness
+  test_evaluation_correctness
+Listing tests from ./build/bin/join_split_example_proofs_inner_proof_data_tests
+client_proofs_inner_proof_data.
+  test_proof_to_data
+Listing tests from ./build/bin/join_split_example_proofs_join_split_tests
+join_split/0.  # TypeParam = proof_system::plonk::UltraComposer
+  deposit
+join_split/1.  # TypeParam = proof_system::plonk::TurboComposer
+  deposit
+join_split/2.  # TypeParam = proof_system::plonk::StandardComposer
+  deposit
+join_split/3.  # TypeParam = proof_system::honk::StandardHonkComposer
+  deposit
+join_split_tests.
+  test_invalid_num_input_notes_fails
+  test_deposit_public_value_invalid_fails
+  test_send_public_value_invalid_fails
+  test_withdraw_public_value_invalid_fails
+  test_defi_deposit_public_value_invalid_fails
+  test_deposit_public_owner_invalid_fails
+  test_send_public_owner_invalid_fails
+  test_withdraw_public_owner_invalid_fails
+  test_defi_deposit_public_owner_invalid_fails
+  test_wrong_proof_id
+  test_joining_same_note_fails
+  test_send_with_0_input_notes_fails
+  test_withdraw_with_0_input_notes_fails
+  test_defi_deposit_with_0_input_notes_fails
+  test_wrong_asset_id_fails
+  test_different_input_note_1_asset_id_fails
+  test_different_output_note_1_asset_id_fails
+  test_different_output_note_2_asset_id_fails
+  test_deposit_but_different_input_note_2_asset_id_fails
+  test_send_but_different_input_note_2_asset_id_fails
+  test_withdraw_but_different_input_note_2_asset_id_fails
+  test_0_input_notes_and_detect_circuit_change
+  test_0_input_notes_create_dupicate_output_notes_fails
+  test_0_input_notes_create_dupicate_output_notes_fails_2
+  test_dummy_input_note_1_non_0_value_fails
+  test_dummy_input_note_2_non_0_value_fails
+  test_1_input_note
+  test_1_input_note_with_num_input_notes_as_0
+  test_2_input_notes
+  test_0_output_notes
+  test_allow_chain_out_of_range_fails
+  test_unrelated_backward_link_fails
+  test_propagated_input_note1_no_double_spend
+  test_max_public_input
+  test_overflow_public_value_fails
+  test_non_zero_tx_fee
+  test_non_zero_tx_fee_zero_public_values
+  test_max_tx_fee
+  test_overflow_tx_fee_fails
+  test_total_output_value_larger_than_total_input_value_fails
+  test_different_input_note_owners_fails
+  test_different_input_note_account_requireds_fails
+  test_spend_notes_with_registered_account
+  test_different_note_account_required_vs_account_required_fails
+  test_wrong_input_note_owner_fails
+  test_random_output_note_owners
+  test_tainted_output_owner_fails
+  test_wrong_account_private_key_fails
+  test_wrong_public_owner_sig_fail
+  test_spend_notes_with_signing_key_when_account_required_is_false_fails
+  test_spend_registered_notes_with_owner_key_fails
+  test_wrong_alias_hash_fails
+  test_nonregistered_signing_key_fails
+  test_wrong_merkle_root_fails
+  test_wrong_note_hash_path_fails
+  test_wrong_leaf_index_fails
+  test_incorrect_input_nullifier_in_output_note_1_fails
+  test_incorrect_input_nullifier_in_output_note_2_fails
+  test_defi_deposit_one_virtual_input
+  test_defi_deposit_one_real_one_virtual_inputs
+  test_defi_deposit_one_virtual_one_real_inputs
+  test_defi_deposit_one_real_one_virtual_inputs_same_asset_ids
+  test_defi_deposit_two_real_inputs_different_asset_ids
+  test_defi_deposit_two_virtual_inputs_different_asset_ids
+  test_defi_deposit_two_virtual_inputs_different_asset_ids_and_input_note_2_gt_defi_deposit_fails
+  test_defi_deposit_two_real_inputs_different_asset_ids_and_input_note_2_gt_defi_deposit_fails
+  test_defi_deposit_two_real_inputs_different_asset_ids_and_input_note_2_lt_defi_deposit_fails
+  test_defi_invalid_tx_fee_asset_id_fails
+  test_defi_deposit_of_zero_fails
+  test_defi_non_zero_output_note_1_ignored
+  test_defi_allow_chain_1_fails
+  test_defi_deposit_incorrect_input_nullifier_in_partial_claim_note_fails
+  test_defi_deposit_bridge_call_data_second_bridge_input_nonzero_but_not_in_use_fails
+  test_defi_deposit_bridge_call_data_second_bridge_output_nonzero_but_not_in_use_fails
+  test_defi_deposit_second_bridge_input_in_use_but_same_bridge_input_asset_ids_fails
+  test_defi_deposit_second_bridge_output_in_use_and_same_virtual_bridge_output_asset_ids
+  test_defi_deposit_second_bridge_output_in_use_but_same_real_bridge_output_asset_ids_fails
+  test_defi_deposit_first_bridge_output_asset_id_virtual_but_incorrect_placeholder_value_fails
+  test_defi_deposit_second_bridge_output_asset_id_virtual_but_incorrect_placeholder_value_fails
+  test_defi_wrong_first_asset_id_in_bridge_call_data_fails
+  test_defi_bridge_call_data_config_second_input_in_use_but_input_note_2_not_in_use_fails
+  test_defi_missing_second_asset_in_bridge_call_data_fails
+  test_defi_wrong_second_asset_id_in_bridge_call_data_fails
+  test_repayment_logic
+  test_virtual_note_repay_different_asset_id_fail
+  test_real_input_value_lt_virtual_input_value_fails
+  test_send_two_virtual_notes
+  test_send_one_virtual_note
+  test_send_two_virtual_notes_nonzero_public_value_fails
+  test_send_two_virtual_inputs_different_asset_ids_fails
+  test_send_two_virtual_inputs_different_fee_asset_id_fails
+  test_non_zero_output_note_creator_pubkey_x
+  test_incorrect_output_note_creator_pubkey_x
+  test_deposit_construct_proof
+  test_withdraw_full_proof
+  test_private_send_full_proof
+  test_defi_deposit_full_proof
+  test_repayment_full_proof
+  test_send_two_virtual_notes_full_proof
+  serialized_proving_key_size
+join_split_js_parity_tests.
+  test_full_proof
+client_proofs_join_split_tx.
+  test_serialization
+join_split_tests/test_valid_allow_chain_permutations.
+  0  # GetParam() = 0
+  1  # GetParam() = 1
+  2  # GetParam() = 2
+  3  # GetParam() = 3
+join_split_tests/test_allow_chain_to_other_users_fail.
+  0  # GetParam() = 1
+  1  # GetParam() = 2
+join_split_tests/test_propagated_notes_skip_membership_check.
+  0  # GetParam() = 1
+  1  # GetParam() = 2
+Listing tests from ./build/bin/join_split_example_proofs_notes_tests
+compute_nullifier_circuit.
+  native_consistency
+value_note.
+  commits
+  commits_with_0_value
+  commit_with_oversized_asset_id_fails
+Listing tests from ./build/bin/numeric_tests
+bitop.
+  clz_uint32_31
+  clz_uint32_0
+  clz_uint64_0
+  clz_size_t
+  clz_uint256_255
+  clz_uint256_248
+  get_msb_uint64_0_value
+  get_msb_uint32_0
+  get_msb_uint32_31
+  get_msb_uint64_63
+  get_msb_size_t_7
+engine.
+  get_random_uint64
+  reset_debug_engine
+  get_expected_debug_value
+uint256.
+  get_bit
+  add
+  get_msb
+  mul
+  div_and_mod
+  sub
+  right_shift
+  left_shift
+  and
+  or
+  xor
+  bit_not
+  logic_not
+  equality
+  not_equal
+  greater_than
+  greater_than_or_equal
+  to_from_buffer
+uintx.
+  get_bit
+  mul
+  div_and_mod
+  DISABLED_mulmod
+  sub
+  and
+  or
+  xor
+  bit_not
+  logic_not
+  not_equal
+  DISABLED_invmod
+  invmod_regression_check
+  DISABLED_r_inv
+Listing tests from ./build/bin/plonk_tests
+standard_plonk_composer_splitting_tmp.
+  base_case
+  composer_from_serialized_keys
+  test_add_gate_proofs
+  test_mul_gate_proofs
+  range_constraint
+  range_constraint_fail
+  and_constraint
+  xor_constraint
+  big_add_gate_with_bit_extract
+  test_range_constraint_fail
+  test_check_circuit_correct
+  test_check_circuit_broken
+turbo_plonk_composer_splitting_tmp.
+  base_case
+  composer_from_serialized_keys
+  test_add_gate_proofs
+  test_mul_gate_proofs
+  small_scalar_multipliers
+  large_scalar_multipliers
+  range_constraint
+  range_constraint_fail
+  and_constraint_failure
+  and_constraint
+  xor_constraint_failure
+  xor_constraint
+  big_add_gate_with_bit_extract
+  validate_copy_constraints
+  test_check_circuit_add_gate_proofs_correct
+  test_check_circuit_add_gate_proofs_broken
+  test_check_circuit_mul_gate_proofs_correct
+  test_check_circuit_mul_gate_proofs_broken
+  test_check_circuit_fixed_group
+  test_check_circuit_range_constraint
+  test_check_circuit_xor
+ultra_plonk_composer_splitting_tmp.
+  create_gates_from_plookup_accumulators
+  test_no_lookup_proof
+  test_elliptic_gate
+  non_trivial_tag_permutation
+  non_trivial_tag_permutation_and_cycles
+  bad_tag_permutation
+  bad_tag_turbo_permutation
+  sort_widget
+  sort_with_edges_gate
+  range_constraint
+  range_with_gates
+  range_with_gates_where_range_is_not_a_power_of_two
+  sort_widget_complex
+  sort_widget_neg
+  composed_range_constraint
+  non_native_field_multiplication
+  rom
+  ram
+standard_composer.
+  base_case
+  composer_from_serialized_keys
+  test_add_gate_proofs
+  test_mul_gate_proofs
+  range_constraint
+  range_constraint_fail
+  and_constraint
+  xor_constraint
+  big_add_gate_with_bit_extract
+  test_composer
+  test_range_constraint_fail
+  test_check_circuit_correct
+  test_check_circuit_broken
+turbo_composer.
+  base_case
+  composer_from_serialized_keys
+  test_add_gate_proofs
+  test_mul_gate_proofs
+  small_scalar_multipliers
+  large_scalar_multipliers
+  range_constraint
+  range_constraint_fail
+  and_constraint_failure
+  and_constraint
+  xor_constraint_failure
+  xor_constraint
+  big_add_gate_with_bit_extract
+  validate_copy_constraints
+  test_check_circuit_add_gate_proofs_correct
+  test_check_circuit_add_gate_proofs_broken
+  test_check_circuit_mul_gate_proofs_correct
+  test_check_circuit_mul_gate_proofs_broken
+  test_check_circuit_fixed_group
+  test_check_circuit_range_constraint
+  test_check_circuit_xor
+ultra_composer/0.  # TypeParam = proof_system::plonk::test_ultra_composer::UseKeccak32Bytes
+  create_gates_from_plookup_accumulators
+  test_no_lookup_proof
+  test_elliptic_gate
+  non_trivial_tag_permutation
+  non_trivial_tag_permutation_and_cycles
+  bad_tag_permutation
+  bad_tag_turbo_permutation
+  sort_widget
+  sort_with_edges_gate
+  range_constraint
+  range_with_gates
+  range_with_gates_where_range_is_not_a_power_of_two
+  sort_widget_complex
+  sort_widget_neg
+  composed_range_constraint
+  non_native_field_multiplication
+  rom
+  ram
+  range_checks_on_duplicates
+ultra_composer/1.  # TypeParam = proof_system::plonk::test_ultra_composer::UsePlookupPedersen16Bytes
+  create_gates_from_plookup_accumulators
+  test_no_lookup_proof
+  test_elliptic_gate
+  non_trivial_tag_permutation
+  non_trivial_tag_permutation_and_cycles
+  bad_tag_permutation
+  bad_tag_turbo_permutation
+  sort_widget
+  sort_with_edges_gate
+  range_constraint
+  range_with_gates
+  range_with_gates_where_range_is_not_a_power_of_two
+  sort_widget_complex
+  sort_widget_neg
+  composed_range_constraint
+  non_native_field_multiplication
+  rom
+  ram
+  range_checks_on_duplicates
+ultra_composer.
+  range_constraint_small_variable
+commitment_scheme.
+  kate_open
+  kate_batch_open
+prover.
+  compute_quotient_polynomial
+proving_key.
+  proving_key_from_serialized_key
+  proving_key_from_serialized_key_ultra
+  proving_key_from_mmaped_key
+test_public_inputs.
+  compute_delta
+verification_key.
+  buffer_serialization
+  stream_serialization
+  basic_compression_equality
+  compression_inequality_index_mismatch
+  compression_inequality_composer_type
+  compression_inequality_different_circuit_size
+  compression_inequality_different_num_public_inputs
+  compression_inequality_different_commitments
+  compression_inequality_different_num_commitments
+  compression_equality_different_contains_recursive_proof
+  compression_equality_different_recursive_proof_public_input_indices
+verifier.
+  verify_arithmetic_proof_small
+  verify_arithmetic_proof
+  verify_damaged_proof
+Listing tests from ./build/bin/polynomials_tests
+polynomials.
+  evaluation_domain
+  domain_roots
+  evaluation_domain_roots
+  fft_with_small_degree
+  split_polynomial_fft
+  split_polynomial_evaluate
+  basic_fft
+  fft_ifft_consistency
+  split_polynomial_fft_ifft_consistency
+  fft_coset_ifft_consistency
+  split_polynomial_fft_coset_ifft_consistency
+  fft_coset_ifft_cross_consistency
+  compute_lagrange_polynomial_fft
+  compute_lagrange_polynomial_fft_large_domain
+  divide_by_pseudo_vanishing_polynomial
+  compute_kate_opening_coefficients
+  get_lagrange_evaluations
+  barycentric_weight_evaluations
+  divide_by_vanishing_polynomial
+  partial_fft_serial
+  partial_fft_parallel
+  partial_coset_fft_output
+  partial_coset_fft
+  partial_coset_fft_evaluation
+  linear_poly_product
+  fft_linear_poly_product
+  compute_interpolation
+  compute_efficient_interpolation
+  interpolation_constructor_single
+  interpolation_constructor
+  evaluate_mle
+  factor_roots
+  move_construct_and_assign
+  default_construct_then_assign
+Listing tests from ./build/bin/proof_system_tests
+standard_circuit_constructor.
+  base_case
+  test_add_gate
+  test_mul_gate_proofs
+  range_constraint
+  range_constraint_fail
+  and_constraint
+  xor_constraint
+  big_add_gate_with_bit_extract
+  test_range_constraint_fail
+  test_check_circuit_correct
+  test_check_circuit_broken
+turbo_circuit_constructor.
+  base_case
+  test_add_gate_proofs
+  test_mul_gate_proofs
+  small_scalar_multipliers
+  large_scalar_multipliers
+  range_constraint
+  range_constraint_fail
+  and_constraint_failure
+  and_constraint
+  xor_constraint_failure
+  xor_constraint
+  big_add_gate_with_bit_extract
+ultra_circuit_constructor.
+  create_gates_from_plookup_accumulators
+  base_case
+  test_no_lookup_proof
+  test_elliptic_gate
+  non_trivial_tag_permutation
+  non_trivial_tag_permutation_and_cycles
+  bad_tag_permutation
+  sort_widget
+  sort_with_edges_gate
+  range_constraint
+  range_with_gates
+  range_with_gates_where_range_is_not_a_power_of_two
+  sort_widget_complex
+  sort_widget_neg
+  composed_range_constraint
+  non_native_field_multiplication
+  rom
+  ram
+  range_checks_on_duplicates
+  check_circuit_showcase
+ComposerLibTests.
+  InitializeProvingKey
+  ConstructSelectors
+  EnforceNonzeroSelectors
+  ConstructWitnessPolynomialsBase
+PermutationHelperTests.
+  ComputeWireCopyCycles
+  ComputePermutationMapping
+  ComputeHonkStyleSigmaLagrangePolynomialsFromMapping
+  ComputeStandardAuxPolynomials
+PolynomialStore.
+  PutThenGet
+  NonexistentKey
+  Volume
+  Remove
+  RangeBasedFor
+Listing tests from ./build/bin/serialize-tests_tests
+msgpack_tests.
+  msgpack_sanity_sanity
+  msgpack_schema_sanity
+Listing tests from ./build/bin/srs_tests
+io.
+  read_transcript_loads_well_formed_srs
+reference_string.
+  env_file_consistency
+  mem_file_consistency
+Listing tests from ./build/bin/stdlib_aes128_tests
+stdlib_aes128.
+  encrypt_64_bytes
+Listing tests from ./build/bin/stdlib_blake2s_tests
+stdlib_blake2s.
+  test_single_block
+  test_single_block_plookup
+  test_double_block
+  test_double_block_plookup
+Listing tests from ./build/bin/stdlib_blake3s_tests
+stdlib_blake3s.
+  test_single_block
+  test_single_block_plookup
+  test_double_block
+  test_double_block_plookup
+Listing tests from ./build/bin/stdlib_ecdsa_tests
+stdlib_ecdsa.
+  verify_signature
+  verify_signature_noassert_succeed
+  verify_signature_noassert_fail
+Listing tests from ./build/bin/stdlib_keccak_tests
+stdlib_keccak.
+  keccak_format_input_table
+  keccak_format_output_table
+  keccak_theta_output_table
+  keccak_rho_output_table
+  keccak_chi_output_table
+  test_format_input_lanes
+  test_single_block
+  test_double_block
+  test_double_block_variable_length
+Listing tests from ./build/bin/stdlib_merkle_tree_tests
+stdlib_merkle_tree_hash.
+  compress_native_vs_circuit
+  compute_tree_root_native_vs_circuit
+  compute_tree_native
+stdlib_merkle_tree.
+  test_check_membership
+  test_batch_update_membership
+  test_assert_check_membership
+  test_assert_check_membership_fail
+  test_update_members
+  test_tree
+  test_update_memberships
+  test_memory_store
+  test_memory_store_sibling_path
+  test_kv_memory_vs_memory_consistency
+  test_size
+  test_get_hash_path
+  test_get_hash_path_layers
+crypto_nullifier_tree.
+  test_nullifier_memory
+  test_nullifier_memory_appending_zero
+  test_nullifier_tree
+stdlib_nullifier_tree.
+  test_kv_memory_vs_memory_consistency
+  test_size
+  test_get_hash_path
+  test_get_hash_path_layers
+Listing tests from ./build/bin/stdlib_pedersen_commitment_tests
+stdlib_pedersen/0.  # TypeParam = proof_system::plonk::UltraComposer
+  small
+  edge_cases
+  large
+  compress_byte_array
+  multi_compress
+  compress_eight
+  compress_constants
+stdlib_pedersen/1.  # TypeParam = proof_system::plonk::TurboComposer
+  small
+  edge_cases
+  large
+  compress_byte_array
+  multi_compress
+  compress_eight
+  compress_constants
+stdlib_pedersen/2.  # TypeParam = proof_system::plonk::StandardComposer
+  small
+  edge_cases
+  large
+  compress_byte_array
+  multi_compress
+  compress_eight
+  compress_constants
+stdlib_pedersen.
+  test_pedersen_plookup
+  test_compress_many_plookup
+  test_merkle_damgard_compress_plookup
+  test_merkle_damgard_compress_multiple_iv_plookup
+  test_merkle_damgard_tree_compress_plookup
+Listing tests from ./build/bin/stdlib_primitives_tests
+stdlib_bigfield/0.  # TypeParam = proof_system::plonk::UltraComposer
+  badmul
+  mul
+  sqr
+  mult_madd
+  dual_madd
+  div_without_denominator_check
+  add_and_div
+  add_and_mul
+  add_and_mul_with_constants
+  sub_and_mul
+  msub_div
+  conditional_negate
+  group_operations
+  reduce
+  assert_is_in_field_succes
+  byte_array_constructors
+  quotient_completeness_regression
+  conditional_select_regression
+  division_context
+stdlib_bigfield/1.  # TypeParam = proof_system::plonk::TurboComposer
+  badmul
+  mul
+  sqr
+  mult_madd
+  dual_madd
+  div_without_denominator_check
+  add_and_div
+  add_and_mul
+  add_and_mul_with_constants
+  sub_and_mul
+  msub_div
+  conditional_negate
+  group_operations
+  reduce
+  assert_is_in_field_succes
+  byte_array_constructors
+  quotient_completeness_regression
+  conditional_select_regression
+  division_context
+stdlib_bigfield/2.  # TypeParam = proof_system::plonk::StandardComposer
+  badmul
+  mul
+  sqr
+  mult_madd
+  dual_madd
+  div_without_denominator_check
+  add_and_div
+  add_and_mul
+  add_and_mul_with_constants
+  sub_and_mul
+  msub_div
+  conditional_negate
+  group_operations
+  reduce
+  assert_is_in_field_succes
+  byte_array_constructors
+  quotient_completeness_regression
+  conditional_select_regression
+  division_context
+stdlib_bigfield/3.  # TypeParam = proof_system::honk::StandardHonkComposer
+  badmul
+  mul
+  sqr
+  mult_madd
+  dual_madd
+  div_without_denominator_check
+  add_and_div
+  add_and_mul
+  add_and_mul_with_constants
+  sub_and_mul
+  msub_div
+  conditional_negate
+  group_operations
+  reduce
+  assert_is_in_field_succes
+  byte_array_constructors
+  quotient_completeness_regression
+  conditional_select_regression
+  division_context
+stdlib_bigfield/4.  # TypeParam = proof_system::plonk::StandardPlonkComposer
+  badmul
+  mul
+  sqr
+  mult_madd
+  dual_madd
+  div_without_denominator_check
+  add_and_div
+  add_and_mul
+  add_and_mul_with_constants
+  sub_and_mul
+  msub_div
+  conditional_negate
+  group_operations
+  reduce
+  assert_is_in_field_succes
+  byte_array_constructors
+  quotient_completeness_regression
+  conditional_select_regression
+  division_context
+stdlib_biggroup/0.  # TypeParam = test_stdlib_biggroup::TestType<proof_system::plonk::stdlib::bn254<proof_system::honk::StandardHonkComposer>, false>
+  add
+  sub
+  dbl
+  montgomery_ladder
+  mul
+  twin_mul
+  triple_mul
+  quad_mul
+  one
+  batch_mul
+  chain_add
+  multiple_montgomery_ladder
+  compute_naf
+  wnaf_batch_mul
+  compute_wnaf
+  batch_mul_short_scalars
+  wnaf_batch_mul_128_bit
+  wnaf_batch_4
+  bn254_endo_batch_mul
+  mixed_mul_bn254_endo
+  wnaf_secp256k1
+  wnaf_8bit_secp256k1
+  ecdsa_mul_secp256k1
+stdlib_biggroup/1.  # TypeParam = test_stdlib_biggroup::TestType<proof_system::plonk::stdlib::bn254<proof_system::plonk::StandardComposer>, false>
+  add
+  sub
+  dbl
+  montgomery_ladder
+  mul
+  twin_mul
+  triple_mul
+  quad_mul
+  one
+  batch_mul
+  chain_add
+  multiple_montgomery_ladder
+  compute_naf
+  wnaf_batch_mul
+  compute_wnaf
+  batch_mul_short_scalars
+  wnaf_batch_mul_128_bit
+  wnaf_batch_4
+  bn254_endo_batch_mul
+  mixed_mul_bn254_endo
+  wnaf_secp256k1
+  wnaf_8bit_secp256k1
+  ecdsa_mul_secp256k1
+stdlib_biggroup/2.  # TypeParam = test_stdlib_biggroup::TestType<proof_system::plonk::stdlib::bn254<proof_system::plonk::UltraComposer>, true>
+  add
+  sub
+  dbl
+  montgomery_ladder
+  mul
+  twin_mul
+  triple_mul
+  quad_mul
+  one
+  batch_mul
+  chain_add
+  multiple_montgomery_ladder
+  compute_naf
+  wnaf_batch_mul
+  compute_wnaf
+  batch_mul_short_scalars
+  wnaf_batch_mul_128_bit
+  wnaf_batch_4
+  bn254_endo_batch_mul
+  mixed_mul_bn254_endo
+  wnaf_secp256k1
+  wnaf_8bit_secp256k1
+  ecdsa_mul_secp256k1
+stdlib_biggroup/3.  # TypeParam = test_stdlib_biggroup::TestType<proof_system::plonk::stdlib::secp256k1<proof_system::plonk::UltraComposer>, true>
+  add
+  sub
+  dbl
+  montgomery_ladder
+  mul
+  twin_mul
+  triple_mul
+  quad_mul
+  one
+  batch_mul
+  chain_add
+  multiple_montgomery_ladder
+  compute_naf
+  wnaf_batch_mul
+  compute_wnaf
+  batch_mul_short_scalars
+  wnaf_batch_mul_128_bit
+  wnaf_batch_4
+  bn254_endo_batch_mul
+  mixed_mul_bn254_endo
+  wnaf_secp256k1
+  wnaf_8bit_secp256k1
+  ecdsa_mul_secp256k1
+BitArrayTest/0.  # TypeParam = proof_system::honk::StandardHonkComposer
+  test_uint32_input_output_consistency
+  test_binary_input_output_consistency
+  test_string_input_output_consistency
+  test_byte_array_conversion
+  test_uint32_vector_constructor
+BitArrayTest/1.  # TypeParam = proof_system::plonk::StandardComposer
+  test_uint32_input_output_consistency
+  test_binary_input_output_consistency
+  test_string_input_output_consistency
+  test_byte_array_conversion
+  test_uint32_vector_constructor
+BitArrayTest/2.  # TypeParam = proof_system::plonk::TurboComposer
+  test_uint32_input_output_consistency
+  test_binary_input_output_consistency
+  test_string_input_output_consistency
+  test_byte_array_conversion
+  test_uint32_vector_constructor
+BitArrayTest/3.  # TypeParam = proof_system::plonk::UltraComposer
+  test_uint32_input_output_consistency
+  test_binary_input_output_consistency
+  test_string_input_output_consistency
+  test_byte_array_conversion
+  test_uint32_vector_constructor
+BoolTest/0.  # TypeParam = proof_system::honk::StandardHonkComposer
+  TestBasicOperations
+  Xor
+  XorConstants
+  XorTwinConstants
+  LogicalAnd
+  And
+  AndConstants
+  or
+  OrConstants
+  Eq
+  Implies
+  ImpliesBothWays
+  MustImply
+  MustImplyFails
+  MustImplyMultiple
+  MustImplyMultipleFails
+  ConditionalAssign
+  TestSimpleProof
+  Normalize
+BoolTest/1.  # TypeParam = proof_system::plonk::StandardComposer
+  TestBasicOperations
+  Xor
+  XorConstants
+  XorTwinConstants
+  LogicalAnd
+  And
+  AndConstants
+  or
+  OrConstants
+  Eq
+  Implies
+  ImpliesBothWays
+  MustImply
+  MustImplyFails
+  MustImplyMultiple
+  MustImplyMultipleFails
+  ConditionalAssign
+  TestSimpleProof
+  Normalize
+BoolTest/2.  # TypeParam = proof_system::plonk::TurboComposer
+  TestBasicOperations
+  Xor
+  XorConstants
+  XorTwinConstants
+  LogicalAnd
+  And
+  AndConstants
+  or
+  OrConstants
+  Eq
+  Implies
+  ImpliesBothWays
+  MustImply
+  MustImplyFails
+  MustImplyMultiple
+  MustImplyMultipleFails
+  ConditionalAssign
+  TestSimpleProof
+  Normalize
+BoolTest/3.  # TypeParam = proof_system::plonk::UltraComposer
+  TestBasicOperations
+  Xor
+  XorConstants
+  XorTwinConstants
+  LogicalAnd
+  And
+  AndConstants
+  or
+  OrConstants
+  Eq
+  Implies
+  ImpliesBothWays
+  MustImply
+  MustImplyFails
+  MustImplyMultiple
+  MustImplyMultipleFails
+  ConditionalAssign
+  TestSimpleProof
+  Normalize
+ByteArrayTest/0.  # TypeParam = proof_system::honk::StandardHonkComposer
+  test_reverse
+  test_string_constructor
+  test_ostream_operator
+  test_byte_array_input_output_consistency
+  get_bit
+  set_bit
+ByteArrayTest/1.  # TypeParam = proof_system::plonk::StandardComposer
+  test_reverse
+  test_string_constructor
+  test_ostream_operator
+  test_byte_array_input_output_consistency
+  get_bit
+  set_bit
+ByteArrayTest/2.  # TypeParam = proof_system::plonk::TurboComposer
+  test_reverse
+  test_string_constructor
+  test_ostream_operator
+  test_byte_array_input_output_consistency
+  get_bit
+  set_bit
+ByteArrayTest/3.  # TypeParam = proof_system::plonk::UltraComposer
+  test_reverse
+  test_string_constructor
+  test_ostream_operator
+  test_byte_array_input_output_consistency
+  get_bit
+  set_bit
+stdlib_array/0.  # TypeParam = proof_system::plonk::UltraComposer
+  test_array_length
+  test_array_length_null
+  test_array_length_fails
+  test_array_pop
+  test_array_pop_from_empty
+  test_array_push
+  test_array_push_optional
+  test_array_push_generic
+  test_array_push_generic_full
+  test_pata_large_bench
+  test_pata_same_size_not_full_to_not_full
+  test_pata_same_size_not_full_to_not_full_2
+  test_pata_same_size_not_full_to_empty
+  test_pata_smaller_source_full_to_not_full
+  test_pata_null_source
+  test_pata_null_target_fails
+  test_pata_singletons_full_to_not_full
+  test_pata_singletons_not_full_to_full
+  test_pata_singletons_full_to_full
+  test_pata_same_size_full_to_full_fails
+  test_pata_nonzero_after_zero_source_fails
+  test_pata_nonzero_after_zero_source_fails_2
+  test_pata_nonzero_after_zero_target_fails
+  test_pata_nonzero_after_zero_target_fails_2
+stdlib_array/1.  # TypeParam = proof_system::plonk::TurboComposer
+  test_array_length
+  test_array_length_null
+  test_array_length_fails
+  test_array_pop
+  test_array_pop_from_empty
+  test_array_push
+  test_array_push_optional
+  test_array_push_generic
+  test_array_push_generic_full
+  test_pata_large_bench
+  test_pata_same_size_not_full_to_not_full
+  test_pata_same_size_not_full_to_not_full_2
+  test_pata_same_size_not_full_to_empty
+  test_pata_smaller_source_full_to_not_full
+  test_pata_null_source
+  test_pata_null_target_fails
+  test_pata_singletons_full_to_not_full
+  test_pata_singletons_not_full_to_full
+  test_pata_singletons_full_to_full
+  test_pata_same_size_full_to_full_fails
+  test_pata_nonzero_after_zero_source_fails
+  test_pata_nonzero_after_zero_source_fails_2
+  test_pata_nonzero_after_zero_target_fails
+  test_pata_nonzero_after_zero_target_fails_2
+stdlib_array/2.  # TypeParam = proof_system::plonk::StandardComposer
+  test_array_length
+  test_array_length_null
+  test_array_length_fails
+  test_array_pop
+  test_array_pop_from_empty
+  test_array_push
+  test_array_push_optional
+  test_array_push_generic
+  test_array_push_generic_full
+  test_pata_large_bench
+  test_pata_same_size_not_full_to_not_full
+  test_pata_same_size_not_full_to_not_full_2
+  test_pata_same_size_not_full_to_empty
+  test_pata_smaller_source_full_to_not_full
+  test_pata_null_source
+  test_pata_null_target_fails
+  test_pata_singletons_full_to_not_full
+  test_pata_singletons_not_full_to_full
+  test_pata_singletons_full_to_full
+  test_pata_same_size_full_to_full_fails
+  test_pata_nonzero_after_zero_source_fails
+  test_pata_nonzero_after_zero_source_fails_2
+  test_pata_nonzero_after_zero_target_fails
+  test_pata_nonzero_after_zero_target_fails_2
+stdlib_array/3.  # TypeParam = proof_system::honk::StandardHonkComposer
+  test_array_length
+  test_array_length_null
+  test_array_length_fails
+  test_array_pop
+  test_array_pop_from_empty
+  test_array_push
+  test_array_push_optional
+  test_array_push_generic
+  test_array_push_generic_full
+  test_pata_large_bench
+  test_pata_same_size_not_full_to_not_full
+  test_pata_same_size_not_full_to_not_full_2
+  test_pata_same_size_not_full_to_empty
+  test_pata_smaller_source_full_to_not_full
+  test_pata_null_source
+  test_pata_null_target_fails
+  test_pata_singletons_full_to_not_full
+  test_pata_singletons_not_full_to_full
+  test_pata_singletons_full_to_full
+  test_pata_same_size_full_to_full_fails
+  test_pata_nonzero_after_zero_source_fails
+  test_pata_nonzero_after_zero_source_fails_2
+  test_pata_nonzero_after_zero_target_fails
+  test_pata_nonzero_after_zero_target_fails_2
+stdlib_field/0.  # TypeParam = proof_system::plonk::UltraComposer
+  test_create_range_constraint
+  test_assert_equal
+  test_add_mul_with_constants
+  test_div
+  test_postfix_increment
+  test_prefix_increment
+  test_field_fibbonaci
+  test_field_pythagorean
+  test_equality
+  test_equality_false
+  test_equality_with_constants
+  test_larger_circuit
+  is_zero
+  madd
+  two_bit_table
+  test_slice
+  test_slice_equal_msb_lsb
+  test_slice_random
+  three_bit_table
+  decompose_into_bits
+  test_assert_is_in_set
+  test_assert_is_in_set_fails
+  test_pow
+  test_pow_zero
+  test_pow_one
+  test_pow_both_constant
+  test_pow_base_constant
+  test_pow_exponent_constant
+  test_pow_exponent_out_of_range
+  test_copy_as_new_witness
+  test_ranged_less_than
+stdlib_field/1.  # TypeParam = proof_system::plonk::TurboComposer
+  test_create_range_constraint
+  test_assert_equal
+  test_add_mul_with_constants
+  test_div
+  test_postfix_increment
+  test_prefix_increment
+  test_field_fibbonaci
+  test_field_pythagorean
+  test_equality
+  test_equality_false
+  test_equality_with_constants
+  test_larger_circuit
+  is_zero
+  madd
+  two_bit_table
+  test_slice
+  test_slice_equal_msb_lsb
+  test_slice_random
+  three_bit_table
+  decompose_into_bits
+  test_assert_is_in_set
+  test_assert_is_in_set_fails
+  test_pow
+  test_pow_zero
+  test_pow_one
+  test_pow_both_constant
+  test_pow_base_constant
+  test_pow_exponent_constant
+  test_pow_exponent_out_of_range
+  test_copy_as_new_witness
+  test_ranged_less_than
+stdlib_field/2.  # TypeParam = proof_system::plonk::StandardComposer
+  test_create_range_constraint
+  test_assert_equal
+  test_add_mul_with_constants
+  test_div
+  test_postfix_increment
+  test_prefix_increment
+  test_field_fibbonaci
+  test_field_pythagorean
+  test_equality
+  test_equality_false
+  test_equality_with_constants
+  test_larger_circuit
+  is_zero
+  madd
+  two_bit_table
+  test_slice
+  test_slice_equal_msb_lsb
+  test_slice_random
+  three_bit_table
+  decompose_into_bits
+  test_assert_is_in_set
+  test_assert_is_in_set_fails
+  test_pow
+  test_pow_zero
+  test_pow_one
+  test_pow_both_constant
+  test_pow_base_constant
+  test_pow_exponent_constant
+  test_pow_exponent_out_of_range
+  test_copy_as_new_witness
+  test_ranged_less_than
+stdlib_field/3.  # TypeParam = proof_system::honk::StandardHonkComposer
+  test_create_range_constraint
+  test_assert_equal
+  test_add_mul_with_constants
+  test_div
+  test_postfix_increment
+  test_prefix_increment
+  test_field_fibbonaci
+  test_field_pythagorean
+  test_equality
+  test_equality_false
+  test_equality_with_constants
+  test_larger_circuit
+  is_zero
+  madd
+  two_bit_table
+  test_slice
+  test_slice_equal_msb_lsb
+  test_slice_random
+  three_bit_table
+  decompose_into_bits
+  test_assert_is_in_set
+  test_assert_is_in_set_fails
+  test_pow
+  test_pow_zero
+  test_pow_one
+  test_pow_both_constant
+  test_pow_base_constant
+  test_pow_exponent_constant
+  test_pow_exponent_out_of_range
+  test_copy_as_new_witness
+  test_ranged_less_than
+GroupTest/0.  # TypeParam = proof_system::honk::StandardHonkComposer
+  TestFixedBaseScalarMul
+  TestFixedBaseScalarMulZeroFails
+  TestFixedBaseScalarMulWithTwoLimbs
+GroupTest/1.  # TypeParam = proof_system::plonk::StandardComposer
+  TestFixedBaseScalarMul
+  TestFixedBaseScalarMulZeroFails
+  TestFixedBaseScalarMulWithTwoLimbs
+GroupTest/2.  # TypeParam = proof_system::plonk::TurboComposer
+  TestFixedBaseScalarMul
+  TestFixedBaseScalarMulZeroFails
+  TestFixedBaseScalarMulWithTwoLimbs
+GroupTest/3.  # TypeParam = proof_system::plonk::UltraComposer
+  TestFixedBaseScalarMul
+  TestFixedBaseScalarMulZeroFails
+  TestFixedBaseScalarMulWithTwoLimbs
+LogicTest/0.  # TypeParam = proof_system::honk::StandardHonkComposer
+  TestCorrectLogic
+  LargeOperands
+  DifferentWitnessSameResult
+LogicTest/1.  # TypeParam = proof_system::plonk::StandardComposer
+  TestCorrectLogic
+  LargeOperands
+  DifferentWitnessSameResult
+LogicTest/2.  # TypeParam = proof_system::plonk::TurboComposer
+  TestCorrectLogic
+  LargeOperands
+  DifferentWitnessSameResult
+LogicTest/3.  # TypeParam = proof_system::plonk::UltraComposer
+  TestCorrectLogic
+  LargeOperands
+  DifferentWitnessSameResult
+DynamicArray.
+  DynamicArrayReadWriteConsistency
+ram_table.
+  ram_table_init_read_consistency
+  ram_table_read_write_consistency
+rom_table.
+  rom_table_read_write_consistency
+PackedByteArrayTest/0.  # TypeParam = proof_system::honk::StandardHonkComposer
+  string_constructor_and_get_value_consistency
+  byte_array_constructor_consistency
+  byte_array_cast_consistency
+  TestUnverifiedByteSlices
+  TestAppendUint8
+  TestAppendUint32
+PackedByteArrayTest/1.  # TypeParam = proof_system::plonk::StandardComposer
+  string_constructor_and_get_value_consistency
+  byte_array_constructor_consistency
+  byte_array_cast_consistency
+  TestUnverifiedByteSlices
+  TestAppendUint8
+  TestAppendUint32
+PackedByteArrayTest/2.  # TypeParam = proof_system::plonk::TurboComposer
+  string_constructor_and_get_value_consistency
+  byte_array_constructor_consistency
+  byte_array_cast_consistency
+  TestUnverifiedByteSlices
+  TestAppendUint8
+  TestAppendUint32
+PackedByteArrayTest/3.  # TypeParam = proof_system::plonk::UltraComposer
+  string_constructor_and_get_value_consistency
+  byte_array_constructor_consistency
+  byte_array_cast_consistency
+  TestUnverifiedByteSlices
+  TestAppendUint8
+  TestAppendUint32
+stdlib_plookup.
+  pedersen_lookup_left
+  pedersen_lookup_right
+  uint32_xor
+  blake2s_xor_rotate_16
+  blake2s_xor_rotate_8
+  blake2s_xor_rotate_7
+  blake2s_xor
+  uint32_and
+  secp256k1_generator
+SafeUintTest/0.  # TypeParam = proof_system::honk::StandardHonkComposer
+  TestConstructorWithValueOutOfRangeFails
+  TestConstructorWithValueInRange
+  TestMultiplyOperationOutOfRangeFails
+  TestMultiplyOperationOnConstantsOutOfRangeFails
+  TestAddOperationOutOfRangeFails
+  TestSubtractMethod
+  TestSubtractMethodMinuedGtLhsFails
+  TestSubtractMethodUnderflowFails
+  TestMinusOperator
+  TestMinusOperatorUnderflowFails
+  TestDivideMethod
+  TestDivideMethodQuotientRangeTooSmallFails
+  TestDivideRemainderTooLarge
+  TestDivideMethodQuotientRemainderIncorrectFails
+  TestDivideMethodQuotientRemainderModRFails
+  TestDivOperator
+  TestDivideOperator
+  TestSlice
+  TestSliceEqualMsbLsb
+  TestSliceRandom
+  TestOperatorDivRemainderConstraint
+  TestDivRemainderConstraint
+  TestByteArrayConversion
+SafeUintTest/1.  # TypeParam = proof_system::plonk::StandardComposer
+  TestConstructorWithValueOutOfRangeFails
+  TestConstructorWithValueInRange
+  TestMultiplyOperationOutOfRangeFails
+  TestMultiplyOperationOnConstantsOutOfRangeFails
+  TestAddOperationOutOfRangeFails
+  TestSubtractMethod
+  TestSubtractMethodMinuedGtLhsFails
+  TestSubtractMethodUnderflowFails
+  TestMinusOperator
+  TestMinusOperatorUnderflowFails
+  TestDivideMethod
+  TestDivideMethodQuotientRangeTooSmallFails
+  TestDivideRemainderTooLarge
+  TestDivideMethodQuotientRemainderIncorrectFails
+  TestDivideMethodQuotientRemainderModRFails
+  TestDivOperator
+  TestDivideOperator
+  TestSlice
+  TestSliceEqualMsbLsb
+  TestSliceRandom
+  TestOperatorDivRemainderConstraint
+  TestDivRemainderConstraint
+  TestByteArrayConversion
+SafeUintTest/2.  # TypeParam = proof_system::plonk::TurboComposer
+  TestConstructorWithValueOutOfRangeFails
+  TestConstructorWithValueInRange
+  TestMultiplyOperationOutOfRangeFails
+  TestMultiplyOperationOnConstantsOutOfRangeFails
+  TestAddOperationOutOfRangeFails
+  TestSubtractMethod
+  TestSubtractMethodMinuedGtLhsFails
+  TestSubtractMethodUnderflowFails
+  TestMinusOperator
+  TestMinusOperatorUnderflowFails
+  TestDivideMethod
+  TestDivideMethodQuotientRangeTooSmallFails
+  TestDivideRemainderTooLarge
+  TestDivideMethodQuotientRemainderIncorrectFails
+  TestDivideMethodQuotientRemainderModRFails
+  TestDivOperator
+  TestDivideOperator
+  TestSlice
+  TestSliceEqualMsbLsb
+  TestSliceRandom
+  TestOperatorDivRemainderConstraint
+  TestDivRemainderConstraint
+  TestByteArrayConversion
+SafeUintTest/3.  # TypeParam = proof_system::plonk::UltraComposer
+  TestConstructorWithValueOutOfRangeFails
+  TestConstructorWithValueInRange
+  TestMultiplyOperationOutOfRangeFails
+  TestMultiplyOperationOnConstantsOutOfRangeFails
+  TestAddOperationOutOfRangeFails
+  TestSubtractMethod
+  TestSubtractMethodMinuedGtLhsFails
+  TestSubtractMethodUnderflowFails
+  TestMinusOperator
+  TestMinusOperatorUnderflowFails
+  TestDivideMethod
+  TestDivideMethodQuotientRangeTooSmallFails
+  TestDivideRemainderTooLarge
+  TestDivideMethodQuotientRemainderIncorrectFails
+  TestDivideMethodQuotientRemainderModRFails
+  TestDivOperator
+  TestDivideOperator
+  TestSlice
+  TestSliceEqualMsbLsb
+  TestSliceRandom
+  TestOperatorDivRemainderConstraint
+  TestDivRemainderConstraint
+  TestByteArrayConversion
+stdlib_uint/0.  # TypeParam = proof_system::plonk::UltraComposer
+  test_weak_normalize
+  test_byte_array_conversion
+  test_input_output_consistency
+  test_create_from_wires
+  test_add_special
+  test_sub_special
+  test_add_with_constants
+  test_mul_special
+  test_mul_big
+  test_xor_special
+  test_xor_constants
+  test_xor_more_constants
+  test_and_constants
+  test_and_special
+  test_or_special
+  test_gt_special
+  test_ror_special
+  test_hash_rounds
+  test_add
+  test_sub
+  test_mul
+  test_divide
+  test_modulo
+  test_divide_by_zero_fails
+  test_divide_special
+  div_remainder_constraint
+  test_and
+  test_xor
+  test_or
+  test_not
+  test_gt
+  test_lt
+  test_gte
+  test_lte
+  test_equality_operator
+  test_not_equality_operator
+  test_logical_not
+  test_right_shift
+  test_left_shift
+  test_ror
+  test_rol
+  test_at
+stdlib_uint/1.  # TypeParam = proof_system::plonk::TurboComposer
+  test_weak_normalize
+  test_byte_array_conversion
+  test_input_output_consistency
+  test_create_from_wires
+  test_add_special
+  test_sub_special
+  test_add_with_constants
+  test_mul_special
+  test_mul_big
+  test_xor_special
+  test_xor_constants
+  test_xor_more_constants
+  test_and_constants
+  test_and_special
+  test_or_special
+  test_gt_special
+  test_ror_special
+  test_hash_rounds
+  test_add
+  test_sub
+  test_mul
+  test_divide
+  test_modulo
+  test_divide_by_zero_fails
+  test_divide_special
+  div_remainder_constraint
+  test_and
+  test_xor
+  test_or
+  test_not
+  test_gt
+  test_lt
+  test_gte
+  test_lte
+  test_equality_operator
+  test_not_equality_operator
+  test_logical_not
+  test_right_shift
+  test_left_shift
+  test_ror
+  test_rol
+  test_at
+stdlib_uint/2.  # TypeParam = proof_system::plonk::StandardComposer
+  test_weak_normalize
+  test_byte_array_conversion
+  test_input_output_consistency
+  test_create_from_wires
+  test_add_special
+  test_sub_special
+  test_add_with_constants
+  test_mul_special
+  test_mul_big
+  test_xor_special
+  test_xor_constants
+  test_xor_more_constants
+  test_and_constants
+  test_and_special
+  test_or_special
+  test_gt_special
+  test_ror_special
+  test_hash_rounds
+  test_add
+  test_sub
+  test_mul
+  test_divide
+  test_modulo
+  test_divide_by_zero_fails
+  test_divide_special
+  div_remainder_constraint
+  test_and
+  test_xor
+  test_or
+  test_not
+  test_gt
+  test_lt
+  test_gte
+  test_lte
+  test_equality_operator
+  test_not_equality_operator
+  test_logical_not
+  test_right_shift
+  test_left_shift
+  test_ror
+  test_rol
+  test_at
+stdlib_uint/3.  # TypeParam = proof_system::honk::StandardHonkComposer
+  test_weak_normalize
+  test_byte_array_conversion
+  test_input_output_consistency
+  test_create_from_wires
+  test_add_special
+  test_sub_special
+  test_add_with_constants
+  test_mul_special
+  test_mul_big
+  test_xor_special
+  test_xor_constants
+  test_xor_more_constants
+  test_and_constants
+  test_and_special
+  test_or_special
+  test_gt_special
+  test_ror_special
+  test_hash_rounds
+  test_add
+  test_sub
+  test_mul
+  test_divide
+  test_modulo
+  test_divide_by_zero_fails
+  test_divide_special
+  div_remainder_constraint
+  test_and
+  test_xor
+  test_or
+  test_not
+  test_gt
+  test_lt
+  test_gte
+  test_lte
+  test_equality_operator
+  test_not_equality_operator
+  test_logical_not
+  test_right_shift
+  test_left_shift
+  test_ror
+  test_rol
+  test_at
+stdlib_uint32.
+  test_accumulators_plookup_uint32
+Listing tests from ./build/bin/stdlib_recursion_tests
+stdlib_transcript.
+  validate_transcript
+VerificationKeyFixture/0.  # TypeParam = proof_system::plonk::StandardComposer
+  vk_data_vs_recursion_compress_native
+  compress_vs_compress_native
+VerificationKeyFixture/1.  # TypeParam = proof_system::plonk::TurboComposer
+  vk_data_vs_recursion_compress_native
+  compress_vs_compress_native
+VerificationKeyFixture/2.  # TypeParam = proof_system::plonk::UltraComposer
+  vk_data_vs_recursion_compress_native
+  compress_vs_compress_native
+VerificationKeyFixture/3.  # TypeParam = proof_system::honk::StandardHonkComposer
+  vk_data_vs_recursion_compress_native
+  compress_vs_compress_native
+stdlib_verifier/0.  # TypeParam = proof_system::plonk::StandardComposer
+  recursive_proof_composition
+  recursive_proof_composition_ultra_no_tables
+  double_verification
+  recursive_proof_composition_with_variable_verification_key_a
+  recursive_proof_composition_with_variable_verification_key_b
+  recursive_proof_composition_var_verif_key_fail
+  recursive_proof_composition_const_verif_key
+  test_inner_circuit
+stdlib_verifier/1.  # TypeParam = proof_system::plonk::TurboComposer
+  recursive_proof_composition
+  recursive_proof_composition_ultra_no_tables
+  double_verification
+  recursive_proof_composition_with_variable_verification_key_a
+  recursive_proof_composition_with_variable_verification_key_b
+  recursive_proof_composition_var_verif_key_fail
+  recursive_proof_composition_const_verif_key
+  test_inner_circuit
+stdlib_verifier/2.  # TypeParam = proof_system::plonk::UltraComposer
+  recursive_proof_composition
+  recursive_proof_composition_ultra_no_tables
+  double_verification
+  recursive_proof_composition_with_variable_verification_key_a
+  recursive_proof_composition_with_variable_verification_key_b
+  recursive_proof_composition_var_verif_key_fail
+  recursive_proof_composition_const_verif_key
+  test_inner_circuit
+stdlib_verifier_turbo/0.  # TypeParam = proof_system::plonk::TurboComposer
+  recursive_proof_composition
+  double_verification
+  recursive_proof_composition_with_variable_verification_key_a
+  recursive_proof_composition_with_variable_verification_key_b
+  recursive_proof_composition_var_verif_key_fail
+  recursive_proof_composition_const_verif_key
+  test_inner_circuit
+stdlib_verifier_turbo/1.  # TypeParam = proof_system::plonk::StandardComposer
+  recursive_proof_composition
+  double_verification
+  recursive_proof_composition_with_variable_verification_key_a
+  recursive_proof_composition_with_variable_verification_key_b
+  recursive_proof_composition_var_verif_key_fail
+  recursive_proof_composition_const_verif_key
+  test_inner_circuit
+Listing tests from ./build/bin/stdlib_schnorr_tests
+stdlib_schnorr.
+  convert_field_into_wnaf_special
+  convert_field_into_wnaf
+  test_scalar_mul_low_high
+  verify_signature
+  verify_signature_failure
+  signature_verification_result
+  signature_verification_result_failure
+Listing tests from ./build/bin/stdlib_sha256_tests
+stdlib_sha256.
+  test_duplicate_proving_key
+  test_plookup_55_bytes
+  test_55_bytes
+  test_NIST_vector_one_packed_byte_array
+  test_NIST_vector_one
+  test_NIST_vector_two
+  test_NIST_vector_three
+  test_NIST_vector_four
+  test_NIST_vector_five
+  test_input_len_multiple
+  test_input_str_len_multiple
+Listing tests from ./build/bin/transcript_tests
+transcript.
+  validate_transcript
+  univariate_serialization

@@ -447,7 +447,6 @@ fn verify_arithmetic_proof() {
 }
 
 #[test]
-#[should_panic]
 fn verify_damaged_proof() {
     let n = 8;
 
@@ -460,4 +459,7 @@ fn verify_damaged_proof() {
 
     // Verify proof
     verifier.verify_proof(&proof).unwrap();
+
+    todo!("check this carefully by hand");
+    todo!("add a correct expect for the final result")
 }
