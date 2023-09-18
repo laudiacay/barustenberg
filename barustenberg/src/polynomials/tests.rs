@@ -19,9 +19,8 @@ fn test_domain_roots() {
     let n = 256;
     let domain = EvaluationDomain::<Fr>::new(n, None);
 
-    let result;
     let expected = Fr::one();
-    result = domain.root.pow(&[n as u64]);
+    let result = domain.root.pow([n as u64]);
 
     assert_eq!(result, expected);
 }
@@ -51,7 +50,7 @@ fn test_fft_with_small_degree() {
 
     for _ in 0..n {
         let random_element = Fr::rand(&mut rng);
-        poly.push(random_element.clone());
+        poly.push(random_element);
         fft_transform.push(random_element);
     }
 
@@ -60,9 +59,9 @@ fn test_fft_with_small_degree() {
     domain.fft_inplace(&mut fft_transform);
 
     let mut work_root = Fr::one();
-    for i in 0..n {
+    for transform in fft_transform.iter() {
         let expected = polynomial_arithmetic::evaluate(&poly, &work_root, n);
-        assert_eq!(fft_transform[i], expected);
+        assert_eq!(*transform, expected);
         work_root *= domain.root;
     }
 }
@@ -76,7 +75,7 @@ fn test_split_polynomial_fft() {
 
     for _ in 0..n {
         let random_element = Fr::rand(&mut rng);
-        poly.push(random_element.clone());
+        poly.push(random_element);
         fft_transform.push(random_element);
     }
 
