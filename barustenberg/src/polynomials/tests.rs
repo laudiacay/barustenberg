@@ -19,9 +19,8 @@ fn test_domain_roots() {
     let n = 256;
     let domain = EvaluationDomain::<Fr>::new(n, None);
 
-    let result;
     let expected = Fr::one();
-    result = domain.root.pow(&[n as u64]);
+    let result = domain.root.pow([n as u64]);
 
     assert_eq!(result, expected);
 }
@@ -51,7 +50,7 @@ fn test_fft_with_small_degree() {
 
     for _ in 0..n {
         let random_element = Fr::rand(&mut rng);
-        poly.push(random_element.clone());
+        poly.push(random_element);
         fft_transform.push(random_element);
     }
 
@@ -60,9 +59,9 @@ fn test_fft_with_small_degree() {
     domain.fft_inplace(&mut fft_transform);
 
     let mut work_root = Fr::one();
-    for i in 0..n {
+    for transform in fft_transform.iter() {
         let expected = polynomial_arithmetic::evaluate(&poly, &work_root, n);
-        assert_eq!(fft_transform[i], expected);
+        assert_eq!(*transform, expected);
         work_root *= domain.root;
     }
 }
@@ -76,7 +75,7 @@ fn test_split_polynomial_fft() {
 
     for _ in 0..n {
         let random_element = Fr::rand(&mut rng);
-        poly.push(random_element.clone());
+        poly.push(random_element);
         fft_transform.push(random_element);
     }
 
@@ -647,10 +646,10 @@ fn test_partial_fft_serial() {
     let expected = large_domain.compute_barycentric_evaluation(&poly_eval, 4 * n, &eval_point);
 
     let mut inner_poly_eval;
-    let x_pow_4n = eval_point.pow(&[4 * n as u64]);
-    let x_pow_4 = eval_point.pow(&[4]);
-    let x_pow_3 = eval_point.pow(&[3]);
-    let x_pow_2 = eval_point.pow(&[2]);
+    let x_pow_4n = eval_point.pow([4 * n as u64]);
+    let x_pow_4 = eval_point.pow([4]);
+    let x_pow_3 = eval_point.pow([3]);
+    let x_pow_2 = eval_point.pow([2]);
     let root = large_domain.root;
     let mut root_pow;
     let mut result = Fr::zero();
@@ -660,7 +659,7 @@ fn test_partial_fft_serial() {
             + poly_partial_fft[n + i] * eval_point
             + poly_partial_fft[2 * n + i] * x_pow_2
             + poly_partial_fft[3 * n + i] * x_pow_3;
-        root_pow = root.pow(&[4 * i as u64]);
+        root_pow = root.pow([4 * i as u64]);
         result += inner_poly_eval / (x_pow_4 - root_pow);
     }
     result *= x_pow_4n - Fr::one();
@@ -783,11 +782,11 @@ fn test_partial_coset_fft() {
     large_domain.partial_fft(poly_coset_fft.as_mut_slice(), Some(constant), true);
 
     let zeta_by_g_four = (zeta * large_domain.generator_inverse).pow(&[4]);
-    let numerator = zeta_by_g_four.pow(&[n as u64]) - Fr::one();
+    let numerator = zeta_by_g_four.pow([n as u64]) - Fr::one();
     let mut result = Fr::zero();
 
     for i in 0..n {
-        let current_root = small_domain.root_inverse.pow(&[i as u64]);
+        let current_root = small_domain.root_inverse.pow([i as u64]);
         let mut internal_term = Fr::zero();
         let mut multiplicand = Fr::one();
         let denominator = zeta_by_g_four * current_root - Fr::one();
@@ -826,10 +825,10 @@ fn test_partial_coset_fft_evaluation() {
         &(zeta * large_domain.generator_inverse),
     );
 
-    let constant = large_domain.generator_inverse.pow(&[4]) * large_domain.four_inverse;
+    let constant = large_domain.generator_inverse.pow([4]) * large_domain.four_inverse;
     large_domain.partial_fft(poly_coset_fft.as_mut_slice(), Some(constant), true);
 
-    let zeta_by_g_four = (zeta * large_domain.generator_inverse).pow(&[4]);
+    let zeta_by_g_four = (zeta * large_domain.generator_inverse).pow([4]);
 
     let mut result = Fr::zero();
     let mut multiplicand = Fr::one();
@@ -1075,17 +1074,16 @@ fn test_factor_roots() {
         for i in 0..num_non_zero_roots {
             let root = Fr::rand(&mut rand::thread_rng());
             non_zero_roots[i] = root;
-            let root_pow = root.pow(&[num_zero_roots as u64]);
+            let root_pow = root.pow([num_zero_roots as u64]);
             non_zero_evaluations[i] = poly.evaluate(&root) / root_pow;
         }
 
         let mut roots: Vec<Fr> = vec![Fr::zero(); num_roots];
-        for i in 0..num_zero_roots {
-            roots[i] = Fr::zero();
+        for root in roots.iter_mut().take(num_zero_roots) {
+            *root = Fr::zero();
         }
-        for i in 0..num_non_zero_roots {
-            roots[num_zero_roots + i] = non_zero_roots[i];
-        }
+
+        roots[num_zero_roots..(num_non_zero_roots + num_zero_roots)].copy_from_slice(&non_zero_roots[..num_non_zero_roots]);
 
         if num_non_zero_roots > 0 {
             let interpolated =

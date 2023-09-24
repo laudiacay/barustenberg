@@ -306,7 +306,45 @@ impl<'de, Fr: Field + FftField> Deserialize<'de> for ProvingKey<Fr> {
 #[cfg(test)]
 mod test {
     #[test]
-    fn test_stub() {
+    fn test_proving_key_from_serialized_key() {
+
+        /*
+        TEST(proving_key, proving_key_from_serialized_key)
+{
+    auto builder = StandardCircuitBuilder();
+    auto composer = StandardComposer();
+    fr a = fr::one();
+    builder.add_public_variable(a);
+
+    plonk::proving_key& p_key = *composer.compute_proving_key(builder);
+    auto pk_buf = to_buffer(p_key);
+    auto pk_data = from_buffer<plonk::proving_key_data>(pk_buf);
+    auto crs = std::make_unique<barretenberg::srs::factories::FileCrsFactory<curve::BN254>>("../srs_db/ignition");
+    auto proving_key =
+        std::make_shared<plonk::proving_key>(std::move(pk_data), crs->get_prover_crs(pk_data.circuit_size + 1));
+
+    // Loop over all pre-computed polys for the given composer type and ensure equality
+    // between original proving key polynomial store and the polynomial store that was
+    // serialized/deserialized from buffer
+    plonk::PrecomputedPolyList precomputed_poly_list(p_key.circuit_type);
+    bool all_polys_are_equal{ true };
+    for (size_t i = 0; i < precomputed_poly_list.size(); ++i) {
+        std::string poly_id = precomputed_poly_list[i];
+        auto input_poly = p_key.polynomial_store.get(poly_id);
+        auto output_poly = proving_key->polynomial_store.get(poly_id);
+        all_polys_are_equal = all_polys_are_equal && (input_poly == output_poly);
+    }
+
+    // Check that all pre-computed polynomials are equal
+    EXPECT_EQ(all_polys_are_equal, true);
+
+    // Check equality of other proving_key_data data
+    EXPECT_EQ(p_key.circuit_type, proving_key->circuit_type);
+    EXPECT_EQ(p_key.circuit_size, proving_key->circuit_size);
+    EXPECT_EQ(p_key.num_public_inputs, proving_key->num_public_inputs);
+    EXPECT_EQ(p_key.contains_recursive_proof, proving_key->contains_recursive_proof);
+}
+         */
         todo!("copy these contents from proving_key.test.cpp");
     }
 }

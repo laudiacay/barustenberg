@@ -6,15 +6,15 @@ probably something you can help out with. Check out our
 [good first issues][good-first-issues] label for in the issues tab to see a list
 of issue that good for those new to the project.
 
-# THE REST OF THIS DOC IS MOSTLY TRUE, BUT READ THIS FIRST!
-
 This is very much a WIP of a repo. It does not work right now. We have a team of folks who are actively working on getting it mostly into conformance with the commit hash of barettenberg listed in the README.
 
 If you'd like something to work on, email a contributor or comment on an issue. We try to keep the issues mostly up to date, although they're not perfect or complete.
 
-The current standard for code going into main is "compiles with no warnings except unused variables and missing docs using nightly + clippy". 
+The current standard for code going into main is "compiles with no warnings except unused variables and missing docs using nightly + clippy". Additionally, "does not break any tests that were passing".
 
 A gist listing tests from the original is here. We're working on getting those turned into issues and implementing them: https://gist.github.com/shuklaayush/d3952ae12124082b28aa71834e3cafe1 
+
+A tracker for this gist (editable only by @laudiacay) is here:  https://docs.google.com/spreadsheets/d/1DPtMgi-TpM2pVC2_JvROYSqgHKEWks1TTsh-3REW8Ys/edit#gid=1142860881
 
 Adding tests to a piece of code that we maintain is ALWAYS welcome, and is a great way to get introduced to what's going on in the repo.
 
@@ -27,6 +27,22 @@ The general philosophy is we're focused on Plonk right now, and trying to avoid 
 Most of our externally-sourced stuff comes from arkworks-rs or various bignum/bytes libraries. There's a ton of good stuff you can find in there, most of it is fine to use as a library. 
 
 If you tear out functionality that Aztec wrote themselves, especially if there are optimizations involved, to use an external library instead, OPEN AN ISSUE. Arkworks has a lot of the optimizations from barettenberg listed as issues on their repo. We need to make note that our code now lacks those optimizations, so we can come back to them later once we're optimizing things.
+
+## Getting set up to develop
+
+The standard Rust toolchain is a prerequisite. Get the latest nightly, we'll eventually have CI up with all that.
+
+You need to download and symlink in the ignition transcripts. Pull barretenberg from the Aztec repo, pull this repo locally. Run `./bootstrap.sh` in the original codebase to download the points.
+
+Then run the following to symlink it into the right spot for tests to run.
+
+```
+ln -s {your-barretenberg-dir}/cpp/srs_db/ {your-barustenberg-dir}/src/srs_db
+```
+
+You'll know it's working when the `read_transcript_loads_well_formed_srs` test passes.
+
+Getting barretenberg building might make your life easier. The documentation for that is in the original Aztec repository.
 
 ## Where to Get Help
 

@@ -5,6 +5,8 @@
 //! barustenberg
 /// random utilities
 pub(crate) mod common;
+/// crypto stuff
+pub(crate) mod crypto;
 /// elliptic curves stuff (currently a thin wrapper on other people's grumpkin and bn254)
 pub(crate) mod ecc;
 /// bitops mostly
@@ -41,26 +43,3 @@ pub(crate) mod transcript;
 #[cfg(any(test, feature = "test_utils"))]
 #[cfg_attr(docsrs, doc(cfg(feature = "test_utils")))]
 pub mod test_utils;
-
-/// Add two integers together.
-pub fn add(a: i32, b: i32) -> i32 {
-    a + b
-}
-
-/// Multiplies two integers together.
-pub fn mult(a: i32, b: i32) -> i32 {
-    a * b
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_mult() {
-        assert_eq!(mult(3, 2), 6);
-    }
-    fn test_add() {
-        assert_eq!(add(3, 2), 5);
-    }
-}
