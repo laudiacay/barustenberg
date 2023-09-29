@@ -1,6 +1,7 @@
+use core::num;
 use std::{
     collections::HashMap,
-    sync::{Arc, RwLock},
+    sync::{Arc, RwLock}, borrow::Borrow,
 };
 
 use ark_bn254::Fr;
@@ -13,7 +14,7 @@ use crate::{
     plonk::proof_system::{
         proving_key::ProvingKey,
         types::{polynomial_manifest::PolynomialSource, PolynomialManifest},
-        verification_key::VerificationKey,
+        verification_key::VerificationKey, utils::permutation::{PermutationSubgroupElement, PermutationMapping},
     },
     polynomials::Polynomial,
     srs::reference_string::ReferenceStringFactory,
@@ -50,12 +51,6 @@ pub(crate) struct CycleNode {
     pub(crate) wire_type: WireType,
 }
 
-#[derive(Clone)]
-pub(crate) struct SelectorProperties {
-    pub(crate) name: String,
-    pub(crate) requires_lagrange_base_polynomial: bool,
-}
-
 impl CycleNode {
     pub(crate) fn new(gate_index: u32, wire_type: WireType) -> Self {
         Self {
@@ -63,6 +58,12 @@ impl CycleNode {
             wire_type,
         }
     }
+}
+
+#[derive(Clone)]
+pub(crate) struct SelectorProperties {
+    pub(crate) name: String,
+    pub(crate) requires_lagrange_base_polynomial: bool,
 }
 
 #[derive(Default)]
@@ -296,57 +297,51 @@ pub(crate) trait ComposerBase {
     /// # Arguments
     ///
     /// * `program_width` - Program width
-    fn compute_wire_copy_cycles<P: Into<usize>>(&mut self, _program_width: P) {
-        // let program_width = program_width.into();
+    fn compute_wire_copy_cycles(&mut self, program_width: usize) {
 
-        // // Initialize wire_copy_cycles of public input variables to point to themselves
-        // for i in 0..self.public_inputs.len() {
-        //     let left = CycleNode {
-        //         gate_index: i as u32,
-        //         wire_type: WireType::Left,
-        //     };
-        //     let right = CycleNode {
-        //         gate_index: i as u32,
-        //         wire_type: WireType::Right,
-        //     };
+        // NOTE: for additional Flavors such as Ultra and Goblin plonk we need to define additional offsets.
+        // See: https://github.com/AztecProtocol/barretenberg/blob/master/cpp/src/barretenberg/proof_system/composer/permutation_lib.hpp#L88
+        //      https://github.com/AztecProtocol/barretenberg/blob/master/cpp/src/barretenberg/proof_system/composer/permutation_lib.hpp#L99
 
-        //     let public_input_index = self.real_variable_index[self.public_inputs[i]];
-        //     let cycle = &mut self.wire_copy_cycles[public_input_index];
-        //     // These two nodes must be in adjacent locations in the cycle for correct handling of public inputs
-        //     cycle.push(left);
-        //     cycle.push(right);
-        // }
 
-        // let num_public_inputs = self.public_inputs.len() as u32;
+        let cbd = self.composer_base_data().clone();
+        let mut cbd = (*cbd).write().unwrap();
+        // We use the permutation argument to enforce the public input variables to be equal to values provided by the
+        // verifier. The convension we use is to place the public input values as the first rows of witness vectors.
+        // More specifically, we set the LEFT and RIGHT wires to be the public inputs and set the other elements of the row
+        // to 0. All selectors are zero at these rows, so they are fully unconstrained. The "real" gates that follow can use
+        // references to these variables.
+        //
+        // The copy cycle for the i-th public variable looks like
+        //   (i) -> (n+i) -> (i') -> ... -> (i'')
+        // (Using the convention that W^L_i = W_i and W^R_i = W_{n+i}, W^O_i = W_{2n+i})
+        //
+        // This loop initializes the i-th cycle with (i) -> (n+i), meaning that we always expect W^L_i = W^R_i,
+        // for all i s.t. row i defines a public input.
+        for i in 0..cbd.public_inputs.len() {
+            let public_input_index = cbd.real_variable_index[cbd.public_inputs[i] as usize] as usize;
+            //NOTE: for goblin plonk the gate_index of each cycle node is i + public_offsets
+            let cycle = &mut cbd.wire_copy_cycles[public_input_index];
+            cycle.push( CycleNode { gate_index: i as u32, wire_type: WireType::Left});
+            cycle.push( CycleNode { gate_index: i as u32, wire_type: WireType::Right});
+        }
 
-        // // Go through all witnesses and add them to the wire_copy_cycles
-        // for i in 0..self.num_gates {
-        //     let w_1_index = self.real_variable_index[self.w_l[i]];
-        //     let w_2_index = self.real_variable_index[self.w_r[i]];
-        //     let w_3_index = self.real_variable_index[self.w_o[i]];
+        let num_public_inputs = self.get_public_inputs().len() as u32;
+        // Iterate over all variables of the "real" gates, and add a corresponding node to the cycle for that variable
+        for i in 0..cbd.num_gates {
+            let w_1_index = cbd.real_variable_index[cbd.w_l[i] as usize] as usize;
+            let w_2_index = cbd.real_variable_index[cbd.w_r[i] as usize] as usize;
+            let w_3_index = cbd.real_variable_index[cbd.w_o[i] as usize] as usize;
 
-        //     self.wire_copy_cycles[w_1_index].push(CycleNode {
-        //         gate_index: i as u32 + num_public_inputs,
-        //         wire_type: WireType::LEFT,
-        //     });
-        //     self.wire_copy_cycles[w_2_index].push(CycleNode {
-        //         gate_index: i as u32 + num_public_inputs,
-        //         wire_type: WireType::RIGHT,
-        //     });
-        //     self.wire_copy_cycles[w_3_index].push(CycleNode {
-        //         gate_index: i as u32 + num_public_inputs,
-        //         wire_type: WireType::OUTPUT,
-        //     });
+            cbd.wire_copy_cycles[w_1_index].push(CycleNode { gate_index: i as u32 + num_public_inputs, wire_type: WireType::Left });
+            cbd.wire_copy_cycles[w_2_index].push(CycleNode { gate_index: i as u32 + num_public_inputs, wire_type: WireType::Right });
+            cbd.wire_copy_cycles[w_3_index].push(CycleNode { gate_index: i as u32 + num_public_inputs, wire_type: WireType::Output });
 
-        //     if program_width > 3 {
-        //         let w_4_index = self.real_variable_index[self.w_4[i]];
-        //         self.wire_copy_cycles[w_4_index].push(CycleNode {
-        //             gate_index: i as u32 + num_public_inputs,
-        //             wire_type: WireType::FOURTH,
-        //         });
-        //     }
-        // }
-        todo!("write me")
+            if program_width > 3 {
+                let w_4_index = cbd.real_variable_index[cbd.w_4[i] as usize] as usize;
+                cbd.wire_copy_cycles[w_4_index].push(CycleNode { gate_index: i as u32 + num_public_inputs, wire_type: WireType::Fourth });
+            }
+        }
     }
 
     /// Compute sigma and id permutation polynomials in lagrange base.
@@ -359,44 +354,101 @@ pub(crate) trait ComposerBase {
     ///                 permutation polynomials are circuit-specific and stored in the proving/verification key (id_poly = true).
     fn compute_sigma_permutations(
         &mut self,
-        _key: Arc<RwLock<ProvingKey<Fr>>>,
-        _program_width: usize,
-        _with_tags: bool,
-    ) {
+        proving_key: Arc<RwLock<ProvingKey<Fr>>>,
+        program_width: usize,
+        with_tags: bool,
+    ) -> PermutationMapping {
         // // Compute wire copy cycles for public and private variables
-        // let program_width = program_width.into();
-        // let with_tags = with_tags.into();
-        // self.compute_wire_copy_cycles(program_width);
-        // let mut sigma_mappings: Vec<Vec<PermutationSubgroupElement>> = vec![vec![]; program_width];
-        // let mut id_mappings: Vec<Vec<PermutationSubgroupElement>> = vec![vec![]; program_width];
+        self.compute_wire_copy_cycles(program_width);
+        let mut mapping = PermutationMapping::default();
+        let proving_key = proving_key.read().unwrap();
+        let cbd = self.composer_base_data().clone();
+        let cbd = (*cbd).read().unwrap();
 
-        // // Instantiate the sigma and id mappings by reserving enough space and pushing 'default' permutation subgroup
-        // // elements that point to themselves.
-        // for i in 0..program_width {
-        //     sigma_mappings[i].reserve(key.borrow().circuit_size);
-        //     if with_tags {
-        //         id_mappings[i].reserve(key.borrow().circuit_size);
-        //     }
-        // }
-        // for i in 0..program_width {
-        //     for j in 0..key.borrow().circuit_size {
-        //         sigma_mappings[i].push(PermutationSubgroupElement {
-        //             subgroup_index: j as u32,
-        //             column_index: i as u8,
-        //             is_public_input: false,
-        //             is_tag: false,
-        //         });
-        //         if with_tags {
-        //             id_mappings[i].push(PermutationSubgroupElement {
-        //                 subgroup_index: j as u32,
-        //                 column_index: i as u8,
-        //                 is_public_input: false,
-        //                 is_tag: false,
-        //             });
-        //         }
-        //     }
-        // }
-        todo!("do the rest of this function")
+        // Instantiate the sigma and id mappings by reserving enough space and pushing 'default' permutation subgroup
+        // elements that point to themselves.
+        for i in 0..program_width {
+            mapping.sigmas[i].reserve(proving_key.circuit_size);
+            if with_tags {
+                mapping.ids[i].reserve(proving_key.circuit_size);
+            }
+            for j in 0..proving_key.circuit_size {
+                mapping.sigmas[i].push(PermutationSubgroupElement {
+                    row_index: j as u32,
+                    column_index: i as u8,
+                    is_public_input: false,
+                    is_tag: false,
+                });
+                if with_tags {
+                    mapping.ids[i].push(PermutationSubgroupElement {
+                        row_index: j as u32,
+                        column_index: i as u8,
+                        is_public_input: false,
+                        is_tag: false,
+                    });
+                }
+            }
+        }
+
+        // Represents the index of a variable in circuit_constructor.variables (needed only for generalized)
+        let real_variable_tags = &cbd.real_variable_tags;
+        for (i, cycle) in cbd.wire_copy_cycles.iter().enumerate() {
+            for node_idx in 0..cycle.len() {
+                // Get the indices of the current node and next node in the cycle
+                let current_cycle_node = cycle[node_idx];
+                // If current node is the last one in the cycle, then the next one is the first one
+                let next_cycle_node_index = if node_idx == cycle.len() - 1 { 0 } else{ node_idx + 1};
+                let next_cycle_node = cycle[next_cycle_node_index];
+                let current_row = current_cycle_node.gate_index as usize;
+                let next_row = next_cycle_node.gate_index;
+
+                let current_column = current_cycle_node.wire_type as usize;
+                let next_column = next_cycle_node.wire_type;
+                // Point current node to the next node
+                //TODO: Do we need to convert these using the following:
+                // let row =  current_row & 0xffffff;
+                //  let column = current_column >> 30;
+                mapping.sigmas[current_column][current_row] = PermutationSubgroupElement {
+                    row_index: next_row,
+                    column_index: next_column as u8, 
+                    is_public_input: false, 
+                    is_tag: false
+                };
+
+                if with_tags {
+                    let first_node = node_idx == 0;
+                    let last_node = next_cycle_node_index == 0;
+
+                    if first_node {
+                        mapping.ids[current_column][current_row].is_tag = true;
+                        mapping.ids[current_column][current_row].row_index = real_variable_tags[i];
+                    }
+                    if last_node {
+                        mapping.sigmas[current_column][current_row].is_tag = true;
+
+                        // TODO(Zac): yikes, std::maps (tau) are expensive. Can we find a way to get rid of this?
+                        // YES THIS IS AN UNWRAP! FUCK IT WE BOOL!
+                        mapping.sigmas[current_column][current_row].row_index =
+                            *cbd.tau.get(&real_variable_tags[i]).unwrap();
+                    }
+                }
+            }
+        }
+
+
+        // Add information about public inputs to the computation
+        // The public inputs are placed at the top of the execution trace, potentially offset by a zero row.
+        // NOTE: for other flavors of plonk such as goblin plonk the index of public inputs needs to be offset.
+        // See: https://github.com/AztecProtocol/barretenberg/blob/master/cpp/src/barretenberg/proof_system/composer/permutation_lib.hpp#L252
+        for i in 0..cbd.public_inputs.len() {
+            mapping.sigmas[0][i].row_index = i as u32;
+            mapping.sigmas[0][i].column_index = 0;
+            mapping.sigmas[0][i].is_public_input = true;
+            if mapping.sigmas[0][i].is_tag {
+                println!("MAPPING IS BOTH A TAG AND A PUBLIC INPUT");
+            }
+        }
+        mapping
     }
 
     fn compute_witness_base(&mut self, program_width: usize, minimum_circuit_size: Option<usize>) {
@@ -975,3 +1027,13 @@ pub(crate) trait ComposerBase {
 //  *     ];
 //  *
 //  */
+
+#[cfg(test)] mod test {
+    use super::*;
+
+
+    #[test]
+    fn compute_wire_copy_cycles() {
+        todo!();
+    }
+}

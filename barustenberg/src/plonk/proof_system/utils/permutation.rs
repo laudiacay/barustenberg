@@ -10,12 +10,18 @@ use crate::{
     transcript::BarretenHasher,
 };
 
+#[derive(Debug, Clone, Default)]
+pub(crate) struct PermutationMapping {
+    pub(crate) sigmas: Vec<Vec<PermutationSubgroupElement>>,
+    pub(crate) ids: Vec<Vec<PermutationSubgroupElement>>
+}
+
 #[derive(Debug, Clone)]
 pub(crate) struct PermutationSubgroupElement {
-    subgroup_index: u32,
-    column_index: u8,
-    is_public_input: bool,
-    is_tag: bool,
+    pub(crate) row_index: u32,
+    pub(crate) column_index: u8,
+    pub(crate) is_public_input: bool,
+    pub(crate) is_tag: bool,
 }
 
 pub(crate) fn compute_permutation_lagrange_base_single<H: BarretenHasher, Fr: Field + FftField>(
@@ -29,7 +35,7 @@ pub(crate) fn compute_permutation_lagrange_base_single<H: BarretenHasher, Fr: Fi
             let index = permutation_element & 0xffffff;
             let column = permutation_element >> 30;
             PermutationSubgroupElement {
-                subgroup_index: index,
+                row_index: index,
                 column_index: column as u8,
                 is_public_input: false,
                 is_tag: false,
@@ -62,7 +68,7 @@ pub(crate) fn compute_permutation_lagrange_base_single_helper<
     let log2_root_size = root_size.get_msb();
 
     for (i, perm_i) in permutation.iter().enumerate().take(small_domain.size) {
-        let raw_idx = perm_i.subgroup_index as usize;
+        let raw_idx = perm_i.row_index as usize;
         let negative_idx = raw_idx >= root_size;
         let idx = raw_idx - ((negative_idx as usize) << log2_root_size);
 
