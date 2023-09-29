@@ -44,12 +44,6 @@ pub(crate) enum ComposerType {
     _StandardHonk,
 }
 
-impl ComposerType {
-    pub(crate) fn create_manifest(self, _x: usize) -> Manifest {
-        unimplemented!("ComposerType::create_manifest")
-    }
-}
-
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub(crate) struct CycleNode {
     pub(crate) gate_index: u32,
@@ -108,6 +102,11 @@ pub(crate) struct ComposerBaseData<RSF: ReferenceStringFactory> {
 
 pub(crate) trait ComposerBase {
     type RSF: ReferenceStringFactory;
+
+    const G1_SIZE: usize = 64;
+    const FR_SIZE: usize = 32;
+
+    fn create_manifest(&self, num_public_inputs: usize) -> Manifest;
 
     fn with_crs_factory(
         crs_factory: Arc<Self::RSF>,
