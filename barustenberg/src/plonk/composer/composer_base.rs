@@ -2,7 +2,7 @@ use core::num;
 use std::{
     borrow::Borrow,
     collections::HashMap,
-    sync::{Arc, RwLock},
+    sync::{Arc, RwLock}, borrow::Borrow,
 };
 
 use ark_bn254::Fr;
@@ -1049,12 +1049,3 @@ pub(crate) trait ComposerBase {
 //  *     ];
 //  *
 //  */
-#[cfg(test)]
-mod test {
-    use super::*;
-
-    #[test]
-    fn compute_wire_copy_cycles() {
-        todo!();
-    }
-}
