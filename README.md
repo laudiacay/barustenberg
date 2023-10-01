@@ -36,18 +36,11 @@
 
 ## Outline
 
-- [Testing the Project](#testing-the-project)
+- [Bounties](#bounties)
 - [Contributing](#contributing)
+- [Testing the Project](#testing-the-project)
 - [Getting Help](#getting-help)
 - [License](#license)
-
-## Testing the Project
-
-- Run tests for crate/workspace `barustenberg`:
-
-  ```console
-  cd barustenberg && cargo test
-  ```
 
 ## Bounties
 
@@ -64,6 +57,14 @@ First acceptable PR will get the bounty, so please use the contributor chat to d
 :balloon: We're thankful for any feedback and help in improving our project!
 We have a [contributing guide](./CONTRIBUTING.md) to help you get involved. We
 also adhere to our [Code of Conduct](./CODE_OF_CONDUCT.md).
+
+## Testing the Project
+
+- Run tests for crate/workspace `barustenberg`:
+
+  ```console
+  cd barustenberg && cargo test
+  ```
 
 ## Getting Help
 
