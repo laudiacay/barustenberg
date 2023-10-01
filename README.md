@@ -46,7 +46,7 @@
 
 There's an active bounty program supported by Aztec for completing issues in this repository. The aim of this is mostly educational- we're here to help you learn about ZK and Plonk!
 
-If you're interested in an open bountied issue, reach out to laudiacay on Telegram to be added to the contributor chat for support/issue claiming/help finding a good issue for you.
+If you're interested in an open bountied issue, reach out to laudiacay on Telegram to be added to the contributor chat for support/issue claiming/help finding a good issue for you. Bounty-approved issues are tagged, without bounty amounts, in the issues... If you have a proposal for something we haven't written up yet, please reach out and we can discuss!
 
 We'll pay when the issue is complete per description, neatly formatted, with requested tests passing. We reserve the right to ask for edits on the PR before merging it. 
 
