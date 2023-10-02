@@ -528,9 +528,57 @@ impl<S: Settings<Hasher = H, Field = Fr, Group = G1Affine>, H: BarretenHasher> C
 
 #[cfg(test)]
 mod tests {
+
+    use super::*;
+    use crate::plonk::proof_system::types::prover_settings::TurboSettings;
+    
+    use crate::srs::io;
+    use crate::polynomials;
+
+    use ark_bn254::G2Affine;
+    use ark_ff::{UniformRand, Zero};
+
     #[test]
     fn test_kate_open() {
 
+        let kate: KateCommitmentScheme<_, _, ark_bn254::Fq, _, _> = KateCommitmentScheme::new(TurboSettings {});
+
+        // Generate random polynomial
+        let n = 256;
+        let mut rng = rand::thread_rng();
+        let mut poly = (0..n).map(|_| Fr::rand(&mut rng)).collect::<Vec<_>>();
+
+        // Generate random evaluation point z
+        let z = Fr::rand(&mut rng);
+        
+        // Load srs
+        let degree = 100000;
+        let mut monomials: Vec<G1Affine> = vec![G1Affine::default(); degree + 2];
+        let mut g2_x = G2Affine::default();
+        
+        io::read_transcript(&mut monomials, &mut g2_x, degree, "./src/srs_db/ignition");
+        assert_eq!(G1Affine::generator(), monomials[0]);
+
+        // Compute opening polynomial W(X), and evaluation f = F(z)
+        let inp_tx = Transcript::default();
+        // kate.commit(poly, "F_COMM", n, queue);
+        // queue.process_queue();
+
+        let y = Fr::rand(&mut rng);
+        let f_y = polynomials::polynomial_arithmetic::evaluate(&poly.as_slice(), &y, n);
+        let f = polynomials::polynomial_arithmetic::evaluate(&poly.as_slice(), &z, n);
+
+        // kate.compute_opening_polynomial(&coeffs[0], y, n);
+        // kate.commit(W.data, "W_COMM", n, queue);
+        // queue.process_queue();
+
+        // Check if W(y)(y-z) == F(y) - F(z)
+
+        let w_y = polynomial_arithmetic::evaluate(&poly.as_slice(), &y, n - 1);
+        let y_minus_z = y - z;
+        let f_y_minus_f = f_y - f;
+
+        assert_eq!(w_y * y_minus_z, f_y_minus_f);
         /*
         
         TEST(commitment_scheme, kate_open)
@@ -581,7 +629,91 @@ mod tests {
     }
 
     #[test]
-    fn kate_batch_open ( ) {
+    fn kate_batch_open () {
+
+        let mut rng = rand::thread_rng();
+        let kate: KateCommitmentScheme<_, _, ark_bn254::Fq, _, _> = KateCommitmentScheme::new(TurboSettings {});
+
+        // Generate random evaluation points [z_1, z_2, ...]
+        let t = 8;
+        let mut z_points = (0..t).map(|_| Fr::rand(&mut rng)).collect::<Vec<_>>();
+
+        // Generate random polynomials F(X) = coeffs
+        //
+        // z_1 -> [F_{1,1},  F_{1,2},  F_{1, 3},  ...,  F_{1, m}]
+        // z_2 -> [F_{2,1},  F_{2,2},  F_{2, 3},  ...,  F_{2, m}]
+        // ...
+        // z_t -> [F_{t,1},  F_{t,2},  F_{t, 3},  ...,  F_{t, m}]
+        //
+        // Note that each polynomial F_{k, j} \in F^{n}
+        //
+        let n = 64;
+        let m = 4;
+        let mut poly = vec![Fr::zero(); m * n * t];
+        for k in 0..t {
+            for j in 0..m {
+                for i in 0..n {
+                    poly[k * (m * n) + j * n + i] = Fr::rand(&mut rng);
+                }
+            }
+        }
+
+        // Load srs
+        let degree = 100000;
+        let mut monomials: Vec<G1Affine> = vec![G1Affine::default(); degree + 2];
+        let mut g2_x = G2Affine::default();
+        
+        io::read_transcript(&mut monomials, &mut g2_x, degree, "./src/srs_db/ignition");
+        assert_eq!(G1Affine::generator(), monomials[0]);
+
+        // Commit to individual polynomials
+        for k in 0..t {
+            for j in 0..m {
+                // kate.commit(coeffs.data(), "F_{" + std::to_string(k + 1) + ", " + std::to_string(j + 1) + "}", n, queue);
+            }
+        }
+
+        // queue.process_queue();
+
+        // Create random challenges, tags and item_constants
+        let mut challenges = Vec::with_capacity(t);
+        let mut tags = Vec::with_capacity(t);
+        let mut item_constants = Vec::with_capacity(t);
+        for k in 0..t {
+            challenges.push(Fr::rand(&mut rng));
+            tags.push(format!("W_{}", k+1));
+            item_constants.push(n);
+        }
+
+        // Compute opening polynomials W_1, W_2, ..., W_t
+        let w = Vec::with_capacity(n * t);
+        // kate.generic_batch_open(&coeffs[0], &W[0], m, &z_points[0], t, &challenges[0], n, &tags[0], &item_constants[0], queue);
+        // queue.process_queue();
+
+        // Check if W_{k}(y) * (y - z_k) = \sum_{j} challenge[k]^{j - 1} * [F_{k, j}(y) - F_{k, j}(z_k)]
+        let y = Fr::rand(&mut rng);
+        for k in 0..t {
+
+            // Compute lhs
+            let W_k_at_y = polynomials::polynomial_arithmetic::evaluate(&w.as_slice()[(k * n)..], &y, n);
+            let y_minus_z_k = y - z_points[k];
+            let lhs = W_k_at_y * y_minus_z_k;
+            
+            let mut challenge_pow = Fr::one();
+            let mut rhs = Fr::zero();
+            for j in 0..m {
+                // Compute evaluations of source polynomials at y and z_points 
+                let f_kj_at_y = polynomials::polynomial_arithmetic::evaluate(&poly.as_slice()[(k * m * n + j * n)..], &y, n);
+                let f_kj_at_z = polynomials::polynomial_arithmetic::evaluate(&poly.as_slice()[(k * m * n + j * n)..], &z_points[k], n);
+
+                // Compute rhs
+                let f_term = f_kj_at_y - f_kj_at_z;
+                rhs += challenge_pow * f_term;
+                challenge_pow *= challenges[k];
+            }
+            assert_eq!(lhs, rhs);
+        }
+
         /*
         // generate random evaluation points [z_1, z_2, ...]
     size_t t = 8;
