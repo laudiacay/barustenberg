@@ -1,10 +1,12 @@
 use ark_ec::AffineRepr;
 use ark_ff::Field;
 use get_msb::Msb;
+use num_bigint::BigInt;
 
 use crate::{
     common::max_threads::compute_num_threads,
-    ecc::scalar_multiplication::process_buckets::process_buckets, numeric::bitop::get_msb,
+    ecc::scalar_multiplication::{process_buckets::process_buckets, wnaf::fixed_wnaf_with_counts},
+    numeric::bitop::get_msb,
 };
 
 use super::{
@@ -49,12 +51,71 @@ pub(crate) fn generate_pippenger_point_table<F: Field, G: AffineRepr<BaseField =
 
 pub fn compute_wnaf_states<F: Field>(
     point_schedule: &mut Vec<u64>,
-    skew_table: &mut Vec<bool>,
+    input_skew_table: &mut Vec<bool>,
     round_counts: &mut Vec<u64>,
     scalars: &[F],
-    num_points: usize,
+    num_initial_points: usize,
 ) {
-    todo!("implement");
+    let num_points = num_initial_points * 2;
+
+    let num_rounds = get_num_rounds(num_initial_points * 2);
+    let num_threads = compute_num_threads();
+
+    let bits_per_bucket = get_optimal_bucket_width(num_initial_points);
+
+    let wnaf_bits = bits_per_bucket + 1;
+
+    let num_initial_points_per_thread = num_initial_points / num_threads;
+    let num_points_per_thread = num_points / num_threads;
+
+    const MAX_NUM_ROUNDS: usize = 256;
+    const MAX_NUM_THREADS: usize = 128;
+    let thread_round_counts = vec![vec![0u64; MAX_NUM_ROUNDS]; MAX_NUM_THREADS];
+
+    for i in 0..num_threads {
+        let mut t0: F = F::default();
+        let wnaf_table = &mut point_schedule
+            [2 * i * num_initial_points_per_thread..2 * (i + 1) * num_initial_points_per_thread];
+        let skew_table = &mut input_skew_table
+            [2 * i * num_initial_points_per_thread..2 * (i + 1) * num_initial_points_per_thread];
+        let thread_scalars = &mut scalars
+            [i * num_initial_points_per_thread..(i + 1) * num_initial_points_per_thread];
+        let offset = i * num_points_per_thread;
+
+        for j in 0..num_initial_points_per_thread {
+            // convert scalar to normal from montgomery form
+            // do glv
+            // send both for wnaf
+            // t0 = thread_scalars[j].from_montgomery_form();
+            t0 = thread_scalars[j];
+            let splits = split_into_endomorphism_scalars(t0);
+            fixed_wnaf_with_counts(
+                &mut splits[0].clone(),
+                &mut wnaf_table[(j << 1)..],
+                &mut skew_table[j << 1],
+                &mut thread_round_counts[i][0..],
+                (((j as u64) << 1) + offset as u64) << 32,
+                num_points,
+                wnaf_bits,
+            );
+
+            fixed_wnaf_with_counts(
+                &mut splits[0].clone(),
+                &mut wnaf_table[(j << 1) + 1..],
+                &mut skew_table[(j << 1) + 1],
+                &mut thread_round_counts[i][0..],
+                (((j as u64) << 1) + 1 + offset as u64) << 32,
+                num_points,
+                wnaf_bits,
+            );
+        }
+    }
+
+    for i in 0..num_threads {
+        for j in 0..num_rounds {
+            round_counts[j] += thread_round_counts[i][j];
+        }
+    }
 }
 
 pub fn organise_buckets(point_schedule: &mut Vec<u64>, num_points: usize) {
@@ -74,8 +135,44 @@ pub fn organise_buckets(point_schedule: &mut Vec<u64>, num_points: usize) {
 // 1.) the output of arkworks implementation returns a (sign, field) instead of just the field element
 // 2.) glv decomposition exists as a trait we would need to implement for each curve and requires the same amount of thought and code as just doing this
 // In the future i do think these implementations should live as a trait. But not a trait defined by arkworks #fuck_arkworks
-pub fn split_into_endomorphism_scalars<F: Field>(scalar: F) -> Vec<F> {
-    todo!();
+pub fn split_into_endomorphism_scalars<F: Scalar>(scalar: F) -> (F, F) {
+    let scalar: BigInt = scalar.into_bigint().into().into();
+
+    let coeff_bigints: [BigInt; 4] = Self::SCALAR_DECOMP_COEFFS.map(|x| {
+        BigInt::from_biguint(x.0.then_some(Sign::Plus).unwrap_or(Sign::Minus), x.1.into())
+    });
+
+    let [n11, n12, n21, n22] = coeff_bigints;
+
+    let r = BigInt::from(Self::ScalarField::MODULUS.into());
+
+    // beta = vector([k,0]) * self.curve.N_inv
+    // The inverse of N is 1/r * Matrix([[n22, -n12], [-n21, n11]]).
+    // so β = (k*n22, -k*n12)/r
+
+    let beta_1 = &scalar * &n22 / &r;
+    let beta_2 = &scalar * &n12 / &r;
+
+    // b = vector([int(beta[0]), int(beta[1])]) * self.curve.N
+    // b = (β1N11 + β2N21, β1N12 + β2N22) with the signs!
+    //   = (b11   + b12  , b21   + b22)   with the signs!
+
+    // b1
+    let b11 = &beta_1 * &n11;
+    let b12 = &beta_2 * &n21;
+    let b1 = b11 + b12;
+
+    // b2
+    let b21 = &beta_1 * &n12;
+    let b22 = &beta_2 * &n22;
+    let b2 = b21 + b22;
+
+    let k1 = &scalar - b1;
+
+    // k2
+    let k2 = -b2;
+
+    (k1, k2)
 }
 
 fn split_into_endomorphism_scalars_384<F: Field>(scalar: F) -> Vec<F> {
