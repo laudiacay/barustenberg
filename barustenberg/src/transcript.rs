@@ -1,5 +1,7 @@
 use anyhow::{Error, Ok};
 use ark_ec::AffineRepr;
+use ark_ff::BigInteger;
+use ark_serialize::{CanonicalSerialize, CanonicalDeserialize};
 use generic_array::{ArrayLength, GenericArray};
 use sha3::{Digest, Sha3_256};
 
@@ -8,7 +10,7 @@ use std::fmt::Debug;
 use tracing::info;
 use typenum::{Unsigned, U16, U32};
 
-use crate::crypto::pedersen;
+use crate::crypto::{pedersen, self};
 
 /// BarretenHasher is a trait that defines the hash function used for Fiat-Shamir.
 pub trait BarretenHasher: std::fmt::Debug + Send + Sync + Clone + Default {
@@ -49,34 +51,18 @@ impl BarretenHasher for PedersenBlake3s {
     type SecurityParameterSize = U16;
     type PrngOutputSize = U32;
 
-    fn hash(_input: &[u8]) -> GenericArray<u8, Self::PrngOutputSize> {
-        // TODO from original codebase
-        /*
-                std::vector<uint8_t> hash_result = blake3::blake3s(buffer);
-        std::array<uint8_t, PRNG_OUTPUT_SIZE> result;
-        for (size_t i = 0; i < PRNG_OUTPUT_SIZE; ++i) {
-            result[i] = hash_result[i];
-        }
-        return result;
-             */
-        // let input = grumpkin::fq::from_uniform_bytes(_input);
-        // let input = grumpkin::Fq::;
-
-        // let compressed = common::crypto::pedersen_hash::hash_single::compress_native(input);
-        // // let res = to_buffer(compressed);
-
-        // let mut result = GenericArray::default(); // Create an array of size PrngOutputSize filled with zeros
-        // for i in 0..Self::PrngOutputSize::USIZE {
-        //     result[i] = res[i];
-        // }
-        // result
-        todo!("check comment to see what gpt told us to do")
+    fn hash(input: &[u8]) -> GenericArray<u8, Self::PrngOutputSize> {
+        let input = grumpkin::Fq::deserialize_uncompressed(input).unwrap();
+        
+        //Note: ended up fighting the compiler a lot to grab resulting bytes. Open to suggestions to make this cleaner
+        let mut res = GenericArray::default();
+        //Hashes and returns compressed form of grumpkin point (x coordinate)
+        res.copy_from_slice(&pedersen::compress_native(&vec![input])[0..Self::PrngOutputSize::USIZE]);
+        res
     }
 
-    fn hash_for_transcript(_buffer: &[u8]) -> GenericArray<u8, Self::PrngOutputSize> {
-        //let compressed_buffer = pedersen::compress_native(buffer);
-        //Self::hash(compressed_buffer.to_bytes())
-        todo!("figure out how to turn it into bytes in the same representation")
+    fn hash_for_transcript(buffer: &[u8]) -> GenericArray<u8, Self::PrngOutputSize> {
+        Self::hash(buffer)
     }
 }
 
@@ -87,24 +73,18 @@ pub(crate) struct PlookupPedersenBlake3s {}
 impl BarretenHasher for PlookupPedersenBlake3s {
     type SecurityParameterSize = U16;
     type PrngOutputSize = U32;
-    fn hash(_buffer: &[u8]) -> GenericArray<u8, Self::PrngOutputSize> {
-        // TODO from original codebase
-        /*
-        std::vector<uint8_t> compressed_buffer = crypto::pedersen_commitment::lookup::compress_native(buffer);
-        std::array<uint8_t, PRNG_OUTPUT_SIZE> result;
-        for (size_t i = 0; i < PRNG_OUTPUT_SIZE; ++i) {
-            result[i] = compressed_buffer[i];
-        }
-        return result;
-         */
-        // let input = pedersen_hash::hash_single(_buffer, CryptoRng);
-
-        todo!("check comment to see what gpt told us to do")
+    fn hash(buffer: &[u8]) -> GenericArray<u8, Self::PrngOutputSize> {
+        let input = grumpkin::Fq::deserialize_uncompressed(buffer).unwrap();
+        
+        //Note: ended up fighting the compiler a lot to grab resulting bytes. Open to suggestions to make this cleaner
+        let mut res = GenericArray::default();
+        //Hashes and returns compressed form of grumpkin point (x coordinate)
+        res.copy_from_slice(&pedersen::lookup::compress_native(&vec![input])[0..Self::PrngOutputSize::USIZE]);
+        res
     }
 
     fn hash_for_transcript(buffer: &[u8]) -> GenericArray<u8, Self::PrngOutputSize> {
-        let compressed_buffer = pedersen::lookup::compress_native(buffer);
-        Self::hash(&compressed_buffer)
+        Self::hash(buffer)
     }
 }
 
@@ -589,25 +569,16 @@ impl<H: BarretenHasher> Transcript<H> {
     ///
     /// The serialized transcript.
     pub(crate) fn export_transcript(&self) -> Vec<u8> {
-        let buf: Vec<u8> = vec![];
+        let mut buf: Vec<u8> = vec![];
         for manifest in &self.manifest.round_manifests {
-            for _element in &manifest.elements {
-                /*
-                    ASSERT(elements.count(manifest_element.name) == 1);
-                const std::vector<uint8_t>& element_data = elements.at(manifest_element.name);
-                if (!manifest_element.derived_by_verifier) {
-                    ASSERT(manifest_element.num_bytes == element_data.size());
+            for element in &manifest.elements {
+                assert!(self.elements.contains_key(&element.name));
+                let element_data = self.elements.get(&element.name).unwrap();
+                //NOTE: this derived check was split into two separate if's in original implementation
+                if !element.derived_by_verifier { 
+                    assert!(element.num_bytes == element_data.len());
+                    buf.extend_from_slice(&element_data);
                 }
-                if (!manifest_element.derived_by_verifier) {
-                    // printf("writing element %s ", manifest_element.name.c_str());
-                    // for (size_t j = 0; j < element_data.size(); ++j) {
-                    //     printf("%x", element_data[j]);
-                    // }
-                    // printf("\n");
-                    buffer.insert(buffer.end(), element_data.begin(), element_data.end());
-                }
-                     */
-                todo!("check comment");
             }
         }
         buf

@@ -1,6 +1,6 @@
 use crate::{
     plonk::{
-        composer::composer_base::ComposerType,
+        composer::composer_base::{ComposerType, ComposerBase},
         proof_system::{
             commitment_scheme::KateCommitmentScheme,
             prover::Prover,
@@ -139,7 +139,7 @@ impl<H: BarretenHasher> Verifier<H> {
 
         let mut verifier = Verifier::new(
             Some(Arc::new(RwLock::new(circuit_verification_key))),
-            ComposerType::Standard.create_manifest(0),
+            ComposerBase::create_manifest(0),
         );
 
         let kate_commitment_scheme = Box::new(KateCommitmentScheme::<

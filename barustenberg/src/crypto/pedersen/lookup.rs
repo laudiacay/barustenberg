@@ -37,7 +37,7 @@ pub(crate) fn compress_native_with_multiple_indices(
     todo!("compress_native with multiple hash indices")
 }
 
-pub(crate) fn compress_native(_input: &[u8]) -> Vec<u8> {
+pub(crate) fn compress_native(input: &[grumpkin::Fq]) -> Vec<u8> {
     // TODO: Implement this function
     todo!("compress_native")
 }
