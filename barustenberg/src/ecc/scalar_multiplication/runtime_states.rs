@@ -1,8 +1,7 @@
 use crate::{common::max_threads::compute_num_threads, numeric::bitop::Msb};
 // use ark_bn254::{G1Affine, G1Projective};
 use crate::ecc::scalar_multiplication::wnaf;
-use ark_ec::AffineRepr;
-use ark_ff::Field;
+use ark_ec::short_weierstrass::{Affine, SWCurveConfig};
 
 const NUM_BITS: usize = 8;
 // From what I've seen UL == u64
@@ -69,12 +68,12 @@ pub(crate) const fn get_num_rounds(num_points: usize) -> usize {
 }
 
 #[derive(Clone, Default, Debug)]
-pub(crate) struct PippengerRuntimeState<F: Field, G: AffineRepr> {
+pub(crate) struct PippengerRuntimeState<C: SWCurveConfig> {
     // TODO: maybe arc should be used here for threads. think later.
     pub point_schedule: Vec<u64>,
-    pub point_pairs_1: Vec<G>,
-    pub point_pairs_2: Vec<G>,
-    pub scratch_space: Vec<F>,
+    pub point_pairs_1: Vec<Affine<C>>,
+    pub point_pairs_2: Vec<Affine<C>>,
+    pub scratch_space: Vec<C::BaseField>,
     pub skew_table: Vec<bool>,
     pub bucket_counts: Vec<u32>,
     pub bit_counts: Vec<u32>,
@@ -84,11 +83,11 @@ pub(crate) struct PippengerRuntimeState<F: Field, G: AffineRepr> {
 }
 
 #[derive(Default, Clone, Debug)]
-pub(crate) struct AffinePippengerRuntimeState<F: Field, G: AffineRepr> {
-    pub points: Vec<G>,
-    pub point_pairs_1: Vec<G>,
-    pub point_pairs_2: Vec<G>,
-    pub scratch_space: Vec<F>,
+pub(crate) struct AffinePippengerRuntimeState<C: SWCurveConfig> {
+    pub points: Vec<Affine<C>>,
+    pub point_pairs_1: Vec<Affine<C>>,
+    pub point_pairs_2: Vec<Affine<C>>,
+    pub scratch_space: Vec<C::BaseField>,
     pub point_schedule: Vec<u64>,
     pub bucket_counts: Vec<u32>,
     pub bit_offsets: Vec<u32>,
@@ -97,7 +96,7 @@ pub(crate) struct AffinePippengerRuntimeState<F: Field, G: AffineRepr> {
     pub num_buckets: usize,
 }
 
-impl<F: Field, G: AffineRepr> PippengerRuntimeState<F, G> {
+impl<C: SWCurveConfig> PippengerRuntimeState<C> {
     pub(crate) fn new(num_initial_points: usize) -> Self {
         const MAX_NUM_ROUNDS: u32 = 256;
         let num_points = num_initial_points * 2;
@@ -108,9 +107,9 @@ impl<F: Field, G: AffineRepr> PippengerRuntimeState<F, G> {
         let num_rounds = get_num_rounds(num_points_floor);
 
         let point_schedule = vec![0u64; num_points * num_rounds + prefetch_overflow];
-        let point_pairs_1 = vec![G::zero(); num_points * 2 + (num_threads * 16)];
-        let point_pairs_2 = vec![G::zero(); (num_points * 2) + (num_threads * 16)];
-        let scratch_space = vec![F::zero(); num_points];
+        let point_pairs_1 = vec![Default::default(); num_points * 2 + (num_threads * 16)];
+        let point_pairs_2 = vec![Default::default(); (num_points * 2) + (num_threads * 16)];
+        let scratch_space = vec![Default::default(); num_points];
 
         let skew_table = vec![false; num_points];
         let bucket_counts = vec![0u32; num_threads * num_buckets];
@@ -136,43 +135,43 @@ impl<F: Field, G: AffineRepr> PippengerRuntimeState<F, G> {
         &self,
         num_threads: usize,
         thread_index: usize,
-    ) -> AffinePippengerRuntimeState<F, G> {
+    ) -> AffinePippengerRuntimeState<C> {
         let points_per_thread: usize = self.num_points as usize / (num_threads);
         let num_buckets = 1 << get_optimal_bucket_width(self.num_points as usize);
         // TODO: check if we can just send that particular thread's vars
         let point_pairs_1 = self
-            .clone()
             .point_pairs_1
+            .clone()
             .into_iter()
             .skip((points_per_thread + 16) * thread_index)
             .collect();
         let point_pairs_2 = self
-            .clone()
             .point_pairs_2
+            .clone()
             .into_iter()
             .skip((points_per_thread + 16) * thread_index)
             .collect();
         let scratch_space = self
-            .clone()
             .scratch_space
+            .clone()
             .into_iter()
             .skip(thread_index * (points_per_thread as usize / 2))
             .collect();
         let bucket_counts = self
-            .clone()
             .bucket_counts
+            .clone()
             .into_iter()
             .skip(thread_index * num_buckets)
             .collect();
         let bit_offsets = self
-            .clone()
             .bit_counts
+            .clone()
             .into_iter()
             .skip(thread_index * num_buckets)
             .collect();
         let bucket_empty_status = self
-            .clone()
             .bucket_empty_status
+            .clone()
             .into_iter()
             .skip(thread_index * num_buckets)
             .collect();
@@ -194,24 +193,24 @@ impl<F: Field, G: AffineRepr> PippengerRuntimeState<F, G> {
 
     pub(crate) fn pippenger_unsafe(
         &mut self,
-        _mul_scalars: &mut [F],
-        _srs_points: &[G],
+        _mul_scalars: &mut [C::ScalarField],
+        _srs_points: &[Affine<C>],
         _msm_size: usize,
-    ) -> G {
+    ) -> Affine<C> {
         todo!()
     }
 
     pub(crate) fn pippenger(
         &mut self,
-        _scalars: &mut [F],
-        _points: &[G],
+        _scalars: &mut [C::ScalarField],
+        _points: &[Affine<C>],
         _num_initial_points: usize,
         _handle_edge_cases: bool,
-    ) -> G {
+    ) -> Affine<C> {
         todo!()
     }
 }
 
 //THIS IS A GREAT IDEA AND DEFINITELY THE WAY TO GO I JUST DIDN'T WANT TO HAVE TO SQUASH THE REST OF THE COMPILER BUGS OUTSIDE THIS MODULE WHILE WE DEBUG.
-//pub(crate) type GrumpkinRuntimeState = PippengerRuntimeState<grumpkin::GrumpkinParameters>;
-//pub(crate) type Bn254RuntimeState = PippengerRuntimeState<ark_bn254::Config>;
+// pub(crate) type GrumpkinRuntimeState = PippengerRuntimeState<grumpkin::GrumpkinConfig>;
+pub(crate) type Bn254RuntimeState = PippengerRuntimeState<ark_bn254::g1::Config>;

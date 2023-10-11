@@ -8,11 +8,11 @@ pub(crate) const fn WNAF_SIZE(x: usize) -> usize {
 }
 
 #[inline]
-pub(crate) fn get_num_scalar_bits(scalar: &u128) -> u64 {
+pub(crate) fn get_num_scalar_bits(scalar: &Vec<u64>) -> u64 {
     //Since msb operates on u64 we have to split then recombine and in the process do some fun bit
     //shifting
-    let hi: u64 = (scalar >> 64) as u64;
-    let lo: u64 = *scalar as u64;
+    let hi: u64 = scalar[1];
+    let lo: u64 = scalar[0];
 
     let msb_1 = hi.get_msb();
     let msb_0 = lo.get_msb();
@@ -124,7 +124,7 @@ pub(crate) fn fixed_wnaf(
 }
 
 pub(crate) fn fixed_wnaf_with_counts(
-    scalar: &mut u128,
+    scalar: Vec<u64>,
     wnaf: &mut [u64],
     skew_map: &mut bool,
     wnaf_round_counts: &mut [u64],
@@ -135,7 +135,7 @@ pub(crate) fn fixed_wnaf_with_counts(
     let max_wnaf_entries = (SCALAR_BITS + wnaf_bits - 1) / wnaf_bits;
 
     //If the scalar is 0
-    if *scalar == 0 {
+    if scalar[0] == 0 && scalar[1] == 0 {
         *skew_map = false;
         for round in 0..max_wnaf_entries {
             wnaf[round * num_points] = u64::MAX;
@@ -143,9 +143,9 @@ pub(crate) fn fixed_wnaf_with_counts(
         return;
     }
 
-    let current_scalar_bits = get_num_scalar_bits(scalar) + 1;
-    let hi: u64 = (*scalar >> 64) as u64;
-    let lo: u64 = *scalar as u64;
+    let current_scalar_bits = get_num_scalar_bits(&scalar) + 1;
+    let hi: u64 = scalar[1];
+    let lo: u64 = scalar[0] as u64;
 
     //If the first bit of scalars hi limb is set set its wnaf skew to 1
     *skew_map = (hi & 1) == 0;
@@ -214,14 +214,6 @@ mod tests {
     use crate::ecc::scalar_multiplication::cube_root_of_unity;
 
     use super::*;
-    use ark_bn254::{g1::Config, Fr, G1Affine, G1Projective};
-    use ark_ec::scalar_mul::glv::GLVConfig;
-    use ark_ff::{BigInteger, Field, PrimeField};
-    use ark_std::{One, UniformRand, Zero};
-
-    //TODO: implement GLVConfig for Bn254;
-
-    //Have this return hi and lo
 
     fn recover_fixed_wnaf(wnaf: &mut [u64], skew: bool, wnaf_bits: usize) -> (u64, u64) {
         let wnaf_entries: usize = (127 + wnaf_bits - 1) / wnaf_bits;

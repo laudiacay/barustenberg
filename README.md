@@ -36,36 +36,27 @@
 
 ## Outline
 
-- [Crates](#crates)
-- [Usage](#usage)
-- [Testing the Project](#testing-the-project)
-- [Benchmarking the Project](#benchmarking-the-project)
-- [Setting-up barustenberg-wasm](#setting-up-barustenberg-wasm)
+- [Bounties](#bounties)
 - [Contributing](#contributing)
+- [Testing the Project](#testing-the-project)
 - [Getting Help](#getting-help)
-- [External Resources](#external-resources)
 - [License](#license)
 
-## Crates
+## Bounties
 
-- [barustenberg](https://github.com/laudiacay/barustenberg/tree/main/barustenberg)
-- [barustenberg-wasm](https://github.com/laudiacay/barustenberg/tree/main/barustenberg-wasm)
+There's an active bounty program supported by Aztec for completing issues in this repository. The aim of this is mostly educational- we're here to help you learn about ZK and Plonk!
 
-## Usage
+If you're interested in an open bountied issue, reach out to laudiacay on Telegram to be added to the contributor chat for support/issue claiming/help finding a good issue for you. Bounty-approved issues are tagged, without bounty amounts, in the issues... If you have a proposal for something we haven't written up yet, please reach out and we can discuss!
 
-- Add the following to the `[dependencies]` section of your `Cargo.toml` file
-  for using the rust-only `barustenberg` crate/workspace:
+We'll pay when the issue is complete per description, neatly formatted, with requested tests passing. We reserve the right to ask for edits on the PR before merging it. 
 
-```toml
-barustenberg = "0.1.0"
-```
+First acceptable PR will get the bounty, so please use the contributor chat to de-conflict and plan collaboration!
 
-- Add the following to the `[dependencies]` section of your `Cargo.toml` file
-  for using `barustenberg-wasm` crate/workspace:
+## Contributing
 
-```toml
-barustenberg-wasm = "0.1.0"
-```
+:balloon: We're thankful for any feedback and help in improving our project!
+We have a [contributing guide](./CONTRIBUTING.md) to help you get involved. We
+also adhere to our [Code of Conduct](./CODE_OF_CONDUCT.md).
 
 ## Testing the Project
 
@@ -75,102 +66,13 @@ barustenberg-wasm = "0.1.0"
   cd barustenberg && cargo test
   ```
 
-- To run tests for crate/workspace `barustenberg-wasm`, follow
-  the instructions in [barustenberg-wasm](./barustenberg-wasm#testing-the-project),
-  which leverages [wasm-pack][wasm-pack].
-
-## Benchmarking the Project
-
-For benchmarking and measuring performance, this workspaces provides
-a Rust-specific benchmarking package leveraging [criterion][criterion] and a
-`test_utils` feature flag for integrating [proptest][proptest] within the
-suite for working with [strategies][strategies] and sampling from randomly
-generated values.
-
-- Run benchmarks
-
-  ```console
-  cargo bench -p barustenberg-benches
-  ```
-
-*Note*: Currently, this workspace only supports Rust-native benchmarking, as
-`wasm-bindgen` support for criterion is still [an open issue][criterion-bindgen].
-However, with some extra work, benchmarks can be compiled to [wasi][wasi] and
-run with [wasmer][wasmer]/[wasmtime][wasmtime] or in the brower with
-[webassembly.sh][wasmsh]. Please catch-up with wasm support for criterion on their
-[user-guide][criterion-user-guide].
-
-## Setting-up barustenberg-wasm
-
-The Wasm targetted version of this project relies on [wasm-pack][wasm-pack]
-for building, testing, and publishing artifacts sutiable for
-[Node.js][node-js], web broswers, or bundlers like [webpack][webpack].
-
-Please read more on working with `wasm-pack` directly in
-[barustenberg-wasm](./barustenberg-wasm#set-up).
-
-## Contributing
-
-:balloon: We're thankful for any feedback and help in improving our project!
-We have a [contributing guide](./CONTRIBUTING.md) to help you get involved. We
-also adhere to our [Code of Conduct](./CODE_OF_CONDUCT.md).
-
-### Nix
-
-This repository contains a [Nix flake][nix-flake] that initiates both the Rust
-toolchain set in [rust-toolchain.toml](./rust-toolchain.toml) and a
-[pre-commit hook](#pre-commit-hook). It also installs helpful cargo binaries for
-development. Please install [nix][nix] and [direnv][direnv] to get started.
-
-Run `nix develop` or `direnv allow` to load the `devShell` flake output,
-according to your preference.
-
-### Formatting
-
-For formatting Rust in particular, we automatically format on `nightly`, as it
-uses specific nightly features we recommend by default.
-
-### Pre-commit Hook
-
-This library recommends using [pre-commit][pre-commit] for running pre-commit
-hooks. Please run this before every commit and/or push.
-
-- If you are doing interim commits locally, and for some reason if you _don't_
-  want pre-commit hooks to fire, you can run
-  `git commit -a -m "Your message here" --no-verify`.
-
-### Recommended Development Flow
-
-- We recommend leveraging [cargo-watch][cargo-watch],
-  [cargo-expand][cargo-expand] and [irust][irust] for Rust development.
-- We recommend using [cargo-udeps][cargo-udeps] for removing unused dependencies
-  before commits and pull-requests.
-
-### Conventional Commits
-
-This project *lightly* follows the [Conventional Commits
-convention][commit-spec-site] to help explain
-commit history and tie in with our release process. The full specification
-can be found [here][commit-spec]. We recommend prefixing your commits with
-a type of `fix`, `feat`, `docs`, `ci`, `refactor`, etc..., structured like so:
-
-```
-<type>[optional scope]: <description>
-
-[optional body]
-
-[optional footer(s)]
-```
-
 ## Getting Help
 
 For usage questions, usecases, or issues please open an issue in our repository.
 
 We would be happy to try to answer your question or try opening a new issue on Github.
 
-## External Resources
-
-These are references to specifications, talks and presentations, etc.
+Additionally, reach out to @laudiacay on telegram to get added to the contributor chat.
 
 ## License
 

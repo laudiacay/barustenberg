@@ -1,8 +1,8 @@
 use ark_bn254::Fr;
 
 use ark_bn254::{G1Affine, G1Projective};
-use ark_ec::AffineRepr;
-use ark_ff::{Field, Zero};
+use ark_ec::short_weierstrass::{Affine, SWCurveConfig};
+use ark_ff::Zero;
 
 use crate::srs::io::read_transcript_g1;
 
@@ -58,12 +58,12 @@ impl Pippenger {
 }
 
 #[derive(Clone, Default, Debug)]
-pub(crate) struct PippengerRuntimeState<Fq: Field, G1Affine: AffineRepr> {
+pub(crate) struct PippengerRuntimeState<C: SWCurveConfig> {
     point_schedule: Vec<u64>,
     skew_table: Vec<bool>,
-    point_pairs_1: Vec<G1Affine>,
-    point_pairs_2: Vec<G1Affine>,
-    scratch_space: Vec<Fq>,
+    point_pairs_1: Vec<Affine<C>>,
+    point_pairs_2: Vec<Affine<C>>,
+    scratch_space: Vec<C::BaseField>,
     bucket_counts: Vec<u32>,
     bit_counts: Vec<u32>,
     bucket_empty_status: Vec<bool>,
@@ -71,36 +71,36 @@ pub(crate) struct PippengerRuntimeState<Fq: Field, G1Affine: AffineRepr> {
     num_points: u64,
 }
 
-impl<Fq: Field, G1: AffineRepr> PippengerRuntimeState<Fq, G1> {
+impl<C: SWCurveConfig> PippengerRuntimeState<C> {
     pub(crate) fn new(_size: usize) -> Self {
         todo!()
     }
     pub(crate) fn pippenger_unsafe(
         &mut self,
-        _mul_scalars: &mut [Fr],
-        _srs_points: &[G1],
+        _mul_scalars: &mut [C::ScalarField],
+        _srs_points: &[Affine<C>],
         _msm_size: usize,
-    ) -> G1 {
+    ) -> Affine<C> {
         todo!()
     }
 
     pub(crate) fn pippenger(
         &mut self,
         _scalars: &mut [Fr],
-        _points: &[G1],
+        _points: &[Affine<C>],
         _num_initial_points: usize,
         _handle_edge_cases: bool,
-    ) -> G1 {
+    ) -> Affine<C> {
         todo!()
     }
 }
-pub(crate) fn generate_pippenger_point_table<F: Field>(
-    points: &mut [G1Affine],
-    table: &mut [G1Affine],
+pub(crate) fn generate_pippenger_point_table<C: SWCurveConfig>(
+    points: &[Affine<C>],
+    table: &mut [Affine<C>],
     num_points: usize,
 ) {
     // calculate the cube root of unity
-    let beta = cube_root_of_unity::<F>();
+    let beta = cube_root_of_unity::<C::BaseField>();
 
     // iterate backwards, so that `points` and `table` can point to the same memory location
     for i in (0..num_points).rev() {
