@@ -82,7 +82,7 @@ impl<H: BarretenHasher> Verifier<H> {
         ];
 
         let mut commitments = vec![G1Affine::default(); 8];
-        let mut state: PippengerRuntimeState<Fr, G1Affine> =
+        let mut state: PippengerRuntimeState<ark_bn254::g1::Config> =
             PippengerRuntimeState::new(circuit_proving_key.read().unwrap().circuit_size);
 
         for i in 0..8 {

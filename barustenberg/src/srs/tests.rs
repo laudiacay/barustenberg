@@ -1,8 +1,6 @@
 use ark_bn254::{Bn254, Fq12, G1Affine, G2Affine};
-use ark_ec::pairing::Pairing;
-use ark_ec::AffineRepr;
-use ark_ff::Field;
-use ark_ff::One;
+use ark_ec::{AffineRepr, pairing::Pairing};
+use ark_ff::{AdditiveGroup, One};
 
 use super::io;
 
@@ -24,7 +22,7 @@ fn read_transcript_loads_well_formed_srs() {
 
     assert_eq!(res, Fq12::one());
 
-    for i in 0..degree {
-        assert!(monomials[i].is_on_curve());
+    for mon in monomials.iter().take(degree) {
+        assert!(mon.is_on_curve());
     }
 }
