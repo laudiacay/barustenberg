@@ -1,4 +1,3 @@
-use ark_bn254::G1Affine;
 use ark_ff::{FftField, Field};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::io::Read;

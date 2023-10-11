@@ -2,8 +2,7 @@ use ark_bn254::Fr;
 
 use ark_bn254::{G1Affine, G1Projective};
 use ark_ec::short_weierstrass::{Affine, SWCurveConfig};
-use ark_ec::AffineRepr;
-use ark_ff::{Field, Zero};
+use ark_ff::Zero;
 
 use crate::srs::io::read_transcript_g1;
 
