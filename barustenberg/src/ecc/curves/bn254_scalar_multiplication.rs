@@ -49,6 +49,7 @@ impl Pippenger {
         let mut monomials = vec![G1Affine::default(); num_points];
         read_transcript_g1(&mut monomials, num_points, path)?;
         let point_table = monomials.clone();
+        monomials.extend(vec![G1Affine::default(); num_points]);
         generate_pippenger_point_table(&point_table, &mut monomials, num_points);
         Ok(Self {
             monomials,

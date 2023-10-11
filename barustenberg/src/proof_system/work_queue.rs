@@ -61,12 +61,21 @@ pub(crate) struct WorkQueue<H: BarretenHasher> {
     work_items: Vec<WorkItem>,
 }
 
+/* I do not think this works as intended, so I changed it
 /// TODO this is super fucked up...
 unsafe fn field_element_to_usize<F: Field + FftField>(element: F) -> usize {
     // pretending to be this: static_cast<size_t>(static_cast<uint256_t>(item.constant));
     // first turn it into a u256 (by memtransmute into a slice!)
     let u256_bytes: [u8; 32] = std::mem::transmute_copy(&element);
+    eprintln!("{:?}", u256_bytes);
     std::mem::transmute_copy(&u256_bytes)
+}
+*/
+
+// ... although it seems like ark_ff has a scuffed API, so I have a similarly
+// scuffed implementation...
+fn field_element_to_usize<F: Field + FftField>(element: F) -> usize {
+    format!("{}", element).parse::<usize>().expect("WorkQueue: element larger than usize")
 }
 
 impl<H: BarretenHasher> WorkQueue<H> {

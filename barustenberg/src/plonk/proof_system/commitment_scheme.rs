@@ -564,7 +564,7 @@ mod tests {
     use crate::plonk::proof_system::types::prover_settings::TurboSettings;
     use crate::srs::reference_string::file_reference_string::FileReferenceString;
     use crate::plonk::composer::composer_base::ComposerType;
-    
+
     use crate::transcript::PedersenBlake3s;
 
     use ark_bn254::G2Affine;
@@ -588,7 +588,7 @@ mod tests {
         let crs = Arc::new(RwLock::new(
             FileReferenceString::new(n, "./src/srs_db/ignition").unwrap(),
         ));
-        eprintln!("HERE");
+
         let key = Arc::new(RwLock::new(ProvingKey::new(
             n,
             0,
@@ -608,7 +608,7 @@ mod tests {
         // Compute opening polynomial W(X), and evaluation f = F(z)
         // Should I clone the polynomial here? Shouldn't matter since it's just a test...
         kate.commit(poly.clone(), "F_COMM".to_string(), Fr::from(n as i16), &mut queue);
-        queue.process_queue();
+        queue.process_queue().unwrap();
 
         let y = Fr::rand(&mut rng);
         let f_y = polynomial_arithmetic::evaluate(&poly.read().unwrap().coefficients.as_slice(), &y, n);
@@ -619,7 +619,7 @@ mod tests {
         kate.compute_opening_polynomial(poly.read().unwrap().coefficients.as_slice(), w.write().unwrap().coefficients.as_mut_slice(), &y, n);
         
         kate.commit(w, "W_COMM".to_string(), Fr::from(n as i16), &mut queue);
-        queue.process_queue();
+        queue.process_queue().unwrap();
 
         // Check if W(y)(y-z) == F(y) - F(z)
         let w_y = polynomial_arithmetic::evaluate(&poly.read().unwrap().coefficients.as_slice(), &y, n - 1);
@@ -710,6 +710,7 @@ mod tests {
         let crs = Arc::new(RwLock::new(
             FileReferenceString::new(n, "./src/srs_db/ignition").unwrap(),
         ));
+
         let key = Arc::new(RwLock::new(ProvingKey::new(
             n,
             0,
@@ -734,7 +735,7 @@ mod tests {
             }
         }
 
-        queue.process_queue();
+        queue.process_queue().unwrap();
 
         // Create random challenges, tags and item_constants
         let mut challenges = Vec::with_capacity(t);
@@ -760,7 +761,7 @@ mod tests {
             item_constants.as_slice(), 
             &mut queue
         );
-        queue.process_queue();
+        queue.process_queue().unwrap();
 
         // Check if W_{k}(y) * (y - z_k) = \sum_{j} challenge[k]^{j - 1} * [F_{k, j}(y) - F_{k, j}(z_k)]
         let y = Fr::rand(&mut rng);
@@ -874,34 +875,5 @@ mod tests {
     }
          */
         todo!()
-    }
-
-    #[test]
-    fn batch_open_consistency() {
-
-        let n = 256;
-        let mut kate: KateCommitmentScheme<_, _, ark_bn254::Fq, _, _> = KateCommitmentScheme::new(TurboSettings {});
-
-        // Load srs        
-        let crs = Arc::new(RwLock::new(
-            FileReferenceString::new(n, "./src/srs_db/ignition").unwrap(),
-        ));
-        let key = Arc::new(RwLock::new(ProvingKey::new(
-            n,
-            0,
-            crs,
-            ComposerType::Standard,
-        )));
-
-        let inp_tx = Arc::new(RwLock::new(
-            Transcript::default()
-        ));
-
-        let mut queue: WorkQueue<PedersenBlake3s> = WorkQueue::new(
-            Some(key.clone()),
-            Some(inp_tx.clone())
-        );
-
-        kate.batch_open(&inp_tx.read().unwrap(), &mut queue, Some(key));
     }
 }
