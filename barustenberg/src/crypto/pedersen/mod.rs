@@ -3,7 +3,7 @@ use std::vec::Vec;
 
 pub(crate) type GeneratorIndexT = usize;
 
-pub(crate) fn commit_single(_in_value: ark_bn254::Fr, _index: GeneratorIndexT) -> grumpkin::SWAffine {
+pub(crate) fn commit_single(_in_value: ark_bn254::Fr, _index: GeneratorIndexT) -> grumpkin::Affine {
     // TODO: Implement this function
     todo!("commit_single")
 }
@@ -11,7 +11,7 @@ pub(crate) fn commit_single(_in_value: ark_bn254::Fr, _index: GeneratorIndexT) -
 pub(crate) fn commit_native(
     _inputs: Vec<grumpkin::Fq>,
     hash_index: Option<usize>,
-) -> grumpkin::SWAffine {
+) -> grumpkin::Affine {
     let _hash_index = hash_index.unwrap_or(0);
 
     // TODO: Implement this function
@@ -20,7 +20,7 @@ pub(crate) fn commit_native(
 
 pub(crate) fn commit_native_with_pairs(
     _input_pairs: Vec<(grumpkin::Fq, GeneratorIndexT)>,
-) -> grumpkin::SWAffine {
+) -> grumpkin::Affine {
     // TODO: Implement this function
     todo!("commit_native_with_pairs")
 }
