@@ -1,4 +1,3 @@
-use ark_bn254::G1Affine;
 use ark_ff::{FftField, Field};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::io::Read;
@@ -50,7 +49,7 @@ pub struct ProvingKey<Fr: Field + FftField> {
     pub(crate) reference_string: Arc<RwLock<dyn ProverReferenceString>>,
     pub(crate) quotient_polynomial_parts:
         [Arc<RwLock<Polynomial<Fr>>>; NUM_QUOTIENT_PARTS as usize],
-    pub(crate) pippenger_runtime_state: PippengerRuntimeState<Fr, G1Affine>,
+    pub(crate) pippenger_runtime_state: PippengerRuntimeState<ark_bn254::g1::Config>,
     pub(crate) polynomial_manifest: PolynomialManifest,
 }
 
