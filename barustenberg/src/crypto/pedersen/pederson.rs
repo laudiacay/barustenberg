@@ -1,10 +1,10 @@
 use std::vec::Vec;
-use ark_ec::short_weierstrass::Affine;
 
 pub(crate) type GeneratorIndexT = usize;
 
-pub(crate) fn commit_single(input: grumpkin::Fq, index: GeneratorIndexT) -> grumpkin::SWAffine {
+pub(crate) fn commit_single(input: grumpkin::Fq, index: GeneratorIndexT) -> grumpkin::Fq {
     // TODO: Implement this functio§n
+    /* 
     let gen_data = get_generator_data(index);
     let mut scalar_multiplier = input.from_montgomery_form();
 
@@ -35,6 +35,7 @@ pub(crate) fn commit_single(input: grumpkin::Fq, index: GeneratorIndexT) -> grum
         accumulator.self_mixed_add_or_sub(point_to_add, predicate);
     }
     accumulator
+    */
     todo!("Need to implement generator functions")
 
 }
@@ -42,16 +43,13 @@ pub(crate) fn commit_single(input: grumpkin::Fq, index: GeneratorIndexT) -> grum
 pub(crate) fn commit_native(
     inputs: Vec<grumpkin::Fq>,
     hash_index: Option<usize>,
-) -> grumpkin::SWAffine {
-    let hash_index = hash_index.unwrap_or(0);
-    assert!()
-
+) -> grumpkin::Fq {
     todo!("commit_native")
 }
 
 pub(crate) fn commit_native_with_pairs(
     _input_pairs: Vec<(grumpkin::Fq, GeneratorIndexT)>,
-) -> grumpkin::SWAffine {
+) -> grumpkin::Fq {
     // TODO: Implement this function
     todo!("commit_native_with_pairs")
 }
@@ -65,12 +63,12 @@ pub(crate) fn compress_native_with_index(
 
 pub(crate) fn compress_native_array<const T: usize>(_inputs: [grumpkin::Fq; T]) -> grumpkin::Fq {
     // TODO: Implement this function
-    commit_native(inputs, hash_index)
+    todo!("compress_native_array")
 }
 
-pub(crate) fn compress_native(_input: &[grumpkin::Fq]) -> Vec<u8> {
+pub(crate) fn compress_native(input: &[grumpkin::Fq]) -> Vec<u8> {
     // TODO: Implement this function
-    commit_native(inputs, hash_index)
+    todo!("compress_native")
 }
 
 pub(crate) fn compress_native_with_pairs(

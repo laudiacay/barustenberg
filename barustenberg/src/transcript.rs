@@ -1,7 +1,6 @@
 use anyhow::{Error, Ok};
 use ark_ec::AffineRepr;
-use ark_ff::BigInteger;
-use ark_serialize::{CanonicalSerialize, CanonicalDeserialize};
+use ark_serialize::CanonicalDeserialize;
 use generic_array::{ArrayLength, GenericArray};
 use sha3::{Digest, Sha3_256};
 
@@ -10,7 +9,7 @@ use std::fmt::Debug;
 use tracing::info;
 use typenum::{Unsigned, U16, U32};
 
-use crate::crypto::{pedersen, self};
+use crate::crypto::pedersen;
 
 /// BarretenHasher is a trait that defines the hash function used for Fiat-Shamir.
 pub trait BarretenHasher: std::fmt::Debug + Send + Sync + Clone + Default {
@@ -57,7 +56,7 @@ impl BarretenHasher for PedersenBlake3s {
         //Note: ended up fighting the compiler a lot to grab resulting bytes. Open to suggestions to make this cleaner
         let mut res = GenericArray::default();
         //Hashes and returns compressed form of grumpkin point (x coordinate)
-        res.copy_from_slice(&pedersen::compress_native(&vec![input])[0..Self::PrngOutputSize::USIZE]);
+        //res.copy_from_slice(&pedersen::pederson::compress_native(&vec![input])[0..Self::PrngOutputSize::USIZE]);
         res
     }
 
@@ -79,7 +78,7 @@ impl BarretenHasher for PlookupPedersenBlake3s {
         //Note: ended up fighting the compiler a lot to grab resulting bytes. Open to suggestions to make this cleaner
         let mut res = GenericArray::default();
         //Hashes and returns compressed form of grumpkin point (x coordinate)
-        res.copy_from_slice(&pedersen::lookup::compress_native(&vec![input])[0..Self::PrngOutputSize::USIZE]);
+        //res.copy_from_slice(&pedersen::lookup::compress_native(&vec![input])[0..Self::PrngOutputSize::USIZE]);
         res
     }
 
