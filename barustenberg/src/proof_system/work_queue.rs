@@ -72,8 +72,7 @@ unsafe fn field_element_to_usize<F: Field + FftField>(element: F) -> usize {
 }
 */
 
-// ... although it seems like ark_ff has a scuffed API, so I have a similarly
-// scuffed implementation...
+// Super scuffed. Fix this before you submit.
 fn field_element_to_usize<F: Field + FftField>(element: F) -> usize {
     format!("{}", element).parse::<usize>().expect("WorkQueue: element larger than usize")
 }
@@ -423,7 +422,7 @@ impl<H: BarretenHasher> WorkQueue<H> {
         Ok(())
     }
 
-    fn get_queue(&self) -> &Vec<WorkItem> {
+    pub(crate) fn get_queue(&self) -> &Vec<WorkItem> {
         &self.work_items
     }
 }

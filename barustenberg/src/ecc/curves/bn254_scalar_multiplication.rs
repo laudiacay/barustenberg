@@ -37,6 +37,12 @@ pub(crate) struct Pippenger {
 }
 
 impl Pippenger {
+
+    // TODO: There is a better way to do this.
+    pub(crate) fn monomials(&self) -> Vec<G1Affine> {
+        self.monomials.clone()
+    }
+
     pub(crate) fn get_num_points(&self) -> usize {
         todo!()
     }
