@@ -1,1 +1,1 @@
-pub mod wnaf;
+pub(crate) mod wnaf;

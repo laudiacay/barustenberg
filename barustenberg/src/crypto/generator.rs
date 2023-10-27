@@ -1,6 +1,6 @@
 use ark_ec::{AffineRepr, AdditiveGroup, scalar_mul::fixed_base::FixedBase};
 use ark_ff::{batch_inversion, Field, Zero};
-use grumpkin::{Affine, Fq, Fr, Projective};
+use grumpkin::{Affine, Fq, Fr, Projective, GrumpkinConfig};
 use lazy_static::lazy_static;
 use crate::ecc::groups::wnaf::fixed_wnaf;
 
@@ -347,28 +347,42 @@ const fn get_ladder_offset(num_bits: usize, offset: usize) -> usize {
 
 const WNAF_MASK: u64 = 0x7fffffffu64;
 
-pub(crate) fn fixed_base_scalar_mul<const NUM_BITS: usize>(f: Fr, index: usize) -> Projective {
+//USE ARKWORKS!!!!
+pub(crate) fn fixed_base_scalar_mul<const NUM_BITS: u64>(f: Fr, index: usize) -> Affine {
     let gen_data = GENERATORS.get_generator_data(GeneratorIndex { index, sub_index: 0 });
     assert!(f != Fr::zero());
 
-    let num_quads_base: usize = (NUM_BITS - 1) >> 1;
-    let num_quads: usize = if (num_quads_base << 1) + 1 < NUM_BITS { num_quads_base + 1 } else { num_quads_base };
-    let num_wnaf_bits: usize = (num_quads << 1) + 1;
+    let num_quads_base = (NUM_BITS - 1) >> 1;
+    let num_quads = if (num_quads_base << 1) + 1 < NUM_BITS { (num_quads_base + 1) as usize } else { num_quads_base as usize };
+    let num_wnaf_bits = (num_quads << 1) + 1;
 
-    let ladder = gen_data.ladder[get_ladder_offset(NUM_BITS, 0)];
+    let offset = get_ladder_offset(NUM_BITS as usize, 0);
 
     let mut wnaf_entries = vec![0u64; num_quads + 2];
     //TODO: maybe have this be u64
-    let skew = false;
-    fixed_wnaf::<num_wnaf_bits, 1, 2>(f, &wnaf_entries, skew, 0);
+    let skew = 0u64;
+    fixed_wnaf::<GrumpkinConfig, 1, 2>(num_wnaf_bits as u64, f, &mut wnaf_entries, &skew, 0);
+
+    let mut accumulator = Affine::zero();
+    if skew == 1 {
+        accumulator = (accumulator - gen_data.generator).into();
+    }
+
+    for i in 0..num_quads {
+        let entry = wnaf_entries[i + 1];
+        let point_to_add = if (entry & WNAF_MASK) == 1 { gen_data.ladder[offset + i + 1].three} else { gen_data.ladder[offset + i + 1].one };
+        let predicate = (entry >> 31) & 1;
+        //TODO: this mixed addition shit
+    }
+
+    accumulator
 }
 
-pub(crate) fn fixed_wnaf<const N: usize, N: usize, N: usize>()
 
 
 #[cfg(test)]
 mod test {
-    use ark_ec::CurveGroup;
+    use ark_ec::{short_weierstrass::Affine, AffineRepr, CurveGroup};
 
     use super::*;
 
@@ -423,8 +437,8 @@ mod test {
             acc_p.double_in_place();
         }
 
-        let scalar = Fq::from(1 << 250);
-        let mult = Fr::from(scalar);
-        assert_eq!(gen_data.ladder[0].one.into_group(), mult);
+        let scalar = Affine::zero();
+
+        assert_eq!(gen_data.ladder[0].one.into_group(), scalar);
     }
 }
