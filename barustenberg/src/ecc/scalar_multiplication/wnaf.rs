@@ -212,6 +212,8 @@ pub(crate) fn fixed_wnaf_with_counts(
 #[cfg(test)]
 mod tests {
     use crate::ecc::scalar_multiplication::cube_root_of_unity;
+    use ark_bn254::Fr;
+    use ark_ff::{Field, UniformRand};
 
     use super::*;
 
@@ -285,12 +287,12 @@ mod tests {
     #[ignore]
     fn wnaf_two_bit_window() {
         let mut rng = ark_std::test_rng();
-        let input = Fr::rand(&mut rng);
+        let mut input = Fr::rand(&mut rng);
         let window = 2;
         const num_bits: usize = 254;
         const num_quads: usize = ((num_bits >> 1) + 1) as usize;
-        let wnaf = [0u64; num_quads];
-        let skew = false;
+        let mut wnaf = [0u64; num_quads];
+        let mut skew = false;
         let out = fixed_wnaf(&mut input.0 .0, &mut wnaf, &mut skew, 0, 1, 5);
 
         //Note cast to uint256
@@ -319,9 +321,9 @@ mod tests {
                        i=0
 
         */
-        let recovered = 0u64;
+        let mut recovered = 0u64;
         //NOTE this is cast to uint256 in C++
-        let four_power = 1 << num_bits;
+        let mut four_power = 1 << num_bits;
         for i in 0..num_quads {
             let extracted = 2 * ((wnaf[i] as u64) & 1) + 1;
             let sign = wnaf[i] >> 31;
@@ -398,16 +400,16 @@ mod tests {
     #[ignore]
     fn wnaf_fixed_with_endo_split() {
         let mut rng = ark_std::test_rng();
-        let k = Fr::rand(&mut rng);
+        let mut k = Fr::rand(&mut rng);
         k.0 .0[3] &= 0x0fffffffu64;
-        let k1 = Fr::from(0);
-        let k2 = Fr::from(0);
+        let mut k1 = Fr::from(0);
+        let mut k2 = Fr::from(0);
 
         //TODO: implement endomorphism split
-        let wnaf = [0u64; WNAF_SIZE(5)];
-        let endo_wnaf = [0u64; WNAF_SIZE(5)];
-        let skew = false;
-        let endo_skew = false;
+        let mut wnaf = [0u64; WNAF_SIZE(5)];
+        let mut endo_wnaf = [0u64; WNAF_SIZE(5)];
+        let mut skew = false;
+        let mut endo_skew = false;
 
         fixed_wnaf(&mut k1.0 .0, &mut wnaf, &mut skew, 0, 1, 5);
         fixed_wnaf(&mut k2.0 .0, &mut endo_wnaf, &mut endo_skew, 0, 1, 5);

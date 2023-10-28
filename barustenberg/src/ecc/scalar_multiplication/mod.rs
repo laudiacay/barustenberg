@@ -6,8 +6,6 @@ pub(crate) mod wnaf;
 #[cfg(test)]
 mod tests;
 
-use ark_ff::Field;
-
 #[inline]
 pub(crate) fn cube_root_of_unity<F: ark_ff::Field>() -> F {
     // // endomorphism i.e. lambda * [P] = (beta * x, y)

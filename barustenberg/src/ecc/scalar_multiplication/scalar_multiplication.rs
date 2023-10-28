@@ -3,6 +3,7 @@ use ark_ec::short_weierstrass::{Affine, SWCurveConfig};
 use ark_ec::AffineRepr;
 use ark_ff::{Field, PrimeField};
 use get_msb::Msb;
+use std::sync::{Arc, RwLock};
 
 use crate::{
     common::max_threads::compute_num_threads,
@@ -48,7 +49,7 @@ pub(crate) fn generate_pippenger_point_table<C: SWCurveConfig>(
     }
 }
 
-pub fn compute_wnaf_states<C: SWCurveConfig + GLVConfig>(
+pub(crate) fn compute_wnaf_states<C: SWCurveConfig + GLVConfig>(
     point_schedule: &mut Vec<u64>,
     input_skew_table: &mut Vec<bool>,
     round_counts: &mut Vec<u64>,
@@ -85,7 +86,7 @@ pub fn compute_wnaf_states<C: SWCurveConfig + GLVConfig>(
             // do glv
             // send both for wnaf
             // t0 = thread_scalars[j].from_montgomery_form();
-            let mut t0 = thread_scalars[j];
+            let t0 = thread_scalars[j];
 
             let ((sgn_t1, mut t1), (sgn_t2, mut t2)) = C::scalar_decomposition(t0);
 
@@ -125,7 +126,7 @@ pub fn compute_wnaf_states<C: SWCurveConfig + GLVConfig>(
     }
 }
 
-pub fn organise_buckets(point_schedule: &mut Vec<u64>, num_points: usize) {
+pub(crate) fn organise_buckets(point_schedule: &mut Vec<u64>, num_points: usize) {
     let num_rounds: usize = get_num_rounds(num_points);
 
     for i in 0..num_rounds {
@@ -160,7 +161,7 @@ fn conditionally_negate_affine<C: SWCurveConfig>(
 }
 
 //Note u32 chosen to be in line with c++ implementation
-pub fn construct_addition_chains<C: SWCurveConfig>(
+pub(crate) fn construct_addition_chains<C: SWCurveConfig>(
     state: &mut AffinePippengerRuntimeState<C>,
     empty_bucket_counts: bool,
 ) -> usize {
@@ -439,7 +440,7 @@ fn add_affine_point_with_edge_cases<F: Field, G: AffineRepr<BaseField = F>>(
         let (mut x2, mut y2) = points[i + 1]
             .xy()
             .expect("Failed to grab points from x2 in first part of affine addition");
-        let (mut x3, y3) = points[(i + num_points) >> 1]
+        let (mut x3, _) = points[(i + num_points) >> 1]
             .xy()
             .expect("Failed to grab points from x2 in first part of affine addition");
 
@@ -487,7 +488,7 @@ fn add_affine_point_with_edge_cases<F: Field, G: AffineRepr<BaseField = F>>(
  *
  * We can re-arrange the Pippenger algorithm to get this property, but it's...complicated
  **/
-pub fn add_affine_points<F: Field, G: AffineRepr<BaseField = F>>(
+pub(crate) fn add_affine_points<F: Field, G: AffineRepr<BaseField = F>>(
     points: &mut [G],
     num_points: usize,
     scratch_space: &mut [F],
@@ -517,13 +518,13 @@ pub fn add_affine_points<F: Field, G: AffineRepr<BaseField = F>>(
 
     for i in ((num_points - 2)..0).step_by(2) {
         // TODO: add builtin prefetch
-        let (mut x1, mut y1) = points[i]
+        let (mut x1, y1) = points[i]
             .xy()
             .expect("Failed to grab points from x1 in first part of affine addition");
         let (mut x2, mut y2) = points[i + 1]
             .xy()
             .expect("Failed to grab points from x2 in first part of affine addition");
-        let (mut x3, mut y3) = points[(i + num_points) >> 1]
+        let (mut x3, _) = points[(i + num_points) >> 1]
             .xy()
             .expect("Failed to grab points from x2 in first part of affine addition");
 
@@ -538,7 +539,7 @@ pub fn add_affine_points<F: Field, G: AffineRepr<BaseField = F>>(
     }
 }
 
-fn evaluate_addition_chains<C: SWCurveConfig>(
+pub(crate) fn evaluate_addition_chains<C: SWCurveConfig>(
     state: &mut AffinePippengerRuntimeState<C>,
     max_bucket_bits: usize,
     handle_edge_cases: bool,
@@ -561,15 +562,15 @@ fn evaluate_addition_chains<C: SWCurveConfig>(
     }
 }
 
-pub fn reduce_buckets<C: SWCurveConfig>(
+pub(crate) fn reduce_buckets<C: SWCurveConfig>(
     state: &mut AffinePippengerRuntimeState<C>,
     first_round: bool,
     handle_edge_cases: bool,
-) -> &mut Vec<Affine<C>> {
+) -> Vec<Affine<C>> {
     let max_bucket_bits = construct_addition_chains(state, first_round);
 
     if max_bucket_bits == 0 {
-        return state.point_pairs_1.as_mut();
+        return state.point_pairs_1.clone();
     }
 
     evaluate_addition_chains(state, max_bucket_bits, handle_edge_cases);
@@ -641,7 +642,7 @@ fn evaluate_pippenger_rounds<C: SWCurveConfig>(
                     0
                 };
 
-                let mut thread_point_schedule = state
+                let thread_point_schedule: Vec<u64> = state
                     .point_schedule
                     .clone()
                     .into_iter()
@@ -654,8 +655,12 @@ fn evaluate_pippenger_rounds<C: SWCurveConfig>(
                     & 0x7FFFFFFFu64;
                 let num_thread_buckets = (last_bucket - first_bucket) as usize + 1;
 
-                let mut affine_product_state: AffinePippengerRuntimeState<C> =
+                let mut affine_product_state =
+                // Arc::new(RwLock::new(
                     state.get_affine_pippenger_runtime_state(num_threads, j);
+                // ,
+                // ));
+                // let mut affine_product_state_1 = affine_product_state.write().unwrap();
                 affine_product_state.point_schedule = thread_point_schedule;
                 affine_product_state.points = points.clone();
                 affine_product_state.num_points = num_round_points_per_thread + leftovers;
@@ -683,7 +688,7 @@ fn evaluate_pippenger_rounds<C: SWCurveConfig>(
                 // if first bucket is 1, we need to add (2 * running_sum)
                 if first_bucket > 0 {
                     let multiplier = first_bucket << 1;
-                    let mut shift = multiplier.get_msb();
+                    let mut shift = multiplier.get_msb() as i64;
                     let mut init = false;
                     let mut rolling_accumulator = Affine::default();
                     while shift >= 0 {

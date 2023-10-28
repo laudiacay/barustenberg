@@ -70,30 +70,30 @@ pub(crate) const fn get_num_rounds(num_points: usize) -> usize {
 #[derive(Clone, Default, Debug)]
 pub(crate) struct PippengerRuntimeState<C: SWCurveConfig> {
     // TODO: maybe arc should be used here for threads. think later.
-    pub point_schedule: Vec<u64>,
-    pub point_pairs_1: Vec<Affine<C>>,
-    pub point_pairs_2: Vec<Affine<C>>,
-    pub scratch_space: Vec<C::BaseField>,
-    pub skew_table: Vec<bool>,
-    pub bucket_counts: Vec<u32>,
-    pub bit_counts: Vec<u32>,
-    pub bucket_empty_status: Vec<bool>,
-    pub round_counts: Vec<u64>,
-    pub num_points: u32,
+    pub(crate) point_schedule: Vec<u64>,
+    pub(crate) point_pairs_1: Vec<Affine<C>>,
+    pub(crate) point_pairs_2: Vec<Affine<C>>,
+    pub(crate) scratch_space: Vec<C::BaseField>,
+    pub(crate) skew_table: Vec<bool>,
+    pub(crate) bucket_counts: Vec<u32>,
+    pub(crate) bit_counts: Vec<u32>,
+    pub(crate) bucket_empty_status: Vec<bool>,
+    pub(crate) round_counts: Vec<u64>,
+    pub(crate) num_points: u32,
 }
 
 #[derive(Default, Clone, Debug)]
 pub(crate) struct AffinePippengerRuntimeState<C: SWCurveConfig> {
-    pub points: Vec<Affine<C>>,
-    pub point_pairs_1: Vec<Affine<C>>,
-    pub point_pairs_2: Vec<Affine<C>>,
-    pub scratch_space: Vec<C::BaseField>,
-    pub point_schedule: Vec<u64>,
-    pub bucket_counts: Vec<u32>,
-    pub bit_offsets: Vec<u32>,
-    pub bucket_empty_status: Vec<bool>,
-    pub num_points: usize,
-    pub num_buckets: usize,
+    pub(crate) points: Vec<Affine<C>>,
+    pub(crate) point_pairs_1: Vec<Affine<C>>,
+    pub(crate) point_pairs_2: Vec<Affine<C>>,
+    pub(crate) scratch_space: Vec<C::BaseField>,
+    pub(crate) point_schedule: Vec<u64>,
+    pub(crate) bucket_counts: Vec<u32>,
+    pub(crate) bit_offsets: Vec<u32>,
+    pub(crate) bucket_empty_status: Vec<bool>,
+    pub(crate) num_points: usize,
+    pub(crate) num_buckets: usize,
 }
 
 impl<C: SWCurveConfig> PippengerRuntimeState<C> {
