@@ -2,7 +2,7 @@ use core::num;
 use std::{
     borrow::Borrow,
     collections::HashMap,
-    sync::{Arc, RwLock}, borrow::Borrow,
+    sync::{Arc, RwLock},
 };
 
 use ark_bn254::Fr;

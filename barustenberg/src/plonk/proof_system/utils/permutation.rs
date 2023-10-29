@@ -13,7 +13,7 @@ use crate::{
 #[derive(Debug, Clone, Default)]
 pub(crate) struct PermutationMapping {
     pub(crate) sigmas: Vec<Vec<PermutationSubgroupElement>>,
-    pub(crate) ids: Vec<Vec<PermutationSubgroupElement>>
+    pub(crate) ids: Vec<Vec<PermutationSubgroupElement>>,
 }
 
 #[derive(Debug, Clone)]
