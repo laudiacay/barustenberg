@@ -36,3 +36,34 @@ pub(crate) fn commit_native(
             acc
         })
 }
+
+#[cfg(test)]
+pub(crate) mod test {
+    use crate::crypto::generator::GENERATOR_CONTEXT;
+
+    use super::*;
+
+    use ark_ff::MontFp;
+    use ark_std::One;
+    use grumpkin::Fq;
+
+    //TODO: double check that the generators are the same. They could be slightly different due to the way we canonically
+    // decide how to invert y which was done to prevent a headache of having to deseialize an Fq element... Long story.
+    #[test]
+    fn commitment() {
+        let res = commit_native(
+            &[Fq::one(), Fq::one()],
+            &mut GENERATOR_CONTEXT.lock().unwrap(),
+        );
+        let expected = Affine::new(
+            // 2f7a8f9a6c96926682205fb73ee43215bf13523c19d7afe36f12760266cdfe15
+            MontFp!(
+                "21475250338311530111088781112432132511855209292730670949974692984887182229013"
+            ),
+            // 01916b316adbbf0e10e39b18c1d24b33ec84b46daddf72f43878bcc92b6057e6
+            MontFp!("709245492126126701709902506217603794644991322680146492508959813283461748710"),
+        );
+
+        assert_eq!(res, expected);
+    }
+}

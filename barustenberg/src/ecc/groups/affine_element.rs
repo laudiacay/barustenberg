@@ -1,6 +1,6 @@
 use ark_ec::short_weierstrass::{Affine, SWCurveConfig};
 
-use ark_ff::Field;
+use ark_ff::{BigInteger, Field};
 
 /**
  * @brief Hash a seed buffer into a point
@@ -20,8 +20,12 @@ use ark_ff::Field;
  *          11. IF y^2 IS A QUADRATIC RESIDUE
  *              11a. derive y coordinate via y = sqrt(y)
  *              11b. Interpret most significant bit of 512-bit integer as a 'parity' bit
- *              11c. If parity bit is set AND y's most significant bit is not set, invert y
- *              11d. If parity bit is not set AND y's most significant bit is set, invert y
+ *              In Barretenberg:
+ *                  11c. If parity bit is set AND y's most significant bit is not set, invert y
+ *                  11d. If parity bit is not set AND y's most significant bit is set, invert y
+ *              In Barustenberg we use arkworks https://github.com/arkworks-rs/algebra/blob/master/ec/src/models/short_weierstrass/affine.rs#L110:
+ *                  11c. If parity bit is set AND y < -y lexographically, invert y
+ *                  11d. If parity bit is not set AND y >= -y lexographically, invert y
  *              N.B. last 2 steps are because the sqrt() algorithm can return 2 values,
  *                   we need to a way to canonically distinguish between these 2 values and select a "preferred" one
  *              11e. return (x, y)
@@ -53,7 +57,7 @@ pub(crate) fn hash_to_curve<E: SWCurveConfig>(seed: &[u8], attempt_count: u8) ->
     hash.extend_from_slice(hash_lo.as_bytes());
     //TODO: handle unwrap()
     if let Some(x) = E::BaseField::from_random_bytes(&hash) {
-        let sign_bit = hash_hi.as_bytes()[0] > 127;
+        let sign_bit = hash_hi.as_bytes()[0] > 127 & hash[0] & 1;
         if let Some(res) = Affine::get_point_from_x_unchecked(x, sign_bit) {
             res
         } else {

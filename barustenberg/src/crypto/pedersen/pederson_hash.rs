@@ -22,32 +22,34 @@ pub(crate) fn hash(
     inputs: &[grumpkin::Fq],
     context: &mut GeneratorContext<GrumpkinConfig>,
 ) -> <GrumpkinConfig as CurveConfig>::BaseField {
-    let res: Affine<GrumpkinConfig> = (length_generator()
+    let res: Affine<GrumpkinConfig> = (length_generator(0)
+        * <GrumpkinConfig as CurveConfig>::ScalarField::from(inputs.len() as u64))
+    .into_affine();
+    (res + commit_native(inputs, context)).x
+}
+
+pub(crate) fn hash_with_index(
+    inputs: &[grumpkin::Fq],
+    starting_index: usize,
+    context: &mut GeneratorContext<GrumpkinConfig>,
+) -> <GrumpkinConfig as CurveConfig>::BaseField {
+    let res: Affine<GrumpkinConfig> = (length_generator(starting_index)
         * <GrumpkinConfig as CurveConfig>::ScalarField::from(inputs.len() as u64))
     .into_affine();
     (res + commit_native(inputs, context)).x
 }
 
 //Note: this can be abstracted to a lazy_static!()
-fn length_generator<E: SWCurveConfig>() -> Affine<E> {
-    derive_generators::<E>("pedersen_hash_length".as_bytes(), 1, 0)[0]
+fn length_generator<E: SWCurveConfig>(starting_index: usize) -> Affine<E> {
+    derive_generators::<E>("pedersen_hash_length".as_bytes(), 1, starting_index)[0]
 }
 
-//TODO: unneeded
-/*
-pub(crate) fn hash_buffer<E: SWCurveConfig>(input: &[u8], /* context: GeneratorContext */) -> E::BaseField {
-std::vector<Fq> converted = convert_buffer(input);
-
-if (converted.size() < 2) {
-    return hash(converted, context);
+pub(crate) fn hash_buffer<E: SWCurveConfig>(
+    input: &[u8],
+    context: &mut GeneratorContext<E>,
+) -> E::BaseField {
+    todo!()
 }
-auto result = hash({ converted[0], converted[1] }, context);
-for (size_t i = 2; i < converted.size(); ++i) {
-    result = hash({ result, converted[i] }, context);
-}
-return result;
-}
-*/
 
 #[cfg(test)]
 pub(crate) mod test {
@@ -55,22 +57,39 @@ pub(crate) mod test {
 
     use super::*;
 
-    use ark_ff::{AdditiveGroup, BigInteger, PrimeField, Zero};
+    use ark_ff::{AdditiveGroup, BigInteger, MontFp, PrimeField, Zero};
     use ark_serialize::CanonicalSerialize;
     use ark_std::{One, UniformRand};
     use grumpkin::{Fq, Fr};
 
+    //reference: https://github.com/AztecProtocol/barretenberg/blob/master/cpp/src/barretenberg/crypto/pedersen_hash/pedersen.test.cpp
     #[test]
-    fn zero_one() {
-        let res = commit_native(
-            &[Fq::zero(), Fq::one()],
+    fn hash_one() {
+        let res = hash(
+            &[Fq::one(), Fq::one()],
             &mut GENERATOR_CONTEXT.lock().unwrap(),
         );
-        let mut res_bytes = Vec::new();
-        res.serialize_uncompressed(&mut res_bytes).unwrap();
+        //TODO: double check that the generators are the same. They could be slightly different due to the way we canonically invert y
+        //TODO: compute correct value from generators
+        // 07ebfbf4df29888c6cd6dca13d4bb9d1a923013ddbbcbdc3378ab8845463297b
         assert_eq!(
-            res_bytes,
-            "0x0c5e1ddecd49de44ed5e5798d3f6fb7c71fe3d37f5bee8664cf88a445b5ba0af".as_bytes()
+            res,
+            MontFp!("3583137940367543141169889198758850326673923325182598243450662697654714313083")
+        );
+    }
+
+    #[test]
+    fn hash_with_index() {
+        let res = hash(
+            &[Fq::one(), Fq::one()],
+            &mut GENERATOR_CONTEXT.lock().unwrap(),
+        );
+        //TODO: double check that the generators are the same. They could be slightly different due to the way we canonically invert y
+        //TODO: compute correct value from generators
+        // 07ebfbf4df29888c6cd6dca13d4bb9d1a923013ddbbcbdc3378ab8845463297b
+        assert_eq!(
+            res,
+            MontFp!("3583137940367543141169889198758850326673923325182598243450662697654714313083")
         );
     }
 }
