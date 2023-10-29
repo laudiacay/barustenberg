@@ -9,7 +9,7 @@ use crate::srs::io::read_transcript_g1;
 use anyhow::Result;
 
 #[inline]
-pub(crate)fn cube_root_of_unity<F: ark_ff::Field>() -> F {
+pub(crate) fn cube_root_of_unity<F: ark_ff::Field>() -> F {
     // // endomorphism i.e. lambda * [P] = (beta * x, y)
     // if constexpr (Params::cube_root_0 != 0) {
     //     constexpr field result{

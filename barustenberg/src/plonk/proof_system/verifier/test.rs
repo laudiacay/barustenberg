@@ -1,6 +1,9 @@
 use crate::{
     plonk::{
-        composer::{composer_base::{ComposerType, ComposerBase}, standard_composer::StandardComposer},
+        composer::{
+            composer_base::{ComposerBase, ComposerType},
+            standard_composer::StandardComposer,
+        },
         proof_system::{
             commitment_scheme::KateCommitmentScheme,
             prover::Prover,
@@ -400,11 +403,7 @@ fn generate_test_data<'a, H: BarretenHasher + Default + 'static>(n: usize) -> Pr
         Box::new(ProverArithmeticWidget::<H>::new(key.clone()));
     let composer = StandardComposer::<FileReferenceStringFactory>::default();
 
-    let mut state: Prover<H> = Prover::new(
-        Some(key),
-        Some(composer.create_manifest(0)),
-        None,
-    );
+    let mut state: Prover<H> = Prover::new(Some(key), Some(composer.create_manifest(0)), None);
     state.random_widgets.push(permutation_widget);
     state.transition_widgets.push(widget);
     state

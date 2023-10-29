@@ -1,7 +1,9 @@
 use anyhow::{Error, Ok};
 use ark_ec::AffineRepr;
+use ark_ff::{BigInteger, Field, PrimeField};
 use ark_serialize::CanonicalDeserialize;
 use generic_array::{ArrayLength, GenericArray};
+use grumpkin::Fq;
 use sha3::{Digest, Sha3_256};
 
 use std::collections::HashMap;
@@ -9,7 +11,7 @@ use std::fmt::Debug;
 use tracing::info;
 use typenum::{Unsigned, U16, U32};
 
-use crate::crypto::pedersen;
+use crate::crypto::{generator::GENERATOR_CONTEXT, pedersen::pederson_hash::hash};
 
 /// BarretenHasher is a trait that defines the hash function used for Fiat-Shamir.
 pub trait BarretenHasher: std::fmt::Debug + Send + Sync + Clone + Default {
@@ -51,12 +53,24 @@ impl BarretenHasher for PedersenBlake3s {
     type PrngOutputSize = U32;
 
     fn hash(input: &[u8]) -> GenericArray<u8, Self::PrngOutputSize> {
-        let input = grumpkin::Fq::deserialize_uncompressed(input).unwrap();
-        
+        println!("input: {:?}", input);
+        //Some cases I received a deserialization failure: Failing case
+        // [1, 172, 212, 56, 254, 187, 127, 207, 167, 252, 131, 52, 217, 105, 127, 94, 196, 243, 16, 56, 115, 235, 25, 214, 132, 144, 84, 164, 51, 94, 91, 117, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+        let input = Fq::from_random_bytes(input).unwrap_or(
+            // if we can't deserialize then create representative element by taking its length + last bit
+            Fq::from_random_bytes(&(input.len() + *input.last().unwrap() as usize).to_be_bytes())
+                .unwrap(),
+        );
+        println!("input Fq: {:?}", input);
+
         //Note: ended up fighting the compiler a lot to grab resulting bytes. Open to suggestions to make this cleaner
         let mut res = GenericArray::default();
         //Hashes and returns compressed form of grumpkin point (x coordinate)
-        //res.copy_from_slice(&pedersen::pederson::compress_native(&vec![input])[0..Self::PrngOutputSize::USIZE]);
+        res.copy_from_slice(
+            &hash(&[input], &mut GENERATOR_CONTEXT.lock().unwrap())
+                .into_bigint()
+                .to_bytes_be(),
+        );
         res
     }
 
@@ -73,12 +87,16 @@ impl BarretenHasher for PlookupPedersenBlake3s {
     type SecurityParameterSize = U16;
     type PrngOutputSize = U32;
     fn hash(buffer: &[u8]) -> GenericArray<u8, Self::PrngOutputSize> {
-        let input = grumpkin::Fq::deserialize_uncompressed(buffer).unwrap();
-        
+        let input = Fq::deserialize_uncompressed_unchecked(buffer).unwrap();
+
         //Note: ended up fighting the compiler a lot to grab resulting bytes. Open to suggestions to make this cleaner
         let mut res = GenericArray::default();
         //Hashes and returns compressed form of grumpkin point (x coordinate)
-        //res.copy_from_slice(&pedersen::lookup::compress_native(&vec![input])[0..Self::PrngOutputSize::USIZE]);
+        res.copy_from_slice(
+            &hash(&[input], &mut GENERATOR_CONTEXT.lock().unwrap())
+                .into_bigint()
+                .to_bytes_be(),
+        );
         res
     }
 
@@ -179,7 +197,8 @@ impl<H: BarretenHasher> Default for Transcript<H> {
     fn default() -> Self {
         Self {
             current_round: 0,
-            num_challenge_bytes: 0,
+            //Prevent divide by zero in fiat-shamir
+            num_challenge_bytes: 1,
             elements: HashMap::new(),
             challenges: HashMap::new(),
             current_challenge: Challenge {
@@ -204,6 +223,11 @@ impl<H: BarretenHasher> Transcript<H> {
     /// hash_type: The hash used for Fiat-Shamir.
     /// challenge_bytes: The number of bytes per challenge to generate.
     pub(crate) fn new(input_manifest: Option<Manifest>, num_challenge_bytes: usize) -> Self {
+        // Check number of chellenge bytes to prevent divide by 0
+        if num_challenge_bytes == 0 {
+            panic!("The required number of challenge bytes > 0");
+        }
+
         let mut ret = Transcript::<H> {
             num_challenge_bytes,
             manifest: input_manifest.unwrap_or_default(),
@@ -244,6 +268,11 @@ impl<H: BarretenHasher> Transcript<H> {
         // Check that the total required size is equal to the size of the input_transcript
         if total_required_size != input_transcript.len() {
             panic!("Serialized transcript does not contain the required number of bytes");
+        }
+
+        // Check number of challenge bytes to prevent divide by 0
+        if num_challenge_bytes == 0 {
+            panic!("The required number of challenge bytes > 0");
         }
 
         let mut elements = std::collections::HashMap::new();
@@ -290,6 +319,11 @@ impl<H: BarretenHasher> Transcript<H> {
         }
         if total_required_size != input_transcript.len() {
             panic!("Serialized transcript does not contain the required number of bytes");
+        }
+
+        // Check number of chellenge bytes to prevent divide by 0
+        if num_challenge_bytes == 0 {
+            panic!("The required number of challenge bytes > 0");
         }
 
         let mut elements = HashMap::new();
@@ -382,6 +416,10 @@ impl<H: BarretenHasher> Transcript<H> {
         }
 
         let mut round_challenges: Vec<Challenge<H>> = Vec::new();
+        println!("Manifest: {:?}", self.manifest.round_manifests);
+        println!();
+        println!("Buffer: {:?}", buffer);
+        println!();
         let base_hash: GenericArray<u8, H::PrngOutputSize> = H::hash_for_transcript(&buffer);
         // Depending on the settings, we might be able to chunk the bytes of a single hash across multiple challenges:
         let challenges_per_hash = H::PrngOutputSize::to_usize() / self.num_challenge_bytes;
@@ -402,6 +440,8 @@ impl<H: BarretenHasher> Transcript<H> {
         let mut rolling_buffer = base_hash.to_vec();
         rolling_buffer.push(0);
 
+        println!("Rolling Buffer: {:?}", rolling_buffer);
+        println!();
         let num_hashes = (num_challenges / challenges_per_hash)
             + if num_challenges % challenges_per_hash != 0 {
                 1
@@ -430,6 +470,8 @@ impl<H: BarretenHasher> Transcript<H> {
         // Remember the very last challenge, as it will be included in the buffer of the next fiat-shamir round (since this
         // challenge is effectively a hash of _all_ previous rounds' manifest data).
         self.current_challenge = round_challenges[round_challenges.len() - 1].clone();
+        println!("Current Challenge: {:?}", self.current_challenge);
+        println!();
 
         self.challenges
             .insert(challenge_name.to_string(), round_challenges);
@@ -574,9 +616,9 @@ impl<H: BarretenHasher> Transcript<H> {
                 assert!(self.elements.contains_key(&element.name));
                 let element_data = self.elements.get(&element.name).unwrap();
                 //NOTE: this derived check was split into two separate if's in original implementation
-                if !element.derived_by_verifier { 
+                if !element.derived_by_verifier {
                     assert!(element.num_bytes == element_data.len());
-                    buf.extend_from_slice(&element_data);
+                    buf.extend_from_slice(element_data);
                 }
             }
         }
@@ -709,5 +751,240 @@ impl<H: BarretenHasher> Transcript<H> {
     ) -> Fr {
         let buf = self.get_challenge_from_map(challenge_name, challenge_map_name);
         Fr::deserialize_uncompressed(buf.as_slice()).unwrap()
+    }
+}
+
+#[cfg(test)]
+
+pub(crate) mod test {
+    use rand::random;
+
+    use super::*;
+
+    //NOTE: default for challenge_map_index = 0
+
+    fn create_manifest(num_public_inputs: usize) -> Manifest {
+        let g1_size = 64usize;
+        let fr_size = 32usize;
+
+        let public_input_size = fr_size * num_public_inputs;
+        let round_manifests = vec![
+            RoundManifest {
+                elements: vec![
+                    ManifestEntry {
+                        name: "circuit_size".to_string(),
+                        num_bytes: 4,
+                        derived_by_verifier: true,
+                        challenge_map_index: 0,
+                    },
+                    ManifestEntry {
+                        name: "public_input_size".to_string(),
+                        num_bytes: 4,
+                        derived_by_verifier: true,
+                        challenge_map_index: 0,
+                    },
+                ],
+                challenge: "init".to_string(),
+                num_challenges: 1,
+                map_challenges: false,
+            },
+            RoundManifest {
+                elements: vec![
+                    ManifestEntry {
+                        name: "public_inputs".to_string(),
+                        num_bytes: public_input_size,
+                        derived_by_verifier: false,
+                        challenge_map_index: 0,
+                    },
+                    ManifestEntry {
+                        name: "W_1".to_string(),
+                        num_bytes: g1_size,
+                        derived_by_verifier: false,
+                        challenge_map_index: 0,
+                    },
+                    ManifestEntry {
+                        name: "W_2".to_string(),
+                        num_bytes: g1_size,
+                        derived_by_verifier: false,
+                        challenge_map_index: 0,
+                    },
+                    ManifestEntry {
+                        name: "W_3".to_string(),
+                        num_bytes: g1_size,
+                        derived_by_verifier: false,
+                        challenge_map_index: 0,
+                    },
+                ],
+                challenge: "beta".to_string(),
+                num_challenges: 2,
+                map_challenges: false,
+            },
+            RoundManifest {
+                elements: vec![ManifestEntry {
+                    name: "Z_PERM".to_string(),
+                    num_bytes: g1_size,
+                    derived_by_verifier: false,
+                    challenge_map_index: 0,
+                }],
+                challenge: "alpha".to_string(),
+                num_challenges: 1,
+                map_challenges: false,
+            },
+            RoundManifest {
+                elements: vec![
+                    ManifestEntry {
+                        name: "T_1".to_string(),
+                        num_bytes: g1_size,
+                        derived_by_verifier: false,
+                        challenge_map_index: 0,
+                    },
+                    ManifestEntry {
+                        name: "T_1".to_string(),
+                        num_bytes: g1_size,
+                        derived_by_verifier: false,
+                        challenge_map_index: 0,
+                    },
+                    ManifestEntry {
+                        name: "T_3".to_string(),
+                        num_bytes: g1_size,
+                        derived_by_verifier: false,
+                        challenge_map_index: 0,
+                    },
+                ],
+                challenge: "z".to_string(),
+                num_challenges: 1,
+                map_challenges: false,
+            },
+            RoundManifest {
+                elements: vec![
+                    ManifestEntry {
+                        name: "w_1".to_string(),
+                        num_bytes: fr_size,
+                        derived_by_verifier: false,
+                        challenge_map_index: 0,
+                    },
+                    ManifestEntry {
+                        name: "w_2".to_string(),
+                        num_bytes: fr_size,
+                        derived_by_verifier: false,
+                        challenge_map_index: 0,
+                    },
+                    ManifestEntry {
+                        name: "w_3".to_string(),
+                        num_bytes: fr_size,
+                        derived_by_verifier: false,
+                        challenge_map_index: 0,
+                    },
+                    ManifestEntry {
+                        name: "w_3_omega".to_string(),
+                        num_bytes: fr_size,
+                        derived_by_verifier: false,
+                        challenge_map_index: 0,
+                    },
+                    ManifestEntry {
+                        name: "z_perm_omega".to_string(),
+                        num_bytes: fr_size,
+                        derived_by_verifier: false,
+                        challenge_map_index: 0,
+                    },
+                    ManifestEntry {
+                        name: "sigma_1".to_string(),
+                        num_bytes: fr_size,
+                        derived_by_verifier: false,
+                        challenge_map_index: 0,
+                    },
+                    ManifestEntry {
+                        name: "sigma_2".to_string(),
+                        num_bytes: fr_size,
+                        derived_by_verifier: false,
+                        challenge_map_index: 0,
+                    },
+                    ManifestEntry {
+                        name: "r".to_string(),
+                        num_bytes: fr_size,
+                        derived_by_verifier: false,
+                        challenge_map_index: 0,
+                    },
+                    ManifestEntry {
+                        name: "t".to_string(),
+                        num_bytes: fr_size,
+                        derived_by_verifier: true,
+                        challenge_map_index: 0,
+                    },
+                ],
+                challenge: "nu".to_string(),
+                num_challenges: 10,
+                map_challenges: false,
+            },
+            RoundManifest {
+                elements: vec![
+                    ManifestEntry {
+                        name: "PI_Z".to_string(),
+                        num_bytes: g1_size,
+                        derived_by_verifier: false,
+                        challenge_map_index: 0,
+                    },
+                    ManifestEntry {
+                        name: "PI_Z_OMEGA".to_string(),
+                        num_bytes: g1_size,
+                        derived_by_verifier: false,
+                        challenge_map_index: 0,
+                    },
+                ],
+                challenge: "separator".to_string(),
+                num_challenges: 1,
+                map_challenges: false,
+            },
+        ];
+        Manifest::new(round_manifests)
+    }
+
+    #[test]
+    fn validate_transcript() {
+        let g1_vector = vec![1u8; 64];
+        let fr_vector = vec![1u8; 32];
+
+        let mut transcript = Transcript::<PedersenBlake3s>::new(Some(create_manifest(0)), 32);
+        transcript.add_element("circuit_size", vec![1, 2, 3, 4]);
+        transcript.add_element("public_input_size", vec![1, 2, 3, 4]);
+        transcript.apply_fiat_shamir("init");
+
+        transcript.add_element("public_inputs", vec![]);
+
+        transcript.add_element("W_1", g1_vector.clone());
+        transcript.add_element("W_2", g1_vector.clone());
+        transcript.add_element("W_3", g1_vector.clone());
+
+        transcript.apply_fiat_shamir("beta");
+
+        transcript.add_element("Z_PERM", g1_vector.clone());
+
+        transcript.apply_fiat_shamir("alpha");
+
+        transcript.add_element("T_1", g1_vector.clone());
+        transcript.add_element("T_2", g1_vector.clone());
+        transcript.add_element("T_3", g1_vector.clone());
+
+        transcript.apply_fiat_shamir("z");
+
+        transcript.add_element("w_1", fr_vector.clone());
+        transcript.add_element("w_2", fr_vector.clone());
+        transcript.add_element("w_3", fr_vector.clone());
+        transcript.add_element("w_3_omega", fr_vector.clone());
+        transcript.add_element("z_perm_omega", fr_vector.clone());
+        transcript.add_element("sigma_1", fr_vector.clone());
+        transcript.add_element("sigma_2", fr_vector.clone());
+        transcript.add_element("r", fr_vector.clone());
+        transcript.add_element("t", fr_vector.clone());
+
+        transcript.apply_fiat_shamir("nu");
+
+        transcript.add_element("PI_Z", g1_vector.clone());
+        transcript.add_element("PI_Z_OMEGA", g1_vector.clone());
+
+        transcript.apply_fiat_shamir("separator");
+
+        let res = transcript.get_element("PI_Z_OMEGA");
+        assert_eq!(res, g1_vector);
     }
 }

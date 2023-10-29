@@ -1,7 +1,8 @@
 use core::num;
 use std::{
+    borrow::Borrow,
     collections::HashMap,
-    sync::{Arc, RwLock}, borrow::Borrow,
+    sync::{Arc, RwLock},
 };
 
 use ark_bn254::Fr;
@@ -14,7 +15,8 @@ use crate::{
     plonk::proof_system::{
         proving_key::ProvingKey,
         types::{polynomial_manifest::PolynomialSource, PolynomialManifest},
-        verification_key::VerificationKey, utils::permutation::{PermutationSubgroupElement, PermutationMapping},
+        utils::permutation::{PermutationMapping, PermutationSubgroupElement},
+        verification_key::VerificationKey,
     },
     polynomials::Polynomial,
     srs::reference_string::ReferenceStringFactory,
@@ -298,11 +300,9 @@ pub(crate) trait ComposerBase {
     ///
     /// * `program_width` - Program width
     fn compute_wire_copy_cycles(&mut self, program_width: usize) {
-
         // NOTE: for additional Flavors such as Ultra and Goblin plonk we need to define additional offsets.
         // See: https://github.com/AztecProtocol/barretenberg/blob/master/cpp/src/barretenberg/proof_system/composer/permutation_lib.hpp#L88
         //      https://github.com/AztecProtocol/barretenberg/blob/master/cpp/src/barretenberg/proof_system/composer/permutation_lib.hpp#L99
-
 
         let cbd = self.composer_base_data().clone();
         let mut cbd = (*cbd).write().unwrap();
@@ -319,11 +319,18 @@ pub(crate) trait ComposerBase {
         // This loop initializes the i-th cycle with (i) -> (n+i), meaning that we always expect W^L_i = W^R_i,
         // for all i s.t. row i defines a public input.
         for i in 0..cbd.public_inputs.len() {
-            let public_input_index = cbd.real_variable_index[cbd.public_inputs[i] as usize] as usize;
+            let public_input_index =
+                cbd.real_variable_index[cbd.public_inputs[i] as usize] as usize;
             //NOTE: for goblin plonk the gate_index of each cycle node is i + public_offsets
             let cycle = &mut cbd.wire_copy_cycles[public_input_index];
-            cycle.push( CycleNode { gate_index: i as u32, wire_type: WireType::Left});
-            cycle.push( CycleNode { gate_index: i as u32, wire_type: WireType::Right});
+            cycle.push(CycleNode {
+                gate_index: i as u32,
+                wire_type: WireType::Left,
+            });
+            cycle.push(CycleNode {
+                gate_index: i as u32,
+                wire_type: WireType::Right,
+            });
         }
 
         let num_public_inputs = self.get_public_inputs().len() as u32;
@@ -333,13 +340,25 @@ pub(crate) trait ComposerBase {
             let w_2_index = cbd.real_variable_index[cbd.w_r[i] as usize] as usize;
             let w_3_index = cbd.real_variable_index[cbd.w_o[i] as usize] as usize;
 
-            cbd.wire_copy_cycles[w_1_index].push(CycleNode { gate_index: i as u32 + num_public_inputs, wire_type: WireType::Left });
-            cbd.wire_copy_cycles[w_2_index].push(CycleNode { gate_index: i as u32 + num_public_inputs, wire_type: WireType::Right });
-            cbd.wire_copy_cycles[w_3_index].push(CycleNode { gate_index: i as u32 + num_public_inputs, wire_type: WireType::Output });
+            cbd.wire_copy_cycles[w_1_index].push(CycleNode {
+                gate_index: i as u32 + num_public_inputs,
+                wire_type: WireType::Left,
+            });
+            cbd.wire_copy_cycles[w_2_index].push(CycleNode {
+                gate_index: i as u32 + num_public_inputs,
+                wire_type: WireType::Right,
+            });
+            cbd.wire_copy_cycles[w_3_index].push(CycleNode {
+                gate_index: i as u32 + num_public_inputs,
+                wire_type: WireType::Output,
+            });
 
             if program_width > 3 {
                 let w_4_index = cbd.real_variable_index[cbd.w_4[i] as usize] as usize;
-                cbd.wire_copy_cycles[w_4_index].push(CycleNode { gate_index: i as u32 + num_public_inputs, wire_type: WireType::Fourth });
+                cbd.wire_copy_cycles[w_4_index].push(CycleNode {
+                    gate_index: i as u32 + num_public_inputs,
+                    wire_type: WireType::Fourth,
+                });
             }
         }
     }
@@ -397,7 +416,11 @@ pub(crate) trait ComposerBase {
                 // Get the indices of the current node and next node in the cycle
                 let current_cycle_node = cycle[node_idx];
                 // If current node is the last one in the cycle, then the next one is the first one
-                let next_cycle_node_index = if node_idx == cycle.len() - 1 { 0 } else{ node_idx + 1};
+                let next_cycle_node_index = if node_idx == cycle.len() - 1 {
+                    0
+                } else {
+                    node_idx + 1
+                };
                 let next_cycle_node = cycle[next_cycle_node_index];
                 let current_row = current_cycle_node.gate_index as usize;
                 let next_row = next_cycle_node.gate_index;
@@ -410,9 +433,9 @@ pub(crate) trait ComposerBase {
                 //  let column = current_column >> 30;
                 mapping.sigmas[current_column][current_row] = PermutationSubgroupElement {
                     row_index: next_row,
-                    column_index: next_column as u8, 
-                    is_public_input: false, 
-                    is_tag: false
+                    column_index: next_column as u8,
+                    is_public_input: false,
+                    is_tag: false,
                 };
 
                 if with_tags {
@@ -434,7 +457,6 @@ pub(crate) trait ComposerBase {
                 }
             }
         }
-
 
         // Add information about public inputs to the computation
         // The public inputs are placed at the top of the execution trace, potentially offset by a zero row.
@@ -1027,10 +1049,9 @@ pub(crate) trait ComposerBase {
 //  *     ];
 //  *
 //  */
-
-#[cfg(test)] mod test {
+#[cfg(test)]
+mod test {
     use super::*;
-
 
     #[test]
     fn compute_wire_copy_cycles() {

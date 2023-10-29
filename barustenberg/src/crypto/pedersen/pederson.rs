@@ -1,86 +1,38 @@
-use std::vec::Vec;
+use ark_ec::{
+    short_weierstrass::{Affine, SWCurveConfig},
+    AffineRepr, CurveGroup,
+};
+use ark_ff::{Field, Fp, PrimeField};
+use grumpkin::{Fq, Fr, GrumpkinConfig};
 
-pub(crate) type GeneratorIndexT = usize;
+use crate::crypto::generator::GeneratorContext;
 
-pub(crate) fn commit_single(input: grumpkin::Fq, index: GeneratorIndexT) -> grumpkin::Fq {
-    // TODO: Implement this functio§n
-    /* 
-    let gen_data = get_generator_data(index);
-    let mut scalar_multiplier = input.from_montgomery_form();
-
-    const NUM_BITS: usize = 254;
-    const NUM_QUADS_BASE: usize = (NUM_BITS - 1) >> 1;
-    const NUM_QUADS: usize = if (NUM_QUADS_BASE << 1) + 1 < NUM_BITS { NUM_QUADS_BASE + 1 } else { NUM_QUADS_BASE };
-    const NUM_WNAF_BITS: usize = (NUM_QUADS << 1) + 1;
-
-    let ladder = gen_data.get_hash_ladder(NUM_BITS);
-
-    let mut wnaf_entries = [0u64; NUM_QUADS + 2];
-    let mut skew = false;
-    fixed_wnaf::<NUM_WNAF_BITS, 1, 2>(&mut scalar_multiplier.data[0], &mut wnaf_entries[0], &mut skew, 0);
-
-    let mut accumulator = grumpkin::SWAffine::from(ladder[0].one);
-    if skew {
-        accumulator.sub_assign(gen_data.skew_generator);
-    }
-
-    for i in 0..NUM_QUADS {
-        let entry = wnaf_entries[i + 1];
-        let point_to_add = if (entry & WNAF_MASK) == 1 { 
-            ladder[i + 1].three 
-        } else { 
-            ladder[i + 1].one 
-        };
-        let predicate = (entry >> 31) & 1;
-        accumulator.self_mixed_add_or_sub(point_to_add, predicate);
-    }
-    accumulator
-    */
-    todo!("Need to implement generator functions")
-
-}
-
-pub(crate) fn commit_native(
-    inputs: Vec<grumpkin::Fq>,
-    hash_index: Option<usize>,
-) -> grumpkin::Fq {
-    todo!("commit_native")
-}
-
-pub(crate) fn commit_native_with_pairs(
-    _input_pairs: Vec<(grumpkin::Fq, GeneratorIndexT)>,
-) -> grumpkin::Fq {
-    // TODO: Implement this function
-    todo!("commit_native_with_pairs")
-}
-
-pub(crate) fn compress_native_with_index(
-    inputs: Vec<grumpkin::Fq>,
-    hash_index: Option<usize>,
-) -> grumpkin::Fq {
-    commit_native(inputs, hash_index)
-}
-
-pub(crate) fn compress_native_array<const T: usize>(_inputs: [grumpkin::Fq; T]) -> grumpkin::Fq {
-    // TODO: Implement this function
-    todo!("compress_native_array")
-}
-
-pub(crate) fn compress_native(input: &[grumpkin::Fq]) -> Vec<u8> {
-    // TODO: Implement this function
-    todo!("compress_native")
-}
-
-pub(crate) fn compress_native_with_pairs(
-    _input_pairs: Vec<(grumpkin::Fq, GeneratorIndexT)>,
-) -> grumpkin::Fq {
-    // TODO: Implement this function
-    todo!("compress_native_with_pairs")
-}
 /**
- * Given an arbitrary length of bytes, convert them to fields and compress the result using the default generators.
+ * @brief Given a vector of fields, generate a pedersen commitment using the indexed generators.
+ *
+ * @details This method uses `Curve::BaseField` members as inputs. This aligns with what we expect when creating
+ * grumpkin commitments to field elements inside a BN254 SNARK circuit.
+ * @param inputs
+ * @param context
+ * @return Curve::AffineElement
  */
-pub(crate) fn compress_native_buffer_to_field(input: &[u8], hash_index: usize) -> grumpkin::Fq
-{
-    todo!()
+// NOTE: this could be generalized using SWCurveConfig but since we perform the operation over grumpkin its explicit
+pub(crate) fn commit_native(
+    inputs: &[Fq],
+    context: &mut GeneratorContext<GrumpkinConfig>,
+) -> Affine<GrumpkinConfig> {
+    let generators = context
+        .generators
+        .get(inputs.len(), context.offset, context.domain_separator);
+
+    inputs
+        .iter()
+        .enumerate()
+        .fold(Affine::zero(), |mut acc, (i, input)| {
+            //TODO: this is a sketch conversion do better
+            acc = (acc
+                + (generators[i] * Fr::from_bigint(input.into_bigint()).unwrap()).into_affine())
+            .into_affine();
+            acc
+        })
 }

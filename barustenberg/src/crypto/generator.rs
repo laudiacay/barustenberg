@@ -1,20 +1,11 @@
-use ark_ec::{AffineRepr, AdditiveGroup, scalar_mul::fixed_base::FixedBase};
-use ark_ff::{batch_inversion, Field, Zero};
-use grumpkin::{Affine, Fq, Fr, Projective, GrumpkinConfig};
-use lazy_static::lazy_static;
-use crate::ecc::groups::wnaf::fixed_wnaf;
-
-use std::fmt::Debug;
-
-use crate::plonk::proof_system::constants::NUM_LIMB_BITS_IN_FIELD_SIMULATION;
-
+/*
 #[derive(Default, PartialEq, Eq, PartialOrd, Debug)]
 pub(crate) struct GeneratorIndex {
     pub(crate) index: usize,
     pub(crate) sub_index: usize,
 }
 
-//TODO: Check if this is necessary I overloaded the operator following: 
+//TODO: Check if this is necessary I overloaded the operator following:
 // https://github.com/AztecProtocol/barretenberg/blob/master/cpp/src/barretenberg/crypto/generators/generator_data.hpp#L16
 impl Ord for GeneratorIndex {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
@@ -74,7 +65,7 @@ pub(crate) struct HashIndexParams {
 
 impl HashIndexParams {
     pub(crate) const fn total_generators(&self) -> usize {
-       self.num_indices * self.num_generators_per_index 
+       self.num_indices * self.num_generators_per_index
     }
 }
 
@@ -93,7 +84,7 @@ const NUM_GENERATORS: usize = SIZE_OF_GENERATOR_DATA_ARRAY * NUM_GENERATOR_TYPES
 lazy_static!(
     pub(crate) static ref GENERATORS: PedersonGenerators = PedersonGenerators::new();
 );
-// In barustenberg there exists a shared ladder storing cached precomputed values. 
+// In barustenberg there exists a shared ladder storing cached precomputed values.
 pub(crate) struct PedersonGenerators {
     generator_data: Vec<GeneratorData>,
     g1_ladder: Ladder,
@@ -148,7 +139,7 @@ impl PedersonGenerators {
     *ladder is used simply to add the  "normalization factor" 4^{127}*[P] (so ladder[0].three is never used); this
     *addition makes all resultant scalars positive. When wanting to hash e.g. 254 instead of 256 bits, we will
     *start the ladder one step forward - this happends in `get_ladder_internal`
-    **/ 
+    **/
     fn new() -> Self {
         let (generators, aux_generators, skew_generators) = derive_generators::<NUM_GENERATORS>();
         let generator_data = (0..(NUM_DEFAULT_GENERATORS + SIZE_OF_GENERATOR_DATA_ARRAY)).into_iter().map(|i| {
@@ -260,7 +251,7 @@ impl PedersonGenerators {
         let eight_inverse = Fq::from(8).inverse().unwrap();
         let mut y_denominators = Vec::new();
         for i in 0..LADDER_LENGTH {
-            // TODO: For the love of god see how we can burn these unwraps in a Joan of Arc kind of pyre. Can we start a roman catholic, spanish inquisition style witch hunt against the arkworks code base. 
+            // TODO: For the love of god see how we can burn these unwraps in a Joan of Arc kind of pyre. Can we start a roman catholic, spanish inquisition style witch hunt against the arkworks code base.
             // They'd never expect it... cause no one expects the spanish inquisition...
             // Link: https://www.youtube.com/watch?v=T2ncJ6ciGyM
             let x_beta = ladder[i].one.x().unwrap();
@@ -278,7 +269,7 @@ impl PedersonGenerators {
 
             let t0 = x_beta - x_gamma;
             y_denominators[i] = (t0 + t0) + t0;
-            
+
             let y_alpha_1 = ((y_beta + y_beta) + y_beta) - y_gamma;
             let mut t1 = x_gamma * y_beta;
             t1 = (t1 + t1) + t1;
@@ -327,7 +318,7 @@ fn derive_generators<const N: usize>() -> (Vec<Affine>, Vec<Affine>, Vec<Affine>
         aux_generators.push(g[1]);
         skew_generators.push(g[2]);
     });
-(generators, aux_generators, skew_generators) 
+(generators, aux_generators, skew_generators)
 }
 
 
@@ -440,5 +431,123 @@ mod test {
         let scalar = Affine::zero();
 
         assert_eq!(gen_data.ladder[0].one.into_group(), scalar);
+    }
+}
+*/
+
+use grumpkin::GrumpkinConfig;
+use lazy_static::lazy_static;
+
+use std::{collections::HashMap, fmt::Debug, sync::Mutex};
+
+use ark_ec::{
+    short_weierstrass::{Affine, SWCurveConfig},
+    AffineRepr,
+};
+
+use crate::ecc::groups::group::derive_generators;
+
+pub(crate) const DEFAULT_NUM_GENERATORS: usize = 8;
+pub(crate) const DEFAULT_DOMAIN_SEPARATOR: &str = "DEFAULT_DOMAIN_SEPARATOR";
+
+//Ref that can be imported to access pre-computed generators
+lazy_static! {
+    pub(crate) static ref GENERATOR_CONTEXT: Mutex<GeneratorContext<GrumpkinConfig>> =
+        Mutex::new(GeneratorContext::default());
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct GeneratorList<E: SWCurveConfig>(Vec<Affine<E>>);
+
+// In barustenberg there exists a shared ladder storing cached precomputed values.
+#[derive(Clone, Debug)]
+pub(crate) struct GeneratorData<E: SWCurveConfig> {
+    pub(crate) precomputed_generators: [Affine<E>; DEFAULT_NUM_GENERATORS],
+    pub(crate) generator_map: HashMap<String, GeneratorList<E>>,
+}
+
+impl<E: SWCurveConfig> Default for GeneratorData<E> {
+    fn default() -> Self {
+        Self {
+            precomputed_generators: Self::make_precomputed_generators(),
+            generator_map: HashMap::new(),
+        }
+    }
+}
+
+impl<E: SWCurveConfig> GeneratorData<E> {
+    fn make_precomputed_generators() -> [Affine<E>; DEFAULT_NUM_GENERATORS] {
+        let mut output: [Affine<E>; DEFAULT_NUM_GENERATORS] =
+            [Affine::zero(); DEFAULT_NUM_GENERATORS];
+        let res: Vec<Affine<E>> = derive_generators(
+            DEFAULT_DOMAIN_SEPARATOR.as_bytes(),
+            DEFAULT_NUM_GENERATORS,
+            0,
+        );
+        output.copy_from_slice(&res[..DEFAULT_NUM_GENERATORS]);
+        output
+    }
+
+    //NOTE: can add default arguments by wrapping function parameters with options
+    pub(crate) fn get(
+        &mut self,
+        num_generators: usize,
+        generator_offset: usize,
+        domain_separator: &str,
+    ) -> Vec<Affine<E>> {
+        let is_default_domain = domain_separator == DEFAULT_DOMAIN_SEPARATOR;
+        if is_default_domain && (num_generators + generator_offset) < DEFAULT_NUM_GENERATORS {
+            return self.precomputed_generators.to_vec();
+        }
+
+        // Case 2: we want default generators, but more than we precomputed at compile time. If we have not yet copied
+        // the default generators into the map, do so.
+        if is_default_domain && !self.generator_map.is_empty() {
+            let _ = self
+                .generator_map
+                .insert(
+                    DEFAULT_DOMAIN_SEPARATOR.to_string(),
+                    GeneratorList(self.precomputed_generators.to_vec()),
+                )
+                .unwrap();
+        }
+
+        //TODO: open to suggestions for this
+        let mut generators = self
+            .generator_map
+            .get(DEFAULT_DOMAIN_SEPARATOR)
+            .unwrap()
+            .0
+            .clone();
+
+        if num_generators + generator_offset > generators.len() {
+            let num_extra_generators = num_generators + generator_offset - generators.len();
+            let extended_generators = derive_generators(
+                domain_separator.as_bytes(),
+                num_extra_generators,
+                generators.len(),
+            );
+
+            generators.extend_from_slice(&extended_generators);
+        }
+
+        generators
+    }
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct GeneratorContext<E: SWCurveConfig> {
+    pub(crate) offset: usize,
+    pub(crate) domain_separator: &'static str,
+    pub(crate) generators: GeneratorData<E>,
+}
+
+impl<E: SWCurveConfig> Default for GeneratorContext<E> {
+    fn default() -> Self {
+        Self {
+            offset: 0,
+            domain_separator: DEFAULT_DOMAIN_SEPARATOR,
+            generators: GeneratorData::default(),
+        }
     }
 }
