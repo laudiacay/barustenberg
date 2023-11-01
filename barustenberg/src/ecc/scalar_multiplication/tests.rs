@@ -182,7 +182,7 @@ fn test_reduce_buckets_simple() {
     }
 
     for i in 0..NUM_POINTS {
-        points_schedule[i] = transcript_points[i] << 32 + transcript[i];
+        points_schedule[i] = (transcript_points[i] << 32) + transcript[i];
     }
 
     let mut expected = vec![G1Projective::default(); NUM_POINTS];
@@ -225,7 +225,7 @@ fn test_reduce_buckets() {
 
     let mut monomials = vec![G1Affine::default(); num_points * 2];
     let mut g2_x = G2Affine::default();
-    read_transcript(
+    _ = read_transcript(
         &mut monomials,
         &mut g2_x,
         num_initial_points,
@@ -237,8 +237,8 @@ fn test_reduce_buckets() {
 
     let mut rng = ark_std::test_rng();
     let mut scalars = vec![Fr::default(); num_initial_points];
-    for i in 0..num_initial_points {
-        scalars[i] = Fr::rand(&mut rng);
+    for scalar in scalars.iter_mut().take(num_initial_points) {
+        *scalar = Fr::rand(&mut rng);
     }
 
     let mut state = PippengerRuntimeState::<Bn254Config>::new(num_initial_points);
@@ -266,8 +266,7 @@ fn test_reduce_buckets() {
 
     let mut point_schedule_copy = vec![0u64; num_points * 2];
     for i in 0..num_points {
-        state.point_schedule[i + num_points] =
-            state.point_schedule[i + num_points] & 0xFFFFFFFF7FFFFFFFu64;
+        state.point_schedule[i + num_points] &= 0xFFFFFFFF7FFFFFFFu64;
         point_schedule_copy[i] = state.point_schedule[i + num_points];
     }
 
@@ -299,10 +298,9 @@ fn test_reduce_buckets() {
         bucket_empty_status,
     };
 
-    let mut expected_buckets = vec![G1Projective::default(); num_points * 2 as usize];
-    for i in 0..num_points {
-        let schedule = point_schedule_copy[i];
-        let bucket_index = schedule as usize & 0x7FFFFFFFu64 as usize;
+    let mut expected_buckets = vec![G1Projective::default(); num_points * 2];
+    for schedule in point_schedule_copy.iter().take(num_points) {
+        let bucket_index = (*schedule as usize) & 0x7FFFFFFFu64 as usize;
         let points_index = schedule >> 32;
         let predicate = (schedule >> 31) & 1;
 
@@ -370,7 +368,7 @@ fn test_construct_addition_chains() {
 
     let mut monomials = vec![G1Affine::default(); num_points * 2];
     let mut g2_x = G2Affine::default();
-    read_transcript(
+    _ = read_transcript(
         &mut monomials,
         &mut g2_x,
         num_initial_points,
@@ -380,9 +378,9 @@ fn test_construct_addition_chains() {
     let mut rng = ark_std::test_rng();
     let mut source_scalar = Fr::rand(&mut rng);
     let mut scalars = vec![Fr::default(); num_initial_points];
-    for i in 0..num_initial_points {
+    for scalar in scalars.iter_mut().take(num_initial_points) {
         source_scalar.square_in_place();
-        scalars[i] = source_scalar;
+        *scalar = source_scalar;
     }
 
     let mut state = PippengerRuntimeState::<Bn254Config>::new(num_initial_points);
@@ -441,28 +439,6 @@ fn test_construct_addition_chains() {
     );
 }
 
-// #[test]
-// fn test_endomorphism_split() {
-//     let mut rng = ark_std::test_rng();
-//     let scalar = Fr::rand(&mut rng);
-
-//     let expected = G1Affine::default() * scalar;
-//     let split_scalars: Vec<Fr> = split_into_endomorphism_scalars(scalar);
-
-//     let k1 = split_scalars[0];
-//     let k2 = split_scalars[1];
-
-//     let t1 = G1Affine::default() * k1;
-//     let beta = cube_root_of_unity::<Fq>();
-//     let mut generator = G1Affine::default();
-
-//     generator.x = generator.x * beta;
-//     generator.y = -generator.y;
-//     let t2 = generator * k2;
-//     let result = t1 + t2;
-
-//     assert_eq!(expected, result);
-// }
 #[test]
 fn test_organise_buckets() {
     let target_degree = 1 << 8;
@@ -471,7 +447,7 @@ fn test_organise_buckets() {
 
     let mut monomials = vec![G1Affine::default(); num_points * 2];
     let mut g2_x = G2Affine::default();
-    read_transcript(
+    _ = read_transcript(
         &mut monomials,
         &mut g2_x,
         target_degree,
@@ -481,9 +457,9 @@ fn test_organise_buckets() {
     let mut rng = ark_std::test_rng();
     let mut source_scalar = Fr::rand(&mut rng);
     let mut scalars = vec![Fr::default(); target_degree];
-    for i in 0..target_degree {
+    for scalar in scalars.iter_mut().take(target_degree) {
         source_scalar.square_in_place();
-        scalars[i] = source_scalar;
+        *scalar = source_scalar;
     }
 
     let mut state = PippengerRuntimeState::<Bn254Config>::new(target_degree);
@@ -533,7 +509,7 @@ fn test_pippenger_oversized_inputs() {
 
     let mut monomials = vec![G1Affine::default(); target_degree * 2];
     let mut g2_x = G2Affine::default();
-    read_transcript(
+    _ = read_transcript(
         &mut monomials,
         &mut g2_x,
         transcript_degree,
@@ -551,9 +527,9 @@ fn test_pippenger_oversized_inputs() {
     let source_scalar = Fr::rand(&mut rng);
     let mut accumulator = source_scalar;
     let mut scalars = vec![Fr::default(); target_degree];
-    for i in 0..target_degree {
+    for scalar in scalars.iter_mut().take(target_degree) {
         accumulator *= source_scalar;
-        scalars[i] = accumulator;
+        *scalar = accumulator;
     }
 
     let mut state = PippengerRuntimeState::<Bn254Config>::new(target_degree);
@@ -664,7 +640,7 @@ fn test_pippenger_edge_case_dbl() {
     let point = G1Affine::rand(&mut rng);
     for i in 0..num_points {
         scalars[i] = Fr::rand(&mut rng);
-        points[i] = point.clone();
+        points[i] = point;
     }
 
     let mut expected = G1Projective::default();
@@ -703,7 +679,7 @@ fn test_pippenger_unsafe() {
     let point = G1Affine::rand(&mut rng);
     for i in 0..num_points {
         scalars[i] = Fr::rand(&mut rng);
-        points[i] = point.clone();
+        points[i] = point;
     }
 
     let mut expected = G1Projective::default();

@@ -1,9 +1,10 @@
+use std::ops::AddAssign;
+
 use ark_ec::scalar_mul::glv::GLVConfig;
 use ark_ec::short_weierstrass::{Affine, SWCurveConfig};
 use ark_ec::AffineRepr;
-use ark_ff::{Field, PrimeField};
+use ark_ff::{AdditiveGroup, Field, PrimeField};
 use get_msb::Msb;
-use std::sync::{Arc, RwLock};
 
 use crate::{
     common::max_threads::compute_num_threads,
@@ -49,6 +50,88 @@ pub(crate) fn generate_pippenger_point_table<C: SWCurveConfig>(
     }
 }
 
+/// Compute the windowed-non-adjacent-form versions of our scalar multipliers.
+///
+/// We start by splitting our 254 bit scalars into 2 127-bit scalars, using the short weierstrass curve endomorphism
+/// (for a point P \in \G === (x, y) \in \Fq, then (\beta x, y) = (\lambda) * P , where \beta = 1^{1/3} mod Fq and
+///\lambda = 1^{1/3} mod Fr) (which means we can represent a scalar multiplication (k * P) as (k1 * P + k2 * \lambda *
+///P), where k1, k2 have 127 bits) (see field::split_into_endomorphism_scalars for more details)
+///
+/// Once we have our 127-bit scalar multipliers, we determine the optimal number of pippenger rounds, given the number of
+///points we're multiplying. Once we have the number of rounds, `m`, we need to split our scalar into `m` bit-slices.
+///Each pippenger round will work on one bit-slice.
+///
+/// Pippenger's algorithm works by, for each round, iterating over the points we're multplying. For each point, we
+///examing the point's scalar multiplier and extract the bit-slice associated with the current pippenger round (we start
+///with the most significant slice). We then use the bit-slice to index a 'bucket', which we add the point into. For
+///example, if the bit slice is 01101, we add the corresponding point into bucket[13].
+///
+/// At the end of each pippenger round we concatenate the buckets together. E.g. if we have 8 buckets, we compute:
+/// sum = bucket[0] + 2 * bucket[1] + 3 * bucket[2] + 4 * bucket[3] + 5 * bucket[4] + 6 * bucket[5] + 7 * bucket[6] + 8 *
+///bucket[7].
+///
+/// At the end of each pippenger round, the bucket sum will contain the scalar multiplication result for one bit slice.
+/// For example, say we have 16 rounds, where each bit slice contains 8 bits (8 * 16 = 128, enough to represent our 127
+///bit scalars). At the end of the first round, we will have taken the 8 most significant bits from every scalar
+///multiplier. Our bucket sum will be the result of a mini-scalar-multiplication, where we have multiplied every point by
+///the 8 most significant bits of each point's scalar multiplier.
+///
+/// We repeat this process for every pippenger round. In our example, this gives us 16 bucket sums.
+/// We need to multiply the most significant bucket sum by 2^{120}, the second most significant bucket sum by 2^{112}
+///etc. Once this is done we can add the bucket sums together, to evaluate our scalar multiplication result.
+///
+/// Pippenger has complexity O(n / logn), because of two factors at play: the number of buckets we need to concatenate
+///per round, and the number of points we need to add into buckets per round.
+///
+/// To minimize the number of point additions per round, we want fewer rounds. But fewer rounds increases the number of
+///bucket concatenations. The more points we have, the greater the time saving when reducing the number of rounds, which
+///means we can afford to have more buckets per round.
+///
+/// For a concrete example, with 2^20 points, the sweet spot is 2^15 buckets - with 2^15 buckets we can evaluate our 127
+///bit scalar multipliers in 8 rounds (we can represent b-bit windows with 2^{b-1} buckets, more on that below).
+///
+/// This means that, for each round, we add 2^21 points into buckets (we've split our scalar multpliers into two
+///half-width multipliers, so each round has twice the number of points. This is the reason why the endormorphism is
+///useful here; without the endomorphism, we would need twice the number of buckets for each round).
+///
+/// We also concatenate 2^15 buckets for each round. This requires 2^16 point additions.
+///
+/// Meaning that the total number of point additions is (8 * 2^21) + (8 * 2^16) = 33 * 2^19 ~ 2^24 point additions.
+/// If we were to use a simple Montgomery double-and-add ladder to exponentiate each point, we would need 2^27 point
+///additions (each scalar multiplier has ~2^7 non-zero bits, and there are 2^20 points).
+///
+/// This makes pippenger 8 times faster than the naive O(n) equivalent. Given that a circuit with 1 million gates will
+///require 9 multiple-scalar-multiplications with 2^20 points, efficiently using Pippenger's algorithm is essential for
+///fast provers
+///
+/// One additional efficiency gain is the use of 2^{b-1} buckets to represent b bits. To do this we represent our
+///bit-slices in non-adjacent form. Non-adjacent form represents values using a base, where each 'bit' can take the
+///values (-1, 0, 1). This is considerably more efficient than binary form for scalar multiplication, as inverting a
+///point can be done by negating the y-coordinate.
+///
+/// We actually use a slightly different representation than simple non-adjacent form. To represent b bits, a bit slice
+///contains values from (-2^{b} - 1, ..., -1, 1, ..., 2^{b} - 1). i.e. we only have odd values. We do this to eliminate
+///0-valued windows, as having a conditional branch in our hot loop to check if an entry is 0 is somethin we want to
+///avoid.
+///
+/// The above representation can be used to represent any binary number as long as we add a 'skew' factor. Each scalar
+///multiplier's `skew` tracks if the scalar multiplier is even or odd. If it's even, `skew = true`, and we add `1` to our
+///multiplier to make it odd.
+///
+/// We then, at the end of the Pippenger algorithm, subtract a point from the total result, if that point's skew is
+///`true`.
+///
+/// At the end of `compute_wnaf_states`, `state.wnaf_table` will contain our wnaf entries, but unsorted.
+///
+/// # Type Parameters
+/// * `C`: The curve configuration and GLV configuration
+///
+/// # Arguments
+/// * `point_schedule`: Pointer to the output array with all WNAFs
+/// * `input_skew_table`: Pointer to the output array with all skews
+/// * `round_counts`: The number of points in each round
+/// * `scalars`: The pointer to the region with initial scalars that need to be converted into WNAF
+/// * `num_initial_points`: The number of points before the endomorphism split
 pub(crate) fn compute_wnaf_states<C: SWCurveConfig + GLVConfig>(
     point_schedule: &mut Vec<u64>,
     input_skew_table: &mut Vec<bool>,
@@ -82,9 +165,7 @@ pub(crate) fn compute_wnaf_states<C: SWCurveConfig + GLVConfig>(
         let offset = i * num_points_per_thread;
 
         for j in 0..num_initial_points_per_thread {
-            // convert scalar to normal from montgomery form
-            // do glv
-            // send both for wnaf
+            // TODO: check if have to convert from montgomery form
             // t0 = thread_scalars[j].from_montgomery_form();
             let t0 = thread_scalars[j];
 
@@ -130,7 +211,6 @@ pub(crate) fn organise_buckets(point_schedule: &mut Vec<u64>, num_points: usize)
     let num_rounds: usize = get_num_rounds(num_points);
 
     for i in 0..num_rounds {
-        // TODO: might be weird shit here for passing slice
         process_buckets(
             point_schedule[i * num_points..i + 1 * num_points].as_mut(),
             num_points,
@@ -160,13 +240,23 @@ fn conditionally_negate_affine<C: SWCurveConfig>(
     }
 }
 
-//Note u32 chosen to be in line with c++ implementation
+/// This method sorts our points into our required base-2 sequences.
+/// `max_bucket_bits` is log2(maximum bucket count).
+/// This sets the upper limit on how many iterations we need to perform in `evaluate_addition_chains`.
+/// e.g. if `max_bucket_bits == 3`, then we have at least one bucket with >= 8 points in it.
+/// which means we need to repeat our pairwise addition algorithm 3 times
+/// (e.g. add 4 pairs together to get 2 pairs, add those pairs together to get a single pair, which we add to
+/// reduce to our final point)
+///
+/// # Arguments
+/// * `state`: runtime state of the Pippenger algorithm
+/// * `empty_bucket_counts`: Whether or not to fill bucket count with number of non-zero windows in first iteration
 pub(crate) fn construct_addition_chains<C: SWCurveConfig>(
     state: &mut AffinePippengerRuntimeState<C>,
     empty_bucket_counts: bool,
 ) -> usize {
+    // if this is the first call to `construct_addition_chains`, we need to count up our buckets
     if empty_bucket_counts {
-        //        memset((void*)state.bucket_counts, 0x00, sizeof(uint32_t) * state.num_buckets);
         state.bucket_counts.fill(0);
         //TODO: Note this is const in c++ implementation.
         let first_bucket = (state.point_schedule[0] & 0x7fffffffu64) as usize;
@@ -183,20 +273,16 @@ pub(crate) fn construct_addition_chains<C: SWCurveConfig>(
         }
     }
 
-    let mut max_count = 0usize;
+    let mut max_count = 0u32;
     for i in 0..state.num_buckets {
-        max_count = if state.bucket_counts[i]
-            > if max_count == 0 {
-                state.bucket_counts[i]
-            } else {
-                max_count as u32
-            } {
-            1
+        max_count = if state.bucket_counts[i] > max_count {
+            state.bucket_counts[i]
         } else {
-            0
-        };
+            max_count as u32
+        }
     }
-    let max_bucket_bits = max_count.get_msb();
+
+    let max_bucket_bits = max_count.get_msb() as usize;
 
     for i in 0..(max_bucket_bits + 1) {
         state.bit_offsets[i] = 0;
@@ -221,9 +307,7 @@ pub(crate) fn construct_addition_chains<C: SWCurveConfig>(
     let mut schedule_it = 0;
     let bucket_count_it: &mut Vec<_> = state.bucket_counts.as_mut();
 
-    //TODO: verify that arkworks negation negates y-coordinate. Maybe add custom assembly
     for _i in 0..state.num_buckets {
-        //unint32_t count = *bucket_count_it -> This grabs the pointer to the array aka 1st element
         let count = bucket_count_it[0];
         bucket_count_it[0] += 1;
         let num_bits = count.get_msb() + 1;
@@ -363,10 +447,15 @@ pub(crate) fn construct_addition_chains<C: SWCurveConfig>(
                 }
                 0 => break,
                 _ => {
-                    for k in 0..k_end {
+                    for _ in 0..k_end {
                         let schedule = state.point_schedule[schedule_it];
                         let predicate = (schedule >> 31u64) & 1u64;
 
+                        conditionally_negate_affine(
+                            &state.points[(schedule >> 32u64) as usize],
+                            &mut state.point_pairs_1[current_offset],
+                            predicate,
+                        );
                         current_offset += 1;
                         schedule_it += 1;
                     }
@@ -401,14 +490,15 @@ fn add_affine_point_with_edge_cases<F: Field, G: AffineRepr<BaseField = F>>(
                 scratch_space[i >> 1] = x1.double(); // 2x
                 let x_squared = x1.square();
                 x2 = y1.double(); // 2y
-                                  //TODO: could be better way to do this in arkworks
                 y2 = x_squared + x_squared + x_squared; // 3x^2
                 y2 *= batch_inversion_accumulator;
                 batch_inversion_accumulator *= x2;
+                continue;
             }
             //set to infinity
             points[i] = G::zero();
             points[i + 1] = G::zero();
+            continue;
         }
         scratch_space[i >> 1] = x1 + x2; // x2 + x1
         x2 -= x1; // x2 - x1
@@ -445,7 +535,7 @@ fn add_affine_point_with_edge_cases<F: Field, G: AffineRepr<BaseField = F>>(
             .expect("Failed to grab points from x2 in first part of affine addition");
 
         y2 *= batch_inversion_accumulator; //update accumulator
-        batch_inversion_accumulator * x2;
+        batch_inversion_accumulator *= x2;
         x2 = y2.square();
         x3 = x2 - scratch_space[i >> 1]; // x3 = lambda_squared - x2 - x1?
 
@@ -455,39 +545,46 @@ fn add_affine_point_with_edge_cases<F: Field, G: AffineRepr<BaseField = F>>(
     }
 }
 
-/**
- * adds a bunch of points together using affine addition formulae.
- * Paradoxically, the affine formula is crazy efficient if you have a lot of independent point additions to perform.
- * Affine formula:
- *
- * \lambda = (y_2 - y_1) / (x_2 - x_1)
- * x_3 = \lambda^2 - (x_2 + x_1)
- * y_3 = \lambda*(x_1 - x_3) - y_1
- *
- * Traditionally, we avoid affine formulae like the plague, because computing lambda requires a modular inverse,
- * which is outrageously expensive.
- *
- * However! We can use Montgomery's batch inversion technique to amortise the cost of the inversion to ~0.
- *
- * The way batch inversion works is as follows. Let's say you want to compute \{ 1/x_1, 1/x_2, ..., 1/x_n \}
- * The trick is to compute the product x_1x_2...x_n , whilst storing all of the temporary products.
- * i.e. we have an array A = [x_1, x_1x_2, ..., x_1x_2...x_n]
- * We then compute a single inverse: I = 1 / x_1x_2...x_n
- * Finally, we can use our accumulated products, to quotient out individual inverses.
- * We can get an individual inverse at index i, by computing I.A_{i-1}.(x_nx_n-1...x_i+1)
- * The last product term we can compute on-the-fly, as it grows by one element for each additional inverse that we
- * require.
- *
- * TLDR: amortized cost of a modular inverse is 3 field multiplications per inverse.
- * Which means we can compute a point addition with SIX field multiplications in total.
- * The traditional Jacobian-coordinate formula requires 11.
- *
- * There is a catch though - we need large sequences of independent point additions!
- * i.e. the output from one point addition in the sequence is NOT an input to any other point addition in the
- *sequence.
- *
- * We can re-arrange the Pippenger algorithm to get this property, but it's...complicated
- **/
+/// adds a bunch of points together using affine addition formulae.
+/// Paradoxically, the affine formula is crazy efficient if you have a lot of independent point additions to perform.
+/// Affine formula:
+///
+/// \lambda = (y_2 - y_1) / (x_2 - x_1)
+/// x_3 = \lambda^2 - (x_2 + x_1)
+/// y_3 = \lambda*(x_1 - x_3) - y_1
+///
+/// Traditionally, we avoid affine formulae like the plague, because computing lambda requires a modular inverse,
+/// which is outrageously expensive.
+///
+/// However! We can use Montgomery's batch inversion technique to amortise the cost of the inversion to ~0.
+///
+/// The way batch inversion works is as follows. Let's say you want to compute \{ 1/x_1, 1/x_2, ..., 1/x_n \}
+/// The trick is to compute the product x_1x_2...x_n , whilst storing all of the temporary products.
+/// i.e. we have an array A = [x_1, x_1x_2, ..., x_1x_2...x_n]
+/// We then compute a single inverse: I = 1 / x_1x_2...x_n
+/// Finally, we can use our accumulated products, to quotient out individual inverses.
+/// We can get an individual inverse at index i, by computing I.A_{i-1}.(x_nx_n-1...x_i+1)
+/// The last product term we can compute on-the-fly, as it grows by one element for each additional inverse that we
+/// require.
+///
+/// TLDR: amortized cost of a modular inverse is 3 field multiplications per inverse.
+/// Which means we can compute a point addition with SIX field multiplications in total.
+/// The traditional Jacobian-coordinate formula requires 11.
+///
+/// There is a catch though - we need large sequences of independent point additions!
+/// i.e. the output from one point addition in the sequence is NOT an input to any other point addition in the
+///sequence.
+///
+/// We can re-arrange the Pippenger algorithm to get this property, but it's...complicated
+///
+/// # Type Parameters
+/// * `F`: the base field of the curve
+/// * `G`: the affine representation of the curve with base field F
+///
+/// # Parameters
+/// * `points`: the points to add together
+/// * `num_points`: the number of points
+/// * `scratch_space`: scratch space to use for intermediate calculations
 pub(crate) fn add_affine_points<F: Field, G: AffineRepr<BaseField = F>>(
     points: &mut [G],
     num_points: usize,
@@ -505,7 +602,7 @@ pub(crate) fn add_affine_points<F: Field, G: AffineRepr<BaseField = F>>(
             .expect("Failed to grab points from x2 in first part of affine addition");
         scratch_space[i >> 1] = x1 + x2; // x2 + x1
         x2 -= x1; // x2 - x1
-        y2 -= y2; // y2 - y1
+        y2 -= y1; // y2 - y1
         y2 *= batch_inversion_accumulator; // (y2 - y1) * accumulator_old
         batch_inversion_accumulator *= x2;
     }
@@ -526,10 +623,10 @@ pub(crate) fn add_affine_points<F: Field, G: AffineRepr<BaseField = F>>(
             .expect("Failed to grab points from x2 in first part of affine addition");
         let (mut x3, _) = points[(i + num_points) >> 1]
             .xy()
-            .expect("Failed to grab points from x2 in first part of affine addition");
+            .expect("Failed to grab points from x3 in first part of affine addition");
 
         y2 *= batch_inversion_accumulator; //update accumulator
-        batch_inversion_accumulator * x2;
+        batch_inversion_accumulator *= x2;
         x2 = y2.square();
         x3 = x2 - scratch_space[i >> 1]; // x3 = lambda_squared - x2 - x1?
 
@@ -539,13 +636,26 @@ pub(crate) fn add_affine_points<F: Field, G: AffineRepr<BaseField = F>>(
     }
 }
 
+///
+/// evaluate a chain of pairwise additions.
+/// The additions are sequenced into base-2 segments
+/// i.e. pairs, pairs of pairs, pairs of pairs of pairs etc
+/// `max_bucket_bits` indicates the largest set of nested pairs in the array,
+/// which defines the iteration depth
+///
+/// # Type Parameters
+/// * `C`: the curve configuration
+///
+/// # Parameters
+/// * `state`: the pippenger runtime state with the points to add
+/// * `max_bucket_bits`: the maximum depth of the buckets
+/// * `handle_edge_cases`: whether or not to handle edge cases in the addition.
 pub(crate) fn evaluate_addition_chains<C: SWCurveConfig>(
     state: &mut AffinePippengerRuntimeState<C>,
     max_bucket_bits: usize,
     handle_edge_cases: bool,
 ) {
     let end = state.num_points;
-    let start = 0;
     for i in 0..max_bucket_bits {
         let points_in_round = (state.num_points - state.bit_offsets[i + 1] as usize) >> i;
         let start = end - points_in_round;
@@ -562,6 +672,32 @@ pub(crate) fn evaluate_addition_chains<C: SWCurveConfig>(
     }
 }
 
+///
+/// This is the entry point for our 'find a way of evaluating a giant multi-product using affine coordinates'
+///algorithm By this point, we have already sorted our pippenger buckets. So we have the following situation:
+///
+/// 1. We have a defined number of buckets points
+/// 2. We have a defined number of points, that need to be added into these bucket points
+/// 3. number of points >> number of buckets
+///
+/// The algorithm begins by counting the number of points assigned to each bucket.
+/// For each bucket, we then take this count and split it into its base-2 components.
+/// e.g. if bucket[3] has 14 points, we split that into a sequence of (8, 4, 2)
+/// This base-2 splitting is useful, because we can take the bucket's associated points, and
+/// sort them into pairs, quads, octs etc. These mini-addition sequences are independent from one another,
+/// which means that we can use the affine trick to evaluate them.
+/// Once we're done, we have effectively reduced the number of points in the bucket to a logarithmic factor of the
+///input. e.g. in the above example, once we've evaluated our pairwise addition of 8, 4 and 2 elements, we're left
+///with 3 points. The next step is to 'play it again Sam', and recurse back into `reduce_buckets`, with our reduced
+///number of points. We repeat this process until every bucket only has one point assigned to it.
+///
+/// # Type Parameters
+/// * `C`: the curve configuration
+///
+/// # Parameters
+/// * `state`: the pippenger runtime state with the points to add
+/// * `first_round`: whether or not this is the first round of the pippenger algorithm
+/// * `handle_edge_cases`: whether or not to handle edge cases in the addition.
 pub(crate) fn reduce_buckets<C: SWCurveConfig>(
     state: &mut AffinePippengerRuntimeState<C>,
     first_round: bool,
@@ -569,15 +705,27 @@ pub(crate) fn reduce_buckets<C: SWCurveConfig>(
 ) -> Vec<Affine<C>> {
     let max_bucket_bits = construct_addition_chains(state, first_round);
 
+    // if max_bucket_bits is 0, we're done! we can return
     if max_bucket_bits == 0 {
         return state.point_pairs_1.clone();
     }
 
+    // compute our required additions using the affine trick
     evaluate_addition_chains(state, max_bucket_bits, handle_edge_cases);
 
-    let end: u32 = state.num_points as u32;
-    let start: u32 = 0;
+    // this next step is a processing step, that computes a new point schedule for our reduced points.
+    // In the pippenger algorithm, we use a 64-bit uint to categorize each point.
+    // The high 32 bits describes the position of the point in a point array.
+    // The low 31 bits describes the bucket index that the point maps to
+    // The 32nd bit defines whether the point is actually a negation of our stored point.
 
+    // We want to compute these 'point schedule' uints for our reduced points, so that we can recurse back into
+    // `reduce_buckets`
+    let end: u32 = state.num_points as u32;
+
+    // The output of `evaluate_addition_chains` has a bit of an odd structure, should probably refactor.
+    // Effectively, we used to have one big 1d array, and the act of computing these pair-wise point additions
+    // has chopped it up into sequences of smaller 1d arrays, with gaps in between
     for i in 0..max_bucket_bits as usize {
         let points_in_round = (state.num_points as u32 - state.bit_offsets[i + 1]) >> i;
         let points_removed = points_in_round / 2;
@@ -586,10 +734,11 @@ pub(crate) fn reduce_buckets<C: SWCurveConfig>(
         state.bit_offsets[i + 1] = modified_start;
     }
 
+    // iterate over each bucket. Identify how many remaining points there are, and compute their point scheduels
     let mut new_num_points = 0;
     for i in 0..state.num_buckets {
         let count = state.bucket_counts[i];
-        let num_bits = count.get_msb();
+        let num_bits = count.get_msb() + 1;
         let mut new_bucket_count = 0;
         for j in 0..num_bits {
             let mut current_offset = state.bit_offsets[i];
@@ -599,7 +748,7 @@ pub(crate) fn reduce_buckets<C: SWCurveConfig>(
                 state.point_schedule[new_num_points] = schedule;
                 new_num_points += 1;
                 new_bucket_count += 1;
-                current_offset += 1;
+                current_offset += 1; // TODO: check if this addition makes sense
             }
         }
         state.bucket_counts[i] = new_bucket_count;
@@ -656,11 +805,7 @@ fn evaluate_pippenger_rounds<C: SWCurveConfig>(
                 let num_thread_buckets = (last_bucket - first_bucket) as usize + 1;
 
                 let mut affine_product_state =
-                // Arc::new(RwLock::new(
                     state.get_affine_pippenger_runtime_state(num_threads, j);
-                // ,
-                // ));
-                // let mut affine_product_state_1 = affine_product_state.write().unwrap();
                 affine_product_state.point_schedule = thread_point_schedule;
                 affine_product_state.points = points.clone();
                 affine_product_state.num_points = num_round_points_per_thread + leftovers;
@@ -673,13 +818,14 @@ fn evaluate_pippenger_rounds<C: SWCurveConfig>(
                 let mut running_sum = Affine::default();
 
                 // add the buckets together
+                // one nice side-effect of the affine trick, is that half of the bucket concatenation
+                // algorithm can use mixed addition formulae, instead of full addition formulae
                 let mut output_it = affine_product_state.num_points - 1;
                 for k in (0..num_thread_buckets as usize).rev() {
                     if !affine_product_state.bucket_empty_status[k] {
                         running_sum = (running_sum + output_buckets[output_it]).into();
                         output_it = output_it - 1;
                     }
-                    // TODO: fix
                     accumulator = (accumulator + running_sum).into();
                 }
 
@@ -709,20 +855,20 @@ fn evaluate_pippenger_rounds<C: SWCurveConfig>(
 
             // Divide the points and subtract skewed points once
             if i == num_rounds - 1 {
-                let addition_temporary: Affine<C> = Affine::zero();
                 let num_points_per_thread = (state.num_points as usize) / num_threads;
-                for k in 0..=bits_per_bucket {
+                for k in 0..=num_points_per_thread {
                     if state.skew_table[j * num_points_per_thread + k] {
-                        //accumulator.mul_assign(points[j * num_points_per_thread + k]);
+                        accumulator =
+                            (accumulator + (-points[j * num_points_per_thread + k])).into();
                     }
                 }
             }
 
             // scale thread accumulator after each round
             if i > 0 {
-                for k in 0..=bits_per_bucket {
+                for _ in 0..=bits_per_bucket {
                     thread_accumulators[j] =
-                        (thread_accumulators[j] + thread_accumulators[j]).into()
+                        (thread_accumulators[j] + thread_accumulators[j]).into();
                 }
             }
 
@@ -730,11 +876,9 @@ fn evaluate_pippenger_rounds<C: SWCurveConfig>(
         }
     }
 
-    //TODO for now to compile made this change
-    let mut result = Affine::zero();
+    let mut result = Affine::default();
     for (_, accumulator) in thread_accumulators.iter().enumerate() {
-        // TODO: this is 100% wrong
-        result = (result + *accumulator).into();
+        result = (result + accumulator).into();
     }
 
     result
@@ -763,6 +907,18 @@ fn pippenger_internal<C: SWCurveConfig + GLVConfig>(
     )
 }
 
+///  It's pippenger! But this one has go-faster stripes and a prediliction for questionable life choices.
+///  We use affine-addition formula in this method, which paradoxically is ~45% faster than the mixed addition
+/// formulae. See `scalar_multiplication.cpp` for a more detailed description.
+///
+///  It's...unsafe, because we assume that the incomplete addition formula exceptions are not triggered i.e. that all the
+///  points provided as arguments to the msm are distinct.
+///  We don't bother to check for this to avoid conditional branches in a critical section of our code.
+///  This is fine for situations where your bases are linearly independent (i.e. KZG10 polynomial commitments where
+///  there should be no equal points in the SRS), because triggering the incomplete addition exceptions is about as hard
+/// as solving the disrete log problem. This is ok for the prover, but GIANT RED CLAXON WARNINGS FOR THE VERIFIER Don't
+/// use this in a verification algorithm! That would be a really bad idea. Unless you're a malicious adversary, then it
+/// would be a great idea!
 pub(crate) fn pippenger_unsafe<C: SWCurveConfig + GLVConfig>(
     scalars: &mut [C::ScalarField],
     points: &mut [Affine<C>],
@@ -779,26 +935,28 @@ pub(crate) fn pippenger<C: SWCurveConfig + GLVConfig>(
     state: &mut PippengerRuntimeState<C>,
     handle_edge_cases: bool,
 ) -> Affine<C> {
-    let threshold = compute_num_threads();
+    // our windowed non-adjacent form algorthm requires that each thread can work on at least 8 points.
+    // If we fall below this theshold, fall back to the traditional scalar multiplication algorithm.
+    // For 8 threads, this neatly coincides with the threshold where Strauss scalar multiplication outperforms
+    // Pippenger
+    let threshold = compute_num_threads() * 8;
+
     if num_initial_points == 0 {
-        //Don't think this is supposed to be the identity but yolo until other functions are working
-        let out = Affine::zero();
-        // TODO: find what is equivalent to this in arkworks
-        // out.self_set_infinity()
-        return out.into();
+        return Affine::identity();
     }
 
     if num_initial_points <= threshold {
         let mut exponentiation_results = vec![Affine::zero(); num_initial_points];
-        /*
+
         for i in 0..num_initial_points {
-            exponentiation_results[i] = points[i * 2] * scalars[i];
+            exponentiation_results[i] = (points[i * 2] * scalars[i]).into();
         }
-        */
+
         for i in (1..num_initial_points).rev() {
-            exponentiation_results[i - 1] + exponentiation_results[i];
+            exponentiation_results[i - 1] =
+                (exponentiation_results[i - 1] + exponentiation_results[i]).into();
         }
-        return exponentiation_results[0].into();
+        return exponentiation_results[0];
     }
 
     let slice_bits = num_initial_points.get_msb();
@@ -807,19 +965,18 @@ pub(crate) fn pippenger<C: SWCurveConfig + GLVConfig>(
     let result = pippenger_internal(scalars, points, num_slice_points, state, handle_edge_cases);
 
     if num_slice_points != num_initial_points {
-        let leftovers = num_initial_points - num_slice_points;
-        // TODO: correct this
+        let leftovers_points = num_initial_points - num_slice_points;
         return (result
             + pippenger(
-                scalars,
-                points,
-                num_initial_points,
+                scalars[num_slice_points..].as_mut(),
+                points[num_slice_points * 2..].as_mut(),
+                leftovers_points,
                 state,
                 handle_edge_cases,
             ))
         .into();
     } else {
-        return result.into();
+        return result;
     }
 }
 

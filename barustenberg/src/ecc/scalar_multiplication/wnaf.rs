@@ -1,14 +1,13 @@
+use crate::numeric::bitop::get_msb;
 use get_msb::Msb;
 
-use crate::numeric::bitop::get_msb;
-
 pub(crate) const SCALAR_BITS: usize = 127;
-pub(crate) const fn WNAF_SIZE(x: usize) -> usize {
+pub(crate) const fn wnaf_size(x: usize) -> usize {
     (SCALAR_BITS + x - 1) / x
 }
 
 #[inline]
-pub(crate) fn get_num_scalar_bits(scalar: &Vec<u64>) -> u64 {
+pub(crate) fn get_num_scalar_bits(scalar: &[u64]) -> u64 {
     //Since msb operates on u64 we have to split then recombine and in the process do some fun bit
     //shifting
     let hi: u64 = scalar[1];
@@ -26,7 +25,7 @@ pub(crate) fn get_num_scalar_bits(scalar: &Vec<u64>) -> u64 {
 ///Returns the 64 bit wnaf value from a scalar value
 //
 #[inline]
-pub(crate) fn get_wnaf_bits<'a>(scalar: &[u64], bits: usize, bit_position: usize) -> u64 {
+pub(crate) fn get_wnaf_bits(scalar: &[u64], bits: usize, bit_position: usize) -> u64 {
     /*
      * we want to take a 128 bit scalar and shift it down by (bit_position).
      * We then wish to mask out `bits` number of bits.
@@ -51,7 +50,10 @@ pub(crate) fn get_wnaf_bits<'a>(scalar: &[u64], bits: usize, bit_position: usize
     let hi_limb_idx = (bit_position + bits - 1) >> 6;
     let lo_shift: u64 = (bit_position & 63) as u64;
     let bit_mask: u64 = (1 << bits) - 1;
-    println!("bit_mask: {:?}", bit_mask);
+    println!(
+        "bit_mask: {:?}, lo_limb_idx: {}, hi_limb_idx: {}",
+        bit_mask, lo_limb_idx, hi_limb_idx
+    );
     let lo = scalar[lo_limb_idx] >> lo_shift;
     //NOTE: This could be backward
     let hi_shift = if bit_position != 0 {
@@ -60,21 +62,24 @@ pub(crate) fn get_wnaf_bits<'a>(scalar: &[u64], bits: usize, bit_position: usize
         0
     };
     println!("hi_shift: {:x?}", hi_shift);
-    let hi: u64 = scalar[hi_limb_idx] << hi_shift;
-    let is_same_idx = lo_limb_idx != hi_limb_idx;
-    //Note: in C++ implementaion this is done using 0 - 1. Where 1 is the result of the above
-    //boolean. This works as unsigned types in c++ use wraparound modular arith for negative
-    //numbers. This means that 0 - 1 = U64::max aka every bit is 1 aka use the entire bit mask.
-    //
-    //Otherwise if false use 0.
-    //
-    let hi_mask = if is_same_idx == true { bit_mask } else { 0u64 };
+    let mut hi = 0;
+    if hi_shift == 64 {
+        hi = 0;
+    } else {
+        hi = scalar[hi_limb_idx] << hi_shift as u64;
+    }
+
+    let hi_mask = if lo_limb_idx != hi_limb_idx {
+        bit_mask
+    } else {
+        0u64
+    };
     //let hi_mask: u64 = bit_mask & (0u64 - ((lo_limb_idx != hi_limb_idx) as u64));
     println!("hi_mask: {:x?}", hi_mask);
-    return (lo & bit_mask) | (hi & hi_mask);
+    (lo & bit_mask) | (hi & hi_mask)
 }
 
-pub(crate) fn fixed_wnaf(
+pub(crate) fn fixed_wnaf<const S: usize>(
     scalar: &mut [u64],
     wnaf: &mut [u64],
     skew_map: &mut bool,
@@ -86,35 +91,46 @@ pub(crate) fn fixed_wnaf(
     *skew_map = (scalar[0] & 1) == 0;
     let mut previous = get_wnaf_bits(scalar, wnaf_bits, 0) + *skew_map as u64;
     println!("previous: {:?} {:x?}", previous, previous);
-    let wnaf_entries = WNAF_SIZE(wnaf_bits);
+    let wnaf_entries = (S + wnaf_bits - 1) / wnaf_bits;
     println!("wnaf_entries: {:?} {:x?}", wnaf_entries, wnaf_entries);
     for round in 1..(wnaf_entries - 1) {
         let slice = get_wnaf_bits(scalar, wnaf_bits, round * wnaf_bits);
         println!("slice: {:?} {:x?}", slice, slice);
 
-        let predicate = slice & 1;
-        println!("predicate: {:?} {:x?}", predicate, predicate);
-        wnaf[(wnaf_entries - round) * num_points] =
-            ((((previous - (predicate << wnaf_bits)) ^ (0 - predicate)) >> 1) | (predicate << 31))
-                | point_index;
+        let predicate = ((slice & 1) == 0) as u64;
         println!(
-            "wnaf[wnaf_entries - round]: {:?} {:x?}",
+            "previous: {}, predicate: {:?} {:x?}",
+            previous, predicate, predicate
+        );
+        let negation: u64 = (u64::MAX - predicate) % u64::MAX;
+        let previous_neg = ((previous as u128 + u64::MAX as u128
+            - (predicate << wnaf_bits) as u128)
+            % u64::MAX as u128) as u64;
+        wnaf[(wnaf_entries - round) * num_points] =
+            (((previous_neg ^ negation) >> 1) | (predicate << 31)) | point_index;
+        println!(
+            "round: {}, wnaf[wnaf_entries - round]: {:?} {:x?}, negation: {:x}, previous_neg: {:x}",
+            round,
             wnaf[(wnaf_entries - round) * num_points],
-            wnaf[(wnaf_entries - round) * num_points]
+            wnaf[(wnaf_entries - round) * num_points],
+            negation,
+            previous_neg,
         );
         previous = slice + predicate;
         println!("previous: {:?} {:x?}", previous, previous);
     }
 
-    let final_bits = SCALAR_BITS - (wnaf_bits * (wnaf_entries - 1));
+    let final_bits = S - (wnaf_bits * (wnaf_entries - 1));
     println!("final_bits: {:?} {:x?}", final_bits, final_bits);
     let slice = get_wnaf_bits(scalar, final_bits, (wnaf_entries - 1) * wnaf_bits);
     println!("slice: {:?} {:x?}", slice, slice);
-    let predicate = slice & 1;
+    let predicate = (slice & 1 == 0) as u64;
     println!("predicate: {:?} {:x?}", predicate, predicate);
-    wnaf[num_points] = ((((previous - (predicate << wnaf_bits)) ^ (0 - predicate)) >> 1)
-        | (predicate << 31))
-        | point_index;
+    let negation: u64 = (u64::MAX - predicate) % u64::MAX;
+    let previous_neg: u64 = ((previous as u128 + u64::MAX as u128
+        - (predicate << wnaf_bits) as u128)
+        % u64::MAX as u128) as u64;
+    wnaf[num_points] = (((previous_neg ^ negation) >> 1) | (predicate << 31)) | point_index;
     println!(
         "wnaf[num_points]: {:?} {:x?}",
         wnaf[num_points], wnaf[num_points]
@@ -145,7 +161,7 @@ pub(crate) fn fixed_wnaf_with_counts(
 
     let current_scalar_bits = get_num_scalar_bits(&scalar) + 1;
     let hi: u64 = scalar[1];
-    let lo: u64 = scalar[0] as u64;
+    let lo: u64 = scalar[0];
 
     //If the first bit of scalars hi limb is set set its wnaf skew to 1
     *skew_map = (hi & 1) == 0;
@@ -177,9 +193,10 @@ pub(crate) fn fixed_wnaf_with_counts(
         // If the last bit of current slice is 1, we simply put the previous value with the point index
         // If the last bit of the current slice is 0, we negate everything, so that we subtract from the WNAF form and
         // make it 0
-        // NOTE: Not sure what the commented out 1 is for but it was in the C++ implementation
+        let negation: u64 = (u64::MAX - predicate) % u64::MAX;
+
         wnaf[(max_wnaf_entries - round) * num_points] =
-            ((((previous - (predicate << (wnaf_bits/*+ 1*/))) ^ (0 - predicate)) >> 1)
+            ((((previous - (predicate << (wnaf_bits/*+ 1*/))) ^ negation) >> 1)
                 | (predicate << 31))
                 | (point_index);
 
@@ -193,9 +210,10 @@ pub(crate) fn fixed_wnaf_with_counts(
     let predicate = ((slice & 1) == 0) as u64;
 
     wnaf_round_counts[max_wnaf_entries - wnaf_entries + 1] += 1;
+    let negation: u64 = (u64::MAX - predicate) % u64::MAX;
+
     wnaf[(max_wnaf_entries - wnaf_entries + 1) * num_points] =
-        ((((previous - (predicate << (wnaf_bits/*+ 1*/))) ^ (0 - predicate)) >> 1)
-            | (predicate << 31))
+        ((((previous - (predicate << (wnaf_bits/*+ 1*/))) ^ negation) >> 1) | (predicate << 31))
             | (point_index);
 
     // Saving top bits
@@ -211,151 +229,120 @@ pub(crate) fn fixed_wnaf_with_counts(
 
 #[cfg(test)]
 mod tests {
-    use crate::ecc::scalar_multiplication::cube_root_of_unity;
-    use ark_bn254::Fr;
-    use ark_ff::{Field, UniformRand};
-
     use super::*;
 
+    use crate::ecc::scalar_multiplication::cube_root_of_unity;
+    use ark_bn254::Fr;
+    use ark_ec::scalar_mul::glv::GLVConfig;
+    use ark_ff::BigInt;
+    use ark_ff::PrimeField;
+    use ark_ff::UniformRand;
+    use num_bigint::BigUint;
+
     fn recover_fixed_wnaf(wnaf: &mut [u64], skew: bool, wnaf_bits: usize) -> (u64, u64) {
-        let wnaf_entries: usize = (127 + wnaf_bits - 1) / wnaf_bits;
+        let wnaf_entries: usize = (SCALAR_BITS + wnaf_bits - 1) / wnaf_bits;
         let mut scalar: u128 = 0;
-        let skew = if skew == true { 1u128 } else { 0u128 };
-        for i in 0..wnaf_entries {
-            let entry_formatted: u64 = wnaf[i];
+
+        for (i, entry_formatted) in wnaf.iter().enumerate().take(wnaf_entries) {
             println!("entry_formatted: {:?}", entry_formatted);
-            //This doesn't work in rust
             let negative = entry_formatted >> 31;
-            println!("negative: {:?}", negative);
-            let entry: u128 = (((entry_formatted & 0x0fffffffu64) << 1) + 1) as u128;
-            println!("entry: {:?}", entry);
+            let entry = (((entry_formatted & 0x0fffffffu64) << 1) + 1) as u128;
+            println!("i: {}, negative: {}, entry: {:?}", i, negative, entry);
             if negative == 1 {
-                scalar -= entry << (wnaf_bits * (wnaf_entries - 1 - i)) as u128
+                scalar -= entry << (wnaf_bits * (wnaf_entries - 1 - i)) as u128;
             } else {
-                scalar += entry << (wnaf_bits * (wnaf_entries - 1 - i)) as u128
+                scalar = scalar.wrapping_add(entry << (wnaf_bits * (wnaf_entries - 1 - i)) as u128);
             }
-            println!("scalar: {:?}", scalar);
+            println!("i: {}, scalar: {:x?}", i, scalar);
         }
-        scalar -= skew;
+        scalar -= skew as u128;
         println!("scalar - skew: {:?}", scalar);
         let hi = (scalar >> 64) as u64;
-        let lo = (scalar & u128::MAX) as u64;
+        let lo = (scalar & u64::MAX as u128) as u64;
         (hi, lo)
     }
 
     #[test]
     fn wnaf_zero() {
-        //Print outs of Fr from arkworks to figure shit out.
-        // Scalar values
-        // let rng =
         let mut input = Fr::from(0);
-        let mut wnaf = [0u64; WNAF_SIZE(5)];
+        let mut wnaf = [0u64; wnaf_size(5)];
         let mut skew = false;
-        println!("Fr Internal BigInt [u64; 4]");
-        println!("{:?}", input.0 .0);
-        println!("wnaf: {:?}", wnaf);
-        fixed_wnaf(&mut input.0 .0, &mut wnaf, &mut skew, 0, 1, 5);
-        println!("wnaf: {:?}", wnaf);
-        let (recovered_lo, recovered_hi) = recover_fixed_wnaf(&mut wnaf, skew, 5);
-        println!("recovered_lo {:?}", recovered_lo);
-        println!("recovered_hi {:?}", recovered_hi);
 
-        assert_eq!(recovered_lo, 0);
-        assert_eq!(recovered_hi, 0);
+        fixed_wnaf::<SCALAR_BITS>(&mut input.0 .0, &mut wnaf, &mut skew, 0, 1, 5);
+
+        let (recovered_lo, recovered_hi) = recover_fixed_wnaf(&mut wnaf, skew, 5);
+
         assert_eq!(input.0 .0[0], recovered_lo);
         assert_eq!(input.0 .0[0], recovered_hi);
-        /*
-
-        let buffer = [0u64, 0u64];
-
-        // Wnaf values
-
-        let wnaf = [0u64; WNAF_SIZE(5)];
-
-        let skew = 0;
-
-        let wnaf = fixed_wnaf();
-
-        let (rec_hi, rec_lo) = recover_fixed_wnaf(wnaf, skew, 5);
-
-        assert_eq()
-
-        */
     }
 
     #[test]
-    #[ignore]
     fn wnaf_two_bit_window() {
         let mut rng = ark_std::test_rng();
         let mut input = Fr::rand(&mut rng);
         let window = 2;
-        const num_bits: usize = 254;
-        const num_quads: usize = ((num_bits >> 1) + 1) as usize;
-        let mut wnaf = [0u64; num_quads];
+        const NUM_BITS: usize = 254;
+        const NUM_QUADS: usize = (NUM_BITS >> 1) + 1;
+        let mut wnaf = [0u64; NUM_QUADS];
         let mut skew = false;
-        let out = fixed_wnaf(&mut input.0 .0, &mut wnaf, &mut skew, 0, 1, 5);
 
-        //Note cast to uint256
+        fixed_wnaf::<256>(&mut input.0 .0, &mut wnaf, &mut skew, 0, 1, window);
 
-        /*
-        For representing even numbers, we define a skew:
-
-               / false   if input is odd
-        skew = |
-               \ true    if input is even
-
-        The i-th quad value is defined as:
-
-               / -(2b + 1)   if sign = 1
-        q[i] = |
-               \ (2b + 1)    if sign = 0
-
-        where sign = ((wnaf[i] >> 31) == 0) and b = (wnaf[i] & 1).
-        We can compute back the original number from the quads as:
-                       127
-                      -----
-                      \
-        R = -skew  +  |    4^{127 - i} . q[i].
-                      /
-                      -----
-                       i=0
-
-        */
-        let mut recovered = 0u64;
-        //NOTE this is cast to uint256 in C++
-        let mut four_power = 1 << num_bits;
-        for i in 0..num_quads {
-            let extracted = 2 * ((wnaf[i] as u64) & 1) + 1;
-            let sign = wnaf[i] >> 31;
-            if sign != 0 {
+        // For representing even numbers, we define a skew:
+        //
+        // ```
+        //        / false   if input is odd
+        // skew = |
+        //        \ true    if input is even
+        // ```
+        // The i-th quad value is defined as:
+        //
+        // ```
+        //        / -(2b + 1)   if sign = 1
+        // q[i] = |
+        //        \ (2b + 1)    if sign = 0
+        // ```
+        //
+        // where sign = `((wnaf[i] >> 31) == 0)` and b = `(wnaf[i] & 1)`.
+        // We can compute back the original number from the quads as:
+        // ```
+        //                 127
+        //               -----
+        //               \
+        // R = -skew  +  |    4^{127 - i} . q[i].
+        //               /
+        //               -----
+        //                i=0
+        // ```
+        let mut recovered = BigUint::from(0u64);
+        let mut four_power = BigUint::from(1u64) << NUM_BITS;
+        for (_, wnaf_entry) in wnaf.iter().enumerate().take(NUM_QUADS) {
+            let extracted = 2 * (wnaf_entry & 1) + 1;
+            let sign = wnaf_entry >> 31 == 0;
+            if sign {
                 //Note cast to uint256
-                recovered += extracted * four_power;
+                recovered += extracted * &four_power;
             } else {
-                recovered -= extracted * four_power;
+                recovered -= extracted * &four_power;
             }
-
-            four_power >>= 2;
         }
 
-        let skew = if skew == false { 0 } else { 1 };
-        recovered -= skew;
+        recovered -= skew as u32;
 
-        assert_eq!(Fr::from(recovered), input);
+        assert_eq!(recovered, input.0.into());
     }
 
     #[test]
-    #[ignore]
     fn wnaf_fixed_rand() {
         let mut rng = ark_std::test_rng();
         let mut buffer = Fr::rand(&mut rng);
-        buffer.0 .0[1] = 0x7fffffffu64;
-        let mut wnaf = [0u64; WNAF_SIZE(5)];
+        buffer.0 .0[1] &= 0x7fffffffffffffffu64;
+
+        let mut wnaf = [0u64; wnaf_size(5)];
         let mut skew = false;
-        fixed_wnaf(&mut buffer.0 .0, &mut wnaf, &mut skew, 0, 1, 5);
-        println!("wnaf: {:?}", wnaf);
+        fixed_wnaf::<SCALAR_BITS>(&mut buffer.0 .0, &mut wnaf, &mut skew, 0, 1, 5);
+
         let (recovered_hi, recovered_lo) = recover_fixed_wnaf(&mut wnaf, skew, 5);
-        println!("recovered_lo {:?}", recovered_lo);
-        println!("recovered_hi {:?}", recovered_hi);
 
         assert_eq!(recovered_lo, buffer.0 .0[0]);
         assert_eq!(recovered_hi, buffer.0 .0[1]);
@@ -365,71 +352,87 @@ mod tests {
     #[ignore]
     fn wnaf_fixed_simple_lo() {
         let mut buffer = [1u64, 0u64];
-        let mut wnaf = [0u64; WNAF_SIZE(5)];
+        let mut wnaf = [0u64; wnaf_size(5)];
         let mut skew = false;
-        fixed_wnaf(&mut buffer, &mut wnaf, &mut skew, 0, 1, 5);
+        fixed_wnaf::<256>(&mut buffer, &mut wnaf, &mut skew, 0, 1, 5);
 
-        println!("wnaf: {:?}", wnaf);
         let (recovered_hi, recovered_lo) = recover_fixed_wnaf(&mut wnaf, skew, 5);
-        println!("recovered_lo {:?}", recovered_lo);
-        println!("recovered_hi {:?}", recovered_hi);
 
         assert_eq!(recovered_lo, buffer[0]);
         assert_eq!(recovered_hi, buffer[1]);
     }
 
     #[test]
-    #[ignore]
 
     fn wnaf_fixed_simple_hi() {
         let mut buffer = [0u64, 1u64];
-        let mut wnaf = [0u64; WNAF_SIZE(5)];
+        let mut wnaf = [0u64; wnaf_size(5)];
         let mut skew = false;
-        fixed_wnaf(&mut buffer, &mut wnaf, &mut skew, 0, 1, 5);
+        fixed_wnaf::<SCALAR_BITS>(&mut buffer, &mut wnaf, &mut skew, 0, 1, 5);
 
-        println!("wnaf: {:?}", wnaf);
         let (recovered_hi, recovered_lo) = recover_fixed_wnaf(&mut wnaf, skew, 5);
-        println!("recovered_lo {:?}", recovered_lo);
-        println!("recovered_hi {:?}", recovered_hi);
 
         assert_eq!(recovered_lo, buffer[0]);
         assert_eq!(recovered_hi, buffer[1]);
     }
 
     #[test]
-    #[ignore]
     fn wnaf_fixed_with_endo_split() {
         let mut rng = ark_std::test_rng();
         let mut k = Fr::rand(&mut rng);
-        k.0 .0[3] &= 0x0fffffffu64;
-        let mut k1 = Fr::from(0);
-        let mut k2 = Fr::from(0);
+        println!("k: {:x?}", k);
+        // k.0 .0[0] = 0x7d1faf1a18c7788fu64;
+        // k.0 .0[1] = 0x4e53984ebf57f9au64;
+        // k.0 .0[2] = 0xcf6d1069ea03ff3cu64;
+        // k.0 .0[3] = 0x2f01189eb498b10u64;
+        // k.0 .0[3] &= 0x0fffffffffffffffu64;
 
-        //TODO: implement endomorphism split
-        let mut wnaf = [0u64; WNAF_SIZE(5)];
-        let mut endo_wnaf = [0u64; WNAF_SIZE(5)];
+        let ((sgn_t1, mut t1), (sgn_t2, mut t2)) = ark_bn254::g1::Config::scalar_decomposition(k);
+
+        println!("t1: {}, {:?}", sgn_t1, t1);
+        println!("t2: {}, {:?}", sgn_t2, t2);
+
+        if !sgn_t1 {
+            t1 = -t1;
+        }
+        if !sgn_t2 {
+            t2 = -t2;
+        }
+
+        println!("k: {:x?}", k);
+        println!("t1: {:?}", t1);
+        println!("t2: {:?}", t2);
+
+        let mut wnaf = [0u64; wnaf_size(5)];
+        let mut endo_wnaf = [0u64; wnaf_size(5)];
         let mut skew = false;
         let mut endo_skew = false;
 
-        fixed_wnaf(&mut k1.0 .0, &mut wnaf, &mut skew, 0, 1, 5);
-        fixed_wnaf(&mut k2.0 .0, &mut endo_wnaf, &mut endo_skew, 0, 1, 5);
+        fixed_wnaf::<SCALAR_BITS>(&mut t1.0 .0, &mut wnaf, &mut skew, 0, 1, 5);
+        fixed_wnaf::<SCALAR_BITS>(&mut t2.0 .0, &mut endo_wnaf, &mut endo_skew, 0, 1, 5);
 
-        println!("wnaf: {:?}", wnaf);
-        println!("wnaf_endo: {:?}", wnaf);
+        println!("wnaf: {:x?}", wnaf);
+        println!("wnaf_endo: {:x?}", endo_wnaf);
         let (recovered_hi, recovered_lo) = recover_fixed_wnaf(&mut wnaf, skew, 5);
-        let (endo_recovered_hi, endo_recovered_lo) = recover_fixed_wnaf(&mut endo_wnaf, skew, 5);
-        println!("recovered_lo: {:?}", recovered_lo);
-        println!("recovered_hi: {:?}", recovered_hi);
+        let (endo_recovered_hi, endo_recovered_lo) =
+            recover_fixed_wnaf(&mut endo_wnaf, endo_skew, 5);
+        println!("recovered_lo: {:x?}", recovered_lo);
+        println!("recovered_hi: {:x?}", recovered_hi);
 
-        println!("endo_recovered_lo: {:?}", endo_recovered_lo);
-        println!("endo_recovered_hi: {:?}", endo_recovered_hi);
+        println!("endo_recovered_lo: {:x?}", endo_recovered_lo);
+        println!("endo_recovered_hi: {:x?}", endo_recovered_hi);
+
+        let mut recovered = Fr::from(0);
+        (recovered.0 .0[0], recovered.0 .0[1]) = (recovered_lo, recovered_hi);
+        let mut endo_recovered = Fr::from(0);
+        (endo_recovered.0 .0[0], endo_recovered.0 .0[1]) = (endo_recovered_lo, endo_recovered_hi);
 
         let lambda: Fr = cube_root_of_unity();
-        println!("lamdba: {:?}", wnaf);
-        let result = k2 * lambda;
-        println!("k2_recovered * lambda: {:?}", result);
-        let result = k1 - result;
-        println!("k1_recovered - result: {:?}", result);
+        println!("lamdba: {:x?}", wnaf);
+        let result = endo_recovered * lambda;
+        println!("k2_recovered * lambda: {:x?}", result);
+        let result = recovered - result;
+        println!("k1_recovered - result: {:x?}", result);
         assert_eq!(result, k);
     }
 }

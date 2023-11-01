@@ -59,12 +59,12 @@ pub(crate) const fn get_optimal_bucket_width(num_points: usize) -> usize {
 
 pub(crate) const fn get_num_buckets(num_points: usize) -> usize {
     let bits_per_bucket = get_optimal_bucket_width(num_points / 2);
-    return (1u64 << bits_per_bucket) as usize;
+    (1u64 << bits_per_bucket) as usize
 }
 
 pub(crate) const fn get_num_rounds(num_points: usize) -> usize {
     let bits_per_bucket = get_optimal_bucket_width(num_points / 2);
-    wnaf::WNAF_SIZE(bits_per_bucket + 1)
+    wnaf::wnaf_size(bits_per_bucket + 1)
 }
 
 #[derive(Clone, Default, Debug)]
@@ -155,7 +155,7 @@ impl<C: SWCurveConfig> PippengerRuntimeState<C> {
             .scratch_space
             .clone()
             .into_iter()
-            .skip(thread_index * (points_per_thread as usize / 2))
+            .skip(thread_index * (points_per_thread / 2))
             .collect();
         let bucket_counts = self
             .bucket_counts
