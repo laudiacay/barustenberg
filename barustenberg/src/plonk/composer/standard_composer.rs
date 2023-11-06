@@ -46,6 +46,280 @@ impl<RSF: ReferenceStringFactory> ComposerBase for StandardComposer<RSF> {
         self.cbd.clone()
     }
 
+    fn create_manifest(&self, num_public_inputs: usize) -> Manifest {
+        let public_input_size = Self::FR_SIZE * num_public_inputs;
+        let mut manifest = Manifest::default();
+        // round 0
+        manifest.add_round_manifest(RoundManifest {
+            elements: vec![
+                ManifestEntry {
+                    name: "circuit_size".to_string(),
+                    num_bytes: 4,
+                    derived_by_verifier: true,
+                    challenge_map_index: 0,
+                },
+                ManifestEntry {
+                    name: "public_input_size".to_string(),
+                    num_bytes: 4,
+                    derived_by_verifier: true,
+                    challenge_map_index: 0,
+                },
+            ],
+            challenge: "init".to_string(),
+            num_challenges: 1,
+            map_challenges: false,
+        });
+
+        // round 1
+        manifest.add_round_manifest(RoundManifest {
+            elements: vec![],
+            challenge: "eta".to_string(),
+            num_challenges: 0,
+            map_challenges: false,
+        });
+
+        // round 2
+        /*
+                       {
+                   { .name = "public_inputs", .num_bytes = public_input_size, .derived_by_verifier = false },
+                   { .name = "W_1",           .num_bytes = Self::G1_SIZE,           .derived_by_verifier = false },
+                   { .name = "W_2",           .num_bytes = Self::G1_SIZE,           .derived_by_verifier = false },
+                   { .name = "W_3",           .num_bytes = Self::G1_SIZE,           .derived_by_verifier = false },
+               },
+               /* challenge_name = */ "beta",
+               /* num_challenges_in = */ 2),
+        */
+        manifest.add_round_manifest(RoundManifest {
+            elements: vec![
+                ManifestEntry {
+                    name: "public_inputs".to_string(),
+                    num_bytes: public_input_size,
+                    derived_by_verifier: false,
+                    challenge_map_index: 0,
+                },
+                ManifestEntry {
+                    name: "W_1".to_string(),
+                    num_bytes: Self::G1_SIZE,
+                    derived_by_verifier: false,
+                    challenge_map_index: 0,
+                },
+                ManifestEntry {
+                    name: "W_2".to_string(),
+                    num_bytes: Self::G1_SIZE,
+                    derived_by_verifier: false,
+                    challenge_map_index: 0,
+                },
+                ManifestEntry {
+                    name: "W_3".to_string(),
+                    num_bytes: Self::G1_SIZE,
+                    derived_by_verifier: false,
+                    challenge_map_index: 0,
+                },
+            ],
+            challenge: "beta".to_string(),
+            num_challenges: 2,
+            map_challenges: false,
+        });
+
+        // Round 3
+        //   transcript::Manifest::RoundManifest(
+        //     { { .name = "Z_PERM", .num_bytes = Self::G1_SIZE, .derived_by_verifier = false } },
+        //     /* challenge_name = */ "alpha",
+        //     /* num_challenges_in = */ 1),
+
+        manifest.add_round_manifest(RoundManifest {
+            elements: vec![ManifestEntry {
+                name: "Z_PERM".to_string(),
+                num_bytes: Self::G1_SIZE,
+                derived_by_verifier: false,
+                challenge_map_index: 0,
+            }],
+            challenge: "alpha".to_string(),
+            num_challenges: 1,
+            map_challenges: false,
+        });
+
+        // Round 4
+        /*
+                     transcript::Manifest::RoundManifest(
+               { { .name = "T_1", .num_bytes = Self::G1_SIZE, .derived_by_verifier = false },
+                 { .name = "T_2", .num_bytes = Self::G1_SIZE, .derived_by_verifier = false },
+                 { .name = "T_3", .num_bytes = Self::G1_SIZE, .derived_by_verifier = false } },
+               /* challenge_name = */ "z",
+               /* num_challenges_in = */ 1),
+        */
+        manifest.add_round_manifest(RoundManifest {
+            elements: vec![
+                ManifestEntry {
+                    name: "T_1".to_string(),
+                    num_bytes: Self::G1_SIZE,
+                    derived_by_verifier: false,
+                    challenge_map_index: 0,
+                },
+                ManifestEntry {
+                    name: "T_2".to_string(),
+                    num_bytes: Self::G1_SIZE,
+                    derived_by_verifier: false,
+                    challenge_map_index: 0,
+                },
+                ManifestEntry {
+                    name: "T_3".to_string(),
+                    num_bytes: Self::G1_SIZE,
+                    derived_by_verifier: false,
+                    challenge_map_index: 0,
+                },
+            ],
+            challenge: "z".to_string(),
+            num_challenges: 1,
+            map_challenges: false,
+        });
+
+        // Round 5
+        /*
+        transcript::Manifest::RoundManifest(
+                {
+                    { .name = "t",            .num_bytes = Self::FR_SIZE, .derived_by_verifier = true,  .challenge_map_index = -1 },
+                    { .name = "w_1",          .num_bytes = Self::FR_SIZE, .derived_by_verifier = false, .challenge_map_index = 0 },
+                    { .name = "w_2",          .num_bytes = Self::FR_SIZE, .derived_by_verifier = false, .challenge_map_index = 1 },
+                    { .name = "w_3",          .num_bytes = Self::FR_SIZE, .derived_by_verifier = false, .challenge_map_index = 2 },
+                    { .name = "sigma_1",      .num_bytes = Self::FR_SIZE, .derived_by_verifier = false, .challenge_map_index = 3 },
+                    { .name = "sigma_2",      .num_bytes = Self::FR_SIZE, .derived_by_verifier = false, .challenge_map_index = 4 },
+                    { .name = "sigma_3",      .num_bytes = Self::FR_SIZE, .derived_by_verifier = false, .challenge_map_index = 5 },
+                    { .name = "q_1",          .num_bytes = Self::FR_SIZE, .derived_by_verifier = false, .challenge_map_index = 6 },
+                    { .name = "q_2",          .num_bytes = Self::FR_SIZE, .derived_by_verifier = false, .challenge_map_index = 7 },
+                    { .name = "q_3",          .num_bytes = Self::FR_SIZE, .derived_by_verifier = false, .challenge_map_index = 8 },
+                    { .name = "q_m",          .num_bytes = Self::FR_SIZE, .derived_by_verifier = false, .challenge_map_index = 9 },
+                    { .name = "q_c",          .num_bytes = Self::FR_SIZE, .derived_by_verifier = false, .challenge_map_index = 10 },
+                    { .name = "z_perm",       .num_bytes = Self::FR_SIZE, .derived_by_verifier = false, .challenge_map_index = 11 },
+                    { .name = "z_perm_omega", .num_bytes = Self::FR_SIZE, .derived_by_verifier = false, .challenge_map_index = -1 },
+                },
+                /* challenge_name = */ "nu",
+                /* num_challenges_in = */ STANDARD_MANIFEST_SIZE,
+                /* map_challenges_in = */ true),
+         */
+        manifest.add_round_manifest(RoundManifest {
+            elements: vec![
+                ManifestEntry {
+                    name: "t".to_string(),
+                    num_bytes: Self::FR_SIZE,
+                    derived_by_verifier: true,
+                    challenge_map_index: -1,
+                },
+                ManifestEntry {
+                    name: "w_1".to_string(),
+                    num_bytes: Self::FR_SIZE,
+                    derived_by_verifier: false,
+                    challenge_map_index: 0,
+                },
+                ManifestEntry {
+                    name: "w_2".to_string(),
+                    num_bytes: Self::FR_SIZE,
+                    derived_by_verifier: false,
+                    challenge_map_index: 1,
+                },
+                ManifestEntry {
+                    name: "w_3".to_string(),
+                    num_bytes: Self::FR_SIZE,
+                    derived_by_verifier: false,
+                    challenge_map_index: 2,
+                },
+                ManifestEntry {
+                    name: "sigma_1".to_string(),
+                    num_bytes: Self::FR_SIZE,
+                    derived_by_verifier: false,
+                    challenge_map_index: 3,
+                },
+                ManifestEntry {
+                    name: "sigma_2".to_string(),
+                    num_bytes: Self::FR_SIZE,
+                    derived_by_verifier: false,
+                    challenge_map_index: 4,
+                },
+                ManifestEntry {
+                    name: "sigma_3".to_string(),
+                    num_bytes: Self::FR_SIZE,
+                    derived_by_verifier: false,
+                    challenge_map_index: 5,
+                },
+                ManifestEntry {
+                    name: "q_1".to_string(),
+                    num_bytes: Self::FR_SIZE,
+                    derived_by_verifier: false,
+                    challenge_map_index: 6,
+                },
+                ManifestEntry {
+                    name: "q_2".to_string(),
+                    num_bytes: Self::FR_SIZE,
+                    derived_by_verifier: false,
+                    challenge_map_index: 7,
+                },
+                ManifestEntry {
+                    name: "q_3".to_string(),
+                    num_bytes: Self::FR_SIZE,
+                    derived_by_verifier: false,
+                    challenge_map_index: 8,
+                },
+                ManifestEntry {
+                    name: "q_m".to_string(),
+                    num_bytes: Self::FR_SIZE,
+                    derived_by_verifier: false,
+                    challenge_map_index: 9,
+                },
+                ManifestEntry {
+                    name: "q_c".to_string(),
+                    num_bytes: Self::FR_SIZE,
+                    derived_by_verifier: false,
+                    challenge_map_index: 10,
+                },
+                ManifestEntry {
+                    name: "z_perm".to_string(),
+                    num_bytes: Self::FR_SIZE,
+                    derived_by_verifier: false,
+                    challenge_map_index: 11,
+                },
+                ManifestEntry {
+                    name: "z_perm_omega".to_string(),
+                    num_bytes: Self::FR_SIZE,
+                    derived_by_verifier: false,
+                    challenge_map_index: -1,
+                },
+            ],
+            challenge: "nu".to_string(),
+            num_challenges: *STANDARD_MANIFEST_SIZE,
+            map_challenges: true,
+        });
+
+        // Round 6
+        /*
+                             transcript::Manifest::RoundManifest(
+               { { .name = "PI_Z",       .num_bytes = Self::G1_SIZE, .derived_by_verifier = false },
+                 { .name = "PI_Z_OMEGA", .num_bytes = Self::G1_SIZE, .derived_by_verifier = false } },
+               /* challenge_name = */ "separator",
+               /* num_challenges_in = */ 1) }
+        */
+        manifest.add_round_manifest(RoundManifest {
+            elements: vec![
+                ManifestEntry {
+                    name: "PI_Z".to_string(),
+                    num_bytes: Self::G1_SIZE,
+                    derived_by_verifier: false,
+                    challenge_map_index: 0,
+                },
+                ManifestEntry {
+                    name: "PI_Z_OMEGA".to_string(),
+                    num_bytes: Self::G1_SIZE,
+                    derived_by_verifier: false,
+                    challenge_map_index: 0,
+                },
+            ],
+            challenge: "separator".to_string(),
+            num_challenges: 1,
+            map_challenges: false,
+        });
+
+        manifest
+    }
+
     fn with_crs_factory(
         crs_factory: Arc<RSF>,
         num_selectors: usize,
@@ -819,283 +1093,6 @@ impl<RSF: ReferenceStringFactory> StandardComposer<RSF> {
     /// program width.
     fn compute_witness(&mut self) {
         self.compute_witness_base(self.settings.program_width(), None);
-    }
-
-    fn create_manifest(&self, num_public_inputs: usize) -> Manifest {
-        let g1_size: usize = 64;
-        let fr_size: usize = 32;
-        let public_input_size = fr_size * num_public_inputs;
-
-        let mut manifest = Manifest::default();
-        // round 0
-        manifest.add_round_manifest(RoundManifest {
-            elements: vec![
-                ManifestEntry {
-                    name: "circuit_size".to_string(),
-                    num_bytes: 4,
-                    derived_by_verifier: true,
-                    challenge_map_index: 0,
-                },
-                ManifestEntry {
-                    name: "public_input_size".to_string(),
-                    num_bytes: 4,
-                    derived_by_verifier: true,
-                    challenge_map_index: 0,
-                },
-            ],
-            challenge: "init".to_string(),
-            num_challenges: 1,
-            map_challenges: false,
-        });
-
-        // round 1
-        manifest.add_round_manifest(RoundManifest {
-            elements: vec![],
-            challenge: "eta".to_string(),
-            num_challenges: 0,
-            map_challenges: false,
-        });
-
-        // round 2
-        /*
-                       {
-                   { .name = "public_inputs", .num_bytes = public_input_size, .derived_by_verifier = false },
-                   { .name = "W_1",           .num_bytes = g1_size,           .derived_by_verifier = false },
-                   { .name = "W_2",           .num_bytes = g1_size,           .derived_by_verifier = false },
-                   { .name = "W_3",           .num_bytes = g1_size,           .derived_by_verifier = false },
-               },
-               /* challenge_name = */ "beta",
-               /* num_challenges_in = */ 2),
-        */
-        manifest.add_round_manifest(RoundManifest {
-            elements: vec![
-                ManifestEntry {
-                    name: "public_inputs".to_string(),
-                    num_bytes: public_input_size,
-                    derived_by_verifier: false,
-                    challenge_map_index: 0,
-                },
-                ManifestEntry {
-                    name: "W_1".to_string(),
-                    num_bytes: g1_size,
-                    derived_by_verifier: false,
-                    challenge_map_index: 0,
-                },
-                ManifestEntry {
-                    name: "W_2".to_string(),
-                    num_bytes: g1_size,
-                    derived_by_verifier: false,
-                    challenge_map_index: 0,
-                },
-                ManifestEntry {
-                    name: "W_3".to_string(),
-                    num_bytes: g1_size,
-                    derived_by_verifier: false,
-                    challenge_map_index: 0,
-                },
-            ],
-            challenge: "beta".to_string(),
-            num_challenges: 2,
-            map_challenges: false,
-        });
-
-        // Round 3
-        //   transcript::Manifest::RoundManifest(
-        //     { { .name = "Z_PERM", .num_bytes = g1_size, .derived_by_verifier = false } },
-        //     /* challenge_name = */ "alpha",
-        //     /* num_challenges_in = */ 1),
-
-        manifest.add_round_manifest(RoundManifest {
-            elements: vec![ManifestEntry {
-                name: "Z_PERM".to_string(),
-                num_bytes: g1_size,
-                derived_by_verifier: false,
-                challenge_map_index: 0,
-            }],
-            challenge: "alpha".to_string(),
-            num_challenges: 1,
-            map_challenges: false,
-        });
-
-        // Round 4
-        /*
-                     transcript::Manifest::RoundManifest(
-               { { .name = "T_1", .num_bytes = g1_size, .derived_by_verifier = false },
-                 { .name = "T_2", .num_bytes = g1_size, .derived_by_verifier = false },
-                 { .name = "T_3", .num_bytes = g1_size, .derived_by_verifier = false } },
-               /* challenge_name = */ "z",
-               /* num_challenges_in = */ 1),
-        */
-        manifest.add_round_manifest(RoundManifest {
-            elements: vec![
-                ManifestEntry {
-                    name: "T_1".to_string(),
-                    num_bytes: g1_size,
-                    derived_by_verifier: false,
-                    challenge_map_index: 0,
-                },
-                ManifestEntry {
-                    name: "T_2".to_string(),
-                    num_bytes: g1_size,
-                    derived_by_verifier: false,
-                    challenge_map_index: 0,
-                },
-                ManifestEntry {
-                    name: "T_3".to_string(),
-                    num_bytes: g1_size,
-                    derived_by_verifier: false,
-                    challenge_map_index: 0,
-                },
-            ],
-            challenge: "z".to_string(),
-            num_challenges: 1,
-            map_challenges: false,
-        });
-
-        // Round 5
-        /*
-        transcript::Manifest::RoundManifest(
-                {
-                    { .name = "t",            .num_bytes = fr_size, .derived_by_verifier = true,  .challenge_map_index = -1 },
-                    { .name = "w_1",          .num_bytes = fr_size, .derived_by_verifier = false, .challenge_map_index = 0 },
-                    { .name = "w_2",          .num_bytes = fr_size, .derived_by_verifier = false, .challenge_map_index = 1 },
-                    { .name = "w_3",          .num_bytes = fr_size, .derived_by_verifier = false, .challenge_map_index = 2 },
-                    { .name = "sigma_1",      .num_bytes = fr_size, .derived_by_verifier = false, .challenge_map_index = 3 },
-                    { .name = "sigma_2",      .num_bytes = fr_size, .derived_by_verifier = false, .challenge_map_index = 4 },
-                    { .name = "sigma_3",      .num_bytes = fr_size, .derived_by_verifier = false, .challenge_map_index = 5 },
-                    { .name = "q_1",          .num_bytes = fr_size, .derived_by_verifier = false, .challenge_map_index = 6 },
-                    { .name = "q_2",          .num_bytes = fr_size, .derived_by_verifier = false, .challenge_map_index = 7 },
-                    { .name = "q_3",          .num_bytes = fr_size, .derived_by_verifier = false, .challenge_map_index = 8 },
-                    { .name = "q_m",          .num_bytes = fr_size, .derived_by_verifier = false, .challenge_map_index = 9 },
-                    { .name = "q_c",          .num_bytes = fr_size, .derived_by_verifier = false, .challenge_map_index = 10 },
-                    { .name = "z_perm",       .num_bytes = fr_size, .derived_by_verifier = false, .challenge_map_index = 11 },
-                    { .name = "z_perm_omega", .num_bytes = fr_size, .derived_by_verifier = false, .challenge_map_index = -1 },
-                },
-                /* challenge_name = */ "nu",
-                /* num_challenges_in = */ STANDARD_MANIFEST_SIZE,
-                /* map_challenges_in = */ true),
-         */
-        manifest.add_round_manifest(RoundManifest {
-            elements: vec![
-                ManifestEntry {
-                    name: "t".to_string(),
-                    num_bytes: fr_size,
-                    derived_by_verifier: true,
-                    challenge_map_index: -1,
-                },
-                ManifestEntry {
-                    name: "w_1".to_string(),
-                    num_bytes: fr_size,
-                    derived_by_verifier: false,
-                    challenge_map_index: 0,
-                },
-                ManifestEntry {
-                    name: "w_2".to_string(),
-                    num_bytes: fr_size,
-                    derived_by_verifier: false,
-                    challenge_map_index: 1,
-                },
-                ManifestEntry {
-                    name: "w_3".to_string(),
-                    num_bytes: fr_size,
-                    derived_by_verifier: false,
-                    challenge_map_index: 2,
-                },
-                ManifestEntry {
-                    name: "sigma_1".to_string(),
-                    num_bytes: fr_size,
-                    derived_by_verifier: false,
-                    challenge_map_index: 3,
-                },
-                ManifestEntry {
-                    name: "sigma_2".to_string(),
-                    num_bytes: fr_size,
-                    derived_by_verifier: false,
-                    challenge_map_index: 4,
-                },
-                ManifestEntry {
-                    name: "sigma_3".to_string(),
-                    num_bytes: fr_size,
-                    derived_by_verifier: false,
-                    challenge_map_index: 5,
-                },
-                ManifestEntry {
-                    name: "q_1".to_string(),
-                    num_bytes: fr_size,
-                    derived_by_verifier: false,
-                    challenge_map_index: 6,
-                },
-                ManifestEntry {
-                    name: "q_2".to_string(),
-                    num_bytes: fr_size,
-                    derived_by_verifier: false,
-                    challenge_map_index: 7,
-                },
-                ManifestEntry {
-                    name: "q_3".to_string(),
-                    num_bytes: fr_size,
-                    derived_by_verifier: false,
-                    challenge_map_index: 8,
-                },
-                ManifestEntry {
-                    name: "q_m".to_string(),
-                    num_bytes: fr_size,
-                    derived_by_verifier: false,
-                    challenge_map_index: 9,
-                },
-                ManifestEntry {
-                    name: "q_c".to_string(),
-                    num_bytes: fr_size,
-                    derived_by_verifier: false,
-                    challenge_map_index: 10,
-                },
-                ManifestEntry {
-                    name: "z_perm".to_string(),
-                    num_bytes: fr_size,
-                    derived_by_verifier: false,
-                    challenge_map_index: 11,
-                },
-                ManifestEntry {
-                    name: "z_perm_omega".to_string(),
-                    num_bytes: fr_size,
-                    derived_by_verifier: false,
-                    challenge_map_index: -1,
-                },
-            ],
-            challenge: "nu".to_string(),
-            num_challenges: *STANDARD_MANIFEST_SIZE,
-            map_challenges: true,
-        });
-
-        // Round 6
-        /*
-                             transcript::Manifest::RoundManifest(
-               { { .name = "PI_Z",       .num_bytes = g1_size, .derived_by_verifier = false },
-                 { .name = "PI_Z_OMEGA", .num_bytes = g1_size, .derived_by_verifier = false } },
-               /* challenge_name = */ "separator",
-               /* num_challenges_in = */ 1) }
-        */
-        manifest.add_round_manifest(RoundManifest {
-            elements: vec![
-                ManifestEntry {
-                    name: "PI_Z".to_string(),
-                    num_bytes: g1_size,
-                    derived_by_verifier: false,
-                    challenge_map_index: 0,
-                },
-                ManifestEntry {
-                    name: "PI_Z_OMEGA".to_string(),
-                    num_bytes: g1_size,
-                    derived_by_verifier: false,
-                    challenge_map_index: 0,
-                },
-            ],
-            challenge: "separator".to_string(),
-            num_challenges: 1,
-            map_challenges: false,
-        });
-
-        manifest
     }
 
     /// Creates a verifier.
