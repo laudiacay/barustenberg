@@ -1049,12 +1049,3 @@ pub(crate) trait ComposerBase {
 //  *     ];
 //  *
 //  */
-#[cfg(test)]
-mod test {
-    use super::*;
-
-    #[test]
-    fn compute_wire_copy_cycles() {
-        todo!();
-    }
-}
