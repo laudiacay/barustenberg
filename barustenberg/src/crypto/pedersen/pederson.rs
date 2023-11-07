@@ -82,9 +82,7 @@ pub(crate) mod test {
             &mut GENERATOR_CONTEXT.lock().unwrap(),
         );
         let expected = Affine::new(
-            // 2f7a8f9a6c96926682205fb73ee43215bf13523c19d7afe36f12760266cdfe15
             MontFp!("231570567088489780672426506353362499554225005377301234298356723277158049403"),
-            // 01916b316adbbf0e10e39b18c1d24b33ec84b46daddf72f43878bcc92b6057e6
             MontFp!(
                 "15307670091902218669505377418137932514463250251528740589240008994863263703888"
             ),

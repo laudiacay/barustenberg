@@ -24,7 +24,6 @@ pub(crate) fn hash(
     let res: Affine<GrumpkinConfig> = (length_generator(0)
         * <GrumpkinConfig as CurveConfig>::ScalarField::from(inputs.len() as u64))
     .into_affine();
-    //Note output is x in projective coordinates not affine.
     (res + commit_native(inputs, context)).into_affine().x
 }
 
@@ -36,11 +35,9 @@ pub(crate) fn hash_with_index(
     let res: Affine<GrumpkinConfig> = (length_generator(starting_index)
         * <GrumpkinConfig as CurveConfig>::ScalarField::from(inputs.len() as u64))
     .into_affine();
-    //Note output is x in projective coordinates not affine.
     (res + commit_native(inputs, context)).into_affine().x
 }
 
-//Note: this can be abstracted to a lazy_static!()
 // length_generator: (16063406592428334581056774180896419344331184927683265052314702073066435943873, 17916849626726460830866689840922781751319971491928759743495979859497111217886)
 // length_generator with index 5:  (5536982424527559415100431280492329513183658401277695557077208029565215414989, 11331795194798001435190325606804339647380614317757253421377381911305808989494)
 fn length_generator<E: SWCurveConfig>(starting_index: usize) -> Affine<E> {
@@ -150,7 +147,6 @@ pub(crate) mod test {
         );
         assert_eq!(
             res,
-            //MontFp!("3382712453967845713887399370753050874236856032939624587459622627919799159283")
             MontFp!("3968502498651788738938452400218391002721537179087268284303065092205739166561")
         );
     }
