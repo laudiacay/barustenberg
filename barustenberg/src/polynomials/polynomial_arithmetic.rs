@@ -743,11 +743,15 @@ impl<Fr: Field + FftField> EvaluationDomain<Fr> {
         });
     }
     fn ifft_with_constant(&self, coeffs: &mut [Fr], value: Fr) {
-            self.fft_inner_parallel_vec_inplace(&mut [coeffs], &self.root_inverse, &self.get_inverse_round_roots()[..]);
-            let t0 = self.domain_inverse * value;
-            for item in coeffs.iter_mut().take(self.size) {
-                *item *= t0;
-            }
+        self.fft_inner_parallel_vec_inplace(
+            &mut [coeffs],
+            &self.root_inverse,
+            &self.get_inverse_round_roots()[..],
+        );
+        let t0 = self.domain_inverse * value;
+        for item in coeffs.iter_mut().take(self.size) {
+            *item *= t0;
+        }
     }
 
     pub(crate) fn coset_ifft_inplace(&self, coeffs: &mut [Fr]) {
@@ -791,23 +795,23 @@ impl<Fr: Field + FftField> EvaluationDomain<Fr> {
     }
 
     pub(crate) fn coset_ifft_vec(&self, coeffs: &mut [&mut [Fr]]) {
-            self.ifft_vec_inplace(coeffs);
-        
-            let num_polys = coeffs.len();
-            assert!(num_polys.is_power_of_two());
-            let poly_size = self.size / num_polys;
-            let generator_inv_pow_n = self.generator_inverse.pow([poly_size as u64]);
-            let mut generator_start = Fr::one();
-        
-            for coeff_i in coeffs.iter_mut().take(num_polys) {
-                self.scale_by_generator_inplace(
-                    coeff_i,
-                    generator_start,
-                    self.generator_inverse,
-                    poly_size,
-                );
-                generator_start *= generator_inv_pow_n;
-            }
+        self.ifft_vec_inplace(coeffs);
+
+        let num_polys = coeffs.len();
+        assert!(num_polys.is_power_of_two());
+        let poly_size = self.size / num_polys;
+        let generator_inv_pow_n = self.generator_inverse.pow([poly_size as u64]);
+        let mut generator_start = Fr::one();
+
+        for coeff_i in coeffs.iter_mut().take(num_polys) {
+            self.scale_by_generator_inplace(
+                coeff_i,
+                generator_start,
+                self.generator_inverse,
+                poly_size,
+            );
+            generator_start *= generator_inv_pow_n;
+        }
     }
 
     fn fft_with_constant(&self, coeffs: &mut [Fr], target: &mut [Fr], value: Fr) {
@@ -913,7 +917,13 @@ impl<Fr: Field + FftField> EvaluationDomain<Fr> {
     }
 
     pub(crate) fn coset_fft(&self, coeffs: &mut [Fr], target: &mut [Fr]) {
-        self.scale_by_generator(coeffs, target, Fr::one(), self.generator, self.generator_size);
+        self.scale_by_generator(
+            coeffs,
+            target,
+            Fr::one(),
+            self.generator,
+            self.generator_size,
+        );
         self.fft(coeffs, target)
     }
 
@@ -921,7 +931,7 @@ impl<Fr: Field + FftField> EvaluationDomain<Fr> {
         self.scale_by_generator_inplace(
             coeffs,
             Fr::one(),
-            self.generator* constant,
+            self.generator * constant,
             self.generator_size,
         );
         self.fft_inplace(coeffs);

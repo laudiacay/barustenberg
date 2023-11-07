@@ -1,5 +1,5 @@
 use ark_bn254::{Bn254, Fq12, G1Affine, G2Affine};
-use ark_ec::{AffineRepr, pairing::Pairing};
+use ark_ec::{pairing::Pairing, AffineRepr};
 use ark_ff::{AdditiveGroup, One};
 
 use super::io;
