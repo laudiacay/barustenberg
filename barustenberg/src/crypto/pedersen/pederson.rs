@@ -1,8 +1,5 @@
-use ark_ec::{
-    short_weierstrass::{Affine, SWCurveConfig},
-    AffineRepr, CurveGroup,
-};
-use ark_ff::{Field, Fp, PrimeField};
+use ark_ec::{short_weierstrass::Affine, AffineRepr, CurveGroup};
+use ark_ff::PrimeField;
 use grumpkin::{Fq, Fr, GrumpkinConfig};
 
 use crate::crypto::generator::GeneratorContext;
@@ -49,6 +46,35 @@ pub(crate) mod test {
 
     //TODO: double check that the generators are the same. They could be slightly different due to the way we canonically
     // decide how to invert y which was done to prevent a headache of having to deseialize an Fq element... Long story.
+    // We compute sum_{gen * input}; -> 1 * gen[0] + 1 * gen[1] - Given Group ops -> (gen[0].operate_with_self(1)).operate_with(gen[1].operate_with_self(1))
+    // -> gen[0].operate_with(gen[1])
+    // Compute naive generators sage:
+    /*
+       r = 21888242871839275222246405745257275088548364400416034343698204186575808495617
+       p = 21888242871839275222246405745257275088696311157297823662689037894645226208583
+       a = 0
+       b = -17
+       Fr = GF(r)
+       grumpkin = EllipticCurve(Fr, [a,b])
+       grumpkin.set_order(p)
+       # generators[1]
+       e = grumpkin(
+           18427940726016234078985946418448280648870225692973225849694456867521160726934,
+            21532357112255058987590902028734969864671062849942210368353786847928073297018
+           )
+       # generators[1]
+       d = grumpkin(
+           391479787776068058408721993510469975463547477513640094152105077479335183379,
+           11137044286323765227152527641563178484030256868339213989437323640137135753514
+       )
+       c = e + d
+       #c
+       #(
+       #    231570567088489780672426506353362499554225005377301234298356723277158049403
+       #    : 15307670091902218669505377418137932514463250251528740589240008994863263703888
+       #    : 1
+       #)
+    */
     #[test]
     fn commitment() {
         let res = commit_native(
@@ -57,11 +83,11 @@ pub(crate) mod test {
         );
         let expected = Affine::new(
             // 2f7a8f9a6c96926682205fb73ee43215bf13523c19d7afe36f12760266cdfe15
-            MontFp!(
-                "21475250338311530111088781112432132511855209292730670949974692984887182229013"
-            ),
+            MontFp!("231570567088489780672426506353362499554225005377301234298356723277158049403"),
             // 01916b316adbbf0e10e39b18c1d24b33ec84b46daddf72f43878bcc92b6057e6
-            MontFp!("709245492126126701709902506217603794644991322680146492508959813283461748710"),
+            MontFp!(
+                "15307670091902218669505377418137932514463250251528740589240008994863263703888"
+            ),
         );
 
         assert_eq!(res, expected);

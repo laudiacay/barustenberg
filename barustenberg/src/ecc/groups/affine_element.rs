@@ -1,6 +1,6 @@
 use ark_ec::short_weierstrass::{Affine, SWCurveConfig};
 
-use ark_ff::{BigInteger, Field};
+use ark_ff::Field;
 
 /**
  * @brief Hash a seed buffer into a point
