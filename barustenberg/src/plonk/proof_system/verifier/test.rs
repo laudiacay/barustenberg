@@ -1,6 +1,9 @@
 use crate::{
     plonk::{
-        composer::composer_base::ComposerType,
+        composer::{
+            composer_base::{ComposerBase, ComposerType},
+            standard_composer::StandardComposer,
+        },
         proof_system::{
             commitment_scheme::KateCommitmentScheme,
             prover::Prover,
@@ -104,6 +107,7 @@ impl<H: BarretenHasher> Verifier<H> {
 
         // TODOL: this number of points in arbitrary and needs to be checked with the reference string
         let crs = FileReferenceStringFactory::new("../srs_db/ignition".to_string());
+        let composer = StandardComposer::<FileReferenceStringFactory>::default();
         let vrs = crs.get_verifier_crs()?.unwrap();
         let mut circuit_verification_key = VerificationKey::new(
             circuit_proving_key.read().unwrap().circuit_size,
@@ -139,7 +143,7 @@ impl<H: BarretenHasher> Verifier<H> {
 
         let mut verifier = Verifier::new(
             Some(Arc::new(RwLock::new(circuit_verification_key))),
-            ComposerType::Standard.create_manifest(0),
+            composer.create_manifest(0),
         );
 
         let kate_commitment_scheme = Box::new(KateCommitmentScheme::<
@@ -397,12 +401,9 @@ fn generate_test_data<'a, H: BarretenHasher + Default + 'static>(n: usize) -> Pr
 
     let widget: Box<ProverArithmeticWidget<H>> =
         Box::new(ProverArithmeticWidget::<H>::new(key.clone()));
+    let composer = StandardComposer::<FileReferenceStringFactory>::default();
 
-    let mut state: Prover<H> = Prover::new(
-        Some(key),
-        Some(ComposerType::Standard.create_manifest(0)),
-        None,
-    );
+    let mut state: Prover<H> = Prover::new(Some(key), Some(composer.create_manifest(0)), None);
     state.random_widgets.push(permutation_widget);
     state.transition_widgets.push(widget);
     state

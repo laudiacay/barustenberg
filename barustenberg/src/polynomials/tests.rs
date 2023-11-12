@@ -1083,7 +1083,8 @@ fn test_factor_roots() {
             *root = Fr::zero();
         }
 
-        roots[num_zero_roots..(num_non_zero_roots + num_zero_roots)].copy_from_slice(&non_zero_roots[..num_non_zero_roots]);
+        roots[num_zero_roots..(num_non_zero_roots + num_zero_roots)]
+            .copy_from_slice(&non_zero_roots[..num_non_zero_roots]);
 
         if num_non_zero_roots > 0 {
             let interpolated =
