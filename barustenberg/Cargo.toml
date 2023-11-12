@@ -11,7 +11,9 @@ edition = "2021"
 rust-version = "1.64"
 documentation = "https://docs.rs/barustenberg"
 repository = "https://github.com/laudiacay/barustenberg/tree/main/barustenberg"
-authors = ["Claudia Richoux <c@laudiacay.cool>, Waylon Jepsen <waylonjepsen1@gmail.com>"]
+authors = [
+	"Claudia Richoux <c@laudiacay.cool>, Waylon Jepsen <waylonjepsen1@gmail.com>",
+]
 
 [lib]
 path = "src/lib.rs"
@@ -22,6 +24,7 @@ ark-std = "0.4.0"
 ark-bn254 = "0.4.0"
 ark-ec = "0.4.2"
 ark-ff = "0.4.2"
+ark-std = "0.4.0"
 ark-serialize = "0.4.2"
 byteorder = "1.4.3"
 generic-array = "0.14.7"

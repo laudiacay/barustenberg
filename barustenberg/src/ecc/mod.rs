@@ -3,6 +3,7 @@ use ark_ff::{FftField, Field};
 // TODO todo - stubs to get the compiler to cooperate.
 pub(crate) mod curves;
 pub(crate) mod groups;
+pub(crate) mod scalar_multiplication;
 
 #[inline]
 pub(crate) fn conditionally_subtract_from_double_modulus<Fr: Field + FftField>(

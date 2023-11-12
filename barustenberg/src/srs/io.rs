@@ -1,7 +1,5 @@
 use anyhow::{anyhow, Result};
-use ark_bn254::Fq;
-use ark_bn254::Fq2;
-use ark_bn254::{G1Affine, G2Affine};
+use ark_bn254::{Fq, Fq2, G1Affine, G2Affine};
 use ark_ec::AffineRepr;
 use ark_serialize::CanonicalDeserialize;
 use byteorder::ByteOrder;

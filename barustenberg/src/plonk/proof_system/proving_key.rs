@@ -4,15 +4,17 @@ use std::io::Read;
 use std::sync::{Arc, RwLock};
 use std::vec::Vec;
 
-use crate::ecc::curves::bn254_scalar_multiplication::PippengerRuntimeState;
-use crate::plonk::proof_system::constants::NUM_QUOTIENT_PARTS;
+use crate::{
+    ecc::scalar_multiplication::runtime_states::PippengerRuntimeState,
+    plonk::proof_system::constants::NUM_QUOTIENT_PARTS,
+};
 
-use crate::plonk::composer::composer_base::ComposerType;
-use crate::polynomials::evaluation_domain::EvaluationDomain;
-use crate::polynomials::Polynomial;
-use crate::proof_system::polynomial_store::PolynomialStore;
-use crate::srs::reference_string::file_reference_string::FileReferenceString;
-use crate::srs::reference_string::ProverReferenceString;
+use crate::{
+    plonk::composer::composer_base::ComposerType,
+    polynomials::{evaluation_domain::EvaluationDomain, Polynomial},
+    proof_system::polynomial_store::PolynomialStore,
+    srs::reference_string::{file_reference_string::FileReferenceString, ProverReferenceString},
+};
 
 use super::types::PolynomialManifest;
 

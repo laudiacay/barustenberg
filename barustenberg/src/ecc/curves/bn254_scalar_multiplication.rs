@@ -48,8 +48,8 @@ impl Pippenger {
     pub(crate) fn from_path(path: &str, num_points: usize) -> Result<Self> {
         let mut monomials = vec![G1Affine::default(); num_points];
         read_transcript_g1(&mut monomials, num_points, path)?;
-        let point_table = monomials.clone();
-        generate_pippenger_point_table(&point_table, &mut monomials, num_points);
+        let mut point_table = monomials.clone();
+        generate_pippenger_point_table(point_table.as_mut_slice(), &mut monomials, num_points);
         Ok(Self {
             monomials,
             num_points,

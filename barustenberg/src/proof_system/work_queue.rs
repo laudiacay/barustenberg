@@ -5,10 +5,12 @@ use anyhow::Result;
 
 use ark_bn254::{Fr, G1Affine};
 
-use crate::ecc::curves::bn254_scalar_multiplication::PippengerRuntimeState;
-use crate::plonk::proof_system::proving_key::ProvingKey;
-use crate::polynomials::Polynomial;
-use crate::transcript::{BarretenHasher, Transcript};
+use crate::{
+    ecc::scalar_multiplication::runtime_states::PippengerRuntimeState,
+    plonk::proof_system::proving_key::ProvingKey,
+    polynomials::Polynomial,
+    transcript::{BarretenHasher, Transcript},
+};
 
 #[derive(Clone, Debug)]
 pub(crate) enum Work {
