@@ -349,15 +349,6 @@ impl<S: Settings<Hasher = H, Field = Fr, Group = G1Affine>, H: BarretenHasher> C
 
         let zeta: Fr = transcript.get_challenge_field_element("z", None);
 
-        /*
-        // Note: the opening poly W_\frak{z} is always size (n + 1) due to blinding
-        // of the quotient polynomial
-        let opening_poly: Arc<RwLock<Polynomial<Fr>>> =
-            Arc::new(RwLock::new(Polynomial::new(input_key.circuit_size + 1)));
-        let shifted_opening_poly: Arc<RwLock<Polynomial<Fr>>> =
-            Arc::new(RwLock::new(Polynomial::new(input_key.circuit_size)));
-        */
-
         // Add the tuples [t_{mid}(X), \zeta^{n}], [t_{high}(X), \zeta^{2n}]
         // Note: We don't need to include the t_{low}(X) since it is multiplied by 1 for combining with other witness
         // polynomials.
@@ -369,38 +360,22 @@ impl<S: Settings<Hasher = H, Field = Fr, Group = G1Affine>, H: BarretenHasher> C
                 .push((input_key.quotient_polynomial_parts[i].clone(), scalar));
         }
 
-        // Add up things to get coefficients of opening polynomials.
-        // TODO THESE LOCKS ARE FUCKED. UP. THEY WILL BE UNDER HEAVY CONTENTION. FIX THEM
-        /*
-        (0..input_key.small_domain.size)
-            .into_par_iter()
-            .for_each(|i| {
-                let mut opening_poly = opening_poly.write().unwrap();
-                opening_poly[i] = input_key.quotient_polynomial_parts[0].read().unwrap()[i];
-                for &(ref poly, challenge) in &opened_polynomials_at_zeta {
-                    opening_poly[i] += (*poly).read().unwrap()[i] * challenge;
-                }
-                let mut shifted_opening_poly = shifted_opening_poly.write().unwrap();
-                shifted_opening_poly[i] = Fr::zero();
-                for &(ref poly, challenge) in &opened_polynomials_at_zeta_omega {
-                    shifted_opening_poly[i] += (*poly).read().unwrap()[i] * challenge;
-                }
-            });
-        */
-
-        // Gotta make sure this actually works
-        let mut opening_poly = Arc::new(Polynomial::new(input_key.circuit_size + 1));
-        let mut shifted_opening_poly = Arc::new(Polynomial::new(input_key.circuit_size));
+        // Note: the opening poly W_\frak{z} is always size (n + 1) due to blinding
+        // of the quotient polynomial
+        let opening_poly = Arc::new(Polynomial::new(input_key.circuit_size + 1));
+        let shifted_opening_poly = Arc::new(Polynomial::new(input_key.circuit_size));
+        
         // Safe because:
         // 1. We only write to opening_poly/shifted_opening_poly.
         // 2. Values being written and opening_poly/shifted_opening_poly are independent to each
         //    other.
         // 3. Each thread is writing to their own index, so no double writes.
+        // Add up things to get coefficients of opening polynomials.
         (0..input_key.small_domain.size)
             .into_par_iter()
             .for_each(|i| unsafe {
-                let mut opening_poly = (opening_poly.clone().coefficients.as_ptr() as *mut Fr).offset(i as isize);
-                let mut shifted_opening_poly = (shifted_opening_poly.clone().coefficients.as_ptr() as *mut Fr).offset(i as isize);
+                let opening_poly = (opening_poly.clone().coefficients.as_ptr() as *mut Fr).offset(i as isize);
+                let shifted_opening_poly = (shifted_opening_poly.clone().coefficients.as_ptr() as *mut Fr).offset(i as isize);
                 *opening_poly = input_key.quotient_polynomial_parts[0].read().unwrap()[i];
                 for &(ref poly, challenge) in &opened_polynomials_at_zeta {
                     *opening_poly += (*poly).read().unwrap()[i] * challenge;
@@ -413,14 +388,6 @@ impl<S: Settings<Hasher = H, Field = Fr, Group = G1Affine>, H: BarretenHasher> C
 
         let mut opening_poly = Arc::try_unwrap(opening_poly).unwrap();
         let shifted_opening_poly = Arc::try_unwrap(shifted_opening_poly).unwrap();
-        /*
-        let opening_poly = Arc::try_unwrap(opening_poly).unwrap();
-        let opening_poly = opening_poly.into_inner();
-        let mut opening_poly = opening_poly.unwrap();
-        let shifted_opening_poly = Arc::try_unwrap(shifted_opening_poly).unwrap();
-        let shifted_opening_poly = shifted_opening_poly.into_inner();
-        let shifted_opening_poly = shifted_opening_poly.unwrap();
-        */
 
         // Adjust the (n + 1)th coefficient of t_{0,1,2}(X) or r(X) (Note: t_4 (Turbo/Ultra) has only n coefficients)
         opening_poly[input_key.circuit_size] = Fr::zero();
@@ -564,11 +531,9 @@ mod tests {
     use crate::plonk::proof_system::types::prover_settings::TurboSettings;
     use crate::srs::reference_string::{ProverReferenceString, file_reference_string::FileReferenceString};
     use crate::plonk::composer::composer_base::ComposerType;
-    use ark_ec::VariableBaseMSM;
 
     use crate::transcript::PedersenBlake3s;
 
-    use ark_bn254::{G2Affine, G1Projective};
     use ark_ff::{UniformRand, Zero};
 
     #[test]
@@ -579,15 +544,16 @@ mod tests {
         // Generate random polynomial
         let n = 256;
         let mut rng = rand::thread_rng();
-        let mut poly = Arc::new(RwLock::new(Polynomial::new(n)));
+        let poly = Arc::new(RwLock::new(Polynomial::new(n+1)));
         
         for i in 0..n {
-            poly.write().unwrap().set_coefficient(i, Fr::rand(&mut rng));
+            poly.write().unwrap()[i] = Fr::rand(&mut rng);
         }
+        poly.write().unwrap()[n] = Fr::zero();
 
         // Generate random evaluation point z
         let z = Fr::rand(&mut rng);
-        
+       
         // Load srs
         let crs = Arc::new(RwLock::new(
             FileReferenceString::new(n, "./src/srs_db/ignition").unwrap(),
@@ -596,7 +562,7 @@ mod tests {
         let key = Arc::new(RwLock::new(ProvingKey::new(
             n,
             0,
-            crs.clone(),
+            crs,
             ComposerType::Standard,
         )));
         
@@ -612,41 +578,21 @@ mod tests {
         // Compute opening polynomial W(X), and evaluation f = F(z)
         kate.commit(poly.clone(), "F_COMM".to_string(), Fr::from(n as i16), &mut queue);
         
-        // Uncomment once pippenger is implemented
-        // queue.process_queue().unwrap();
-        
-        // Delete this once pippenger is implemented
-        // -------------------------------------------------------- //
-        let q = queue.get_queue();
-        if let Work::ScalarMultiplication { constant, mul_scalars } = &q[0].work {
-            let msm_size = format!("{}", constant).parse::<usize>().unwrap();
-            let srs_points: Vec<G1Affine> = Arc::into_inner((*crs.write().unwrap()).get_monomial_points()).unwrap();
-            let res = G1Projective::msm(&srs_points[..256], &mul_scalars.read().unwrap().coefficients[..]).expect("msm failed");
-        }
-        // -------------------------------------------------------- //
+        queue.process_queue().unwrap();
 
         let y = Fr::rand(&mut rng);
         let f_y = polynomial_arithmetic::evaluate(&poly.read().unwrap().coefficients.as_slice(), &y, n);
         let f = polynomial_arithmetic::evaluate(&poly.read().unwrap().coefficients.as_slice(), &z, n);
     
         // fn compute_opening_polynomial(&self, src: &[Fr], dest: &mut [Fr], z_point: &Fr, n: usize) {
-        let mut w = Arc::new(RwLock::new(Polynomial::new(n)));
-        kate.compute_opening_polynomial(poly.read().unwrap().coefficients.as_slice(), w.write().unwrap().coefficients.as_mut_slice(), &y, n);
-        
-        kate.commit(w, "W_COMM".to_string(), Fr::from(n as i16), &mut queue);
+        let w = Arc::new(RwLock::new(Polynomial::new(n+1)));
+        kate.compute_opening_polynomial(poly.read().unwrap().coefficients.as_slice(), w.write().unwrap().coefficients.as_mut_slice(), &z, n);
+        kate.commit(w.clone(), "W_COMM".to_string(), Fr::from(n as i16), &mut queue);
 
-        // queue.process_queue().unwrap();
-        // -------------------------------------------------------- //
-        let q = queue.get_queue();
-        if let Work::ScalarMultiplication { constant, mul_scalars } = &q[0].work {
-            let msm_size = format!("{}", constant).parse::<usize>().unwrap();
-            let srs_points: Vec<G1Affine> = Arc::into_inner((*crs.write().unwrap()).get_monomial_points()).unwrap();
-            let res = G1Projective::msm(srs_points[..256], &mul_scalars.read().unwrap().coefficients[..]).expect("msm failed");
-        }
-        // -------------------------------------------------------- //
+        queue.process_queue().unwrap();
 
         // Check if W(y)(y-z) == F(y) - F(z)
-        let w_y = polynomial_arithmetic::evaluate(&poly.read().unwrap().coefficients.as_slice(), &y, n - 1);
+        let w_y = polynomial_arithmetic::evaluate(&w.read().unwrap().coefficients.as_slice(), &y, n - 1);
         let y_minus_z = y - z;
         let f_y_minus_f = f_y - f;
 
@@ -661,7 +607,7 @@ mod tests {
 
         // Generate random evaluation points [z_1, z_2, ...]
         let t = 8;
-        let mut z_points = (0..t).map(|_| Fr::rand(&mut rng)).collect::<Vec<_>>();
+        let z_points = (0..t).map(|_| Fr::rand(&mut rng)).collect::<Vec<_>>();
 
         // Generate random polynomials F(X) = coeffs
         //
@@ -674,15 +620,15 @@ mod tests {
         //
         let n = 64;
         let m = 4;
-        let mut poly = Arc::new(RwLock::new(Polynomial::new(n * m * t)));
+        let poly = Arc::new(RwLock::new(Polynomial::new(n * m * t)));
         for k in 0..t {
             for j in 0..m {
                 for i in 0..n {
-                    poly.write().unwrap().set_coefficient(k * (m * n) + j * n + i, Fr::rand(&mut rng));
+                    poly.write().unwrap()[k * (m * n) + j * n + i] = Fr::rand(&mut rng);
                 }
             }
         }
-
+        
         // Load srs        
         let crs = Arc::new(RwLock::new(
             FileReferenceString::new(n, "./src/srs_db/ignition").unwrap(),
@@ -691,7 +637,7 @@ mod tests {
         let key = Arc::new(RwLock::new(ProvingKey::new(
             n,
             0,
-            crs.clone(),
+            crs,
             ComposerType::Standard,
         )));
 
@@ -700,7 +646,7 @@ mod tests {
         ));
 
         let mut queue: WorkQueue<PedersenBlake3s> = WorkQueue::new(
-            Some(key),
+            Some(key.clone()),
             Some(inp_tx)
         );
 
@@ -711,21 +657,7 @@ mod tests {
             }
         }
 
-        // queue.process_queue().unwrap();
-        
-        // Delete this once pippenger is implemented
-        // TODO: Something is definitely wrong here. Figure it out
-        // -------------------------------------------------------- //
-        let q = queue.get_queue();
-        for item in q {
-            if let Work::ScalarMultiplication { constant, mul_scalars } = &item.work {
-                let msm_size = format!("{}", constant).parse::<usize>().unwrap();
-                let srs_points: Vec<G1Affine> = Arc::into_inner((*crs.write().unwrap()).get_monomial_points()).unwrap();
-                let res = G1Projective::msm(srs_points.as_slice(), &mul_scalars.read().unwrap().coefficients[..128]).expect("msm failed");
-            }
-        }
-        // -------------------------------------------------------- //
-
+        queue.process_queue().unwrap();
 
         // Create random challenges, tags and item_constants
         let mut challenges = Vec::with_capacity(t);
@@ -739,6 +671,11 @@ mod tests {
 
         // Compute opening polynomials W_1, W_2, ..., W_t
         let mut w = Arc::new(RwLock::new(Polynomial::new(n * t)));
+
+        // fn batch_open(&mut self, transcript: &Transcript<H>, queue: &mut WorkQueue<H>, input_key: Option<Arc<RwLock<ProvingKey<Self::Fr>>>> {
+        // kate.batch_open(&transcript.read().unwrap(), &mut queue, Some(key));
+        // queue.process_queue().unwrap();
+
         kate.generic_batch_open(
             poly.read().unwrap().coefficients.as_slice(), 
             &mut w, 
@@ -751,18 +688,8 @@ mod tests {
             item_constants.as_slice(), 
             &mut queue
         );
-        
-        //queue.process_queue().unwrap();
-        // -------------------------------------------------------- //
-        let q = queue.get_queue();
-        for item in q {
-            if let Work::ScalarMultiplication { constant, mul_scalars } = &item.work {
-                let msm_size = format!("{}", constant).parse::<usize>().unwrap();
-                let srs_points: Vec<G1Affine> = Arc::into_inner((*crs.write().unwrap()).get_monomial_points()).unwrap();
-                let res = G1Projective::msm(srs_points.as_slice(), &mul_scalars.read().unwrap().coefficients[..128]).expect("msm failed");
-            }
-        }
-        // -------------------------------------------------------- //
+
+        queue.process_queue().unwrap();
 
         // Check if W_{k}(y) * (y - z_k) = \sum_{j} challenge[k]^{j - 1} * [F_{k, j}(y) - F_{k, j}(z_k)]
         let y = Fr::rand(&mut rng);

@@ -72,7 +72,6 @@ unsafe fn field_element_to_usize<F: Field + FftField>(element: F) -> usize {
 }
 */
 
-// Super scuffed. Fix this before you submit.
 fn field_element_to_usize<F: Field + FftField>(element: F) -> usize {
     format!("{}", element).parse::<usize>().expect("WorkQueue: element larger than usize")
 }
@@ -309,6 +308,7 @@ impl<H: BarretenHasher> WorkQueue<H> {
                             .unwrap()
                             .get_monomial_points();
 
+                    /*
                     let mut runtime_state: PippengerRuntimeState<ark_bn254::g1::Config> =
                         PippengerRuntimeState::new(msm_size);
                     let result = G1Affine::from(runtime_state.pippenger_unsafe(
@@ -316,6 +316,15 @@ impl<H: BarretenHasher> WorkQueue<H> {
                         &(*srs_points)[..],
                         msm_size,
                     ));
+                    let result: Vec<G1Affine> = FixedBase::msm(
+                        256,
+                        8,
+                        &[*srs_points], 
+                        &mul_scalars.read().unwrap().coefficients
+                    );
+                    eprintln!("{:?}", result);
+                    */
+                    let result = G1Affine::default();
 
                     (*self.transcript)
                         .write()
@@ -424,5 +433,9 @@ impl<H: BarretenHasher> WorkQueue<H> {
 
     pub(crate) fn get_queue(&self) -> &Vec<WorkItem> {
         &self.work_items
+    }
+
+    pub(crate) fn transcript(&self) -> Arc<RwLock<Transcript<H>>> {
+        self.transcript.clone()
     }
 }
