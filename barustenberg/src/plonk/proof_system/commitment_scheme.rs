@@ -388,7 +388,7 @@ impl<S: Settings<Hasher = H, Field = Fr, Group = G1Affine>, H: BarretenHasher> C
 
         let mut opening_poly = Arc::try_unwrap(opening_poly).unwrap();
         let shifted_opening_poly = Arc::try_unwrap(shifted_opening_poly).unwrap();
-
+      
         // Adjust the (n + 1)th coefficient of t_{0,1,2}(X) or r(X) (Note: t_4 (Turbo/Ultra) has only n coefficients)
         opening_poly[input_key.circuit_size] = Fr::zero();
         let zeta_pow_n = zeta.pow([input_key.circuit_size as u64]);
@@ -600,7 +600,7 @@ mod tests {
     }
 
     #[test]
-    fn kate_batch_open () {
+    fn kate_batch_open() {
 
         let mut rng = rand::thread_rng();
         let mut kate: KateCommitmentScheme<_, _, ark_bn254::Fq, _, _> = KateCommitmentScheme::new(TurboSettings {});
@@ -672,10 +672,6 @@ mod tests {
         // Compute opening polynomials W_1, W_2, ..., W_t
         let mut w = Arc::new(RwLock::new(Polynomial::new(n * t)));
 
-        // fn batch_open(&mut self, transcript: &Transcript<H>, queue: &mut WorkQueue<H>, input_key: Option<Arc<RwLock<ProvingKey<Self::Fr>>>> {
-        // kate.batch_open(&transcript.read().unwrap(), &mut queue, Some(key));
-        // queue.process_queue().unwrap();
-
         kate.generic_batch_open(
             poly.read().unwrap().coefficients.as_slice(), 
             &mut w, 
@@ -715,4 +711,5 @@ mod tests {
             assert_eq!(lhs, rhs);
         }
     }
+
 }

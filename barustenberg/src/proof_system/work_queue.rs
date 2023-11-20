@@ -1,4 +1,5 @@
 use ark_ff::{FftField, Field, Zero};
+use ark_serialize::CanonicalSerialize;
 use std::sync::{Arc, RwLock};
 
 use anyhow::Result;
@@ -61,19 +62,10 @@ pub(crate) struct WorkQueue<H: BarretenHasher> {
     work_items: Vec<WorkItem>,
 }
 
-/* I do not think this works as intended, so I changed it
-/// TODO this is super fucked up...
-unsafe fn field_element_to_usize<F: Field + FftField>(element: F) -> usize {
-    // pretending to be this: static_cast<size_t>(static_cast<uint256_t>(item.constant));
-    // first turn it into a u256 (by memtransmute into a slice!)
-    let u256_bytes: [u8; 32] = std::mem::transmute_copy(&element);
-    eprintln!("{:?}", u256_bytes);
-    std::mem::transmute_copy(&u256_bytes)
-}
-*/
-
 fn field_element_to_usize<F: Field + FftField>(element: F) -> usize {
-    format!("{}", element).parse::<usize>().expect("WorkQueue: element larger than usize")
+    let mut buf = vec![0u8; F::serialized_size(&element, ark_serialize::Compress::No)];
+    F::serialize_uncompressed(&element, &mut buf).unwrap();
+    usize::from_le_bytes(buf[32..40].try_into().unwrap())
 }
 
 impl<H: BarretenHasher> WorkQueue<H> {
@@ -316,14 +308,8 @@ impl<H: BarretenHasher> WorkQueue<H> {
                         &(*srs_points)[..],
                         msm_size,
                     ));
-                    let result: Vec<G1Affine> = FixedBase::msm(
-                        256,
-                        8,
-                        &[*srs_points], 
-                        &mul_scalars.read().unwrap().coefficients
-                    );
-                    eprintln!("{:?}", result);
                     */
+                    // let result: Vec<G1Affine> = FixedBase::msm(256, 8, &[*srs_points], &mul_scalars.read().unwrap().coefficients);
                     let result = G1Affine::default();
 
                     (*self.transcript)
@@ -439,3 +425,4 @@ impl<H: BarretenHasher> WorkQueue<H> {
         self.transcript.clone()
     }
 }
+
