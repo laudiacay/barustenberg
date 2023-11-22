@@ -52,9 +52,7 @@ impl FileReferenceString {
 
 impl ProverReferenceString for FileReferenceString {
     fn get_monomial_points(&self) -> Arc<Vec<G1Affine>> {
-        // TODO: Is this what we want? Check over this cuz we may get away with an arc as a field
-        // in the struct instead.
-        Arc::new(self.pippenger.monomials())
+        self.pippenger.monomials()
     }
 
     fn get_monomial_size(&self) -> usize {

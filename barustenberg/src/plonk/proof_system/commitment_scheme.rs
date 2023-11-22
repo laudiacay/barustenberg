@@ -44,7 +44,7 @@ pub(crate) trait CommitmentScheme {
     fn generic_batch_open(
         &mut self,
         src: &[Self::Fr],
-        dest: &mut Arc<RwLock<Polynomial<Self::Fr>>>,
+        dest: Arc<RwLock<Polynomial<Self::Fr>>>,
         num_polynomials: usize,
         z_points: &[Self::Fr],
         num_z_points: usize,
@@ -215,7 +215,7 @@ impl<S: Settings<Hasher = H, Field = Fr, Group = G1Affine>, H: BarretenHasher> C
     fn generic_batch_open(
         &mut self,
         src: &[Fr],
-        dest: &mut Arc<RwLock<Polynomial<Fr>>>,
+        dest: Arc<RwLock<Polynomial<Fr>>>,
         num_polynomials: usize,
         z_points: &[Fr],
         num_z_points: usize,
@@ -620,14 +620,10 @@ mod tests {
         //
         let n = 64;
         let m = 4;
+        
         let poly = Arc::new(RwLock::new(Polynomial::new(n * m * t)));
-        for k in 0..t {
-            for j in 0..m {
-                for i in 0..n {
-                    poly.write().unwrap()[k * (m * n) + j * n + i] = Fr::rand(&mut rng);
-                }
-            }
-        }
+        let mut coeff: Vec<Fr> = (0..(n * m * t)).map(|_| Fr::rand(&mut rng)).collect();
+        poly.write().unwrap().coefficients = coeff;
         
         // Load srs        
         let crs = Arc::new(RwLock::new(
@@ -674,7 +670,7 @@ mod tests {
 
         kate.generic_batch_open(
             poly.read().unwrap().coefficients.as_slice(), 
-            &mut w, 
+            w.clone(), 
             m, 
             &z_points, 
             t, 
