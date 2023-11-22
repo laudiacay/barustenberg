@@ -132,9 +132,13 @@ impl<Fr: Field + FftField> ProvingKey<Fr> {
             memory_write_records: vec![],
             polynomial_store: PolynomialStore::new(),
         };
-        let mut ret = Self::new_with_data(data, crs);
-        ret.init();
-        ret
+        // It doesn't look like we need to .init() it again? 
+        // It throws an error if we do.
+        // let mut ret = Self::new_with_data(data, crs);
+        // ret.init();
+        // ret
+        
+        Self::new_with_data(data, crs)
     }
 
     /// Initialize the proving key.

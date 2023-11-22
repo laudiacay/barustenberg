@@ -52,8 +52,7 @@ impl FileReferenceString {
 
 impl ProverReferenceString for FileReferenceString {
     fn get_monomial_points(&self) -> Arc<Vec<G1Affine>> {
-        // Implementation depends on your project.
-        todo!()
+        self.pippenger.monomials()
     }
 
     fn get_monomial_size(&self) -> usize {

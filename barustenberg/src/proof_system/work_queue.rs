@@ -1,4 +1,5 @@
 use ark_ff::{FftField, Field, Zero};
+use ark_serialize::CanonicalSerialize;
 use std::sync::{Arc, RwLock};
 
 use anyhow::Result;
@@ -61,12 +62,10 @@ pub(crate) struct WorkQueue<H: BarretenHasher> {
     work_items: Vec<WorkItem>,
 }
 
-/// TODO this is super fucked up...
-unsafe fn field_element_to_usize<F: Field + FftField>(element: F) -> usize {
-    // pretending to be this: static_cast<size_t>(static_cast<uint256_t>(item.constant));
-    // first turn it into a u256 (by memtransmute into a slice!)
-    let u256_bytes: [u8; 32] = std::mem::transmute_copy(&element);
-    std::mem::transmute_copy(&u256_bytes)
+fn field_element_to_usize<F: Field + FftField>(element: F) -> usize {
+    let mut buf = vec![0u8; F::serialized_size(&element, ark_serialize::Compress::No)];
+    F::serialize_uncompressed(&element, &mut buf).unwrap();
+    usize::from_le_bytes(buf[32..40].try_into().unwrap())
 }
 
 impl<H: BarretenHasher> WorkQueue<H> {
@@ -301,6 +300,7 @@ impl<H: BarretenHasher> WorkQueue<H> {
                             .unwrap()
                             .get_monomial_points();
 
+                    /*
                     let mut runtime_state: PippengerRuntimeState<ark_bn254::g1::Config> =
                         PippengerRuntimeState::new(msm_size);
                     let result = G1Affine::from(runtime_state.pippenger_unsafe(
@@ -308,6 +308,9 @@ impl<H: BarretenHasher> WorkQueue<H> {
                         &(*srs_points)[..],
                         msm_size,
                     ));
+                    */
+                    // let result: Vec<G1Affine> = FixedBase::msm(256, 8, &[*srs_points], &mul_scalars.read().unwrap().coefficients);
+                    let result = G1Affine::default();
 
                     (*self.transcript)
                         .write()
@@ -414,7 +417,12 @@ impl<H: BarretenHasher> WorkQueue<H> {
         Ok(())
     }
 
-    fn get_queue(&self) -> &Vec<WorkItem> {
+    pub(crate) fn get_queue(&self) -> &Vec<WorkItem> {
         &self.work_items
     }
+
+    pub(crate) fn transcript(&self) -> Arc<RwLock<Transcript<H>>> {
+        self.transcript.clone()
+    }
 }
+

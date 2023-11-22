@@ -8,6 +8,8 @@ use crate::srs::io::read_transcript_g1;
 
 use anyhow::Result;
 
+use std::sync::Arc;
+
 #[inline]
 pub(crate) fn cube_root_of_unity<F: ark_ff::Field>() -> F {
     // // endomorphism i.e. lambda * [P] = (beta * x, y)
@@ -32,11 +34,16 @@ pub(crate) fn is_point_at_infinity(point: &G1Projective) -> bool {
 
 #[derive(Clone, Debug, Default)]
 pub(crate) struct Pippenger {
-    monomials: Vec<G1Affine>,
+    monomials: Arc<Vec<G1Affine>>,
     num_points: usize,
 }
 
 impl Pippenger {
+
+    pub(crate) fn monomials(&self) -> Arc<Vec<G1Affine>> {
+        self.monomials.clone()
+    }
+
     pub(crate) fn get_num_points(&self) -> usize {
         todo!()
     }
@@ -49,9 +56,10 @@ impl Pippenger {
         let mut monomials = vec![G1Affine::default(); num_points];
         read_transcript_g1(&mut monomials, num_points, path)?;
         let point_table = monomials.clone();
+        monomials.extend(vec![G1Affine::default(); num_points]);
         generate_pippenger_point_table(&point_table, &mut monomials, num_points);
         Ok(Self {
-            monomials,
+            monomials: Arc::new(monomials),
             num_points,
         })
     }

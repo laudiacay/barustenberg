@@ -349,13 +349,6 @@ impl<S: Settings<Hasher = H, Field = Fr, Group = G1Affine>, H: BarretenHasher> C
 
         let zeta: Fr = transcript.get_challenge_field_element("z", None);
 
-        // Note: the opening poly W_\frak{z} is always size (n + 1) due to blinding
-        // of the quotient polynomial
-        let opening_poly: Arc<RwLock<Polynomial<Fr>>> =
-            Arc::new(RwLock::new(Polynomial::new(input_key.circuit_size + 1)));
-        let shifted_opening_poly: Arc<RwLock<Polynomial<Fr>>> =
-            Arc::new(RwLock::new(Polynomial::new(input_key.circuit_size)));
-
         // Add the tuples [t_{mid}(X), \zeta^{n}], [t_{high}(X), \zeta^{2n}]
         // Note: We don't need to include the t_{low}(X) since it is multiplied by 1 for combining with other witness
         // polynomials.
@@ -367,30 +360,35 @@ impl<S: Settings<Hasher = H, Field = Fr, Group = G1Affine>, H: BarretenHasher> C
                 .push((input_key.quotient_polynomial_parts[i].clone(), scalar));
         }
 
+        // Note: the opening poly W_\frak{z} is always size (n + 1) due to blinding
+        // of the quotient polynomial
+        let opening_poly = Arc::new(Polynomial::new(input_key.circuit_size + 1));
+        let shifted_opening_poly = Arc::new(Polynomial::new(input_key.circuit_size));
+        
+        // Safe because:
+        // 1. We only write to opening_poly/shifted_opening_poly.
+        // 2. Values being written and opening_poly/shifted_opening_poly are independent to each
+        //    other.
+        // 3. Each thread is writing to their own index, so no double writes.
         // Add up things to get coefficients of opening polynomials.
-        // TODO THESE LOCKS ARE FUCKED. UP. THEY WILL BE UNDER HEAVY CONTENTION. FIX THEM
         (0..input_key.small_domain.size)
             .into_par_iter()
-            .for_each(|i| {
-                let mut opening_poly = opening_poly.write().unwrap();
-                opening_poly[i] = input_key.quotient_polynomial_parts[0].read().unwrap()[i];
+            .for_each(|i| unsafe {
+                let opening_poly = (opening_poly.clone().coefficients.as_ptr() as *mut Fr).offset(i as isize);
+                let shifted_opening_poly = (shifted_opening_poly.clone().coefficients.as_ptr() as *mut Fr).offset(i as isize);
+                *opening_poly = input_key.quotient_polynomial_parts[0].read().unwrap()[i];
                 for &(ref poly, challenge) in &opened_polynomials_at_zeta {
-                    opening_poly[i] += (*poly).read().unwrap()[i] * challenge;
+                    *opening_poly += (*poly).read().unwrap()[i] * challenge;
                 }
-                let mut shifted_opening_poly = shifted_opening_poly.write().unwrap();
-                shifted_opening_poly[i] = Fr::zero();
+                *shifted_opening_poly = Fr::zero();
                 for &(ref poly, challenge) in &opened_polynomials_at_zeta_omega {
-                    shifted_opening_poly[i] += (*poly).read().unwrap()[i] * challenge;
+                    *shifted_opening_poly += (*poly).read().unwrap()[i] * challenge;
                 }
             });
 
-        let opening_poly = Arc::try_unwrap(opening_poly).unwrap();
-        let opening_poly = opening_poly.into_inner();
-        let mut opening_poly = opening_poly.unwrap();
+        let mut opening_poly = Arc::try_unwrap(opening_poly).unwrap();
         let shifted_opening_poly = Arc::try_unwrap(shifted_opening_poly).unwrap();
-        let shifted_opening_poly = shifted_opening_poly.into_inner();
-        let shifted_opening_poly = shifted_opening_poly.unwrap();
-
+      
         // Adjust the (n + 1)th coefficient of t_{0,1,2}(X) or r(X) (Note: t_4 (Turbo/Ultra) has only n coefficients)
         opening_poly[input_key.circuit_size] = Fr::zero();
         let zeta_pow_n = zeta.pow([input_key.circuit_size as u64]);
@@ -528,68 +526,90 @@ impl<S: Settings<Hasher = H, Field = Fr, Group = G1Affine>, H: BarretenHasher> C
 
 #[cfg(test)]
 mod tests {
+
+    use super::*;
+    use crate::plonk::proof_system::types::prover_settings::TurboSettings;
+    use crate::srs::reference_string::{ProverReferenceString, file_reference_string::FileReferenceString};
+    use crate::plonk::composer::composer_base::ComposerType;
+
+    use crate::transcript::PedersenBlake3s;
+
+    use ark_ff::{UniformRand, Zero};
+
     #[test]
     fn test_kate_open() {
-        /*
 
-                TEST(commitment_scheme, kate_open)
-        {
-            // generate random polynomial F(X) = coeffs
-            size_t n = 256;
-            auto coeffs = polynomial(n + 1);
-            for (size_t i = 0; i < n; ++i) {
-                coeffs[i] = fr::random_element();
-            }
-            polynomial W(coeffs, n + 1);
-            coeffs[n] = 0;
+        let mut kate: KateCommitmentScheme<_, _, ark_bn254::Fq, _, _> = KateCommitmentScheme::new(TurboSettings {});
 
-            // generate random evaluation point z
-            fr z = fr::random_element();
-
-            // compute opening polynomial W(X), and evaluation f = F(z)
-            transcript::StandardTranscript inp_tx = transcript::StandardTranscript(transcript::Manifest());
-            plonk::KateCommitmentScheme<turbo_settings> newKate;
-
-            // std::shared_ptr<barretenberg::srs::factories::CrsFactory<curve::BN254>> crs_factory = (new
-            // FileReferenceStringFactory("../srs_db/ignition"));
-            auto file_crs = std::make_shared<barretenberg::srs::factories::FileCrsFactory<curve::BN254>>("../srs_db/ignition");
-            auto crs = file_crs->get_prover_crs(n);
-            auto circuit_proving_key = std::make_shared<proving_key>(n, 0, crs, CircuitType::STANDARD);
-            work_queue queue(circuit_proving_key.get(), &inp_tx);
-
-            newKate.commit(coeffs.data(), "F_COMM", n, queue);
-            queue.process_queue();
-
-            fr y = fr::random_element();
-            fr f_y = polynomial_arithmetic::evaluate(&coeffs[0], y, n);
-            fr f = polynomial_arithmetic::evaluate(&coeffs[0], z, n);
-
-            newKate.compute_opening_polynomial(&coeffs[0], &W[0], z, n);
-            newKate.commit(W.data(), "W_COMM", n, queue);
-            queue.process_queue();
-
-            // check if W(y)(y - z) = F(y) - F(z)
-            fr w_y = polynomial_arithmetic::evaluate(&W[0], y, n - 1);
-            fr y_minus_z = y - z;
-            fr f_y_minus_f = f_y - f;
-
-            EXPECT_EQ(w_y * y_minus_z, f_y_minus_f);
+        // Generate random polynomial
+        let n = 256;
+        let mut rng = rand::thread_rng();
+        let poly = Arc::new(RwLock::new(Polynomial::new(n+1)));
+        
+        for i in 0..n {
+            poly.write().unwrap()[i] = Fr::rand(&mut rng);
         }
-         */
-        todo!()
+        poly.write().unwrap()[n] = Fr::zero();
+
+        // Generate random evaluation point z
+        let z = Fr::rand(&mut rng);
+       
+        // Load srs
+        let crs = Arc::new(RwLock::new(
+            FileReferenceString::new(n, "./src/srs_db/ignition").unwrap(),
+        ));
+
+        let key = Arc::new(RwLock::new(ProvingKey::new(
+            n,
+            0,
+            crs,
+            ComposerType::Standard,
+        )));
+        
+        let inp_tx = Arc::new(RwLock::new(
+            Transcript::default()
+        ));
+
+        let mut queue: WorkQueue<PedersenBlake3s> = WorkQueue::new(
+            Some(key),
+            Some(inp_tx)
+        );
+
+        // Compute opening polynomial W(X), and evaluation f = F(z)
+        kate.commit(poly.clone(), "F_COMM".to_string(), Fr::from(n as i16), &mut queue);
+        
+        queue.process_queue().unwrap();
+
+        let y = Fr::rand(&mut rng);
+        let f_y = polynomial_arithmetic::evaluate(&poly.read().unwrap().coefficients.as_slice(), &y, n);
+        let f = polynomial_arithmetic::evaluate(&poly.read().unwrap().coefficients.as_slice(), &z, n);
+    
+        // fn compute_opening_polynomial(&self, src: &[Fr], dest: &mut [Fr], z_point: &Fr, n: usize) {
+        let w = Arc::new(RwLock::new(Polynomial::new(n+1)));
+        kate.compute_opening_polynomial(poly.read().unwrap().coefficients.as_slice(), w.write().unwrap().coefficients.as_mut_slice(), &z, n);
+        kate.commit(w.clone(), "W_COMM".to_string(), Fr::from(n as i16), &mut queue);
+
+        queue.process_queue().unwrap();
+
+        // Check if W(y)(y-z) == F(y) - F(z)
+        let w_y = polynomial_arithmetic::evaluate(&w.read().unwrap().coefficients.as_slice(), &y, n - 1);
+        let y_minus_z = y - z;
+        let f_y_minus_f = f_y - f;
+
+        assert_eq!(w_y * y_minus_z, f_y_minus_f);
     }
 
     #[test]
     fn kate_batch_open() {
-        /*
-            // generate random evaluation points [z_1, z_2, ...]
-        size_t t = 8;
-        std::vector<fr> z_points(t);
-        for (size_t k = 0; k < t; ++k) {
-            z_points[k] = fr::random_element();
-        }
 
-        // generate random polynomials F(X) = coeffs
+        let mut rng = rand::thread_rng();
+        let mut kate: KateCommitmentScheme<_, _, ark_bn254::Fq, _, _> = KateCommitmentScheme::new(TurboSettings {});
+
+        // Generate random evaluation points [z_1, z_2, ...]
+        let t = 8;
+        let z_points = (0..t).map(|_| Fr::rand(&mut rng)).collect::<Vec<_>>();
+
+        // Generate random polynomials F(X) = coeffs
         //
         // z_1 -> [F_{1,1},  F_{1,2},  F_{1, 3},  ...,  F_{1, m}]
         // z_2 -> [F_{2,1},  F_{2,2},  F_{2, 3},  ...,  F_{2, m}]
@@ -598,76 +618,94 @@ mod tests {
         //
         // Note that each polynomial F_{k, j} \in F^{n}
         //
-        size_t n = 64;
-        size_t m = 4;
-        polynomial coeffs(n * m * t);
-        for (size_t k = 0; k < t; ++k) {
-            for (size_t j = 0; j < m; ++j) {
-                for (size_t i = 0; i < n; ++i) {
-                    coeffs[k * (m * n) + j * n + i] = fr::random_element();
-                }
+        let n = 64;
+        let m = 4;
+        
+        let poly = Arc::new(RwLock::new(Polynomial::new(n * m * t)));
+        let mut coeff: Vec<Fr> = (0..(n * m * t)).map(|_| Fr::rand(&mut rng)).collect();
+        poly.write().unwrap().coefficients = coeff;
+        
+        // Load srs        
+        let crs = Arc::new(RwLock::new(
+            FileReferenceString::new(n, "./src/srs_db/ignition").unwrap(),
+        ));
+
+        let key = Arc::new(RwLock::new(ProvingKey::new(
+            n,
+            0,
+            crs,
+            ComposerType::Standard,
+        )));
+
+        let inp_tx = Arc::new(RwLock::new(
+            Transcript::default()
+        ));
+
+        let mut queue: WorkQueue<PedersenBlake3s> = WorkQueue::new(
+            Some(key.clone()),
+            Some(inp_tx)
+        );
+
+        // Commit to individual polynomials
+        for k in 0..t {
+            for j in 0..m {
+                kate.commit(poly.clone(), format!("F_{{{}}},{{{}}}", k+1, j+1), Fr::from(n as i16), &mut queue)
             }
         }
 
-        // setting up the Kate commitment scheme class
-        transcript::StandardTranscript inp_tx = transcript::StandardTranscript(transcript::Manifest());
-        plonk::KateCommitmentScheme<turbo_settings> newKate;
+        queue.process_queue().unwrap();
 
-        auto file_crs = std::make_shared<barretenberg::srs::factories::FileCrsFactory<curve::BN254>>("../srs_db/ignition");
-        auto crs = file_crs->get_prover_crs(n);
-        auto circuit_proving_key = std::make_shared<proving_key>(n, 0, crs, CircuitType::STANDARD);
-        work_queue queue(circuit_proving_key.get(), &inp_tx);
-
-        // commit to individual polynomials
-        for (size_t k = 0; k < t; ++k) {
-            for (size_t j = 0; j < m; ++j) {
-                newKate.commit(coeffs.data(), "F_{" + std::to_string(k + 1) + ", " + std::to_string(j + 1) + "}", n, queue);
-            }
-        }
-        queue.process_queue();
-
-        // create random challenges, tags and item_constants
-        std::vector<fr> challenges(t);
-        std::vector<std::string> tags(t);
-        std::vector<fr> item_constants(t);
-        for (size_t k = 0; k < t; ++k) {
-            challenges[k] = fr::random_element();
-            tags[k] = "W_" + std::to_string(k + 1);
-            item_constants[k] = n;
+        // Create random challenges, tags and item_constants
+        let mut challenges = Vec::with_capacity(t);
+        let mut tags = Vec::with_capacity(t);
+        let mut item_constants = Vec::with_capacity(t);
+        for k in 0..t {
+            challenges.push(Fr::rand(&mut rng));
+            tags.push(format!("W_{}", k+1));
+            item_constants.push(Fr::from(n as i16));
         }
 
-        // compute opening polynomials W_1, W_2, ..., W_t
-        std::vector<fr> W(n * t);
-        newKate.generic_batch_open(
-            &coeffs[0], &W[0], m, &z_points[0], t, &challenges[0], n, &tags[0], &item_constants[0], queue);
-        queue.process_queue();
+        // Compute opening polynomials W_1, W_2, ..., W_t
+        let mut w = Arc::new(RwLock::new(Polynomial::new(n * t)));
 
-        // check if W_{k}(y) * (y - z_k) = \sum_{j} challenge[k]^{j - 1} * [F_{k, j}(y) - F_{k, j}(z_k)]
-        fr y = fr::random_element();
-        for (size_t k = 0; k < t; ++k) {
+        kate.generic_batch_open(
+            poly.read().unwrap().coefficients.as_slice(), 
+            w.clone(), 
+            m, 
+            &z_points, 
+            t, 
+            &challenges, 
+            n, 
+            &tags, 
+            item_constants.as_slice(), 
+            &mut queue
+        );
 
-            // compute lhs
-            fr W_k_at_y = polynomial_arithmetic::evaluate(&W[k * n], y, n);
-            fr y_minus_z_k = y - z_points[k];
-            fr lhs = W_k_at_y * y_minus_z_k;
+        queue.process_queue().unwrap();
 
-            fr challenge_pow = fr(1);
-            fr rhs = fr(0);
-            for (size_t j = 0; j < m; ++j) {
+        // Check if W_{k}(y) * (y - z_k) = \sum_{j} challenge[k]^{j - 1} * [F_{k, j}(y) - F_{k, j}(z_k)]
+        let y = Fr::rand(&mut rng);
+        for k in 0..t {
 
-                // compute evaluations of source polynomials at y and z_points
-                fr f_kj_at_y = polynomial_arithmetic::evaluate(&coeffs[k * m * n + j * n], y, n);
-                fr f_kj_at_z = polynomial_arithmetic::evaluate(&coeffs[k * m * n + j * n], z_points[k], n);
+            // Compute lhs
+            let w_k_at_y = polynomial_arithmetic::evaluate(&w.read().unwrap().coefficients.as_slice()[(k * n)..], &y, n);
+            let y_minus_z_k = y - z_points[k];
+            let lhs = w_k_at_y * y_minus_z_k;
+            
+            let mut challenge_pow = Fr::one();
+            let mut rhs = Fr::zero();
+            for j in 0..m {
+                // Compute evaluations of source polynomials at y and z_points 
+                let f_kj_at_y = polynomial_arithmetic::evaluate(&poly.read().unwrap().coefficients.as_slice()[(k * m * n + j * n)..], &y, n);
+                let f_kj_at_z = polynomial_arithmetic::evaluate(&poly.read().unwrap().coefficients.as_slice()[(k * m * n + j * n)..], &z_points[k], n);
 
-                // compute rhs
-                fr f_term = f_kj_at_y - f_kj_at_z;
+                // Compute rhs
+                let f_term = f_kj_at_y - f_kj_at_z;
                 rhs += challenge_pow * f_term;
                 challenge_pow *= challenges[k];
             }
-
-            EXPECT_EQ(lhs, rhs);
+            assert_eq!(lhs, rhs);
         }
-             */
-        todo!()
     }
+
 }

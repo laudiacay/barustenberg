@@ -869,20 +869,20 @@ fn test_linear_poly_product() {
 
 #[test]
 fn test_fft_linear_poly_product() {
-    let n = 60;
+    let m = 60;
 
     let mut rng = rand::thread_rng();
 
-    let mut roots = vec![Fr::zero(); n];
+    let mut roots = vec![Fr::zero(); m];
     let mut expected = Fr::one();
     let z = Fr::rand(&mut rng);
 
-    for i in 0..n {
+    for i in 0..m {
         roots[i] = Fr::rand(&mut rng);
         expected *= z - roots[i];
     }
 
-    let log2_n = n.next_power_of_two().trailing_zeros();
+    let log2_n = m.next_power_of_two().trailing_zeros();
     let n = 1 << (log2_n + 1);
 
     let mut domain = EvaluationDomain::<Fr>::new(n, None);
@@ -897,9 +897,9 @@ fn test_fft_linear_poly_product() {
     domain.fft_linear_polynomial_product(&roots, &mut dest_coset, n, true);
     let result1 = domain.compute_barycentric_evaluation(&dest_coset, n, &z_by_g);
 
-    let mut coeffs = vec![Fr::zero(); n + 1];
-    polynomial_arithmetic::compute_linear_polynomial_product(&roots, &mut coeffs, n);
-    let result2 = polynomial_arithmetic::evaluate(&coeffs, &z, n + 1);
+    let mut coeffs = vec![Fr::zero(); m + 1];
+    polynomial_arithmetic::compute_linear_polynomial_product(&roots, &mut coeffs, m);
+    let result2 = polynomial_arithmetic::evaluate(&coeffs, &z, m + 1);
 
     assert_eq!(result, expected);
     assert_eq!(result1, expected);
