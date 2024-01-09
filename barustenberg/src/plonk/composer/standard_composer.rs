@@ -1200,16 +1200,17 @@ impl<RSF: ReferenceStringFactory> StandardComposer<RSF> {
 
 #[cfg(test)]
 mod test {
-
     use ark_bn254::Fr;
+    use ark_ff::{FftField, Field};
+    use ark_std::{One, Zero};
 
     use crate::plonk::composer::composer_base::ComposerBase;
     use crate::plonk::composer::standard_composer::StandardComposer;
     use crate::proof_system::arithmetization::{MulTriple, AddTriple};
 
-    // TODO: rename test
     #[test]
-    fn check_circuit_one_variable() {
+    fn base_case() {
+        // TODO: figure out what the inputs to these functions are
         let mut circuit_constructor = StandardComposer::new(5, 10, vec![]);
         circuit_constructor.add_public_variable(Fr::from(1));
         assert!(circuit_constructor.check_circuit());
@@ -1240,47 +1241,97 @@ mod test {
         let w_o_2_idx = circuit_constructor.add_variable(Fr::from(4));
         
         circuit_constructor.create_mul_gate(&MulTriple {
-            a: w_l_2_idx.clone(),
+            a: w_l_2_idx,
             b: w_r_2_idx,
             c: w_o_2_idx,
-            mul_scaling: Fr::from(1),
-            c_scaling: -Fr::from(1),
-            const_scaling: Fr::from(0),
+            mul_scaling: Fr::one(),
+            c_scaling: -Fr::one(),
+            const_scaling: Fr::zero(),
         });
 
         circuit_constructor.create_add_gate(&AddTriple{
             a: a_idx,
             b: b_idx,
             c: c_idx,
-            a_scaling: Fr::from(1),
-            b_scaling: Fr::from(1),
-            c_scaling: -Fr::from(1),
-            const_scaling: Fr::from(0),
+            a_scaling: Fr::one(),
+            b_scaling: Fr::one(),
+            c_scaling: -Fr::one(),
+            const_scaling: Fr::zero(),
         });
 
         circuit_constructor.create_add_gate(&AddTriple{
             a: d_idx,
             b: c_idx,
             c: a_idx,
-            a_scaling: Fr::from(1),
-            b_scaling: -Fr::from(1),
-            c_scaling: -Fr::from(1),
-            const_scaling: Fr::from(0),
+            a_scaling: Fr::one(),
+            b_scaling: -Fr::one(),
+            c_scaling: -Fr::one(),
+            const_scaling: Fr::zero(),
         });
 
         circuit_constructor.create_add_gate(&AddTriple{
             a: d_idx,
             b: c_idx,
             c: b_idx,
-            a_scaling: Fr::from(1),
-            b_scaling: -Fr::from(1),
-            c_scaling: -Fr::from(1),
-            const_scaling: Fr::from(0),
+            a_scaling: Fr::one(),
+            b_scaling: -Fr::one(),
+            c_scaling: -Fr::one(),
+            const_scaling: Fr::zero(),
         });
 
         let result = circuit_constructor.check_circuit();
 
         assert!(result, "Circuit check failed");
 
+    }
+
+    #[test]
+    fn test_add_gate() {
+        // TODO: figure out what the inputs to these functions are
+        let mut circuit_constructor = StandardComposer::new(5, 10, vec![]);
+
+        let a = Fr::one();
+        let b = Fr::one();
+        let c = a + b;
+        let d = a + c;
+
+        let a_idx = circuit_constructor.add_public_variable(a);
+        let b_idx = circuit_constructor.add_public_variable(b);
+        let c_idx = circuit_constructor.add_public_variable(c);
+        let d_idx = circuit_constructor.add_public_variable(d);
+
+        circuit_constructor.create_add_gate(&AddTriple {
+            a: a_idx,
+            b: b_idx,
+            c: c_idx,
+            a_scaling: Fr::one(),
+            b_scaling: Fr::one(),
+            c_scaling: -Fr::one(),
+            const_scaling: Fr::zero(),
+        });
+
+        circuit_constructor.create_add_gate(&AddTriple {
+            a: d_idx,
+            b: c_idx,
+            c: a_idx,
+            a_scaling: Fr::one(),
+            b_scaling: -Fr::one(),
+            c_scaling: -Fr::one(),
+            const_scaling: Fr::zero(),
+        });
+
+        for i in 0..31 {
+            circuit_constructor.create_add_gate(&AddTriple {
+                a: a_idx,
+                b: b_idx,
+                c: c_idx,
+                a_scaling: Fr::one(),
+                b_scaling: Fr::one(),
+                c_scaling: -Fr::one(),
+                const_scaling: Fr::zero(),
+            });
+        }
+
+        assert!(circuit_constructor.check_circuit());
     }
 }
