@@ -1205,6 +1205,7 @@ mod test {
 
     use crate::plonk::composer::composer_base::ComposerBase;
     use crate::plonk::composer::standard_composer::StandardComposer;
+    use crate::proof_system::arithmetization::{MulTriple, AddTriple};
 
     // TODO: rename test
     #[test]
@@ -1212,5 +1213,74 @@ mod test {
         let mut circuit_constructor = StandardComposer::new(5, 10, vec![]);
         circuit_constructor.add_public_variable(Fr::from(1));
         assert!(circuit_constructor.check_circuit());
+    }
+
+    #[test]
+    fn test_grumpkin_base_case() {
+        // TODO: Use Grumpkin curve StandardComposer
+        // Issue
+        // Standard composer is configured with the BN254 curve
+        let mut circuit_constructor = StandardComposer::new(5, 10, vec![]);
+        
+        let a = Fr::from(1);
+
+        circuit_constructor.add_public_variable(a);
+
+        let b = Fr::from(1);
+        let c = a + b;
+        let d = a + c;
+
+        let a_idx = circuit_constructor.add_variable(a);
+        let b_idx = circuit_constructor.add_variable(b);
+        let c_idx = circuit_constructor.add_variable(c);
+        let d_idx = circuit_constructor.add_variable(d);
+
+        let w_l_2_idx = circuit_constructor.add_variable(Fr::from(2));
+        let w_r_2_idx = circuit_constructor.add_variable(Fr::from(2));
+        let w_o_2_idx = circuit_constructor.add_variable(Fr::from(4));
+        
+        circuit_constructor.create_mul_gate(&MulTriple {
+            a: w_l_2_idx.clone(),
+            b: w_r_2_idx,
+            c: w_o_2_idx,
+            mul_scaling: Fr::from(1),
+            c_scaling: -Fr::from(1),
+            const_scaling: Fr::from(0),
+        });
+
+        circuit_constructor.create_add_gate(&AddTriple{
+            a: a_idx,
+            b: b_idx,
+            c: c_idx,
+            a_scaling: Fr::from(1),
+            b_scaling: Fr::from(1),
+            c_scaling: -Fr::from(1),
+            const_scaling: Fr::from(0),
+        });
+
+        circuit_constructor.create_add_gate(&AddTriple{
+            a: d_idx,
+            b: c_idx,
+            c: a_idx,
+            a_scaling: Fr::from(1),
+            b_scaling: -Fr::from(1),
+            c_scaling: -Fr::from(1),
+            const_scaling: Fr::from(0),
+        });
+
+        circuit_constructor.create_add_gate(&AddTriple{
+            a: d_idx,
+            b: c_idx,
+            c: b_idx,
+            a_scaling: Fr::from(1),
+            b_scaling: -Fr::from(1),
+            c_scaling: -Fr::from(1),
+            const_scaling: Fr::from(0),
+        });
+
+        let result = circuit_constructor.check_circuit();
+
+        assert!(result, "Circuit check failed");
+
     }
 }
