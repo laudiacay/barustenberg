@@ -1197,3 +1197,20 @@ impl<RSF: ReferenceStringFactory> StandardComposer<RSF> {
         true
     }
 }
+
+#[cfg(test)]
+mod test {
+
+    use ark_bn254::Fr;
+
+    use crate::plonk::composer::composer_base::ComposerBase;
+    use crate::plonk::composer::standard_composer::StandardComposer;
+
+    // TODO: rename test
+    #[test]
+    fn check_circuit_one_variable() {
+        let mut circuit_constructor = StandardComposer::new(5, 10, vec![]);
+        circuit_constructor.add_public_variable(Fr::from(1));
+        assert!(circuit_constructor.check_circuit());
+    }
+}
