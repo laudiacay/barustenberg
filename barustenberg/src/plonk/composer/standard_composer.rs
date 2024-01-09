@@ -1202,11 +1202,55 @@ impl<RSF: ReferenceStringFactory> StandardComposer<RSF> {
 mod test {
     use ark_bn254::Fr;
     use ark_ff::{FftField, Field};
-    use ark_std::{One, Zero};
+    use ark_std::{One, UniformRand, Zero};
 
     use crate::plonk::composer::composer_base::ComposerBase;
     use crate::plonk::composer::standard_composer::StandardComposer;
-    use crate::proof_system::arithmetization::AddTriple;
+    use crate::proof_system::arithmetization::{AddTriple, MulTriple};
+
+    // TODO: make this a 'new' function in arithmetization file
+    //  convert all others to this format too
+    //  find all instance that used the struct constructor directly and replace them
+    fn add_triple<Fr: Field + FftField>(
+        a: u32,
+        b: u32,
+        c: u32,
+        a_scaling: Fr,
+        b_scaling: Fr,
+        c_scaling: Fr,
+        const_scaling: Fr,
+    ) -> AddTriple<Fr> {
+        AddTriple {
+            a,
+            b,
+            c,
+            a_scaling,
+            b_scaling,
+            c_scaling,
+            const_scaling,
+        }
+    }
+
+    // TODO: make this a 'new' function in arithmetization file
+    //  convert all others to this format too
+    //  find all instance that used the struct constructor directly and replace them
+    fn mul_triple<Fr: Field + FftField>(
+        a: u32,
+        b: u32,
+        c: u32,
+        mul_scaling: Fr,
+        c_scaling: Fr,
+        const_scaling: Fr,
+    ) -> MulTriple<Fr> {
+        MulTriple {
+            a,
+            b,
+            c,
+            mul_scaling,
+            c_scaling,
+            const_scaling,
+        }
+    }
 
     #[test]
     fn base_case() {
@@ -1231,36 +1275,66 @@ mod test {
         let c_idx = circuit_constructor.add_public_variable(c);
         let d_idx = circuit_constructor.add_public_variable(d);
 
-        circuit_constructor.create_add_gate(&AddTriple {
-            a: a_idx,
-            b: b_idx,
-            c: c_idx,
-            a_scaling: Fr::one(),
-            b_scaling: Fr::one(),
-            c_scaling: -Fr::one(),
-            const_scaling: Fr::zero(),
-        });
-
-        circuit_constructor.create_add_gate(&AddTriple {
-            a: d_idx,
-            b: c_idx,
-            c: a_idx,
-            a_scaling: Fr::one(),
-            b_scaling: -Fr::one(),
-            c_scaling: -Fr::one(),
-            const_scaling: Fr::zero(),
-        });
+        circuit_constructor.create_add_gate(&add_triple(
+            a_idx,
+            b_idx,
+            c_idx,
+            Fr::one(),
+            Fr::one(),
+            -Fr::one(),
+            Fr::zero(),
+        ));
+        circuit_constructor.create_add_gate(&add_triple(
+            d_idx,
+            c_idx,
+            a_idx,
+            Fr::one(),
+            -Fr::one(),
+            -Fr::one(),
+            Fr::zero(),
+        ));
 
         for i in 0..31 {
-            circuit_constructor.create_add_gate(&AddTriple {
-                a: a_idx,
-                b: b_idx,
-                c: c_idx,
-                a_scaling: Fr::one(),
-                b_scaling: Fr::one(),
-                c_scaling: -Fr::one(),
-                const_scaling: Fr::zero(),
-            });
+            circuit_constructor.create_add_gate(&add_triple(
+                a_idx,
+                b_idx,
+                c_idx,
+                Fr::one(),
+                Fr::one(),
+                -Fr::one(),
+                Fr::zero(),
+            ));
+        }
+
+        assert!(circuit_constructor.check_circuit());
+    }
+
+    #[test]
+    fn test_mul_gate_proofs() {
+        // TODO: figure out the correct input to this
+        let mut circuit_constructor = StandardComposer::new(5, 10, vec![]);
+
+        let mut rng = rand::thread_rng();
+        let q = (0..7).map(|_| Fr::rand(&mut rng)).collect::<Vec<Fr>>();
+        let q_inv = q
+            .iter()
+            .map(|val| val.inverse().expect("should have inverse"))
+            .collect::<Vec<Fr>>();
+
+        let a = Fr::rand(&mut rng);
+        let b = Fr::rand(&mut rng);
+        let c = -((((q[0] * a) + (q[1] * b)) + q[3]) * q_inv[2]);
+        let d = -(((q[4] * (a * b)) + q[6]) * q_inv[5]);
+
+        let a_idx = circuit_constructor.add_variable(a);
+        let b_idx = circuit_constructor.add_variable(b);
+        let c_idx = circuit_constructor.add_variable(c);
+        let d_idx = circuit_constructor.add_variable(d);
+
+        for i in 0..24 {
+            circuit_constructor
+                .create_add_gate(&add_triple(a_idx, b_idx, c_idx, q[0], q[1], q[2], q[3]));
+            circuit_constructor.create_mul_gate(&mul_triple(a_idx, b_idx, d_idx, q[4], q[5], q[6]));
         }
 
         assert!(circuit_constructor.check_circuit());
