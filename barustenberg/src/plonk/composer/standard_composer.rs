@@ -1535,4 +1535,36 @@ mod test {
 
         assert!(circuit_constructor.check_circuit());
     }
+
+    #[test]
+    fn test_check_circuit_broken() {
+        let mut circuit_constructor = StandardComposer::new(5, 0, vec![]);
+        let a = Fr::one();
+        let a_idx = circuit_constructor.add_public_variable(a);
+        let b = Fr::one();
+        let c = a + b;
+        let d = a + c + Fr::one();
+        let b_idx = circuit_constructor.add_variable(b);
+        let c_idx = circuit_constructor.add_variable(c);
+        let d_idx = circuit_constructor.add_variable(d);
+        circuit_constructor.create_add_gate(&add_triple(
+            a_idx,
+            b_idx,
+            c_idx,
+            Fr::one(),
+            Fr::one(),
+            -Fr::one(),
+            Fr::zero(),
+        ));
+        circuit_constructor.create_add_gate(&add_triple(
+            d_idx,
+            c_idx,
+            a_idx,
+            Fr::one(),
+            -Fr::one(),
+            -Fr::one(),
+            Fr::zero(),
+        ));
+        assert!(!circuit_constructor.check_circuit());
+    }
 }
