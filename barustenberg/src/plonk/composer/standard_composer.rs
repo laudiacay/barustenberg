@@ -1428,11 +1428,10 @@ mod test {
     fn test_and_constraint() {
         // TODO: figure out the correct input to this
         let mut circuit_constructor = StandardComposer::new(5, 0, vec![]);
+        let mut rng = rand::thread_rng();
 
         // TODO: why loop just once?
         for i in 0..1 {
-            let mut rng = rand::thread_rng();
-
             let left_value = u32::rand(&mut rng);
             let left_witness_value = Fr::from(left_value);
             let left_witness_index = circuit_constructor.add_variable(left_witness_value);
@@ -1496,6 +1495,43 @@ mod test {
             d_scaling: Fr::one(),
             const_scaling: -Fr::one(),
         });
+
+        assert!(circuit_constructor.check_circuit());
+    }
+
+    #[test]
+    fn test_big_add_gate_with_bit_extract() {
+        let mut circuit_constructor = StandardComposer::new(5, 0, vec![]);
+        let mut rng = rand::thread_rng();
+        let mut generate_constraints = |quad_value| {
+            let quad_accumulator_left = (u32::rand(&mut rng) & 0x3fffffff) - quad_value;
+            let quad_accumulator_right = (4 * quad_accumulator_left) + quad_value;
+
+            let left_idx = circuit_constructor.add_variable(Fr::from(quad_accumulator_left));
+            let right_idx = circuit_constructor.add_variable(Fr::from(quad_accumulator_right));
+
+            let input = u32::rand(&mut rng);
+            let input_idx = circuit_constructor.add_variable(Fr::from(input));
+            let output_idx = circuit_constructor
+                .add_variable(Fr::from(input + if quad_value > 1 { 1 } else { 0 }));
+
+            circuit_constructor.create_big_add_gate_with_bit_extraction(&AddQuad {
+                a: input_idx,
+                b: output_idx,
+                c: right_idx,
+                d: left_idx,
+                a_scaling: Fr::from(6),
+                b_scaling: -Fr::from(6),
+                c_scaling: Fr::zero(),
+                d_scaling: Fr::zero(),
+                const_scaling: Fr::zero(),
+            });
+        };
+
+        generate_constraints(0);
+        generate_constraints(1);
+        generate_constraints(2);
+        generate_constraints(3);
 
         assert!(circuit_constructor.check_circuit());
     }
