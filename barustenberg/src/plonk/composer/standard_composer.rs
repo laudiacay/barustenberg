@@ -1206,7 +1206,7 @@ mod test {
 
     use crate::plonk::composer::composer_base::ComposerBase;
     use crate::plonk::composer::standard_composer::StandardComposer;
-    use crate::proof_system::arithmetization::{AddTriple, MulTriple};
+    use crate::proof_system::arithmetization::{AddQuad, AddTriple, MulTriple};
 
     // TODO: make this a 'new' function in arithmetization file
     //  convert all others to this format too
@@ -1256,7 +1256,7 @@ mod test {
     fn base_case() {
         // TODO: figure out what the inputs to these functions are
         //  extract into it's own function so you limit the change to one place
-        let mut circuit_constructor = StandardComposer::new(5, 10, vec![]);
+        let mut circuit_constructor = StandardComposer::new(5, 0, vec![]);
         circuit_constructor.add_public_variable(Fr::from(1));
         assert!(circuit_constructor.check_circuit());
     }
@@ -1266,7 +1266,7 @@ mod test {
         // TODO: Use Grumpkin curve StandardComposer
         // Issue
         // Standard composer is configured with the BN254 curve
-        let mut circuit_constructor = StandardComposer::new(5, 10, vec![]);
+        let mut circuit_constructor = StandardComposer::new(5, 0, vec![]);
 
         let a = Fr::from(1);
 
@@ -1332,7 +1332,7 @@ mod test {
     #[test]
     fn test_add_gate() {
         // TODO: figure out what the inputs to these functions are
-        let mut circuit_constructor = StandardComposer::new(5, 10, vec![]);
+        let mut circuit_constructor = StandardComposer::new(5, 0, vec![]);
 
         let a = Fr::one();
         let b = Fr::one();
@@ -1381,7 +1381,7 @@ mod test {
     #[test]
     fn test_mul_gate_proofs() {
         // TODO: figure out the correct input to this
-        let mut circuit_constructor = StandardComposer::new(5, 10, vec![]);
+        let mut circuit_constructor = StandardComposer::new(5, 0, vec![]);
 
         let mut rng = rand::thread_rng();
         let q = (0..7).map(|_| Fr::rand(&mut rng)).collect::<Vec<Fr>>();
@@ -1412,7 +1412,7 @@ mod test {
     #[test]
     fn test_range_constraint_fail() {
         // TODO: figure out the correct input to this
-        let mut circuit_constructor = StandardComposer::new(5, 10, vec![]);
+        let mut circuit_constructor = StandardComposer::new(5, 0, vec![]);
         let value = 0xffffff;
         let witness_index = circuit_constructor.add_variable(Fr::from(value));
         // TODO: getting deadlock error
@@ -1422,5 +1422,81 @@ mod test {
             "failed to decompose".to_string(),
         );
         assert!(!circuit_constructor.check_circuit());
+    }
+
+    #[test]
+    fn test_and_constraint() {
+        // TODO: figure out the correct input to this
+        let mut circuit_constructor = StandardComposer::new(5, 0, vec![]);
+
+        // TODO: why loop just once?
+        for i in 0..1 {
+            let mut rng = rand::thread_rng();
+
+            let left_value = u32::rand(&mut rng);
+            let left_witness_value = Fr::from(left_value);
+            let left_witness_index = circuit_constructor.add_variable(left_witness_value);
+
+            let right_value = u32::rand(&mut rng);
+            let right_witness_value = Fr::from(right_value);
+            let right_witness_index = circuit_constructor.add_variable(right_witness_value);
+
+            let out_value = left_value & right_value;
+            // include non-nice numbers of bits, that will bleed over gate boundaries
+            let extra_bits = 2 * (i % 4);
+
+            let accumulators = circuit_constructor.create_and_constraint(
+                left_witness_index,
+                right_witness_index,
+                32 + extra_bits,
+            );
+
+            for j in 0..16 {
+                let left_expected = (left_value >> (30 - (2 * j)));
+                let right_expected = (right_value >> (30 - (2 * j)));
+                let out_expected = left_expected & right_expected;
+
+                let left_source =
+                    circuit_constructor.get_variable(accumulators.left[j + (extra_bits >> 1)]);
+                let right_source =
+                    circuit_constructor.get_variable(accumulators.right[j + (extra_bits >> 1)]);
+                let out_source =
+                    circuit_constructor.get_variable(accumulators.out[j + (extra_bits >> 1)]);
+
+                assert_eq!(left_source, Fr::from(left_source));
+                assert_eq!(right_source, Fr::from(right_source));
+                assert_eq!(out_source, Fr::from(out_source));
+            }
+
+            for j in 1..16 {
+                let left = (left_value >> (30 - (2 * j)));
+                let right = (left_value >> (30 - (2 * (j - 1))));
+                assert!(left - 4 * right < 4);
+
+                let left = (right_value >> (30 - (2 * j)));
+                let right = (right_value >> (30 - (2 * (j - 1))));
+                assert!(left - 4 * right < 4);
+
+                let left = (out_value >> (30 - (2 * j)));
+                let right = (out_value >> (30 - (2 * (j - 1))));
+                assert!(left - 4 * right < 4);
+            }
+        }
+
+        let zero_idx = circuit_constructor.add_variable(Fr::zero());
+        let one_idx = circuit_constructor.add_variable(Fr::one());
+        circuit_constructor.create_big_add_gate(&AddQuad {
+            a: zero_idx,
+            b: zero_idx,
+            c: zero_idx,
+            d: one_idx,
+            a_scaling: Fr::one(),
+            b_scaling: Fr::one(),
+            c_scaling: Fr::one(),
+            d_scaling: Fr::one(),
+            const_scaling: -Fr::one(),
+        });
+
+        assert!(circuit_constructor.check_circuit());
     }
 }
